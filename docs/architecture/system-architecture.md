@@ -1,21 +1,21 @@
 # System Architecture
 
-Status: **Baseline v0.1**
+Status: **Accepted pre-scaffold baseline v0.2**
 
 ## Architectural style
 
-Quizopia 2.0 uses **coarse-grained microservices**.
+Quizopia 2.0 uses **coarse-grained microservices** in a true monorepo.
 
-The goal is not to maximize service count. Services are split where business ownership, scaling characteristics, security boundaries, or workloads justify it.
+The purpose is clear ownership and independently scalable workloads, not maximizing service count.
 
-## Baseline topology
+## Logical topology
 
 ```mermaid
 flowchart TB
-    FE[Next.js Web App]
-    GW[API Gateway / Edge\nimplementation TBD]
+    Browser[Browser / Next.js]
+    GW[Spring Cloud Gateway]
 
-    ID[Identity Service]
+    ID[Identity Service\nSpring Authorization Server]
     QUIZ[Quiz Service]
     CLASS[Classroom Service]
     ASSESS[Assessment Service]
@@ -23,13 +23,17 @@ flowchart TB
     PROC[Proctoring Service]
     AI[AI Service]
 
-    PG[(PostgreSQL\nservice-owned databases)]
+    RMQ[(RabbitMQ)]
     REDIS[(Redis)]
-    OBJ[(S3-compatible Object Storage\nMinIO or managed)]
-    LK[LiveKit\nWebRTC SFU]
-    BUS[Event Broker\ntechnology TBD]
+    PG[(PostgreSQL 17\nservice-owned databases)]
+    OBJ[(S3-compatible object storage\nMinIO local)]
+    LK[LiveKit / WebRTC]
+    MAIL[Mailpit local/test]
+    OBS[Optional local observability\nPrometheus / Grafana / Tempo]
 
-    FE --> GW
+    Browser -->|HTTPS business API| GW
+    Browser <-->|WebSocket public edge| GW
+
     GW --> ID
     GW --> QUIZ
     GW --> CLASS
@@ -38,10 +42,7 @@ flowchart TB
     GW --> PROC
     GW --> AI
 
-    FE <-->|WebSocket application events| PROC
-    FE <-->|WebSocket application events| ASSESS
-    FE <-->|WebRTC media| LK
-
+    Browser <-->|WebRTC media| LK
     PROC --> LK
 
     ID --> PG
@@ -52,26 +53,48 @@ flowchart TB
     PROC --> PG
     AI --> PG
 
+    ID -. events .-> RMQ
+    QUIZ -. events .-> RMQ
+    CLASS -. events .-> RMQ
+    ASSESS -. events .-> RMQ
+    COMM -. events .-> RMQ
+    PROC -. events .-> RMQ
+    AI -. events .-> RMQ
+
+    ID -. revocation / temporary state .-> REDIS
+    GW -. revocation / rate state .-> REDIS
+    ASSESS -. justified ephemeral state .-> REDIS
+    PROC -. presence / ephemeral state .-> REDIS
+
     QUIZ --> OBJ
     AI --> OBJ
     PROC --> OBJ
 
-    ID -. events .-> BUS
-    QUIZ -. events .-> BUS
-    CLASS -. events .-> BUS
-    ASSESS -. events .-> BUS
-    COMM -. events .-> BUS
-    PROC -. events .-> BUS
-    AI -. events .-> BUS
+    ID --> MAIL
 
-    ID -. temporary/distributed state when justified .-> REDIS
-    ASSESS -. temporary/distributed state when justified .-> REDIS
-    PROC -. presence/rate state when justified .-> REDIS
+    GW -. telemetry .-> OBS
+    ID -. telemetry .-> OBS
+    QUIZ -. telemetry .-> OBS
+    CLASS -. telemetry .-> OBS
+    ASSESS -. telemetry .-> OBS
+    COMM -. telemetry .-> OBS
+    PROC -. telemetry .-> OBS
+    AI -. telemetry .-> OBS
 ```
 
-The drawing shows logical relationships, not mandatory deployment replicas.
+This is a logical architecture. Deployment topology may evolve without violating service ownership.
 
-## Service baseline
+## Public edge
+
+Spring Cloud Gateway is the public business/API edge.
+
+Browser business HTTP calls do not target backend microservices directly.
+
+Public WebSocket endpoints are routed through the edge topology.
+
+WebRTC media is intentionally separate and connects to LiveKit.
+
+## Business services
 
 - Identity Service
 - Quiz Service
@@ -81,65 +104,72 @@ The drawing shows logical relationships, not mandatory deployment replicas.
 - Proctoring Service
 - AI Service
 
-Do not split grading into its own service in the initial architecture. Assessment owns authoritative grading/result transactions.
+No standalone Grading Service is part of the baseline; grading stays with Assessment to preserve transactional correctness.
 
-Do not create a generic "File Service" by default. File metadata belongs to the business service that owns the file's purpose; binary content can live in object storage.
+## Authentication topology
 
-## Communication responsibilities
+Identity Service acts as Quizopia's authorization server.
 
-### REST/HTTP
+It issues Quizopia credentials/tokens after local or Google-based authentication.
 
-Authoritative business commands and queries.
+Gateway and each protected service validate user JWTs independently using Quizopia public signing material/JWKS.
 
-Examples:
+Internal synchronous service calls use OAuth2 Client Credentials service JWTs.
 
-- register/login;
-- create/update quiz draft;
-- publish version;
-- start attempt;
-- autosave answer;
-- submit;
-- create classroom;
-- publish community post.
+## Communication
 
-### WebSocket
+### Authoritative business operations
 
-Application realtime events.
+Use transactional HTTP/REST APIs.
 
 Examples:
 
-- teacher monitoring counters;
-- attempt started/submitted;
-- server-time sync;
-- proctor events;
-- presence/connection state.
+- start/autosave/submit attempt;
+- create/update quiz;
+- classroom membership commands;
+- result retrieval.
 
-### WebRTC
+### Synchronous internal service communication
 
-Realtime media only.
+Use direct internal REST when the caller needs an immediate answer.
 
-Examples:
+Do not route service-to-service traffic through the public gateway.
 
-- camera;
-- optional microphone;
-- future screen sharing.
+### Integration events
 
-## Core architectural invariant
+Use RabbitMQ for asynchronous business facts.
 
-An active assessment attempt must remain functional even if Quiz Service is unavailable.
+Critical events require transactional outbox publication and idempotent consumers.
 
-Assessment Service therefore owns/persists the immutable delivery snapshot needed for the publication/attempt rather than fetching mutable quiz content question-by-question during an attempt.
+### Application realtime
 
-## Legacy inheritance
+Use WebSocket for UI acceleration/realtime signals.
 
-The architecture intentionally carries forward proven concepts from Quizopia 1.x:
+The database/read API remains authoritative and clients reconcile after reconnect.
 
-- immutable published snapshots;
-- transactional attempt correctness;
-- server-authoritative time;
-- idempotent submit;
-- sequence-aware autosave;
-- after-commit realtime publication;
-- database-enforced integrity.
+### Realtime media
 
-It does not carry forward legacy service/module coupling as a requirement.
+Use WebRTC/LiveKit for camera, optional microphone, and future screen sharing.
+
+## Data ownership
+
+Every service owns its database and credential.
+
+Databases may share one physical PostgreSQL server/cluster in local or early deployment, but services must not access another service's data store.
+
+## Critical assessment invariant
+
+An active assessment must keep working when Quiz Service is unavailable.
+
+Assessment therefore stores a self-contained immutable delivery snapshot before the active-attempt path depends on it.
+
+The exact publication transition at which that snapshot is finalized remains a feature-level open question.
+
+## Local development
+
+Default workflow is hybrid:
+
+- Docker runs infrastructure;
+- developer runs the active backend service/gateway in the IDE;
+- developer runs Next.js with its normal dev server;
+- a full-container profile may exist for integration/demo use.

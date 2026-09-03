@@ -1,19 +1,43 @@
 # API Conventions
 
-Status: **Baseline v0.1**
+Status: **Accepted scaffold-level conventions v0.2**
 
-## General
+## Public edge
 
-- External APIs are versioned/evolvable.
-- Do not serialize persistence entities directly.
-- Use explicit request/response contracts.
-- Validate input at the boundary and again at the domain layer where needed.
-- Use stable machine-readable error codes.
-- Never expose secrets, answer keys, internal SQL, stack traces, or sensitive auth details.
+Browser business APIs go through Spring Cloud Gateway.
+
+Do not expose independent business-service ports as the normal public browser API.
+
+WebRTC/LiveKit is a separate media path.
+
+## Contracts
+
+Every service exposes an explicit API contract.
+
+Preferred baseline:
+
+- Spring endpoints/DTOs -> OpenAPI contract;
+- frontend TypeScript types/client generated or derived from OpenAPI;
+- contract artifacts may be coordinated under `shared/api-contracts/` without sharing domain/persistence models.
+
+Do not serialize persistence entities directly.
+
+Do not maintain contradictory handwritten frontend DTOs when generated contracts are available.
+
+## Internal REST
+
+Synchronous service-to-service calls:
+
+- use direct internal service URLs/DNS;
+- do not route through the public gateway;
+- authenticate with OAuth2 Client Credentials service JWTs;
+- use least-privilege service scopes.
 
 ## Error envelope
 
-Adopt a consistent error shape conceptually similar to the legacy system:
+Use stable machine-readable error codes.
+
+Conceptual shape:
 
 ```json
 {
@@ -25,54 +49,47 @@ Adopt a consistent error shape conceptually similar to the legacy system:
 }
 ```
 
-Exact field names may be finalized by the API contract.
+Exact final field names may be standardized during scaffold/API implementation.
+
+Do not expose stack traces, SQL, credentials, answer keys, or sensitive internals.
 
 ## HTTP semantics
 
-Use HTTP methods/statuses consistently.
+Use methods/statuses consistently.
 
 Examples:
 
-- `400` invalid request syntax/validation;
-- `401` unauthenticated;
+- `400` invalid request/validation;
+- `401` unauthenticated/invalid credential;
 - `403` authenticated but unauthorized;
 - `404` not found / anti-enumeration where appropriate;
-- `409` business-state conflict;
-- `422` may be used for structured parse/domain validation if the team standardizes it.
-
-Do not mix meanings arbitrarily across services.
+- `409` business-state/conflict;
+- use of `422` requires one repository-wide convention rather than per-service improvisation.
 
 ## Idempotency
 
-Correctness-sensitive commands that are retried by clients must have explicit idempotency semantics where applicable.
+Correctness-sensitive retriable commands require explicit idempotency semantics where appropriate.
 
-Attempt submit is mandatory idempotent behavior.
+Assessment submit is mandatory idempotent behavior.
 
 ## Pagination
 
-List endpoints with unbounded growth must use a documented pagination scheme.
+Unbounded lists must use a repository-wide documented pagination convention.
 
-Exact cursor vs page-number convention is TBD.
-
-## OpenAPI
-
-Preferred baseline:
-
-- services publish OpenAPI contracts;
-- frontend TypeScript API types/clients are generated or derived from the contracts where practical.
-
-The goal is to avoid manual Java DTO vs TypeScript DTO drift.
+Cursor vs page-number strategy remains TBD.
 
 ## Authentication
 
-Clients send authenticated access credentials according to the final Identity architecture.
+User calls carry Quizopia-issued access JWTs.
 
-Frontend route guards are UX only; every service must enforce authorization server-side.
+Gateway and target service independently validate protected user tokens.
+
+Frontend route guards are UX only.
 
 ## Public identifiers
 
-Do not expose guessable sequential database IDs as the only public-share identifier for public quizzes.
+Public-share URLs must not rely only on guessable sequential database IDs.
 
-Use opaque/random public identifiers/slugs for public URLs.
+Use opaque/random public identifiers/slugs.
 
-Internal database IDs may remain numeric.
+Exact slug format remains TBD.

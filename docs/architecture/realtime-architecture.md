@@ -1,86 +1,79 @@
 # Realtime Architecture
 
-Status: **Baseline v0.1**
+Status: **Accepted transport responsibilities v0.2**
 
 ## Decision
 
-Quizopia uses different transports for different guarantees.
-
 ```text
-REST/HTTP   -> authoritative business mutations and queries
-WebSocket   -> application realtime events
+REST/HTTP   -> authoritative business mutations/queries
+WebSocket   -> application realtime signals/UI acceleration
 WebRTC      -> realtime media
+RabbitMQ    -> asynchronous service integration events
 ```
 
-Do not collapse all three concerns into one transport.
+These transports coexist; one does not replace the others.
+
+## Public WebSocket edge
+
+Browser WebSocket connections are exposed through the public gateway/edge topology rather than exposing arbitrary service ports publicly.
+
+Exact internal WebSocket broker/relay topology for horizontal scale is still TBD.
+
+RabbitMQ is accepted as the integration-event broker, but using RabbitMQ as a STOMP broker relay is not automatically implied unless explicitly chosen later.
 
 ## REST
 
-Use REST/transactional HTTP APIs for:
+Use for:
 
 - attempt start;
-- answer autosave;
+- autosave;
 - submit;
-- grading-triggering command;
-- result retrieval;
-- quiz/class/community mutations.
+- results;
+- ordinary commands/queries.
 
-Assessment answers require:
-
-- durability;
-- retries;
-- ordering;
-- transactionality;
-- idempotency.
-
-Therefore they must not use WebRTC DataChannel as the authoritative persistence mechanism.
+Assessment writes need persistence, retry, sequencing, idempotency, and transactionality.
 
 ## WebSocket
 
-Use WebSocket/STOMP for:
+Use for:
 
-- teacher monitoring events;
-- attempt start/submit events;
-- active participant counts;
-- proctor signals;
-- presence where needed;
+- monitoring signals;
+- attempt lifecycle UI updates;
+- presence where required;
 - server-time synchronization;
-- fast UI updates.
+- proctoring signals;
+- fast UI invalidation/refresh hints.
 
-REST/database remains the source of truth.
+WebSocket delivery is not the database.
 
-Clients should reconcile/refetch authoritative state after reconnect or when event gaps are detected.
+Clients reconcile after reconnect/event loss.
 
 ## WebRTC / LiveKit
 
-Use WebRTC for media:
+Use for:
 
 - camera;
-- optional microphone;
-- future screen sharing.
+- optional microphone if later required;
+- future consent-based screen sharing.
 
-LiveKit is the baseline media platform/SFU.
+Business services authorize participant access; LiveKit transports media.
 
-Business services authorize who may join/publish/subscribe; LiveKit handles realtime media transport.
+Do not route media through Spring business REST services.
 
-## Scaling
+Do not use WebRTC DataChannels as authoritative assessment answer persistence.
 
-The legacy in-memory Spring simple broker is not assumed to be sufficient for horizontally scaled Quizopia 2.0.
+## Proctoring video grid
 
-Exact WebSocket broker/topology is **TBD**.
+Design for adaptive subscription:
 
-## Proctoring media
+- low-resolution layers for many thumbnails;
+- higher layer for selected student;
+- pause/unsubscribe hidden tracks where supported.
 
-For a teacher grid:
-
-- thumbnails should use lower-resolution layers;
-- selected student may use a higher-resolution layer;
-- hidden/not-visible video tracks should be paused where supported.
-
-Full video recording is deferred from MVP.
+Full-session recording remains deferred from MVP.
 
 ## Browser limitations
 
-WebSocket/WebRTC do not grant access to unrelated browser-tab metadata.
+Normal web code cannot list unrelated browser tabs/URLs or inspect arbitrary desktop applications.
 
-Screen sharing, if added, uses browser media APIs and explicit user consent.
+Screen capture, if added later, requires browser/user consent.

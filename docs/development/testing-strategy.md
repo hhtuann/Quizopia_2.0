@@ -1,10 +1,10 @@
 # Testing Strategy
 
-Status: **Baseline v0.1**
+Status: **Accepted baseline v0.2**
 
 ## Goals
 
-Quizopia 2.0 must preserve the strong backend correctness discipline of the legacy project and correct the legacy frontend testing gap.
+Preserve the strong correctness testing of Quizopia 1.x while adding first-party frontend and distributed-system coverage.
 
 ## Backend
 
@@ -12,27 +12,33 @@ Use:
 
 - JUnit 5;
 - Spring Boot Test where appropriate;
-- Testcontainers with real PostgreSQL;
-- architecture tests such as ArchUnit;
-- focused unit tests for pure domain logic.
+- Testcontainers;
+- ArchUnit;
+- focused pure unit tests.
 
-High-priority backend test areas:
+Use real PostgreSQL Testcontainers for correctness-sensitive persistence behavior rather than H2 substitution.
 
-- OTP expiry/retry/rate behavior;
+Use RabbitMQ/Redis Testcontainers when a test specifically needs their real semantics.
+
+High-priority areas:
+
+- OTP lifecycle/security;
 - account linking;
-- role authorization;
+- revocation;
+- OAuth2 service authentication;
 - classroom invitation claim;
-- quiz parser/validation;
+- Quiz Markdown parser/validation;
 - immutable versions;
-- publication time-extension rules;
-- sequence-aware autosave;
-- concurrent start;
+- publication timing rules;
+- autosave sequence;
+- concurrent attempt start;
 - submit idempotency;
 - timeout finalization;
-- grading;
-- guest attempt behavior;
-- result/review policy;
-- event outbox/idempotent consumers;
+- grading rules once finalized;
+- guest attempts;
+- review policies;
+- transactional outbox;
+- idempotent consumers;
 - proctor eligibility.
 
 ## Frontend
@@ -42,58 +48,59 @@ Use:
 - Vitest;
 - React Testing Library.
 
-High-priority frontend tests:
+High-priority areas:
 
-- auth session bootstrap;
-- workspace/persona switching;
-- quiz Markdown preview/parser error mapping;
-- autosave edit-during-flight behavior;
-- submit idempotency-key reuse;
-- countdown/server-time behavior;
+- auth bootstrap/refresh queue;
+- learning/teaching workspace switching;
+- generated API client integration boundaries;
+- quiz editor preview/error mapping;
+- autosave edit-during-flight;
+- idempotency key reuse;
+- server-time countdown;
 - review-policy rendering;
-- proctoring permission/error UI;
-- realtime reconnect/reconciliation.
+- proctor permission/error UX;
+- WebSocket reconnect/reconciliation.
 
-## End-to-end
+## E2E
 
 Use Playwright.
 
-Critical E2E flows:
+Critical journeys eventually include:
 
-- local register -> Gmail verification (test mail environment) -> login;
-- Google auth via safe test strategy/mocked provider where appropriate;
-- teacher enables role;
-- teacher creates class;
-- manual invite before student account exists;
-- student registers and receives class membership;
-- create/publish quiz;
+- local register -> OTP verify -> login;
+- Google login/account linking through a safe test strategy;
+- teacher enablement;
+- classroom creation/invitation claim;
+- quiz authoring/publish;
 - public guest attempt;
-- class assignment attempt;
-- proctored eligibility flow;
+- class attempt;
+- proctor eligibility/start;
 - submit/result;
-- community contribution/copy quiz.
+- community contribution/copy.
 
-## Contract tests
+## CI execution
 
-Services need API/event contract tests.
+PR:
 
-Cross-service compatibility should not depend on shared database fixtures.
+- path-aware/affected checks;
+- targeted smoke/E2E where practical.
 
-## Concurrency
+`develop` / `main`:
 
-Use real PostgreSQL for:
+- comprehensive build/tests;
+- critical E2E suite according to CI environment capability.
 
-- autosave sequence;
-- submit idempotency;
-- active attempt uniqueness;
-- invitation claim race;
-- publication timing update races.
+## Contract testing
 
-## Security
+API/event contracts must be tested/versioned.
 
-Add tests that prove learners cannot receive:
+Cross-service tests must not depend on shared database fixtures or direct cross-service tables.
 
-- answer keys before allowed;
+## Security tests
+
+Prove that learners cannot access:
+
+- hidden answer keys;
 - another learner's attempt;
 - unauthorized proctor evidence;
-- another teacher's private classroom/quiz data.
+- private classroom/quiz data they do not own/have access to.

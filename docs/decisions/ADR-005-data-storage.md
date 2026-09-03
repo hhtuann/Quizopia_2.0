@@ -1,32 +1,30 @@
 # ADR-005: PostgreSQL-First Polyglot Persistence
 
-Status: **Accepted**
-
-## Context
-
-Microservices allow independent persistence choices, but unnecessary database diversity increases operational complexity.
-
-Quizopia also needs object storage, distributed temporary state, and AI retrieval.
+Status: **Accepted — updated v0.2**
 
 ## Decision
 
 Use PostgreSQL 17 as the default transactional database.
 
-Use additional storage only when the workload justifies it.
+Every business service owns a separate database and database credential, even if databases initially share one physical PostgreSQL server/cluster.
 
-Baseline:
+Use additional stores only for justified workloads:
 
-- PostgreSQL -> transactional business data;
-- Redis -> cache/rate/presence/temporary distributed state where justified;
-- S3-compatible object storage (MinIO or managed) -> binary files/evidence;
-- pgvector is a candidate for early AI vector search.
+- Redis -> revocation, rate limiting, presence, cache/temporary distributed state;
+- S3-compatible object storage -> binary files/evidence; MinIO is the local implementation;
+- PostgreSQL + pgvector -> initial AI vector retrieval baseline;
+- RabbitMQ -> asynchronous integration events (not a source-of-truth database).
 
-Do not introduce a different database per service merely to demonstrate polyglot persistence.
+Do not create a different database technology per microservice merely to demonstrate polyglot persistence.
+
+## Rules
+
+- no cross-service DB access;
+- no cross-service SQL joins;
+- Flyway per service;
+- Redis is not durable authority for business records;
+- binary object metadata/access policy stays with the owning business service.
 
 ## Future
 
-OpenSearch/ClickHouse or other specialized stores may be introduced only after requirements/measurements justify them.
-
-## Consequence
-
-Database ownership remains per service even when services share one physical PostgreSQL cluster.
+OpenSearch, ClickHouse, dedicated vector stores, or other specialized databases require measured/product justification and a new decision if they materially change the architecture.

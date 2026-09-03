@@ -1,15 +1,17 @@
 # Git Workflow
 
-Status: **Baseline v0.1**
+Status: **Accepted baseline v0.2**
 
-## Branches
+## Long-lived branches
 
-Recommended long-lived branches:
+- `main` — stable/releasable baseline;
+- `develop` — team integration branch once scaffold/team development begins.
 
-- `main` — stable/releasable history;
-- `develop` — integration branch while the team uses Git Flow-style development.
+Do not create permanent branches per person.
 
-Task branches:
+## Task branches
+
+Examples:
 
 - `feature/...`
 - `fix/...`
@@ -17,71 +19,56 @@ Task branches:
 - `docs/...`
 - `chore/...`
 
-Do not create permanent branches per person.
-
-## Unit of work
-
-Prefer:
+Preferred unit:
 
 ```text
-1 GitHub Issue
--> 1 task branch
--> 1 primary implementation agent/developer
+1 issue
+-> 1 focused branch
+-> 1 primary implementer/agent
 -> 1 PR
 ```
 
-Avoid multiple agents concurrently rewriting the same branch/files.
+## Pull requests
 
-## Example
-
-```text
-feature/identity-email-otp
-feature/classroom-manual-invite
-feature/quiz-markdown-parser
-feature/community-contribution-post
-```
-
-## PR flow
-
-Typical:
+Typical flow:
 
 ```text
-feature/*
-    -> PR
-develop
-    -> release/stabilization
-main
+feature/* -> develop -> main
 ```
 
 Protect `main`.
 
-Consider protecting `develop` with required PR checks as the project grows.
+Protect `develop` with required checks once team development starts.
 
-## Agent review
+## CI strategy
+
+### Pull request
+
+Use path-aware/targeted checks.
+
+Examples:
+
+- change `services/quiz-service/**` -> run Quiz Service checks;
+- change `frontend/**` -> run frontend checks;
+- change shared contracts -> run affected consumers;
+- architecture/root build changes may trigger broader validation.
+
+### `develop` / `main`
+
+Run comprehensive repository validation.
+
+## Agent workflow
 
 Recommended:
 
-1. Agent A implements.
-2. Agent B performs read-only/code-review analysis.
-3. Agent A/developer fixes findings.
+1. Agent/developer implements.
+2. A second agent performs review where useful.
+3. Findings are fixed.
 4. Human performs final review.
-5. Merge after tests/checks pass.
+5. Merge only after required checks pass.
 
-The reviewer agent must not silently redesign the feature outside the issue/spec.
+Avoid multiple agents concurrently rewriting the same branch/files.
 
-## Commit expectations
+## Documentation
 
-Use focused commits.
-
-Architecture/product changes must update relevant docs/ADR in the same PR or a linked prior PR.
-
-## Merge criteria
-
-A PR should not merge when:
-
-- relevant tests fail;
-- accepted business behavior is undocumented;
-- service boundaries are violated;
-- migration changes are missing;
-- API/event contract changes are undocumented;
-- security-sensitive behavior lacks review.
+Any PR that changes accepted product behavior, architecture, API/event semantics, security boundaries, or service ownership must update docs/ADR in the same change or a preceding accepted change.

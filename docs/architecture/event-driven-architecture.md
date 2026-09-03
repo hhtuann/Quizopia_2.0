@@ -1,22 +1,59 @@
 # Event-Driven Architecture
 
-Status: **Baseline v0.1**
+Status: **Accepted integration baseline v0.2**
 
-## Purpose
+## Broker
 
-Microservices need asynchronous integration without cross-database access.
+RabbitMQ is the accepted initial integration-event broker.
 
-Use domain/integration events where eventual consistency is acceptable and where synchronous coupling would make the system fragile.
+Kafka is not baseline infrastructure. Re-evaluate only if measured stream throughput/retention/analytics needs justify it.
 
-## Event broker
+## When to use events
 
-Broker technology is **TBD**.
+Use an asynchronous event when:
 
-Current leading candidate: RabbitMQ for the initial system.
+- a business fact has already occurred;
+- the producer does not need an immediate consumer result;
+- eventual consistency is acceptable.
 
-Kafka is not required unless measured stream/retention/throughput needs justify it.
+Use direct internal REST when the caller needs an immediate response.
 
-Do not treat the candidate as an accepted implementation until the team records the final decision.
+## Transactional outbox
+
+Critical integration events MUST NOT use an unrecoverable pattern like:
+
+```text
+commit database
+-> best-effort RabbitMQ publish
+-> event may disappear forever
+```
+
+Required conceptual flow:
+
+```text
+BEGIN
+  write domain data
+  insert outbox event
+COMMIT
+
+outbox publisher
+-> RabbitMQ
+-> mark/record publication progress safely
+```
+
+Each service owns its own outbox data.
+
+Exact polling/CDC/outbox library implementation is a scaffold/implementation detail as long as the durability invariant holds.
+
+## Consumers
+
+Consumers must be idempotent.
+
+Use stable `eventId` and/or an inbox/processed-event strategy for side effects where duplicate processing would be unsafe.
+
+RabbitMQ redelivery/duplicates must be expected.
+
+Use dead-letter/retry strategy for non-transient failures.
 
 ## Example integration events
 
@@ -41,8 +78,7 @@ Assessment:
 
 - `ATTEMPT_STARTED`
 - `ATTEMPT_SUBMITTED`
-- `GRADE_CREATED`
-- `ASSESSMENT_RESULT_UPDATED`
+- grading/result integration event — **final authoritative event name/schema TBD**
 
 Proctoring:
 
@@ -50,21 +86,20 @@ Proctoring:
 - `PROCTORING_SESSION_ENDED`
 - `PROCTORING_FLAG_CREATED`
 
-Community:
+## Event contracts
 
-- community events as needed for notifications/search/read models.
+- version schemas;
+- stable event IDs;
+- business-oriented past-tense facts;
+- avoid secrets/unnecessary PII;
+- propagate trace context where supported;
+- consumers tolerate duplicate delivery;
+- handle ordering explicitly when it matters.
 
-## Reliability rules
+## Realtime is separate
 
-- Publish business events only after the owning transaction commits.
-- Consumers must be idempotent.
-- Events need stable event IDs.
-- Cross-service consumers must tolerate duplicate delivery.
-- Do not encode secrets or unnecessary PII in events.
-- Event schemas must be versioned/evolvable.
+RabbitMQ integration events and browser WebSocket events are related but not identical responsibilities.
 
-## Outbox
+Do not assume every integration event must be exposed verbatim to the browser.
 
-For business events whose loss would break cross-service consistency, use a transactional outbox or equivalent durable publication mechanism.
-
-Exact outbox/broker implementation is **TBD**, but "save DB then best-effort publish without recovery" must not be used for critical integration events.
+Application realtime payloads should be intentionally designed and remain reconcilable with authoritative REST/read state.

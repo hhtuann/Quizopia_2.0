@@ -1,35 +1,46 @@
 # ADR-002: Local + Google Authentication Linked to One Internal User
 
-Status: **Accepted at product level; token topology TBD**
+Status: **Accepted**
 
 ## Context
 
-Quizopia needs both traditional credentials and Google login.
+Quizopia supports traditional credentials and Google login while maintaining one internal user identity.
 
-A user must not receive duplicate Quizopia accounts simply because they use two login methods.
+Microservices also require a consistent Quizopia authorization/token topology.
 
 ## Decision
 
 One internal Quizopia user may have:
 
 - local username/password credential;
-- Google identity.
+- Google provider identity.
 
-Local registration requires Gmail OTP verification.
+Local registration requires Gmail OTP verification before activation.
 
-Every activated user receives `STUDENT`.
+Every activated user receives `STUDENT` and may later add `TEACHER`.
 
-A user may later add `TEACHER`.
+Safe Google login matching an already-verified Gmail identity links to the same Quizopia user rather than creating a duplicate.
 
-Google login that represents the same already-verified Gmail must resolve/link to the existing internal account rather than create a duplicate, subject to safe conflict handling.
+Identity Service acts as the Quizopia Authorization Server using Spring Authorization Server.
 
-## Consequences
+Quizopia services use Quizopia-issued tokens, not Google access tokens.
 
-- provider identities are modeled separately from user profile;
-- Gmail verification status matters for account linking;
-- Identity Service owns credentials, provider identities, OTP, sessions, roles;
-- exact JWT signing/JWKS/gateway verification remains TBD.
+User access tokens are short-lived RS256 JWTs.
 
-## Open detail
+Refresh tokens are opaque HttpOnly credentials with server-side hashing, rotation, refresh-family lineage, and reuse detection.
 
-Whether local registration accepts only `@gmail.com` or also verified Google Workspace/custom-domain Google accounts remains TBD.
+Gateway and every protected service validate user JWTs using Quizopia public signing material/JWKS.
+
+Near-immediate account disable/revocation uses Redis-backed revocation state in addition to refresh/session invalidation.
+
+Internal service authentication is defined by ADR-008.
+
+## Open details
+
+Still TBD:
+
+- Gmail vs Workspace registration scope;
+- OTP exact parameters;
+- account-link conflict UX;
+- exact token TTL values;
+- Redis revocation lookup outage behavior.

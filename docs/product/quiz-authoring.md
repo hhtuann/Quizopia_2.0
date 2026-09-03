@@ -69,7 +69,7 @@ Quizopia 2.0 keeps the four legacy objective question types:
 
 ### NUMERIC_FILL
 
-Keep the Ministry-of-Education-aligned fixed-format behavior from the current requirement.
+Keep the fixed four-character format intentionally required for the Vietnamese Ministry-of-Education-aligned question style used by this project. This is a deliberate Quizopia 2.0 override of the legacy analysis recommendation to remove the restriction. See `ADR-013-numeric-fill-format.md`.
 
 The correct answer is exactly four characters.
 

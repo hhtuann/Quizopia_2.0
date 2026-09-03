@@ -1,92 +1,129 @@
 # Authentication and Identity Architecture
 
-Status: **Baseline v0.1**
+Status: **Accepted pre-scaffold topology v0.2**
 
-## Login methods
+## Identity role
 
-Quizopia supports two ways to authenticate into one internal Quizopia account:
+`identity-service` owns authentication and acts as the Quizopia Authorization Server using Spring Authorization Server.
+
+External Google identity is used to authenticate/link a user, but Quizopia services consume **Quizopia-issued** tokens rather than Google access tokens.
+
+## User login methods
+
+One internal Quizopia user may authenticate using:
 
 1. local username/password;
-2. Google authentication.
+2. Google OIDC identity.
 
-These are identities/credentials connected to the same internal user.
+Provider credentials/identity are separate from the internal user profile.
 
 ## Local registration
 
-Baseline flow:
+Baseline:
 
-1. user enters:
-   - username;
-   - password;
-   - Gmail address;
-   - required profile fields;
-2. create account in pending-email-verification state;
-3. send OTP to Gmail;
-4. user submits OTP;
-5. Gmail is verified;
-6. account becomes active;
-7. grant `STUDENT`.
+1. username/password + required profile fields + Gmail;
+2. create pending-email-verification account/state;
+3. send OTP;
+4. verify OTP;
+5. activate account;
+6. grant `STUDENT`.
 
-OTP requirements:
+OTP requirements remain:
 
+- hashed at rest;
 - short expiry;
 - resend cooldown;
-- attempt limit;
-- store a hash rather than plaintext OTP;
-- do not activate the account until Gmail verification succeeds.
+- attempt limit.
 
-Exact OTP duration/limits are **TBD**.
+Exact values remain TBD.
 
-## Gmail requirement
+Whether registration accepts strictly `@gmail.com` or broader Google Workspace addresses remains TBD.
 
-Current product wording requires a Gmail address for local registration.
+## Google login/account linking
 
-Whether Google Workspace/custom-domain Google accounts are accepted is **TBD**.
+Google login resolves a stable provider subject and verified email information.
 
-Agents must not silently broaden or narrow this requirement.
+If an existing verified local Quizopia account safely matches the same verified Gmail identity, link the Google provider identity to that internal user rather than creating a duplicate.
 
-## Google login
+Ambiguous/conflicting cases fail safely; exact UX remains TBD.
 
-Google login links to the internal Quizopia user.
+## User access token
 
-Store provider identity separately from user profile.
+Accepted model:
 
-Conceptual model:
+- JWT;
+- signed with RS256;
+- short-lived;
+- issuer is Quizopia/Identity Service;
+- frontend keeps access token in memory, not localStorage;
+- Gateway validates the JWT;
+- every protected microservice validates the JWT independently using Quizopia JWKS/public key material.
 
-```text
-User
-  -> LOCAL credential
-  -> GOOGLE provider identity
+The exact configured access-token TTL may remain deployment/security configuration as long as it stays short-lived.
+
+## Refresh token
+
+Accepted model:
+
+- opaque cryptographically random token;
+- HttpOnly cookie;
+- Secure in production;
+- server stores only a hash;
+- rotate on refresh;
+- keep refresh-family lineage;
+- detect token reuse;
+- reuse revokes the relevant active family/session according to the final implementation policy.
+
+Refresh/session state belongs to Identity Service.
+
+## Immediate account disable/revocation
+
+Quizopia does not rely only on waiting for access JWT expiry.
+
+When an account is disabled/revoked:
+
+1. Identity commits authoritative account/session revocation state;
+2. Identity propagates revocation state/event;
+3. Redis provides near-immediate revocation lookup/distribution for Gateway/services;
+4. refresh is rejected;
+5. Gateway and protected services reject revoked users even if an otherwise-valid short-lived JWT has not expired.
+
+Exact cache-failure/fail-open-vs-fail-closed behavior remains an operational/security open question.
+
+## Service-to-service authentication
+
+Internal synchronous calls use OAuth2 Client Credentials.
+
+Each service has a service identity/client with least-privilege scopes.
+
+Example conceptual service token:
+
+```json
+{
+  "sub": "assessment-service",
+  "type": "SERVICE",
+  "scope": ["classroom.membership.read"]
+}
 ```
 
-Google provider identity must use the provider's stable subject identifier rather than treating mutable display data as the provider primary key.
+Services cache short-lived service access tokens until near expiry rather than requesting a token for every call.
 
-## Account linking
+Internal network location alone is not sufficient authentication.
 
-Required behavior:
+mTLS is not a baseline requirement; it may be considered later for stricter production deployments.
 
-- if an already verified local Quizopia account owns the same verified Gmail returned by Google, Google identity should link to that internal account rather than create a duplicate;
-- ambiguous/conflicting cases must fail safely and require an explicit resolution flow.
+## Authorization
 
-Exact conflict UI is **TBD**.
+Frontend route/workspace guards are UX only.
 
-## Roles
+Every backend service enforces resource/role/ownership/state authorization for data it owns.
 
-- default: `STUDENT`;
-- optional additional: `TEACHER`;
-- privileged: `ADMIN`.
+User roles:
 
-Role switching in the UI is workspace/persona switching, not identity mutation.
+- `STUDENT`
+- `TEACHER`
+- `ADMIN`
 
-## Tokens / microservice verification
+A user can have `STUDENT + TEACHER` simultaneously.
 
-The exact access-token signing/topology choice is **TBD**.
-
-Requirements:
-
-- services must verify caller identity without trusting frontend-only state;
-- account disable/revocation behavior must be defined;
-- refresh/session credentials remain owned by Identity Service;
-- sensitive auth secrets are never shared with unrelated services unless architecture explicitly requires it.
-
-A future ADR should finalize symmetric vs asymmetric signing/JWKS and gateway responsibilities.
+Learning/Teaching workspace is UI context, not a token/account mutation.

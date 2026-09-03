@@ -1,94 +1,118 @@
 # Coding Standards
 
-Status: **Baseline v0.1**
+Status: **Accepted scaffold baseline v0.2**
 
-## Backend
-
-Baseline stack:
+## Backend baseline
 
 - Java 21
 - Spring Boot 4.x
-- Spring Web/MVC
+- independent Maven project per gateway/service
 - Spring Security
 - Spring Data JPA where appropriate
 - Flyway
+- OpenAPI
 
-### Internal organization
+## Backend structure
 
-Within each microservice, prefer package-by-feature/domain organization rather than one global `controller/service/repository` structure.
+Within each microservice, prefer package-by-feature/domain organization.
 
-Keep responsibilities separated:
+Keep clear responsibilities for:
 
 - API/controller;
-- application/use-case;
+- application/use case;
 - domain;
-- persistence/repository adapters;
+- persistence/adapters;
+- external clients/messaging;
 - DTO/contracts;
-- exceptions/error codes.
+- error handling.
 
-Do not let controllers contain business workflows.
+Do not put business workflows in Gateway.
 
-Do not let services reach into another microservice's repository/database.
+Do not reach into another service database/repository.
 
-### Persistence
+## Formatting/architecture enforcement
+
+Backend baseline:
+
+- Spotless;
+- ArchUnit or equivalent architecture tests.
+
+CI must fail for required formatting/architecture violations.
+
+## Persistence
 
 - Flyway owns schema.
-- Hibernate/JPA validates schema.
-- Use DB constraints for critical invariants.
-- Use `Clock`/time abstraction for business time instead of scattered direct system-time calls.
-- Use exact decimal types (`BigDecimal`) for grading math.
+- Hibernate validates.
+- DB constraints protect critical invariants.
+- Inject/use a controllable `Clock` for business time.
+- Use `BigDecimal` for grading score arithmetic.
 - Use intentional locking/idempotency for concurrency-sensitive workflows.
 
-### Errors
+## HTTP/API
 
-Use stable error codes and sanitized public messages.
+- explicit DTOs/contracts;
+- stable public error codes;
+- OpenAPI as contract source;
+- generated/derived TypeScript clients/types where practical.
 
-Do not expose:
+## Messaging
 
-- stack traces;
-- SQL;
-- secrets;
-- internal class names;
-- answer keys to unauthorized learners.
+- RabbitMQ integration events;
+- transactional outbox for critical events;
+- idempotent consumers;
+- no secrets/unnecessary PII in events.
 
-## Frontend
-
-Baseline stack:
+## Frontend baseline
 
 - Next.js 16
 - React 19
-- TypeScript
+- TypeScript strict
 - Tailwind CSS 4
 - TanStack Query
-- Axios or the standardized generated HTTP client
-- Zustand for focused client/working state
-- React Hook Form + Zod for forms/UX validation
+- React Hook Form + Zod
+- focused Zustand stores where local/working state warrants them
+- ESLint
+- Prettier
 
 Prefer feature-oriented organization.
 
-Keep:
-
-- server state in TanStack Query;
-- working/client state in small focused stores;
-- API contracts generated/derived from OpenAPI where practical.
-
-Frontend authorization/route guards are UX only.
-
-## Quiz Markdown
-
-Parser/formatter must be deterministic and tested.
-
-Do not let UI silently "fix" malformed quiz source into a different question.
+Frontend authorization guards are UX only.
 
 ## Realtime
 
-- REST database state is authoritative.
-- WebSocket events are hints/acceleration.
-- WebRTC is media.
-- Reconcile after reconnect.
+- REST state is authoritative;
+- WebSocket accelerates UI/realtime updates;
+- WebRTC/LiveKit transports media;
+- reconcile after reconnect.
 
-## Documentation
+## Logging
 
-Code changes that alter business behavior or architecture must update the relevant docs.
+Production backend logging is structured JSON (or equivalent structured output).
 
-Do not leave accepted decisions only in PR comments/chat.
+Include useful fields such as:
+
+- timestamp;
+- level;
+- service;
+- traceId;
+- spanId;
+- stable event/action name.
+
+Never log:
+
+- password;
+- OTP;
+- access token;
+- refresh token;
+- private keys/client secrets;
+- raw media;
+- unnecessary PII;
+- sensitive answer payloads unless an explicitly designed, access-controlled audit requirement exists.
+
+## Dependencies
+
+Services build independently but framework/dependency versions must be centrally monitored/aligned.
+
+Use repository automation such as Dependabot or Renovate; exact tool is TBD.
+
+Do not introduce a giant shared parent/domain artifact that erodes service independence.

@@ -1,62 +1,119 @@
 # Local Development
 
-Status: **Scaffold planning v0.1**
+Status: **Accepted pre-scaffold baseline v0.2**
 
-The codebase has not yet been scaffolded, so exact commands are intentionally TBD.
+## Development mode
 
-## Expected development services
+Use a **hybrid** workflow by default.
 
-Initial local environment is expected to include:
+### Docker infrastructure
 
-- frontend;
-- API gateway/edge component (implementation TBD);
-- Identity Service;
-- Quiz Service;
-- Classroom Service;
-- Assessment Service;
-- Community Service;
-- Proctoring Service;
-- AI Service;
-- PostgreSQL;
-- Redis when required by implemented features;
-- MinIO/S3-compatible local object storage;
-- LiveKit for local proctoring/video work;
-- development mail capture for OTP testing;
-- event broker after broker decision is finalized.
+Default local infrastructure includes:
 
-## Environment principles
+- PostgreSQL 17;
+- Redis;
+- RabbitMQ;
+- MinIO;
+- Mailpit;
+- LiveKit.
 
-- No production secret in Git.
-- Provide `.env.example`.
-- Fail fast for required security keys.
-- Data services should be private in production even if exposed for local development.
-- Use health/readiness checks.
-- Use deterministic/pinned container versions.
+### Code under active development
 
-## Local mail
+Run directly from IDE/dev server when practical:
 
-Because local registration uses Gmail OTP in production, development/testing should not send real OTP emails by default.
+- Spring Cloud Gateway;
+- backend microservice(s) currently being edited;
+- Next.js frontend.
 
-Use a local/test mail sink or mockable mail adapter.
+This improves debugging/build feedback compared with rebuilding every application container for every code change.
 
-## AI development
+## Full Docker profile
 
-AI provider credentials must be optional for developers not working on AI.
+Provide a full-container profile/compose capability for:
 
-AI service should support a test/fake provider so core platform development is not blocked by external model availability.
+- integration testing;
+- demo;
+- environment reproduction;
+- team verification.
 
-## Video development
+The exact Compose file split/profile names are scaffold details.
 
-LiveKit local/self-host mode is expected for development.
+## Optional observability profile
 
-Do not require full video recording infrastructure for MVP development.
+Observability tools are optional for normal local development.
 
-## To finalize during scaffold
+An optional profile may run:
 
-- monorepo directory layout;
-- build commands;
-- Docker Compose topology;
-- port assignments;
-- service config conventions;
-- shared dev tooling;
-- CI commands.
+- Prometheus;
+- Grafana;
+- Tempo;
+- Loki if chosen for local log aggregation.
+
+The code itself must still emit the agreed telemetry whether this profile is running or not.
+
+## PostgreSQL
+
+One local PostgreSQL server may host:
+
+```text
+identity_db
+quiz_db
+classroom_db
+assessment_db
+community_db
+proctoring_db
+ai_db
+```
+
+Use separate credentials/permissions per service.
+
+## Redis
+
+One local Redis instance is acceptable with clear service key prefixes/namespaces.
+
+## Mail
+
+Use Mailpit for local/test OTP/email flows.
+
+Do not send real verification emails by default in developer tests.
+
+## Object storage
+
+Use MinIO locally behind the S3-compatible storage abstraction.
+
+## AI
+
+- use `ai_db` + pgvector initially;
+- external AI provider credentials must be optional for developers not working on AI;
+- support a fake/test provider path.
+
+## Service discovery
+
+Do not add Eureka/Consul to the baseline.
+
+Use environment-configured internal URLs and deployment/Docker/Kubernetes DNS.
+
+## Database migrations
+
+Local/dev:
+
+```text
+Spring service startup
+-> Flyway migration for own DB
+-> Hibernate validate
+```
+
+## Configuration
+
+Provide root and service-specific `.env.example`/configuration documentation.
+
+Real `.env` and secrets remain uncommitted.
+
+## Scaffold-time details still to assign
+
+- exact local ports;
+- compose/profile names;
+- helper script names;
+- exact command aliases;
+- frontend package-manager lock-in if not already finalized;
+- exact Spring Boot patch/dependency versions.

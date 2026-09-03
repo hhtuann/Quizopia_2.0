@@ -2,101 +2,241 @@
 
 ## Project
 
-Quizopia 2.0 is a public quiz and learning platform.
+Quizopia 2.0 is a public quiz and learning platform implemented as a new system.
 
-This repository is a new implementation. It is NOT an incremental refactor of Quizopia 1.x.
+It is NOT an incremental refactor of Quizopia 1.x.
 
 ## Mandatory context
 
-Before non-trivial work, read the relevant files under:
+Before non-trivial work, read:
 
-- `docs/product/`
-- `docs/architecture/`
-- `docs/specifications/`
-- `docs/decisions/`
+- this file;
+- relevant files under `docs/product/`;
+- relevant files under `docs/architecture/`;
+- relevant files under `docs/specifications/`;
+- relevant accepted ADRs under `docs/decisions/`;
+- `docs/open-questions.md` when the task touches an unresolved area.
 
-For legacy behavior and lessons:
+Legacy behavior is reference-only:
 
 - `docs/reference/legacy-analysis.md`
 
-Quizopia 2.0 documentation always takes precedence over legacy behavior.
+Quizopia 2.0 accepted documentation takes precedence over legacy behavior.
 
-## Architecture baseline
+## Pre-scaffold architecture baseline
 
-Quizopia 2.0 uses coarse-grained microservices.
+### Repository
+
+Quizopia is a true monorepo.
+
+Planned top-level code areas:
+
+- `frontend/`
+- `gateway/`
+- `services/identity-service/`
+- `services/quiz-service/`
+- `services/classroom-service/`
+- `services/assessment-service/`
+- `services/community-service/`
+- `services/proctoring-service/`
+- `services/ai-service/`
+- `shared/`
+- `infrastructure/`
+- `scripts/`
+
+Every backend service is an independently buildable Maven project.
+
+The Java package root is `com.quizopia`.
+
+### Shared code
+
+`shared/` may contain only deliberately stable technical contracts/support, for example:
+
+- API-contract tooling/schemas;
+- event contracts/schemas;
+- test support.
+
+Do NOT create shared:
+
+- JPA entities;
+- repositories;
+- business domain models;
+- business services;
+- persistence abstractions that couple service databases.
+
+### Service boundaries
 
 Initial business services:
 
-- Identity Service
-- Quiz Service
-- Classroom Service
-- Assessment Service
-- Community Service
-- Proctoring Service
-- AI Service
+- Identity
+- Quiz
+- Classroom
+- Assessment
+- Community
+- Proctoring
+- AI
 
-Do not create a new microservice or change service ownership without documenting the decision.
+Do not create a new microservice or move authoritative ownership without an ADR.
 
-## Hard rules
+A service MUST NOT read or write another service's database.
 
-- A service MUST NOT read or write another service's database.
-- Cross-service communication MUST use documented APIs or events.
-- PostgreSQL remains the primary source of truth for transactional business data unless an accepted ADR says otherwise.
+### Public edge
+
+- Browser business HTTP traffic goes through Spring Cloud Gateway.
+- Browser business services are not exposed as independent public APIs.
+- Public WebSocket traffic is routed through the public edge/gateway topology.
+- WebRTC media connects to LiveKit and does not traverse the REST API Gateway.
+
+### Authentication
+
+Identity Service uses Spring Authorization Server and owns:
+
+- local username/password authentication;
+- Gmail OTP verification;
+- Google OIDC account linking;
+- Quizopia user roles;
+- Quizopia-issued access tokens;
+- refresh-token families/rotation/reuse detection;
+- JWKS/signing keys;
+- OAuth2 Client Credentials for service identities.
+
+User access tokens:
+
+- RS256 JWT;
+- short-lived;
+- held in browser memory only;
+- verified by Gateway AND by each protected microservice.
+
+Refresh tokens:
+
+- opaque/high entropy;
+- HttpOnly cookie;
+- stored only as a server-side hash;
+- rotated;
+- refresh-family reuse detection is required.
+
+Admin/user-disable must support near-immediate revocation through Redis-backed revocation state in addition to denying refresh.
+
+### Service-to-service calls
+
+If an immediate answer is required:
+
+- call the target service directly through the internal network;
+- authenticate using short-lived OAuth2 Client Credentials service JWT;
+- do not route internal service calls through the public gateway.
+
+If a business fact has occurred and eventual consistency is acceptable:
+
+- publish an integration event through RabbitMQ.
+
+Critical integration events require a transactional outbox or equivalent recoverable mechanism.
+
+Consumers must be idempotent.
+
+### Data
+
+- PostgreSQL 17 is the default transactional source of truth.
+- Each service owns a separate database and database credential, even if databases share one physical cluster/server.
+- No cross-service SQL or joins.
+- Redis is ephemeral/distributed support only, never the authoritative answer/grade/publication/membership store.
+- Binary data uses an S3-compatible object-storage abstraction; local implementation is MinIO.
+- AI starts with PostgreSQL + pgvector for vector retrieval.
+- Flyway owns schema changes.
+- Hibernate validates schema; do not use production `ddl-auto=update/create`.
+
+### Quiz/assessment correctness
+
 - Published quiz versions are immutable.
-- An active assessment attempt must not depend on Quiz Service availability.
-- Authoritative business mutations use transactional HTTP APIs.
-- WebSocket is for application realtime events, presence, monitoring signals, and server-time synchronization.
-- WebRTC/LiveKit is for realtime media such as camera, microphone, or future screen sharing.
-- WebRTC DataChannels must not be used as the authoritative persistence path for assessment answers.
-- AI-generated quiz content must remain reviewable/editable before publication.
-- Proctoring AI produces suspicious-event/risk signals; it does not automatically declare a student guilty or automatically fail an attempt.
-- Standard browser proctoring must not claim it can inspect unrelated browser tabs, their URLs, or all applications running on the user's device.
-- Database schema changes use Flyway. Do not enable Hibernate schema auto-creation/update in production.
-- Do not expose answer keys/correctness to a learner before the publication review policy allows it.
-- Do not silently change accepted business rules.
+- Active assessments must not depend on Quiz Service availability.
+- Stable attempt question/option order is required.
+- Server time/deadlines are authoritative.
+- Autosave must reject stale sequence writes.
+- Submit is idempotent.
+- Submit/grading/result persistence must remain transactionally coherent.
+- Correct answers must not leak before review policy allows them.
+
+### Realtime/media
+
+- REST/HTTP = authoritative business mutations/queries.
+- WebSocket = application realtime signals/UI acceleration.
+- WebRTC/LiveKit = realtime media.
+- WebRTC DataChannels must not become the authoritative assessment answer path.
+- After reconnect, clients reconcile authoritative state through REST/read APIs.
+
+### Proctoring
+
+- Proctoring is class-only and time-bounded according to product rules.
+- Browser monitoring cannot inspect unrelated tab URLs or all applications.
+- AI proctoring emits suspicious/risk signals for human review; it does not automatically convict/fail a learner.
+
+### API contracts
+
+- Services publish OpenAPI contracts.
+- Frontend TypeScript contracts/clients should be generated/derived from OpenAPI where practical.
+- Do not manually create a second contradictory DTO model when a generated contract exists.
+
+### Quality and observability
+
+Backend baseline:
+
+- Spotless;
+- ArchUnit;
+- JUnit;
+- Testcontainers;
+- Actuator/Micrometer;
+- OpenTelemetry/Micrometer tracing;
+- structured production logging.
+
+Frontend baseline:
+
+- ESLint;
+- Prettier;
+- TypeScript strict;
+- Vitest;
+- React Testing Library;
+- Playwright for E2E.
+
+Do not log credentials, OTPs, access/refresh tokens, unnecessary PII, or media payloads.
+
+### Configuration/secrets
+
+- Non-secret defaults may live in committed configuration.
+- Runtime/environment-specific values come from environment/deployment configuration.
+- `.env.example` may be committed; real `.env` must not be committed.
+- Production secrets never live in Git.
+- Each service receives only config/secrets it needs.
 
 ## Before coding
 
 For every non-trivial task:
 
-1. Read the relevant product, architecture, specification, and ADR files.
-2. Inspect existing implementation and tests.
+1. Read the relevant docs/ADRs.
+2. Inspect the current implementation and tests.
 3. Identify the owning service(s).
-4. Produce a short implementation plan.
-5. Identify schema/API/event changes.
-6. Implement only the documented scope.
-7. Add or update tests.
-8. Run the relevant checks.
-9. Update documentation when behavior or architecture changes.
+4. State a short implementation plan.
+5. Identify schema/API/event/config impacts.
+6. Confirm the task does not rely on an unresolved TBD.
+7. Implement only the documented scope.
+8. Add/update tests.
+9. Run relevant checks.
+10. Update docs when behavior/architecture changes.
 
 ## Conflict handling
 
-If code, tests, docs, or requirements conflict:
+If code, tests, docs, or requirements conflict materially:
 
-1. Stop expanding the implementation.
-2. Report the exact conflict.
-3. Identify the files/behavior involved.
-4. Ask for a product/architecture decision when the precedence rules do not resolve it.
+1. stop expanding the implementation;
+2. report the exact conflict and affected files;
+3. apply documented precedence only when clear;
+4. otherwise ask for a product/architecture decision.
 
-Never silently choose an interpretation for a material business rule.
-
-## Changes requiring ADR review
-
-Examples:
-
-- new microservice;
-- changing service ownership;
-- changing REST/WebSocket/WebRTC responsibilities;
-- introducing a new primary database technology;
-- changing authentication trust boundaries;
-- removing immutable published versions;
-- changing authoritative attempt persistence;
-- introducing synchronous dependencies into the active exam path.
+Do not silently resolve feature-level TBD items.
 
 ## Agent collaboration
 
 Prefer:
 
-- one task -> one branch -> one primary implementation agent;
-- a second agent may perform review without rewriting the same branch concurrently;
-- humans perform final review before merge.
+- one issue -> one task branch -> one primary implementation agent/developer;
+- second agent may perform review;
+- avoid two agents concurrently rewriting the same branch;
+- human performs final review before merge.

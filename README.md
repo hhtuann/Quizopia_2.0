@@ -1,63 +1,129 @@
 # Quizopia 2.0
 
-> Project Context Pack v0.1
+> Project Context Pack v0.2 — Pre-Scaffold Architecture Baseline
 
 Quizopia 2.0 is a public web platform for creating, publishing, sharing, practicing, and taking quizzes. It also supports classroom workflows, public community content, AI-assisted authoring/tutoring, and optional proctoring for time-bounded classroom assessments.
 
-Quizopia 2.0 is a **new system** inspired by the lessons and strongest engineering invariants of Quizopia 1.x. It is **not** an incremental refactor of the legacy codebase.
+Quizopia 2.0 is a **new system** inspired by the strongest engineering invariants and lessons of Quizopia 1.x. It is **not** an incremental refactor of the legacy codebase.
 
-## Current baseline
+## v0.2 milestone
 
-- Architecture: coarse-grained microservices
-- Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS 4
-- Business services: Java 21 + Spring Boot 4.x
-- Primary transactional database: PostgreSQL 17
-- Schema migrations: Flyway
-- Realtime application events: WebSocket/STOMP
-- Realtime media: WebRTC via LiveKit
-- Object storage: S3-compatible storage such as MinIO
-- Cache / temporary distributed state: Redis where justified
-- AI stack/provider details: to be finalized
+Context Pack v0.2 finalizes the architectural decisions required to scaffold the repository for a four-person team.
 
-## Core product areas
+Accepted pre-scaffold decisions include:
 
-- Identity and authentication
-- Quiz authoring and immutable quiz versions
-- Assessment and practice publications
-- Public guest quiz taking
-- Classroom, assignments, announcements, gradebook
-- Community/blog, comments, reactions, ratings, quiz copy/fork
-- Proctoring for eligible classroom assessments
-- AI authoring and AI tutor
+- true monorepo;
+- one Next.js frontend;
+- Spring Cloud Gateway as the public API edge;
+- seven coarse-grained business microservices;
+- independent Maven build per backend service;
+- Spring Authorization Server in Identity Service;
+- Quizopia-issued RS256 access JWTs + rotating opaque refresh tokens;
+- gateway **and** every business service validate user JWTs;
+- immediate account revocation state distributed through Redis;
+- OAuth2 Client Credentials for service-to-service authentication;
+- internal REST for synchronous service communication;
+- RabbitMQ for asynchronous integration events;
+- transactional outbox + idempotent consumers for critical integration events;
+- one PostgreSQL 17 server/cluster may host separate service-owned databases with separate credentials;
+- Redis for justified ephemeral/distributed concerns only;
+- MinIO locally behind an S3-compatible object-storage abstraction;
+- PostgreSQL + pgvector as the initial AI vector-storage baseline;
+- Mailpit for local/test email;
+- WebRTC/LiveKit for realtime media;
+- hybrid local development (infrastructure in Docker, active code from IDE/dev server);
+- GitHub Actions, path-aware PR checks, and full `develop`/`main` validation;
+- OpenAPI-derived frontend contracts;
+- structured logging, OpenTelemetry, Actuator/Micrometer;
+- optional local Prometheus/Grafana/Tempo observability profile;
+- Flyway-owned schemas, Hibernate validation only;
+- JUnit/Testcontainers, frontend unit/component tests, and Playwright E2E.
+
+## Planned repository structure
+
+```text
+Quizopia_2.0/
+├── frontend/                       # one Next.js application
+├── gateway/                        # Spring Cloud Gateway
+├── services/
+│   ├── identity-service/           # independent Maven project
+│   ├── quiz-service/
+│   ├── classroom-service/
+│   ├── assessment-service/
+│   ├── community-service/
+│   ├── proctoring-service/
+│   └── ai-service/
+├── shared/                         # contracts/test support only
+│   ├── api-contracts/
+│   ├── event-contracts/
+│   └── test-support/
+├── infrastructure/
+├── scripts/
+├── docs/
+├── AGENTS.md
+├── CLAUDE.md
+└── README.md
+```
+
+The scaffold does **not** need to implement the business domains yet. Feature-level questions remain intentionally open.
+
+## Current technology baseline
+
+### Frontend
+
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- TanStack Query
+- React Hook Form + Zod
+- Zustand for focused client/working state
+
+### Backend / edge
+
+- Java 21
+- Spring Boot 4.x
+- Spring Cloud Gateway
+- Spring Security
+- Spring Authorization Server
+- Spring Data JPA where appropriate
+- Flyway
+- OpenAPI
+
+### Infrastructure
+
+- PostgreSQL 17
+- Redis
+- RabbitMQ
+- MinIO/S3-compatible object storage
+- Mailpit for local/test email
+- LiveKit/WebRTC
+- pgvector for initial AI retrieval
+- Docker Compose for local infrastructure
 
 ## Documentation
 
-- Product requirements: [`docs/product/`](docs/product/)
+- Product: [`docs/product/`](docs/product/)
 - Architecture: [`docs/architecture/`](docs/architecture/)
 - Specifications: [`docs/specifications/`](docs/specifications/)
-- Architecture Decision Records: [`docs/decisions/`](docs/decisions/)
-- Development workflow: [`docs/development/`](docs/development/)
+- ADRs: [`docs/decisions/`](docs/decisions/)
+- Development: [`docs/development/`](docs/development/)
 - Open questions: [`docs/open-questions.md`](docs/open-questions.md)
-- Legacy reference: [`docs/reference/legacy-analysis.md`](docs/reference/legacy-analysis.md)
+- Review resolution: [`docs/reviews/context-pack-v0.1-review-resolution.md`](docs/reviews/context-pack-v0.1-review-resolution.md)
+- Legacy reference: `docs/reference/legacy-analysis.md` in the project repository
 
 ## Source-of-truth rule
 
 Chat conversations are not the project source of truth.
 
-Accepted decisions and product behavior must be written into this repository. If code and documentation disagree, agents and developers must report the conflict instead of silently guessing.
+Accepted product behavior, architecture, and engineering rules must be represented in repository documentation and ADRs.
 
-## Legacy project
+When there is a material conflict:
 
-The original Quizopia system is reference material only. The legacy analysis records valuable behavior such as:
+1. accepted ADRs and explicit Quizopia 2.0 specifications take precedence over legacy reference behavior;
+2. agents must report unresolved conflicts instead of silently inventing a rule;
+3. feature-level TBD items remain TBD until accepted explicitly.
 
-- immutable published exam snapshots;
-- attempt question ordering snapshots;
-- sequence-aware autosave;
-- idempotent submit;
-- transactional grading;
-- server-authoritative deadlines;
-- after-commit realtime events;
-- PostgreSQL constraints for business invariants;
-- refresh-token rotation/reuse detection.
+## Legacy reference
 
-Quizopia 2.0 may reuse these ideas and selected implementation patterns, but the Quizopia 2.0 specifications take precedence.
+Keep the full existing `docs/reference/legacy-analysis.md` from the Quizopia 2.0 repository. Context Pack v0.2 deliberately does **not** bundle or overwrite that file.
