@@ -1,0 +1,38 @@
+# Normalize text files in the repository
+* text=auto
+
+# Source code and configuration use LF
+*.java       text eol=lf
+*.kt         text eol=lf
+*.js         text eol=lf
+*.jsx        text eol=lf
+*.ts         text eol=lf
+*.tsx        text eol=lf
+*.json       text eol=lf
+*.xml        text eol=lf
+*.sql        text eol=lf
+*.properties text eol=lf
+*.md         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.toml       text eol=lf
+*.env        text eol=lf
+
+# Unix / Docker scripts must use LF
+*.sh         text eol=lf
+Dockerfile   text eol=lf
+
+# Windows scripts use CRLF
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+
+# Binary files
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.webp       binary
+*.pdf        binary
+*.docx       binary
+*.xlsx       binary
+*.zip        binary
