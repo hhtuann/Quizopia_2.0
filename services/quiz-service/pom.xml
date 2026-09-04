@@ -11,7 +11,7 @@
     <spring-boot.version>4.1.1</spring-boot.version>
     <spring-cloud.version>2025.1.2</spring-cloud.version>
     <maven.compiler.release>21</maven.compiler.release>
-    <testcontainers.version>1.21.3</testcontainers.version>
+    <testcontainers.version>2.0.5</testcontainers.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spotless.version>2.46.1</spotless.version>
   </properties>
