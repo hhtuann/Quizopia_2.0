@@ -44,8 +44,16 @@ management:
         enabled: true
       show-details: when_authorized
   tracing:
+    export:
+      otlp:
+        enabled: ${OTEL_EXPORTER_OTLP_ENABLED:false}
     sampling:
       probability: ${OTEL_TRACES_SAMPLER_ARG:1.0}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
 springdoc:
   api-docs:
     enabled: ${OPENAPI_ENABLED:true}
