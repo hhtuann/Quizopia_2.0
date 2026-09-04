@@ -12,7 +12,7 @@
     <maven.compiler.release>21</maven.compiler.release>
     <testcontainers.version>1.21.3</testcontainers.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <spotless.version>2.46.1</spotless.version>
+    <spotless.version>3.10.1</spotless.version>
   </properties>
   <dependencyManagement>
     <dependencies>
