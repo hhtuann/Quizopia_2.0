@@ -1,0 +1,33 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Java/Maven
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+*.class
+
+# Node/Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+**/*.tsbuildinfo
+pnpm-debug.log*
+
+# IDE/OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test/runtime output
+*.log
+coverage/
+playwright-report/
+test-results/
