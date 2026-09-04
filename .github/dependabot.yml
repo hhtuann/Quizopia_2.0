@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /gateway
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/identity-service
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/quiz-service
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/classroom-service
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/assessment-service
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/community-service
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/proctoring-service
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /services/ai-service
+    schedule:
+      interval: monthly

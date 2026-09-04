@@ -21,10 +21,12 @@
 # Unix / Docker scripts must use LF
 *.sh         text eol=lf
 Dockerfile   text eol=lf
+mvnw         text eol=lf
 
 # Windows scripts use CRLF
 *.bat        text eol=crlf
 *.cmd        text eol=crlf
+mvnw.cmd     text eol=crlf
 
 # Binary files
 *.png        binary

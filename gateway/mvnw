@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+MAVEN_VERSION=3.9.11
+WRAPPER_CACHE="${MAVEN_USER_HOME:-${XDG_CACHE_HOME:-/tmp}/quizopia-maven}"
+MAVEN_HOME="${WRAPPER_CACHE}/apache-maven-${MAVEN_VERSION}"
+if [ ! -x "${MAVEN_HOME}/bin/mvn" ]; then
+  command -v curl >/dev/null 2>&1 || { echo "Maven Wrapper needs curl to bootstrap Maven." >&2; exit 1; }
+  archive="${WRAPPER_CACHE}/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+  mkdir -p "${WRAPPER_CACHE}"
+  curl --fail --location --silent --show-error --output "${archive}" "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+  tar -xzf "${archive}" -C "${WRAPPER_CACHE}"
+fi
+exec "${MAVEN_HOME}/bin/mvn" "$@"
