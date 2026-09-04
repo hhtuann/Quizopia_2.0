@@ -3,8 +3,10 @@
 
 # Source code and configuration use LF
 *.java       text eol=lf
+*.css        text eol=lf
 *.kt         text eol=lf
 *.js         text eol=lf
+*.mjs        text eol=lf
 *.jsx        text eol=lf
 *.ts         text eol=lf
 *.tsx        text eol=lf

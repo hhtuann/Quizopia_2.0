@@ -60,3 +60,10 @@ An optional Docker profile may provide:
 - Loki if selected.
 
 Exact log backend/vendor and production telemetry platform remain TBD.
+
+For local IDE-run applications, set `OTEL_EXPORTER_OTLP_ENABLED=true` and
+use `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces`. Tempo's
+OTLP HTTP and gRPC receivers are bound inside the optional Compose service and
+published only on the local host. Applications running in a future container
+on the same Compose network should use the service hostname instead of
+`localhost`.

@@ -13,7 +13,7 @@ public class SecurityConfiguration {
     SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/actuator/health/**", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**")
+                        .pathMatchers("/actuator/health/**", "/actuator/info")
                         .permitAll()
                         .anyExchange()
                         .authenticated())

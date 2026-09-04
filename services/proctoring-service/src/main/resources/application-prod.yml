@@ -2,7 +2,22 @@ spring:
   config:
     activate:
       on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI}
 logging:
   structured:
     format:
       console: ecs
+quizopia:
+  proctoring:
+    livekit:
+      url: ${LIVEKIT_URL}
+      api-key: ${LIVEKIT_API_KEY}
+      api-secret: ${LIVEKIT_API_SECRET}

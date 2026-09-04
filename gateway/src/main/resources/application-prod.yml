@@ -1,0 +1,49 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: identity-service
+              uri: ${IDENTITY_SERVICE_URL}
+              predicates: [Path=/api/auth/**]
+            - id: quiz-service
+              uri: ${QUIZ_SERVICE_URL}
+              predicates: [Path=/api/quizzes/**]
+            - id: classroom-service
+              uri: ${CLASSROOM_SERVICE_URL}
+              predicates: [Path=/api/classes/**]
+            - id: assessment-service
+              uri: ${ASSESSMENT_SERVICE_URL}
+              predicates: [Path=/api/assessments/**]
+            - id: community-service
+              uri: ${COMMUNITY_SERVICE_URL}
+              predicates: [Path=/api/community/**]
+            - id: proctoring-service
+              uri: ${PROCTORING_SERVICE_URL}
+              predicates: [Path=/api/proctoring/**]
+            - id: ai-service
+              uri: ${AI_SERVICE_URL}
+              predicates: [Path=/api/ai/**]
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins: ${GATEWAY_ALLOWED_ORIGINS}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+server:
+  port: ${SERVER_PORT}
+logging:
+  structured:
+    format:
+      console: ecs
