@@ -11,8 +11,6 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${IDENTITY_JWKS_URI}
-      authorizationserver:
-        issuer: ${IDENTITY_ISSUER}
   data:
     redis:
       host: ${REDIS_HOST}
@@ -22,6 +20,17 @@ spring:
     port: ${MAIL_PORT}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
+quizopia:
+  identity:
+    security:
+      signing-key:
+        kid: ${IDENTITY_SIGNING_KEY_KID}
+        private-key-path: ${IDENTITY_SIGNING_KEY_PRIVATE_KEY_PATH}
+        public-key-path: ${IDENTITY_SIGNING_KEY_PUBLIC_KEY_PATH}
+      authorization-server:
+        enabled: ${IDENTITY_AUTHORIZATION_SERVER_ENABLED:false}
+        issuer: ${IDENTITY_AUTHORIZATION_SERVER_ISSUER:}
+        service-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_SERVICE_ACCESS_TOKEN_TTL:}
 logging:
   structured:
     format:
