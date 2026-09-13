@@ -31,6 +31,7 @@ quizopia:
         enabled: ${IDENTITY_AUTHORIZATION_SERVER_ENABLED:false}
         issuer: ${IDENTITY_AUTHORIZATION_SERVER_ISSUER:}
         service-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_SERVICE_ACCESS_TOKEN_TTL:}
+        user-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_USER_ACCESS_TOKEN_TTL:}
 logging:
   structured:
     format:

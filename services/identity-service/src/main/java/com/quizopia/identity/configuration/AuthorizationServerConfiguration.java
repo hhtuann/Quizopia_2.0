@@ -2,6 +2,7 @@ package com.quizopia.identity.configuration;
 
 import com.quizopia.identity.persistence.repository.OAuth2ServiceClientRepository;
 import com.quizopia.identity.security.authorization.IdentityRegisteredClientRepository;
+import com.quizopia.identity.security.token.QuizopiaTokenClaims;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,7 +23,9 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -69,8 +72,16 @@ public class AuthorizationServerConfiguration {
     }
 
     @Bean
-    OAuth2TokenGenerator<Jwt> serviceClientTokenGenerator(JwtEncoder jwtEncoder) {
-        return new JwtGenerator(jwtEncoder);
+    OAuth2TokenCustomizer<JwtEncodingContext> serviceAccessTokenCustomizer() {
+        return context -> context.getClaims().claim(QuizopiaTokenClaims.PRINCIPAL_TYPE, QuizopiaTokenClaims.SERVICE);
+    }
+
+    @Bean
+    OAuth2TokenGenerator<Jwt> serviceClientTokenGenerator(
+            JwtEncoder jwtEncoder, OAuth2TokenCustomizer<JwtEncodingContext> serviceAccessTokenCustomizer) {
+        JwtGenerator generator = new JwtGenerator(jwtEncoder);
+        generator.setJwtCustomizer(serviceAccessTokenCustomizer);
+        return generator;
     }
 
     @Bean

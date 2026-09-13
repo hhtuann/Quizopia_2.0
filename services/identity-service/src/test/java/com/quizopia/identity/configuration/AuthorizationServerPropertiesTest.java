@@ -9,13 +9,14 @@ import org.junit.jupiter.api.Test;
 
 class AuthorizationServerPropertiesTest {
     @Test
-    void acceptsExternallyConfiguredIssuerAndPositiveServiceTokenTtl() {
+    void acceptsExternallyConfiguredIssuerAndPositiveTokenTtls() {
         AuthorizationServerProperties properties = enabledProperties();
 
         properties.validateRequiredValues();
 
         assertEquals("https://identity.test", properties.requiredIssuer());
         assertEquals(Duration.ofSeconds(45), properties.requiredServiceAccessTokenTtl());
+        assertEquals(Duration.ofMinutes(5), properties.requiredUserAccessTokenTtl());
     }
 
     @Test
@@ -25,9 +26,7 @@ class AuthorizationServerPropertiesTest {
 
         IllegalStateException exception = assertThrows(IllegalStateException.class, properties::validateRequiredValues);
 
-        assertEquals(
-                "Authorization Server issuer is required when the service-token surface is enabled",
-                exception.getMessage());
+        assertEquals("Authorization Server issuer is required when token issuance is enabled", exception.getMessage());
     }
 
     @Test
@@ -48,8 +47,26 @@ class AuthorizationServerPropertiesTest {
         IllegalStateException exception = assertThrows(IllegalStateException.class, properties::validateRequiredValues);
 
         assertEquals(
-                "A positive service access-token TTL is required when the service-token surface is enabled",
+                "A positive service access-token TTL is required when token issuance is enabled",
                 exception.getMessage());
+    }
+
+    @Test
+    void rejectsNonPositiveUserTokenTtlWhenEnabled() {
+        AuthorizationServerProperties properties = enabledProperties();
+        properties.setUserAccessTokenTtl(Duration.ZERO);
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class, properties::validateRequiredValues);
+
+        assertEquals("User access-token TTL must be positive when configured", exception.getMessage());
+    }
+
+    @Test
+    void userTokenTtlFallsBackToServiceTokenTtlWhenNotConfigured() {
+        AuthorizationServerProperties properties = enabledProperties();
+        properties.setUserAccessTokenTtl(null);
+
+        assertEquals(properties.requiredServiceAccessTokenTtl(), properties.requiredUserAccessTokenTtl());
     }
 
     @Test
@@ -64,6 +81,7 @@ class AuthorizationServerPropertiesTest {
         properties.setEnabled(true);
         properties.setIssuer("https://identity.test");
         properties.setServiceAccessTokenTtl(Duration.ofSeconds(45));
+        properties.setUserAccessTokenTtl(Duration.ofMinutes(5));
         return properties;
     }
 }

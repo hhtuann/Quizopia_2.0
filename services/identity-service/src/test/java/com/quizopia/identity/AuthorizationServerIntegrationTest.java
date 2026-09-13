@@ -2,9 +2,11 @@ package com.quizopia.identity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.nimbusds.jose.JWSAlgorithm;
@@ -14,9 +16,19 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.SignedJWT;
+import com.quizopia.identity.application.account.AccountLifecycleStatus;
 import com.quizopia.identity.application.serviceclient.ServiceClientDescriptor;
 import com.quizopia.identity.application.serviceclient.ServiceClientRegistration;
 import com.quizopia.identity.application.serviceclient.ServiceClientRegistrationService;
+import com.quizopia.identity.persistence.entity.UserAccountEntity;
+import com.quizopia.identity.persistence.entity.UserRole;
+import com.quizopia.identity.persistence.entity.UserRoleEntity;
+import com.quizopia.identity.persistence.repository.UserAccountRepository;
+import com.quizopia.identity.persistence.repository.UserRoleRepository;
+import com.quizopia.identity.security.token.IssuedUserAccessToken;
+import com.quizopia.identity.security.token.QuizopiaTokenClaims;
+import com.quizopia.identity.security.token.UserAccessTokenIssuanceException;
+import com.quizopia.identity.security.token.UserAccessTokenIssuer;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -25,7 +37,9 @@ import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -77,6 +91,8 @@ class AuthorizationServerIntegrationTest {
     private static final String ISSUER = "https://identity.test";
     private static final String KEY_ID = "wave-1a-step-6-test-key";
     private static final Duration ACCESS_TOKEN_TTL = Duration.ofSeconds(45);
+    private static final Duration USER_ACCESS_TOKEN_TTL = Duration.ofMinutes(5);
+    private static final Instant USER_TOKEN_ISSUED_AT = Instant.parse("2026-09-13T00:00:00Z");
     private static final TestKeyMaterial KEY_MATERIAL = TestKeyMaterial.create();
 
     @Container
@@ -103,6 +119,15 @@ class AuthorizationServerIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private UserAccessTokenIssuer userAccessTokenIssuer;
+
+    @Autowired
+    private UserAccountRepository userAccountRepository;
+
+    @Autowired
+    private UserRoleRepository userRoleRepository;
+
     @Test
     void validClientCredentialsProduceVerifiableRs256JwtWithoutRefreshToken() throws Exception {
         ServiceClientRegistration registration = registerClient(Set.of("test.read", "test.write"));
@@ -120,14 +145,23 @@ class AuthorizationServerIntegrationTest {
         assertEquals(JWSAlgorithm.RS256, signedJwt.getHeader().getAlgorithm());
         assertEquals(KEY_ID, signedJwt.getHeader().getKeyID());
         assertEquals(ISSUER, signedJwt.getJWTClaimsSet().getIssuer());
+        assertEquals(registration.clientId(), signedJwt.getJWTClaimsSet().getSubject());
+        assertEquals(
+                QuizopiaTokenClaims.SERVICE,
+                signedJwt.getJWTClaimsSet().getStringClaim(QuizopiaTokenClaims.PRINCIPAL_TYPE));
+        assertNull(signedJwt.getJWTClaimsSet().getClaim(QuizopiaTokenClaims.ROLES));
         assertEquals(
                 ACCESS_TOKEN_TTL.toSeconds(),
                 Duration.between(
                                 signedJwt.getJWTClaimsSet().getIssueTime().toInstant(),
                                 signedJwt.getJWTClaimsSet().getExpirationTime().toInstant())
                         .toSeconds());
-        assertEquals(
-                Set.of("test.read"), new HashSet<>(signedJwt.getJWTClaimsSet().getStringListClaim("scope")));
+        Object rawScopeClaim = signedJwt.getJWTClaimsSet().getClaim(QuizopiaTokenClaims.SCOPE);
+        assertInstanceOf(List.class, rawScopeClaim);
+        List<?> decodedScopes = (List<?>) rawScopeClaim;
+        assertFalse(decodedScopes.isEmpty());
+        assertTrue(decodedScopes.stream().allMatch(String.class::isInstance));
+        assertEquals(List.of("test.read"), decodedScopes);
 
         JWKSet publicJwkSet = fetchPublicJwkSet();
         RSAKey publicKey = (RSAKey) publicJwkSet.getKeyByKeyId(KEY_ID);
@@ -138,6 +172,70 @@ class AuthorizationServerIntegrationTest {
         KeyPair unrelatedKeyPair = generateRsaKeyPair();
         assertFalse(signedJwt.verify(
                 new RSASSAVerifier((java.security.interfaces.RSAPublicKey) unrelatedKeyPair.getPublic())));
+    }
+
+    @Test
+    void activeStudentReceivesSignedUserTokenWithExactPrincipalContract() throws Exception {
+        UserAccountEntity account = activeVerifiedUser(Set.of(UserRole.STUDENT));
+
+        IssuedUserAccessToken issued = userAccessTokenIssuer.issue(account.getId());
+        SignedJWT signedJwt = SignedJWT.parse(issued.value());
+
+        assertEquals(JWSAlgorithm.RS256, signedJwt.getHeader().getAlgorithm());
+        assertEquals(KEY_ID, signedJwt.getHeader().getKeyID());
+        assertEquals(ISSUER, signedJwt.getJWTClaimsSet().getIssuer());
+        assertEquals(account.getId().toString(), signedJwt.getJWTClaimsSet().getSubject());
+        assertEquals(
+                QuizopiaTokenClaims.USER,
+                signedJwt.getJWTClaimsSet().getStringClaim(QuizopiaTokenClaims.PRINCIPAL_TYPE));
+        assertEquals(
+                Set.of("STUDENT"),
+                new HashSet<>(signedJwt.getJWTClaimsSet().getStringListClaim(QuizopiaTokenClaims.ROLES)));
+        assertNull(signedJwt.getJWTClaimsSet().getClaim(QuizopiaTokenClaims.SCOPE));
+        assertEquals(
+                USER_TOKEN_ISSUED_AT, signedJwt.getJWTClaimsSet().getIssueTime().toInstant());
+        assertEquals(
+                USER_TOKEN_ISSUED_AT.plus(USER_ACCESS_TOKEN_TTL),
+                signedJwt.getJWTClaimsSet().getExpirationTime().toInstant());
+        assertFalse(issued.toString().contains(issued.value()));
+        assertSignedByConfiguredKey(signedJwt);
+    }
+
+    @Test
+    void enabledTeacherReceivesStudentAndTeacherRolesWithoutServiceScopes() throws Exception {
+        UserAccountEntity account = activeVerifiedUser(Set.of(UserRole.STUDENT, UserRole.TEACHER));
+
+        SignedJWT signedJwt =
+                SignedJWT.parse(userAccessTokenIssuer.issue(account.getId()).value());
+
+        assertEquals(
+                Set.of("STUDENT", "TEACHER"),
+                new HashSet<>(signedJwt.getJWTClaimsSet().getStringListClaim(QuizopiaTokenClaims.ROLES)));
+        assertEquals(
+                QuizopiaTokenClaims.USER,
+                signedJwt.getJWTClaimsSet().getStringClaim(QuizopiaTokenClaims.PRINCIPAL_TYPE));
+        assertNull(signedJwt.getJWTClaimsSet().getClaim(QuizopiaTokenClaims.SCOPE));
+        assertSignedByConfiguredKey(signedJwt);
+    }
+
+    @Test
+    void userTokenIssuanceRejectsUnverifiedOrInvariantBreakingAccounts() {
+        UserAccountEntity pending =
+                new UserAccountEntity("pending-" + UUID.randomUUID() + "@example.com", "pending-" + UUID.randomUUID());
+        pending.setAccountStatus(AccountLifecycleStatus.PENDING_EMAIL_VERIFICATION);
+        userAccountRepository.saveAndFlush(pending);
+
+        UserAccountEntity activeWithoutStudent =
+                new UserAccountEntity("active-" + UUID.randomUUID() + "@example.com", "active-" + UUID.randomUUID());
+        activeWithoutStudent.setAccountStatus(AccountLifecycleStatus.ACTIVE);
+        activeWithoutStudent.setEmailVerifiedAt(USER_TOKEN_ISSUED_AT.minusSeconds(60));
+        userAccountRepository.saveAndFlush(activeWithoutStudent);
+
+        assertThrows(UserAccessTokenIssuanceException.class, () -> userAccessTokenIssuer.issue(pending.getId()));
+        assertThrows(
+                UserAccessTokenIssuanceException.class,
+                () -> userAccessTokenIssuer.issue(activeWithoutStudent.getId()));
+        assertThrows(UserAccessTokenIssuanceException.class, () -> userAccessTokenIssuer.issue(UUID.randomUUID()));
     }
 
     @Test
@@ -292,6 +390,22 @@ class AuthorizationServerIntegrationTest {
         assertEquals(tokensBefore, count("refresh_token"));
     }
 
+    private UserAccountEntity activeVerifiedUser(Set<UserRole> roles) {
+        UserAccountEntity account =
+                new UserAccountEntity("token-" + UUID.randomUUID() + "@example.com", "token-" + UUID.randomUUID());
+        account.setAccountStatus(AccountLifecycleStatus.ACTIVE);
+        account.setEmailVerifiedAt(USER_TOKEN_ISSUED_AT.minusSeconds(60));
+        userAccountRepository.saveAndFlush(account);
+        roles.forEach(role -> userRoleRepository.saveAndFlush(new UserRoleEntity(account, role)));
+        return account;
+    }
+
+    private void assertSignedByConfiguredKey(SignedJWT signedJwt) throws Exception {
+        RSAKey publicKey = (RSAKey) fetchPublicJwkSet().getKeyByKeyId(KEY_ID);
+        assertNotNull(publicKey);
+        assertTrue(signedJwt.verify(new RSASSAVerifier(publicKey.toRSAPublicKey())));
+    }
+
     private ServiceClientRegistration registerClient(Set<String> scopes) {
         return registrationService.register("test-step-6-client-" + UUID.randomUUID(), scopes);
     }
@@ -371,6 +485,9 @@ class AuthorizationServerIntegrationTest {
         registry.add(
                 "quizopia.identity.security.authorization-server.service-access-token-ttl",
                 () -> ACCESS_TOKEN_TTL.toString());
+        registry.add(
+                "quizopia.identity.security.authorization-server.user-access-token-ttl",
+                () -> USER_ACCESS_TOKEN_TTL.toString());
         registry.add("quizopia.identity.security.signing-key.kid", () -> KEY_ID);
         registry.add(
                 "quizopia.identity.security.signing-key.private-key-path",
@@ -405,6 +522,12 @@ class AuthorizationServerIntegrationTest {
         @Primary
         PasswordEncoder authorizationServerPasswordEncoder() {
             return new ControlledUpgradePasswordEncoder();
+        }
+
+        @Bean
+        @Primary
+        Clock authorizationServerClock() {
+            return Clock.fixed(USER_TOKEN_ISSUED_AT, java.time.ZoneOffset.UTC);
         }
     }
 
