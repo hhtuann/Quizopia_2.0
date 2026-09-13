@@ -9,6 +9,7 @@ public class AuthorizationServerProperties {
     private boolean enabled;
     private String issuer;
     private Duration serviceAccessTokenTtl;
+    private Duration userAccessTokenTtl;
 
     public boolean isEnabled() {
         return enabled;
@@ -34,14 +35,21 @@ public class AuthorizationServerProperties {
         this.serviceAccessTokenTtl = serviceAccessTokenTtl;
     }
 
+    public Duration getUserAccessTokenTtl() {
+        return userAccessTokenTtl;
+    }
+
+    public void setUserAccessTokenTtl(Duration userAccessTokenTtl) {
+        this.userAccessTokenTtl = userAccessTokenTtl;
+    }
+
     public void validateRequiredValues() {
         if (!enabled) {
             return;
         }
         String configuredIssuer = issuer == null ? null : issuer.trim();
         if (configuredIssuer == null || configuredIssuer.isEmpty()) {
-            throw new IllegalStateException(
-                    "Authorization Server issuer is required when the service-token surface is enabled");
+            throw new IllegalStateException("Authorization Server issuer is required when token issuance is enabled");
         }
         try {
             if (!URI.create(configuredIssuer).isAbsolute()) {
@@ -52,7 +60,10 @@ public class AuthorizationServerProperties {
         }
         if (serviceAccessTokenTtl == null || serviceAccessTokenTtl.isZero() || serviceAccessTokenTtl.isNegative()) {
             throw new IllegalStateException(
-                    "A positive service access-token TTL is required when the service-token surface is enabled");
+                    "A positive service access-token TTL is required when token issuance is enabled");
+        }
+        if (userAccessTokenTtl != null && (userAccessTokenTtl.isZero() || userAccessTokenTtl.isNegative())) {
+            throw new IllegalStateException("User access-token TTL must be positive when configured");
         }
     }
 
@@ -64,5 +75,10 @@ public class AuthorizationServerProperties {
     public Duration requiredServiceAccessTokenTtl() {
         validateRequiredValues();
         return serviceAccessTokenTtl;
+    }
+
+    public Duration requiredUserAccessTokenTtl() {
+        validateRequiredValues();
+        return userAccessTokenTtl == null ? serviceAccessTokenTtl : userAccessTokenTtl;
     }
 }
