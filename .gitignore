@@ -14,6 +14,7 @@
 # Node/Next.js
 frontend/node_modules/
 frontend/.next/
+frontend/next-env.d.ts
 frontend/out/
 frontend/coverage/
 **/*.tsbuildinfo
