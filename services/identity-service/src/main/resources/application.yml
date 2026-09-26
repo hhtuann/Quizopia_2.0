@@ -20,8 +20,6 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8081/oauth2/jwks}
-      authorizationserver:
-        issuer: ${IDENTITY_ISSUER:http://localhost:8081}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -59,3 +57,8 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
   swagger-ui:
     enabled: ${OPENAPI_ENABLED:true}
+quizopia:
+  identity:
+    security:
+      authorization-server:
+        enabled: ${IDENTITY_AUTHORIZATION_SERVER_ENABLED:false}

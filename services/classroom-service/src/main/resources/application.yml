@@ -15,6 +15,9 @@ spring:
     open-in-view: false
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   security:
     oauth2:
       resourceserver:
