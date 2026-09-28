@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface RefreshTokenFamilyRepository extends JpaRepository<RefreshTokenFamilyEntity, UUID> {
-    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select family from RefreshTokenFamilyEntity family where family.id = :familyId")
     Optional<RefreshTokenFamilyEntity> findByIdForUpdate(@Param("familyId") UUID familyId);
 }

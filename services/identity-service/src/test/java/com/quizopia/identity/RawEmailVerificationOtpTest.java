@@ -18,23 +18,17 @@ class RawEmailVerificationOtpTest {
 
     @ParameterizedTest
     @EmptySource
-    @ValueSource(strings = {" ", "\t\r\n", "\u2003"})
-    void rejectsTechnicallyBlankMaterial(String value) {
+    @ValueSource(strings = {" ", "12345", "1234567", "12a456", "１２３４５６", "+12345", " 123456"})
+    void rejectsAnythingOtherThanSixAsciiDecimalDigits(String value) {
         assertThrows(IllegalArgumentException.class, () -> RawEmailVerificationOtp.from(value));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"7", "fixture words", "A-b_!", "  preserved  ", "\u03a9\u4e2d"})
-    void preservesArbitraryNonblankMaterialAndRedactsDiagnostics(String value) {
+    @ValueSource(strings = {"000000", "012345", "999999"})
+    void preservesSixDigitsIncludingLeadingZeroesAndRedactsDiagnostics(String value) {
         RawEmailVerificationOtp otp = RawEmailVerificationOtp.from(value);
         assertEquals(value, otp.value());
         assertEquals("[REDACTED_EMAIL_VERIFICATION_OTP]", otp.toString());
         assertFalse(RawEmailVerificationOtp.class.isRecord());
-    }
-
-    @Test
-    void wrapperDoesNotSelectAnOtpLength() {
-        String fixture = "fixture".repeat(1000);
-        assertEquals(fixture, RawEmailVerificationOtp.from(fixture).value());
     }
 }

@@ -1,6 +1,9 @@
 package com.quizopia.identity.application.activation;
 
 import com.quizopia.identity.application.account.AccountLifecycleStatus;
+import com.quizopia.identity.application.emailverification.delivery.EmailVerificationSendFence;
+import com.quizopia.identity.persistence.emailverification.EmailVerificationIssuanceThrottlePersistence;
+import com.quizopia.identity.persistence.emailverification.EmailVerificationOutboxPersistence;
 import com.quizopia.identity.persistence.entity.UserAccountEntity;
 import com.quizopia.identity.persistence.entity.UserRole;
 import com.quizopia.identity.persistence.entity.UserRoleEntity;
@@ -16,11 +19,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class TrustedEmailActivationTransaction {
     private final UserAccountRepository userAccountRepository;
     private final UserRoleRepository userRoleRepository;
+    private final EmailVerificationIssuanceThrottlePersistence issuanceThrottle;
+    private final EmailVerificationOutboxPersistence outboxPersistence;
+    private final EmailVerificationSendFence sendFence;
 
     public TrustedEmailActivationTransaction(
-            UserAccountRepository userAccountRepository, UserRoleRepository userRoleRepository) {
+            UserAccountRepository userAccountRepository,
+            UserRoleRepository userRoleRepository,
+            EmailVerificationIssuanceThrottlePersistence issuanceThrottle,
+            EmailVerificationOutboxPersistence outboxPersistence,
+            EmailVerificationSendFence sendFence) {
         this.userAccountRepository = userAccountRepository;
         this.userRoleRepository = userRoleRepository;
+        this.issuanceThrottle = issuanceThrottle;
+        this.outboxPersistence = outboxPersistence;
+        this.sendFence = sendFence;
     }
 
     @Transactional
@@ -43,9 +56,16 @@ public class TrustedEmailActivationTransaction {
             return TrustedEmailActivationResult.conflict(user.getId());
         }
 
+        // Account operations lock user, then the exact-email send fence, then the exact-email
+        // issuance guard. Issuance uses the same order.
+        sendFence.serializeMutation(user.getEmail());
+        issuanceThrottle.lockExactEmail(user.getEmail());
+
         user.setEmailVerifiedAt(input.verifiedAt());
         user.setAccountStatus(AccountLifecycleStatus.ACTIVE);
         userAccountRepository.saveAndFlush(user);
+        outboxPersistence.terminalizeActiveForOtherUsersByEmail(
+                user.getEmail(), user.getId(), "EMAIL_OWNERSHIP_LOST", input.verifiedAt());
 
         boolean hasStudent = userRoleRepository.findAllByUser_Id(user.getId()).stream()
                 .anyMatch(role -> role.getRole() == UserRole.STUDENT);

@@ -2,6 +2,7 @@ package com.quizopia.identity.application.activation;
 
 import java.util.Objects;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -14,6 +15,14 @@ public class TrustedEmailActivationService {
     }
 
     public TrustedEmailActivationResult activate(TrustedEmailActivationInput input) {
-        return transaction.activate(Objects.requireNonNull(input, "input"));
+        Objects.requireNonNull(input, "input");
+        try {
+            return transaction.activate(input);
+        } catch (DataIntegrityViolationException exception) {
+            if (VerifiedEmailOwnershipConstraint.isViolation(exception)) {
+                return TrustedEmailActivationResult.conflict(input.userId());
+            }
+            throw exception;
+        }
     }
 }

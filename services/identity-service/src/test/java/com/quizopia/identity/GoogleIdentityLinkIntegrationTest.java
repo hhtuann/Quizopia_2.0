@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -244,11 +245,12 @@ class GoogleIdentityLinkIntegrationTest {
     }
 
     @Test
-    void multipleExactEmailCandidatesAreAmbiguous() {
+    void databaseRejectsMultipleVerifiedOwnersBeforeGoogleResolution() {
         String email = "duplicate-" + UUID.randomUUID() + "@example.com";
         String subject = "subject-" + UUID.randomUUID();
         verifiedAccount(email);
-        verifiedAccount(email);
+
+        assertThrows(DataIntegrityViolationException.class, () -> verifiedAccount(email));
 
         GoogleIdentityLinkResult result = resolve(subject, email);
 

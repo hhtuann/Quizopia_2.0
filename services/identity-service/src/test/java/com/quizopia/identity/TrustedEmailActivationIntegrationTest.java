@@ -191,12 +191,90 @@ class TrustedEmailActivationIntegrationTest {
         }
     }
 
+    @Test
+    void duplicatePendingEmailsRemainAllowedButOnlyOneAccountCanActivate() {
+        String email = "shared-activation-" + UUID.randomUUID() + "@gmail.com";
+        UUID firstUserId = register("first-owner-" + UUID.randomUUID(), email);
+        UUID secondUserId = register("second-owner-" + UUID.randomUUID(), email);
+
+        assertEquals(2L, count("SELECT COUNT(*) FROM user_account WHERE email = ?", email));
+        assertEquals(
+                TrustedEmailActivationStatus.ACTIVATED,
+                activate(firstUserId, Instant.parse("2026-09-08T09:10:11Z")).status());
+        assertEquals(
+                TrustedEmailActivationStatus.CONFLICT,
+                activate(secondUserId, Instant.parse("2026-09-08T09:10:12Z")).status());
+
+        assertEquals(
+                1L,
+                count("SELECT COUNT(*) FROM user_account WHERE email = ? AND email_verified_at IS NOT NULL", email));
+        UserAccountEntity second = userAccountRepository.findById(secondUserId).orElseThrow();
+        assertEquals(AccountLifecycleStatus.PENDING_EMAIL_VERIFICATION, second.getAccountStatus());
+        assertTrue(second.getEmailVerifiedAt() == null);
+        assertTrue(roles(secondUserId).isEmpty());
+    }
+
+    @Test
+    void concurrentDuplicateEmailActivationsEstablishOneVerifiedOwner() throws Exception {
+        String email = "concurrent-owner-" + UUID.randomUUID() + "@gmail.com";
+        UUID firstUserId = register("first-concurrent-owner-" + UUID.randomUUID(), email);
+        UUID secondUserId = register("second-concurrent-owner-" + UUID.randomUUID(), email);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<TrustedEmailActivationResult> first = executor.submit(
+                    () -> activateAfter(ready, release, firstUserId, Instant.parse("2026-09-08T10:11:12Z")));
+            Future<TrustedEmailActivationResult> second = executor.submit(
+                    () -> activateAfter(ready, release, secondUserId, Instant.parse("2026-09-08T10:11:13Z")));
+            assertTrue(ready.await(30, TimeUnit.SECONDS));
+            release.countDown();
+
+            assertEquals(
+                    Set.of(TrustedEmailActivationStatus.ACTIVATED, TrustedEmailActivationStatus.CONFLICT),
+                    Set.of(
+                            first.get(30, TimeUnit.SECONDS).status(),
+                            second.get(30, TimeUnit.SECONDS).status()));
+            assertEquals(
+                    1L,
+                    count(
+                            "SELECT COUNT(*) FROM user_account WHERE email = ? AND email_verified_at IS NOT NULL",
+                            email));
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void disabledVerifiedOwnerRetainsExclusiveEmailOwnership() {
+        String email = "disabled-owner-" + UUID.randomUUID() + "@gmail.com";
+        UUID ownerId = register("disabled-owner-" + UUID.randomUUID(), email);
+        UUID claimantId = register("disabled-claimant-" + UUID.randomUUID(), email);
+        assertEquals(
+                TrustedEmailActivationStatus.ACTIVATED,
+                activate(ownerId, Instant.parse("2026-09-08T11:12:13Z")).status());
+        UserAccountEntity owner = userAccountRepository.findById(ownerId).orElseThrow();
+        owner.setAccountStatus("DISABLED");
+        userAccountRepository.saveAndFlush(owner);
+
+        assertEquals(
+                TrustedEmailActivationStatus.CONFLICT,
+                activate(claimantId, Instant.parse("2026-09-08T11:12:14Z")).status());
+        assertEquals(
+                1L,
+                count("SELECT COUNT(*) FROM user_account WHERE email = ? AND email_verified_at IS NOT NULL", email));
+    }
+
     private UUID register(String username) {
+        return register(username, username + "@gmail.com");
+    }
+
+    private UUID register(String username, String email) {
         return registrationService
                 .register(new LocalRegistrationInput(
-                        username,
-                        username + "@example.com",
-                        RawLocalPassword.from("activation-secret-" + UUID.randomUUID())))
+                        username, email, RawLocalPassword.from("activation-secret-" + UUID.randomUUID())))
                 .userId()
                 .orElseThrow();
     }

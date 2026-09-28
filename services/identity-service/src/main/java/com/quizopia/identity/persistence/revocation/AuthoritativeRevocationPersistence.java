@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Profile("!test")
@@ -23,10 +24,11 @@ public class AuthoritativeRevocationPersistence {
         this.revocationRepository = revocationRepository;
     }
 
+    @Transactional
     public AuthoritativeRevocationState upsert(UUID userId, Instant revokedBefore) {
         Objects.requireNonNull(userId, "userId must not be null");
         Objects.requireNonNull(revokedBefore, "revokedBefore must not be null");
-        if (!userAccountRepository.existsById(userId)) {
+        if (userAccountRepository.findByIdForUpdate(userId).isEmpty()) {
             throw new IllegalArgumentException("Identity user does not exist: " + userId);
         }
 

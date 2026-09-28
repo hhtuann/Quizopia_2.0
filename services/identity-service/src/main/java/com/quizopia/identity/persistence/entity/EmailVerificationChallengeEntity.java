@@ -41,13 +41,23 @@ public class EmailVerificationChallengeEntity {
     @Column(name = "max_attempts", nullable = false)
     private int maxAttempts;
 
+    @Column(name = "current_issuance_id")
+    private UUID currentIssuanceId;
+
     protected EmailVerificationChallengeEntity() {}
 
     public EmailVerificationChallengeEntity(UserAccountEntity user) {
         this.user = user;
     }
 
-    public void replace(String otpHash, Instant issuedAt, Instant expiresAt, Instant resendNotBefore, int maxAttempts) {
+    public void replace(
+            UUID currentIssuanceId,
+            String otpHash,
+            Instant issuedAt,
+            Instant expiresAt,
+            Instant resendNotBefore,
+            int maxAttempts) {
+        this.currentIssuanceId = currentIssuanceId;
         this.otpHash = otpHash;
         this.issuedAt = issuedAt;
         this.expiresAt = expiresAt;
@@ -77,5 +87,9 @@ public class EmailVerificationChallengeEntity {
 
     public Instant getResendNotBefore() {
         return resendNotBefore;
+    }
+
+    public UUID getCurrentIssuanceId() {
+        return currentIssuanceId;
     }
 }
