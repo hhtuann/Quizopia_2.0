@@ -20,6 +20,7 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8081/oauth2/jwks}
+          issuer-uri: ${IDENTITY_ISSUER:http://localhost:8081}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -29,6 +30,12 @@ spring:
     port: ${MAIL_PORT:1025}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+      mail.smtp.connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT_MS:10000}
+      mail.smtp.timeout: ${MAIL_SMTP_READ_TIMEOUT_MS:10000}
+      mail.smtp.writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT_MS:10000}
 server:
   port: ${SERVER_PORT:8081}
 management:
@@ -59,6 +66,27 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
 quizopia:
   identity:
+    email-outbox:
+      encryption:
+        active-key-version: ${IDENTITY_EMAIL_OUTBOX_ACTIVE_KEY_VERSION:}
+      dispatcher:
+        enabled: ${IDENTITY_EMAIL_OUTBOX_DISPATCHER_ENABLED:false}
+        polling-interval: ${IDENTITY_EMAIL_OUTBOX_POLLING_INTERVAL:PT5S}
+        batch-size: ${IDENTITY_EMAIL_OUTBOX_BATCH_SIZE:20}
+        lease-duration: ${IDENTITY_EMAIL_OUTBOX_LEASE_DURATION:PT1M}
+        maximum-attempts: ${IDENTITY_EMAIL_OUTBOX_MAXIMUM_ATTEMPTS:5}
+        initial-retry-delay: ${IDENTITY_EMAIL_OUTBOX_INITIAL_RETRY_DELAY:PT30S}
+        maximum-retry-delay: ${IDENTITY_EMAIL_OUTBOX_MAXIMUM_RETRY_DELAY:PT5M}
+        from-address: ${IDENTITY_EMAIL_FROM_ADDRESS:}
     security:
+      browser:
+        trusted-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:3000}
       authorization-server:
         enabled: ${IDENTITY_AUTHORIZATION_SERVER_ENABLED:false}
+        issuer: ${IDENTITY_ISSUER:http://localhost:8081}
+        service-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_SERVICE_ACCESS_TOKEN_TTL:PT1M}
+        user-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_USER_ACCESS_TOKEN_TTL:PT5M}
+      signing-key:
+        kid: ${IDENTITY_SIGNING_KEY_KID:}
+        private-key-path: ${IDENTITY_SIGNING_KEY_PRIVATE_KEY_PATH:}
+        public-key-path: ${IDENTITY_SIGNING_KEY_PUBLIC_KEY_PATH:}

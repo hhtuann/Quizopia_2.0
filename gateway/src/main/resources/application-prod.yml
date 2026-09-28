@@ -7,6 +7,7 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${IDENTITY_JWKS_URI}
+          issuer-uri: ${IDENTITY_ISSUER}
   cloud:
     gateway:
       server:
@@ -33,14 +34,14 @@ spring:
             - id: ai-service
               uri: ${AI_SERVICE_URL}
               predicates: [Path=/api/ai/**]
-          globalcors:
-            cors-configurations:
-              '[/**]':
-                allowedOrigins: ${GATEWAY_ALLOWED_ORIGINS}
   data:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+quizopia:
+  gateway:
+    browser:
+      allowed-origins: ${GATEWAY_ALLOWED_ORIGINS}
 server:
   port: ${SERVER_PORT}
 logging:

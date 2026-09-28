@@ -11,6 +11,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserAccountRepository extends JpaRepository<UserAccountEntity, UUID> {
+    @Query("select user from UserAccountEntity user where user.username = :username")
+    Optional<UserAccountEntity> findByUsername(@Param("username") String username);
+
+    @Query("select user.id from UserAccountEntity user where user.username = :username")
+    Optional<UUID> findIdByUsername(@Param("username") String username);
+
+    @Query("select user from UserAccountEntity user "
+            + "where user.email = :email and user.emailVerifiedAt is not null")
+    Optional<UserAccountEntity> findVerifiedByEmail(@Param("email") String email);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserAccountEntity user where user.id = :userId")
     Optional<UserAccountEntity> findByIdForUpdate(@Param("userId") UUID userId);

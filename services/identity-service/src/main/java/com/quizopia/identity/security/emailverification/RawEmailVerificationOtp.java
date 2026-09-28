@@ -2,7 +2,7 @@ package com.quizopia.identity.security.emailverification;
 
 import java.util.Objects;
 
-/** Transient caller-supplied OTP material; this type deliberately defines no OTP format. */
+/** Transient six-digit email-verification material with redacted diagnostics. */
 public final class RawEmailVerificationOtp {
     private final String value;
 
@@ -12,8 +12,8 @@ public final class RawEmailVerificationOtp {
 
     public static RawEmailVerificationOtp from(String value) {
         Objects.requireNonNull(value, "value");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("Email verification OTP must not be blank");
+        if (!value.matches("[0-9]{6}")) {
+            throw new IllegalArgumentException("Email verification OTP must contain exactly six decimal digits");
         }
         return new RawEmailVerificationOtp(value);
     }

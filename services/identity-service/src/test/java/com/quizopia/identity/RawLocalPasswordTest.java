@@ -25,7 +25,7 @@ class RawLocalPasswordTest {
     @Test
     void registrationInputValidatesTechnicalBoundsWithoutChangingValues() {
         String username = " exact Username ";
-        String email = "Exact.Email@example.com";
+        String email = "Exact.Email@gmail.com";
         RawLocalPassword password = RawLocalPassword.from("Password without policy");
 
         LocalRegistrationInput input = new LocalRegistrationInput(username, email, password);
@@ -33,8 +33,24 @@ class RawLocalPasswordTest {
         assertEquals(username, input.username());
         assertEquals(email, input.email());
         assertEquals(password, input.rawPassword());
+        assertEquals(
+                "Alias.Name+tag@gmail.com",
+                new LocalRegistrationInput(username, "Alias.Name+tag@gmail.com", password).email());
         assertFalse(input.toString().contains("Password without policy"));
         assertThrows(IllegalArgumentException.class, () -> new LocalRegistrationInput(" ", email, password));
         assertThrows(IllegalArgumentException.class, () -> new LocalRegistrationInput(username, "\t", password));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LocalRegistrationInput(username, "Exact.Email@GMAIL.com", password));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LocalRegistrationInput(username, "Exact.Email@example.com", password));
+        assertThrows(
+                IllegalArgumentException.class, () -> new LocalRegistrationInput(username, "a@b@gmail.com", password));
+        assertThrows(
+                IllegalArgumentException.class, () -> new LocalRegistrationInput(username, "a b@gmail.com", password));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LocalRegistrationInput(username, "a\r\nBcc:x@gmail.com", password));
     }
 }

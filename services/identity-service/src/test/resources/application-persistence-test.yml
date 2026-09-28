@@ -1,0 +1,9 @@
+quizopia:
+  identity:
+    email-outbox:
+      dispatcher:
+        enabled: false
+      encryption:
+        active-key-version: test-v1
+        keys:
+          test-v1: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

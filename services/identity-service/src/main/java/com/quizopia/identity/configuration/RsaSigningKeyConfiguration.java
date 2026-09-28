@@ -15,7 +15,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(RsaSigningKeyProperties.class)
-@ConditionalOnProperty(prefix = "quizopia.identity.security.signing-key", name = "private-key-path")
+@ConditionalOnProperty(
+        prefix = "quizopia.identity.security.authorization-server",
+        name = "enabled",
+        havingValue = "true")
 public class RsaSigningKeyConfiguration {
     @Bean
     RsaSigningKeyLoader rsaSigningKeyLoader() {

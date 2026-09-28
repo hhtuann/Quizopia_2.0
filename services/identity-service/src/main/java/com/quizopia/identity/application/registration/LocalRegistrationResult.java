@@ -22,4 +22,8 @@ public record LocalRegistrationResult(LocalRegistrationStatus status, Optional<U
     public static LocalRegistrationResult usernameConflict() {
         return new LocalRegistrationResult(LocalRegistrationStatus.USERNAME_CONFLICT, Optional.empty());
     }
+
+    public static LocalRegistrationResult registrationFailed() {
+        return new LocalRegistrationResult(LocalRegistrationStatus.REGISTRATION_FAILED, Optional.empty());
+    }
 }

@@ -3,8 +3,11 @@ package com.quizopia.identity.application.emailverification;
 import java.time.Duration;
 import java.util.Objects;
 
-/** Explicit per-issuance values. Production policy remains unresolved under ID-02. */
+/** Email-verification challenge policy. */
 public record EmailVerificationPolicy(Duration expiry, int maxAttempts, Duration resendCooldown) {
+    private static final EmailVerificationPolicy PRODUCTION =
+            new EmailVerificationPolicy(Duration.ofMinutes(10), 5, Duration.ofSeconds(60));
+
     public EmailVerificationPolicy {
         Objects.requireNonNull(expiry, "expiry");
         Objects.requireNonNull(resendCooldown, "resendCooldown");
@@ -18,5 +21,9 @@ public record EmailVerificationPolicy(Duration expiry, int maxAttempts, Duration
         if (resendCooldown.isNegative()) {
             throw new IllegalArgumentException("resendCooldown must not be negative");
         }
+    }
+
+    public static EmailVerificationPolicy production() {
+        return PRODUCTION;
     }
 }

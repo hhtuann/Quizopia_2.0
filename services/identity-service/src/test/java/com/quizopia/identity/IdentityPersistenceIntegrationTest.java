@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.quizopia.identity.application.account.AccountLifecycleStatus;
 import com.quizopia.identity.application.refresh.RefreshCredentialIssuance;
 import com.quizopia.identity.application.refresh.RefreshRotationResult;
 import com.quizopia.identity.application.refresh.RefreshRotationStatus;
@@ -30,6 +31,7 @@ import com.quizopia.identity.persistence.repository.LocalCredentialRepository;
 import com.quizopia.identity.persistence.repository.OAuth2ServiceClientRepository;
 import com.quizopia.identity.persistence.repository.RefreshTokenFamilyRepository;
 import com.quizopia.identity.persistence.repository.RefreshTokenRepository;
+import com.quizopia.identity.persistence.repository.UserAccessRevocationRepository;
 import com.quizopia.identity.persistence.repository.UserAccountRepository;
 import com.quizopia.identity.persistence.repository.UserRoleRepository;
 import com.quizopia.identity.security.client.RawServiceClientSecret;
@@ -104,6 +106,9 @@ class IdentityPersistenceIntegrationTest {
     private UserRoleRepository userRoleRepository;
 
     @Autowired
+    private UserAccessRevocationRepository revocationRepository;
+
+    @Autowired
     private LocalCredentialRepository localCredentialRepository;
 
     @Autowired
@@ -140,7 +145,7 @@ class IdentityPersistenceIntegrationTest {
     void flywayMigratesEmptyDatabaseAndHibernateValidatesSchema() {
         assertNotNull(dataSource);
         assertNotNull(flyway.info().current());
-        assertEquals("6", flyway.info().current().getVersion().getVersion());
+        assertEquals("11", flyway.info().current().getVersion().getVersion());
 
         Integer accountTableCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables "
@@ -419,7 +424,7 @@ class IdentityPersistenceIntegrationTest {
 
     @Test
     void applicationIssuancePersistsOnlyTheCredentialHash() {
-        UserAccountEntity account = persistAccount();
+        UserAccountEntity account = persistEligibleAccount();
         Instant familyExpiresAt = Instant.parse("2035-06-07T08:09:10Z");
 
         RefreshCredentialIssuance issuance = refreshSessionService.issueInitial(account.getId(), familyExpiresAt);
@@ -443,7 +448,7 @@ class IdentityPersistenceIntegrationTest {
 
     @Test
     void applicationRotationConsumesOldCredentialPersistsLineageAndDetectsReuse() {
-        UserAccountEntity account = persistAccount();
+        UserAccountEntity account = persistEligibleAccount();
         Instant familyExpiresAt = Instant.parse("2035-06-07T08:09:10Z");
         Instant now = Instant.parse("2026-06-07T08:09:10Z");
         RefreshCredentialIssuance issuance = refreshSessionService.issueInitial(account.getId(), familyExpiresAt);
@@ -451,6 +456,7 @@ class IdentityPersistenceIntegrationTest {
         RefreshRotationResult rotation = refreshSessionService.rotate(issuance.credential(), now);
 
         assertEquals(RefreshRotationStatus.SUCCESS, rotation.status());
+        assertEquals(account.getId(), rotation.authenticatedUserId().orElseThrow());
         RawRefreshCredential replacementCredential =
                 rotation.replacementCredential().orElseThrow();
         assertNotEquals(issuance.credential().value(), replacementCredential.value());
@@ -471,7 +477,24 @@ class IdentityPersistenceIntegrationTest {
 
         RefreshRotationResult reuse = refreshSessionService.rotate(issuance.credential(), now.plusSeconds(1));
         assertEquals(RefreshRotationStatus.REUSE_DETECTED, reuse.status());
+        assertTrue(reuse.authenticatedUserId().isEmpty());
         assertTrue(reuse.replacementCredential().isEmpty());
+        assertEquals(
+                now.plusSeconds(1),
+                refreshTokenFamilyRepository
+                        .findById(issuance.familyId())
+                        .orElseThrow()
+                        .getRevokedAt());
+        assertEquals(
+                RefreshRotationStatus.REVOKED_FAMILY,
+                refreshSessionService
+                        .rotate(replacementCredential, now.plusSeconds(2))
+                        .status());
+        assertEquals(
+                RefreshRotationStatus.REVOKED_FAMILY,
+                refreshSessionService
+                        .rotate(issuance.credential(), now.plusSeconds(3))
+                        .status());
         assertEquals(
                 2L,
                 jdbcTemplate.queryForObject(
@@ -480,7 +503,7 @@ class IdentityPersistenceIntegrationTest {
 
     @Test
     void concurrentRevocationIsObservedBeforeRotationValidation() throws Exception {
-        UserAccountEntity account = persistAccount();
+        UserAccountEntity account = persistEligibleAccount();
         Instant familyExpiresAt = Instant.parse("2035-06-07T08:09:10Z");
         Instant now = Instant.parse("2026-06-07T08:09:10Z");
         Instant revokedAt = Instant.parse("2026-06-07T08:09:09Z");
@@ -544,7 +567,7 @@ class IdentityPersistenceIntegrationTest {
 
     @Test
     void applicationRotationRejectsUnknownExpiredAndRevokedFamilies() {
-        UserAccountEntity account = persistAccount();
+        UserAccountEntity account = persistEligibleAccount();
         Instant familyExpiresAt = Instant.parse("2035-06-07T08:09:10Z");
 
         RefreshRotationResult unknown = refreshSessionService.rotate(
@@ -574,8 +597,59 @@ class IdentityPersistenceIntegrationTest {
     }
 
     @Test
+    void rotationRequiresTheSameAccountEligibilityAsUserTokenIssuance() {
+        Instant now = Instant.parse("2030-01-02T03:04:05Z");
+        Instant expiresAt = now.plusSeconds(3600);
+
+        UserAccountEntity eligible = persistEligibleAccount();
+        RefreshCredentialIssuance eligibleSession = refreshSessionService.issueInitial(eligible.getId(), expiresAt);
+        assertEquals(
+                RefreshRotationStatus.SUCCESS,
+                refreshSessionService.rotate(eligibleSession.credential(), now).status());
+
+        UserAccountEntity disabled = persistEligibleAccount();
+        RefreshCredentialIssuance disabledSession = refreshSessionService.issueInitial(disabled.getId(), expiresAt);
+        disabled.setAccountStatus("DISABLED");
+        userAccountRepository.saveAndFlush(disabled);
+        assertDeniedWithoutConsumption(disabledSession, now, RefreshRotationStatus.INELIGIBLE_ACCOUNT);
+
+        UserAccountEntity unverified = persistAccount();
+        unverified.setAccountStatus(AccountLifecycleStatus.ACTIVE);
+        userAccountRepository.saveAndFlush(unverified);
+        userRoleRepository.saveAndFlush(new UserRoleEntity(unverified, UserRole.STUDENT));
+        RefreshCredentialIssuance unverifiedSession = refreshSessionService.issueInitial(unverified.getId(), expiresAt);
+        assertDeniedWithoutConsumption(unverifiedSession, now, RefreshRotationStatus.INELIGIBLE_ACCOUNT);
+
+        UserAccountEntity roleless = persistAccount();
+        roleless.setAccountStatus(AccountLifecycleStatus.ACTIVE);
+        roleless.setEmailVerifiedAt(now);
+        userAccountRepository.saveAndFlush(roleless);
+        RefreshCredentialIssuance rolelessSession = refreshSessionService.issueInitial(roleless.getId(), expiresAt);
+        assertDeniedWithoutConsumption(rolelessSession, now, RefreshRotationStatus.INELIGIBLE_ACCOUNT);
+
+        UserAccountEntity revoked = persistEligibleAccount();
+        RefreshCredentialIssuance revokedSession = refreshSessionService.issueInitial(revoked.getId(), expiresAt);
+        Instant familyCreatedAt = refreshTokenFamilyRepository
+                .findById(revokedSession.familyId())
+                .orElseThrow()
+                .getCreatedAt();
+        revocationRepository.upsertRevokedBefore(revoked.getId(), familyCreatedAt);
+        assertDeniedWithoutConsumption(revokedSession, now, RefreshRotationStatus.REVOKED_ACCOUNT);
+
+        UserAccountEntity reauthenticated = persistEligibleAccount();
+        revocationRepository.upsertRevokedBefore(reauthenticated.getId(), Instant.EPOCH);
+        RefreshCredentialIssuance postRevocationSession =
+                refreshSessionService.issueInitial(reauthenticated.getId(), expiresAt);
+        assertEquals(
+                RefreshRotationStatus.SUCCESS,
+                refreshSessionService
+                        .rotate(postRevocationSession.credential(), now)
+                        .status());
+    }
+
+    @Test
     void concurrentApplicationRotationsAllowOneSuccessAndRollBackLosingReplacement() throws Exception {
-        UserAccountEntity account = persistAccount();
+        UserAccountEntity account = persistEligibleAccount();
         Instant familyExpiresAt = Instant.parse("2035-06-07T08:09:10Z");
         Instant now = Instant.parse("2026-06-07T08:09:10Z");
         RefreshCredentialIssuance issuance = refreshSessionService.issueInitial(account.getId(), familyExpiresAt);
@@ -600,7 +674,7 @@ class IdentityPersistenceIntegrationTest {
                     executor.submit(() -> refreshSessionService.rotate(issuance.credential(), now));
             Future<RefreshRotationResult> second =
                     executor.submit(() -> refreshSessionService.rotate(issuance.credential(), now));
-            awaitLockWaiters("refresh_token", 2);
+            awaitLockWaiters("refresh_token_family", 1);
             allowTokenLockRelease.countDown();
 
             RefreshRotationResult firstResult = first.get(30, TimeUnit.SECONDS);
@@ -625,6 +699,15 @@ class IdentityPersistenceIntegrationTest {
                     .orElseThrow();
             assertEquals(consumed.getReplacedByTokenId(), replacement.getId());
             assertEquals(issuance.familyId(), replacement.getFamily().getId());
+            assertNotNull(refreshTokenFamilyRepository
+                    .findById(issuance.familyId())
+                    .orElseThrow()
+                    .getRevokedAt());
+            assertEquals(
+                    RefreshRotationStatus.REVOKED_FAMILY,
+                    refreshSessionService
+                            .rotate(successfulResult.replacementCredential().orElseThrow(), now.plusSeconds(1))
+                            .status());
             assertEquals(
                     2L,
                     jdbcTemplate.queryForObject(
@@ -832,13 +915,43 @@ class IdentityPersistenceIntegrationTest {
                 String.class);
 
         assertEquals(
-                Set.of("user_account", "refresh_token_family", "refresh_token", "oauth2_service_client"),
+                Set.of(
+                        "user_account",
+                        "refresh_token_family",
+                        "refresh_token",
+                        "oauth2_service_client",
+                        "email_verification_issuance_guard",
+                        "email_verification_issuance"),
                 referencedTables.stream().collect(Collectors.toSet()));
     }
 
     private UserAccountEntity persistAccount() {
         return userAccountRepository.saveAndFlush(
                 new UserAccountEntity("persistence-" + UUID.randomUUID() + "@example.com", null));
+    }
+
+    private UserAccountEntity persistEligibleAccount() {
+        UserAccountEntity account = persistAccount();
+        account.setAccountStatus(AccountLifecycleStatus.ACTIVE);
+        account.setEmailVerifiedAt(Instant.now());
+        account = userAccountRepository.saveAndFlush(account);
+        userRoleRepository.saveAndFlush(new UserRoleEntity(account, UserRole.STUDENT));
+        return account;
+    }
+
+    private void assertDeniedWithoutConsumption(
+            RefreshCredentialIssuance issuance, Instant now, RefreshRotationStatus expectedStatus) {
+        RefreshRotationResult result = refreshSessionService.rotate(issuance.credential(), now);
+        assertEquals(expectedStatus, result.status());
+        assertTrue(result.replacementCredential().isEmpty());
+        assertNull(refreshTokenRepository
+                .findById(issuance.tokenId())
+                .orElseThrow()
+                .getConsumedAt());
+        assertEquals(
+                1L,
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM refresh_token WHERE family_id = ?", Long.class, issuance.familyId()));
     }
 
     private RefreshTokenFamilyEntity persistFamily() {

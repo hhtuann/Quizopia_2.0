@@ -69,7 +69,7 @@ class LocalRegistrationRollbackIntegrationTest {
                 DataIntegrityViolationException.class,
                 () -> registrationService.register(new LocalRegistrationInput(
                         username,
-                        "rollback-" + UUID.randomUUID() + "@example.com",
+                        "rollback-" + UUID.randomUUID() + "@gmail.com",
                         RawLocalPassword.from("rollback-secret"))));
 
         assertEquals(

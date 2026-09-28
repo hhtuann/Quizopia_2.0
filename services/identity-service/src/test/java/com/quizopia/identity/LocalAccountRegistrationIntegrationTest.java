@@ -69,7 +69,7 @@ class LocalAccountRegistrationIntegrationTest {
     @Test
     void registrationCreatesCompletePendingAccountWithEncodedCredentialAndNoSideEffects() {
         String username = "registration-" + UUID.randomUUID();
-        String email = "registration-" + UUID.randomUUID() + "@example.com";
+        String email = "registration-" + UUID.randomUUID() + "@gmail.com";
         String rawPassword = "Raw-registration-secret-" + UUID.randomUUID();
 
         LocalRegistrationResult result = register(username, email, rawPassword);
@@ -107,10 +107,10 @@ class LocalAccountRegistrationIntegrationTest {
     @Test
     void exactDuplicateUsernameReturnsConflictWithoutCreatingAnotherAccount() {
         String username = "duplicate-registration-" + UUID.randomUUID();
-        register(username, "first-" + UUID.randomUUID() + "@example.com", "first-secret");
+        register(username, "first-" + UUID.randomUUID() + "@gmail.com", "first-secret");
 
         LocalRegistrationResult result =
-                register(username, "second-" + UUID.randomUUID() + "@example.com", "second-secret");
+                register(username, "second-" + UUID.randomUUID() + "@gmail.com", "second-secret");
 
         assertEquals(LocalRegistrationStatus.USERNAME_CONFLICT, result.status());
         assertTrue(result.userId().isEmpty());
@@ -133,9 +133,9 @@ class LocalAccountRegistrationIntegrationTest {
 
         try {
             Future<LocalRegistrationResult> first = executor.submit(
-                    () -> registerAfter(ready, release, username, "first-" + UUID.randomUUID() + "@example.com"));
+                    () -> registerAfter(ready, release, username, "first-" + UUID.randomUUID() + "@gmail.com"));
             Future<LocalRegistrationResult> second = executor.submit(
-                    () -> registerAfter(ready, release, username, "second-" + UUID.randomUUID() + "@example.com"));
+                    () -> registerAfter(ready, release, username, "second-" + UUID.randomUUID() + "@gmail.com"));
             assertTrue(ready.await(30, TimeUnit.SECONDS));
             release.countDown();
 
@@ -163,7 +163,7 @@ class LocalAccountRegistrationIntegrationTest {
 
     @Test
     void caseVariantsAndDuplicateExactEmailRemainUnderExistingDatabaseSemantics() {
-        String email = "duplicate-email-" + UUID.randomUUID() + "@example.com";
+        String email = "duplicate-email-" + UUID.randomUUID() + "@gmail.com";
 
         LocalRegistrationResult upper = register("CaseUser-" + UUID.randomUUID(), email, "upper-secret");
         LocalRegistrationResult lower = register("caseuser-" + UUID.randomUUID(), email, "lower-secret");

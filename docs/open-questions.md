@@ -8,17 +8,19 @@ Agents MUST NOT silently resolve these items.
 
 ## Identity
 
-**ID-01.** Does the local-registration Gmail rule mean strictly `@gmail.com`, or also Google Workspace/custom-domain Google accounts?
-
-**ID-02.** OTP expiry, maximum attempts, resend cooldown, and throttling values?
-
 **ID-03.** Exact account-link conflict/recovery UX?
 
-**ID-04.** Exact user access-token TTL and refresh-family lifetime/configuration?
+**ID-04.** Exact user access-token TTL? The initial browser refresh-family
+lifetime is accepted as an absolute seven days and future rotation must not
+extend that original expiry.
 
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
 
 **ID-06.** Teacher self-enablement anti-abuse/audit/rate-limit policy?
+
+**ID-07.** Which production SMTP service/deployment and sender identity should
+Identity use for OTP delivery? The provider-neutral SMTP adapter, transactional
+outbox, retry model, and encrypted-payload architecture are already accepted.
 
 ## Classroom
 
@@ -224,4 +226,9 @@ The following are no longer open:
 - environment/config/secrets convention;
 - Testcontainers;
 - Playwright;
+- local registration requires the exact stored `gmail.com` domain without
+  provider-specific alias normalization;
+- six-digit email OTP with 10-minute expiry, 60-second resend cooldown, five
+  failed attempts, replacement on successful issuance, and at most five
+  successful issuances per exact email in a rolling hour;
 - centrally monitored/aligned dependencies.

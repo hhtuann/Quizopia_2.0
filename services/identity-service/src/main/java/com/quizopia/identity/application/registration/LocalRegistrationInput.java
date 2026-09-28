@@ -13,7 +13,7 @@ public final class LocalRegistrationInput {
 
     public LocalRegistrationInput(String username, String email, RawLocalPassword rawPassword) {
         this.username = validateRequiredText(username, "username", MAX_USERNAME_LENGTH);
-        this.email = validateRequiredText(email, "email", MAX_EMAIL_LENGTH);
+        this.email = validateGmailAddress(validateRequiredText(email, "email", MAX_EMAIL_LENGTH));
         this.rawPassword = Objects.requireNonNull(rawPassword, "rawPassword");
     }
 
@@ -43,5 +43,19 @@ public final class LocalRegistrationInput {
             throw new IllegalArgumentException(fieldName + " must be at most " + maxLength + " characters");
         }
         return value;
+    }
+
+    private static String validateGmailAddress(String email) {
+        int domainSeparator = email.indexOf('@');
+        if (domainSeparator <= 0
+                || domainSeparator != email.lastIndexOf('@')
+                || !email.substring(domainSeparator + 1).equals("gmail.com")
+                || email.substring(0, domainSeparator)
+                        .chars()
+                        .anyMatch(
+                                character -> Character.isWhitespace(character) || Character.isISOControl(character))) {
+            throw new IllegalArgumentException("email must use the exact gmail.com domain");
+        }
+        return email;
     }
 }
