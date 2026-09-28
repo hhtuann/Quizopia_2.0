@@ -2,6 +2,7 @@ package com.quizopia.gateway;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.nimbusds.jose.jwk.JWKSet;
@@ -112,6 +113,24 @@ class GatewayAuthIntegrationTest {
     }
 
     @Test
+    void gatewayPreservesAuthRequestBodiesAndSanitizedIdentityErrors() {
+        String requestBody = "{\"username\":\"gateway-user\",\"otp\":\"123456\"}";
+
+        client.post()
+                .uri("/api/auth/email-verification/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .json("{\"code\":\"AUTH_VERIFICATION_FAILED\"}", true);
+
+        CapturedRequest captured = CAPTURED.remove();
+        assertEquals(requestBody, captured.body());
+    }
+
+    @Test
     void meRequiresUserJwtAndForwardsAcceptedAuthorizationHeader() {
         client.get().uri("/api/auth/me").exchange().expectStatus().isUnauthorized();
         assertTrue(CAPTURED.isEmpty());
@@ -185,6 +204,42 @@ class GatewayAuthIntegrationTest {
     }
 
     @Test
+    void untrustedOriginsCannotReachRefreshOrLogoutOrBeNormalized() {
+        for (String path : List.of("/api/auth/refresh", "/api/auth/logout")) {
+            for (String rejected : List.of("https://attacker.example", LOOKALIKE_ORIGIN, "null")) {
+                CAPTURED.clear();
+                client.post()
+                        .uri(path)
+                        .header(HttpHeaders.ORIGIN, rejected)
+                        .header(HttpHeaders.COOKIE, "quizopia_refresh=must-not-reach-identity")
+                        .exchange()
+                        .expectStatus()
+                        .isForbidden()
+                        .expectHeader()
+                        .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)
+                        .expectHeader()
+                        .doesNotExist(HttpHeaders.SET_COOKIE);
+                assertTrue(CAPTURED.isEmpty());
+            }
+        }
+    }
+
+    @Test
+    void missingOriginRemainsMissingWhenForwardedToIdentity() {
+        for (String path : List.of("/api/auth/refresh", "/api/auth/logout")) {
+            CAPTURED.clear();
+            client.post()
+                    .uri(path)
+                    .header(HttpHeaders.COOKIE, "quizopia_refresh=missing-origin-test")
+                    .exchange()
+                    .expectStatus()
+                    .value(status -> assertTrue(status == 200 || status == 204));
+
+            assertNull(CAPTURED.remove().origin());
+        }
+    }
+
+    @Test
     void trustedPreflightsAreHandledAtGatewayWithoutInvokingIdentity() {
         List<Preflight> preflights = List.of(
                 new Preflight("/api/auth/login", HttpMethod.POST, HttpHeaders.CONTENT_TYPE),
@@ -223,7 +278,12 @@ class GatewayAuthIntegrationTest {
                 .expectStatus()
                 .isOk()
                 .expectHeader()
-                .valueEquals(HttpHeaders.SET_COOKIE, refreshSetCookie());
+                .valueEquals(HttpHeaders.SET_COOKIE, refreshSetCookie())
+                .expectBody()
+                .jsonPath("$.refreshToken")
+                .doesNotExist()
+                .jsonPath("$.accessToken")
+                .isEqualTo("synthetic-response-value");
         CapturedRequest refresh = CAPTURED.remove();
         assertEquals(refreshCookie, refresh.cookie());
         assertEquals(TRUSTED_ORIGIN, refresh.origin());
@@ -241,6 +301,27 @@ class GatewayAuthIntegrationTest {
         CapturedRequest logout = CAPTURED.remove();
         assertEquals(logoutCookie, logout.cookie());
         assertEquals(TRUSTED_ORIGIN, logout.origin());
+    }
+
+    @Test
+    void downstreamInvalidRefreshRemainsGenericAndDoesNotExposeCredential() {
+        String invalidCookie = "quizopia_refresh=invalid";
+
+        client.post()
+                .uri("/api/auth/refresh")
+                .header(HttpHeaders.ORIGIN, TRUSTED_ORIGIN)
+                .header(HttpHeaders.COOKIE, invalidCookie)
+                .exchange()
+                .expectStatus()
+                .isUnauthorized()
+                .expectHeader()
+                .doesNotExist(HttpHeaders.SET_COOKIE)
+                .expectBody()
+                .json("{\"code\":\"AUTH_REFRESH_FAILED\"}", true);
+
+        CapturedRequest captured = CAPTURED.remove();
+        assertEquals(invalidCookie, captured.cookie());
+        assertEquals(TRUSTED_ORIGIN, captured.origin());
     }
 
     @Test
@@ -325,20 +406,29 @@ class GatewayAuthIntegrationTest {
                         .aggregate()
                         .asString()
                         .defaultIfEmpty("")
-                        .flatMap(ignored -> {
+                        .flatMap(body -> {
                             String path = request.fullPath();
+                            String cookie = request.requestHeaders().get(HttpHeaders.COOKIE);
                             CAPTURED.add(new CapturedRequest(
                                     request.method().name(),
                                     path,
-                                    request.requestHeaders().get(HttpHeaders.COOKIE),
+                                    cookie,
                                     request.requestHeaders().get(HttpHeaders.ORIGIN),
-                                    request.requestHeaders().get(HttpHeaders.AUTHORIZATION)));
-                            return identityResponse(path, response);
+                                    request.requestHeaders().get(HttpHeaders.AUTHORIZATION),
+                                    body));
+                            return identityResponse(path, cookie, response);
                         }))
                 .bindNow();
     }
 
-    private static Mono<Void> identityResponse(String path, reactor.netty.http.server.HttpServerResponse response) {
+    private static Mono<Void> identityResponse(
+            String path, String cookie, reactor.netty.http.server.HttpServerResponse response) {
+        if (path.equals("/api/auth/refresh") && "quizopia_refresh=invalid".equals(cookie)) {
+            return response.status(401)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .sendString(Mono.just("{\"code\":\"AUTH_REFRESH_FAILED\"}"))
+                    .then();
+        }
         return switch (path) {
             case "/api/auth/register", "/api/auth/email-verification/request" ->
                 response.status(202)
@@ -463,7 +553,8 @@ class GatewayAuthIntegrationTest {
         }
     }
 
-    record CapturedRequest(String method, String path, String cookie, String origin, String authorization) {}
+    record CapturedRequest(
+            String method, String path, String cookie, String origin, String authorization, String body) {}
 
     record Preflight(String path, HttpMethod method, String requestHeader) {}
 
