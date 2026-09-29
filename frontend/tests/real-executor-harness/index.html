@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quizopia real auth executor harness</title>
+  </head>
+  <body>
+    <main>
+      <h1>Real auth executor harness</h1>
+      <form id="login-form">
+        <label>
+          Username or email
+          <input
+            id="identifier"
+            name="identifier"
+            autocomplete="username"
+            required
+          />
+        </label>
+        <label>
+          Password
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+        <button id="login-button" type="submit">Sign in</button>
+      </form>
+      <button id="protected-request-button" type="button" disabled>
+        Run protected request
+      </button>
+      <output id="status" aria-live="polite">idle</output>
+    </main>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
