@@ -121,8 +121,13 @@ export function createSessionRuntime(
         return false;
       }
 
+      const identityChanged = state.user.id !== input.user.id;
       const activeWorkspace = activeWorkspaceFor(input.user, state);
-      accessTokenVault.replace(input.accessToken);
+      if (identityChanged) {
+        accessTokenVault.startSession(input.accessToken);
+      } else {
+        accessTokenVault.replace(input.accessToken);
+      }
       publish(authenticatedState(input.user, activeWorkspace));
       return true;
     },
