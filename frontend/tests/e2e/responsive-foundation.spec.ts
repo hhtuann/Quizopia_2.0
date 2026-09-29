@@ -5,7 +5,7 @@ const routes = [
   { heading: "Sign in", path: "/login" },
   { heading: "Create your account", path: "/register" },
   { heading: "Verify your email", path: "/verify-email" },
-  { heading: "Open the Quizopia application", path: "/app" },
+  { heading: "Sign in to continue", path: "/app" },
 ] as const;
 
 const viewports = [
@@ -18,6 +18,19 @@ for (const viewport of viewports) {
   test(`${viewport.name} routes remain readable without viewport overflow`, async ({
     page,
   }) => {
+    await page.route("**/api/auth/refresh", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 401,
+        body: JSON.stringify({
+          code: "AUTH_REFRESH_FAILED",
+          message: "Refresh failed.",
+          path: "/api/auth/refresh",
+          status: 401,
+          traceId: null,
+        }),
+      });
+    });
     await page.setViewportSize({
       height: viewport.height,
       width: viewport.width,

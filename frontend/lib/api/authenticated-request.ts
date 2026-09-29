@@ -20,6 +20,7 @@ export type AuthenticationFailureReason =
   | "authorization-header-conflict"
   | "no-access-token"
   | "no-session"
+  | "session-changed"
   | "unauthorized-after-retry";
 
 export type AuthenticatedRequestResult =
@@ -37,6 +38,13 @@ export type AuthenticatedRequestResult =
 export interface AuthenticatedRequestExecutor {
   execute(
     request: ReplayableAuthenticatedRequest,
+  ): Promise<AuthenticatedRequestResult>;
+  executeOnce(
+    request: ReplayableAuthenticatedRequest,
+  ): Promise<AuthenticatedRequestResult>;
+  executeOnceWithAccessToken(
+    request: ReplayableAuthenticatedRequest,
+    accessToken: string,
   ): Promise<AuthenticatedRequestResult>;
 }
 
@@ -81,11 +89,24 @@ export function createAuthenticatedRequestExecutor(options: {
   async function retryOnce(
     request: ReplayableAuthenticatedRequest,
     accessToken: string,
+    sessionGeneration: number,
   ): Promise<AuthenticatedRequestResult> {
     const retryResult = await executeAttempt(request, accessToken);
     const unauthorized = unauthorizedResponse(retryResult);
     if (unauthorized === null) {
       return retryResult;
+    }
+
+    const latest = accessTokenVault.readSnapshot();
+    if (
+      latest.sessionGeneration !== sessionGeneration ||
+      latest.accessToken !== accessToken
+    ) {
+      return {
+        kind: "authentication-failure",
+        reason: "session-changed",
+        response: unauthorized,
+      };
     }
 
     sessionRuntime.expireSession();
@@ -100,15 +121,15 @@ export function createAuthenticatedRequestExecutor(options: {
     async execute(
       request: ReplayableAuthenticatedRequest,
     ): Promise<AuthenticatedRequestResult> {
-      const tokenUsed = accessTokenVault.read();
-      if (tokenUsed === null) {
+      const initial = accessTokenVault.readSnapshot();
+      if (initial.accessToken === null) {
         return {
           kind: "authentication-failure",
           reason: "no-access-token",
         };
       }
 
-      const firstResult = await executeAttempt(request, tokenUsed);
+      const firstResult = await executeAttempt(request, initial.accessToken);
       if (unauthorizedResponse(firstResult) === null) {
         return firstResult;
       }
@@ -117,9 +138,22 @@ export function createAuthenticatedRequestExecutor(options: {
         return abortedTransportResult(request.signal.reason);
       }
 
-      const currentToken = accessTokenVault.read();
-      if (currentToken !== null && currentToken !== tokenUsed) {
-        return retryOnce(request, currentToken);
+      const current = accessTokenVault.readSnapshot();
+      if (current.sessionGeneration !== initial.sessionGeneration) {
+        return {
+          kind: "authentication-failure",
+          reason: "session-changed",
+        };
+      }
+      if (
+        current.accessToken !== null &&
+        current.accessToken !== initial.accessToken
+      ) {
+        return retryOnce(
+          request,
+          current.accessToken,
+          current.sessionGeneration,
+        );
       }
 
       const refreshResult = await refreshCoordinator.refresh();
@@ -138,15 +172,41 @@ export function createAuthenticatedRequestExecutor(options: {
         return { kind: "refresh-failure", cause: refreshResult.cause };
       }
 
-      const refreshedToken = accessTokenVault.read();
-      if (refreshedToken === null) {
+      const refreshed = accessTokenVault.readSnapshot();
+      if (refreshed.sessionGeneration !== initial.sessionGeneration) {
+        return {
+          kind: "authentication-failure",
+          reason: "session-changed",
+        };
+      }
+      if (refreshed.accessToken === null) {
         return {
           kind: "authentication-failure",
           reason: "no-session",
         };
       }
 
-      return retryOnce(request, refreshedToken);
+      return retryOnce(
+        request,
+        refreshed.accessToken,
+        refreshed.sessionGeneration,
+      );
+    },
+
+    async executeOnce(request) {
+      const accessToken = accessTokenVault.read();
+      if (accessToken === null) {
+        return {
+          kind: "authentication-failure",
+          reason: "no-access-token",
+        };
+      }
+
+      return executeAttempt(request, accessToken);
+    },
+
+    executeOnceWithAccessToken(request, accessToken) {
+      return executeAttempt(request, accessToken);
     },
   };
 

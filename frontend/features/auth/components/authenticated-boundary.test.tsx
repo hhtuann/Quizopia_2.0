@@ -14,7 +14,12 @@ function createHarness() {
   const runtime = createSessionRuntime(vault);
   const authenticatedInput = {
     accessToken,
-    user: createAuthenticatedUser({ userId, roles: ["STUDENT"] }),
+    user: createAuthenticatedUser({
+      email: "learner01@gmail.com",
+      id: userId,
+      roles: ["STUDENT"],
+      username: "learner01",
+    }),
   };
 
   return { authenticatedInput, runtime, vault };
@@ -81,6 +86,24 @@ describe("authenticated UX boundary", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Account access required",
+    );
+    expect(screen.getByRole("link", { name: "Go to sign in" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+  });
+
+  it("renders a recoverable state after a transient bootstrap failure", () => {
+    const { runtime } = createHarness();
+    runtime.completeBootstrapAsUnavailable();
+
+    renderBoundary(runtime);
+
+    expect(
+      screen.getByRole("heading", { name: "Open the Quizopia application" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Account access is temporarily unavailable",
     );
     expect(screen.getByRole("link", { name: "Go to sign in" })).toHaveAttribute(
       "href",

@@ -20,7 +20,12 @@ function deferred<T>() {
 function session(accessToken: string) {
   return {
     accessToken,
-    user: createAuthenticatedUser({ userId, roles: ["STUDENT"] }),
+    user: createAuthenticatedUser({
+      email: "learner01@gmail.com",
+      id: userId,
+      roles: ["STUDENT"],
+      username: "learner01",
+    }),
   };
 }
 
@@ -92,6 +97,22 @@ describe("refresh coordinator", () => {
     expect(refreshOperation).toHaveBeenCalledTimes(2);
     expect(runtime.getSnapshot().status).toBe("authenticated");
     expect(vault.read()).toBe("initial-access-token");
+  });
+
+  it("does not turn a transient bootstrap failure into anonymous state", async () => {
+    const vault = createAccessTokenVault();
+    const runtime = createSessionRuntime(vault);
+    const refreshOperation = vi.fn<RefreshOperation>().mockResolvedValue({
+      status: "transient-failure",
+      cause: new Error("Temporary failure"),
+    });
+    const coordinator = createRefreshCoordinator(runtime, refreshOperation);
+
+    await expect(coordinator.bootstrap()).resolves.toMatchObject({
+      status: "transient-failure",
+    });
+    expect(runtime.getSnapshot()).toEqual({ status: "bootstrap-failed" });
+    expect(vault.read()).toBeNull();
   });
 
   it("expires the runtime only when the operation reports no session", async () => {

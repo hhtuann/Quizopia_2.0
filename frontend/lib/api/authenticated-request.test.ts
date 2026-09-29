@@ -31,7 +31,12 @@ function deferred<T>() {
 function session(accessToken: string) {
   return {
     accessToken,
-    user: createAuthenticatedUser({ userId, roles: ["STUDENT"] }),
+    user: createAuthenticatedUser({
+      email: "learner01@gmail.com",
+      id: userId,
+      roles: ["STUDENT"],
+      username: "learner01",
+    }),
   };
 }
 
@@ -299,6 +304,42 @@ describe("authenticated request executor", () => {
       "Bearer initial-access-token",
       "Bearer replacement-access-token",
     ]);
+  });
+
+  it("never replays a delayed request after the authenticated account changes", async () => {
+    const delayedUnauthorized = deferred<HttpTransportResult>();
+    const execute = vi.fn(async () => delayedUnauthorized.promise);
+    const refreshOperation = vi.fn<RefreshOperation>();
+    const { accessTokenVault, executor, sessionRuntime } = authenticatedHarness(
+      { execute },
+      refreshOperation,
+    );
+    const pending = executor.execute(replayableRequest("account-a-mutation"));
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+
+    sessionRuntime.clearLocalSession();
+    sessionRuntime.establishAuthenticatedSession({
+      accessToken: "account-b-access-token",
+      user: createAuthenticatedUser({
+        email: "learner02@gmail.com",
+        id: "e7b14962-3a2e-4d2d-926a-3b36ea90c199",
+        roles: ["STUDENT"],
+        username: "learner02",
+      }),
+    });
+    delayedUnauthorized.resolve(response(401));
+
+    await expect(pending).resolves.toEqual({
+      kind: "authentication-failure",
+      reason: "session-changed",
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(refreshOperation).not.toHaveBeenCalled();
+    expect(accessTokenVault.read()).toBe("account-b-access-token");
+    expect(sessionRuntime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { username: "learner02" },
+    });
   });
 
   it("returns a typed failure and expires locally when the one retry is also unauthorized", async () => {

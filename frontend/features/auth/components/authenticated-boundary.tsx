@@ -128,6 +128,21 @@ export function AuthenticatedBoundary({
     );
   }
 
+  if (session.status === "bootstrap-failed") {
+    return (
+      <SessionMessage
+        alertRole="alert"
+        alertTitle="Account access is temporarily unavailable"
+        alertVariant="warning"
+        description="Quizopia could not check the current browser session."
+        showLoginAction
+        title="Open the Quizopia application"
+      >
+        Sign in to continue. No authenticated content was shown.
+      </SessionMessage>
+    );
+  }
+
   if (session.status === "session-expired") {
     return (
       <SessionMessage

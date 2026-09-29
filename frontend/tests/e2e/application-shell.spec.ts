@@ -1,39 +1,98 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-test("application entry exposes the truthful current session limitation", async ({
+const user = {
+  email: "learner01@gmail.com",
+  id: "8ad4c564-3c27-4e6d-91aa-a004334aa8f8",
+  roles: ["STUDENT", "TEACHER"],
+  username: "learner01",
+};
+
+async function mockAnonymousBootstrap(page: Page) {
+  await page.route("**/api/auth/refresh", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 401,
+      body: JSON.stringify({
+        code: "AUTH_REFRESH_FAILED",
+        message: "Refresh failed.",
+        path: "/api/auth/refresh",
+        status: 401,
+        traceId: null,
+      }),
+    });
+  });
+}
+
+async function mockAuthenticatedBootstrap(page: Page) {
+  await page.route("**/api/auth/refresh", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        accessToken: "e2e-bootstrap-access",
+        expiresIn: 300,
+        tokenType: "Bearer",
+      }),
+    });
+  });
+  await page.route("**/api/auth/me", async (route) => {
+    expect(route.request().headers().authorization).toBe(
+      "Bearer e2e-bootstrap-access",
+    );
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify(user),
+    });
+  });
+}
+
+test("application reload restores an intercepted refresh session before showing authenticated content", async ({
   page,
 }) => {
+  await mockAuthenticatedBootstrap(page);
+
   await page.goto("/app");
 
   await expect(
-    page.getByRole("heading", { name: "Open the Quizopia application" }),
+    page.getByRole("heading", { name: "Your Quizopia workspace" }),
   ).toBeVisible();
-  await expect(page.getByRole("status")).toContainText(
-    "Account access is not available yet",
-  );
-  await expect(page.getByRole("status")).toContainText(
-    "Sign in is required to continue",
-  );
-  await expect(page.getByRole("status")).toContainText(
-    "No session was created",
-  );
+  await expect(
+    page.getByRole("heading", { name: "Checking your session" }),
+  ).toHaveCount(0);
+
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Your Quizopia workspace" }),
+  ).toBeVisible();
 });
 
-test("application entry provides a working sign-in path", async ({ page }) => {
+test("application bootstrap with no refresh session settles as anonymous", async ({
+  page,
+}) => {
+  await mockAnonymousBootstrap(page);
   await page.goto("/app");
 
-  await page.getByRole("link", { name: "Go to sign in" }).click();
-
-  await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sign in to continue" }),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "Account access required",
+  );
+  await expect(
+    page.getByRole("link", { name: "Go to sign in" }),
+  ).toHaveAttribute("href", "/login");
 });
 
-test("application entry remains within a 375px viewport", async ({ page }) => {
+test("authenticated application entry remains within a 375px viewport", async ({
+  page,
+}) => {
+  await mockAuthenticatedBootstrap(page);
   await page.setViewportSize({ height: 812, width: 375 });
   await page.goto("/app");
 
   await expect(
-    page.getByRole("heading", { name: "Open the Quizopia application" }),
+    page.getByRole("heading", { name: "Your Quizopia workspace" }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -42,24 +101,40 @@ test("application entry remains within a 375px viewport", async ({ page }) => {
   ).toBe(true);
 });
 
-test("application entry supports skip navigation and visible keyboard focus", async ({
+test("authenticated application supports skip navigation and visible keyboard focus", async ({
   page,
 }) => {
+  await mockAuthenticatedBootstrap(page);
   await page.goto("/app");
+  await expect(
+    page.getByRole("heading", { name: "Your Quizopia workspace" }),
+  ).toBeVisible();
 
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "Skip to main content" });
   await expect(skipLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
+});
 
-  await page.keyboard.press("Tab");
-  const loginLink = page.getByRole("link", { name: "Go to sign in" });
-  await expect(loginLink).toBeFocused();
-  expect(
-    await loginLink.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return style.outlineStyle !== "none" || style.boxShadow !== "none";
-    }),
-  ).toBe(true);
+test("intercepted logout clears the frontend session and returns to auth-required UX", async ({
+  page,
+}) => {
+  await mockAuthenticatedBootstrap(page);
+  let logoutCalls = 0;
+  await page.route("**/api/auth/logout", async (route) => {
+    logoutCalls += 1;
+    await route.fulfill({ status: 204 });
+  });
+  await page.goto("/app");
+  await expect(
+    page.getByRole("heading", { name: "Your Quizopia workspace" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Sign in to continue" }),
+  ).toBeVisible();
+  expect(logoutCalls).toBe(1);
 });

@@ -8,6 +8,8 @@ import {
 } from "./authenticated-user";
 
 const userId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
+const username = "learner01";
+const email = "learner01@gmail.com";
 
 describe("authenticated user", () => {
   it.each<readonly [string, readonly AuthRole[]]>([
@@ -20,9 +22,15 @@ describe("authenticated user", () => {
     ["admin and teacher", ["ADMIN", "TEACHER"]],
     ["all accepted roles", ["STUDENT", "TEACHER", "ADMIN"]],
   ])("supports the %s role set", (_name, roles) => {
-    const user = createAuthenticatedUser({ userId, roles });
+    const user = createAuthenticatedUser({
+      email,
+      id: userId,
+      roles,
+      username,
+    });
 
     expect(user.roles).toEqual(roles);
+    expect(user).toMatchObject({ email, id: userId, username });
     for (const role of roles) {
       expect(hasRole(user, role)).toBe(true);
     }
@@ -39,7 +47,12 @@ describe("authenticated user", () => {
 
   it("rejects an unknown role instead of normalizing it", () => {
     expect(() =>
-      createAuthenticatedUser({ userId, roles: ["STUDENT", "OWNER"] }),
+      createAuthenticatedUser({
+        email,
+        id: userId,
+        roles: ["STUDENT", "OWNER"],
+        username,
+      }),
     ).toThrow(TypeError);
   });
 });

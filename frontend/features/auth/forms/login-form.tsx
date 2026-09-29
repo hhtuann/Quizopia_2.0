@@ -1,18 +1,23 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
+import { useAuth } from "../auth-provider";
 
 const loginSchema = z.object({
-  username: z
+  identifier: z
     .string()
-    .max(255, "Username must be 255 characters or fewer.")
-    .refine((value) => value.trim().length > 0, "Enter your username."),
+    .max(320, "Username or email must be 320 characters or fewer.")
+    .refine(
+      (value) => value.trim().length > 0,
+      "Enter your username or verified email.",
+    ),
   password: z
     .string()
     .refine((value) => value.trim().length > 0, "Enter your password."),
@@ -21,32 +26,48 @@ const loginSchema = z.object({
 type LoginFields = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
-  const [isIntegrationUnavailable, setIsIntegrationUnavailable] =
-    useState(false);
+  const router = useRouter();
+  const { login } = useAuth();
+  const [serverError, setServerError] = useState<string | null>(null);
   const {
-    formState: { errors },
+    formState: { errors, isSubmitting },
     handleSubmit,
     register,
   } = useForm<LoginFields>({
-    defaultValues: { password: "", username: "" },
+    defaultValues: { identifier: "", password: "" },
     resolver: zodResolver(loginSchema),
   });
+
+  async function onSubmit(fields: LoginFields) {
+    setServerError(null);
+    const result = await login(fields);
+    if (result.ok) {
+      router.replace("/app");
+      return;
+    }
+
+    setServerError(
+      result.error.kind === "api-error" &&
+        result.error.error.code === "AUTH_INVALID_CREDENTIALS"
+        ? "The username/email or password is incorrect."
+        : "Sign in could not be completed. Please try again.",
+    );
+  }
 
   return (
     <form
       className="mt-7 space-y-5"
       noValidate
-      onSubmit={handleSubmit(
-        () => setIsIntegrationUnavailable(true),
-        () => setIsIntegrationUnavailable(false),
-      )}
+      onSubmit={handleSubmit(onSubmit, () => setServerError(null))}
     >
       <TextField
+        autoCapitalize="none"
         autoComplete="username"
-        error={errors.username?.message}
-        label="Username"
+        error={errors.identifier?.message}
+        label="Username or email"
+        spellCheck={false}
         type="text"
-        {...register("username")}
+        {...register("identifier")}
       />
       <TextField
         autoComplete="current-password"
@@ -56,14 +77,18 @@ export function LoginForm() {
         {...register("password")}
       />
 
-      {isIntegrationUnavailable ? (
-        <Alert title="Sign-in is not available yet">
-          Your sign-in information was not sent or saved. Please try again when
-          account access becomes available.
+      {serverError ? (
+        <Alert title="Sign in failed" variant="danger">
+          {serverError}
         </Alert>
       ) : null}
 
-      <Button className="w-full" type="submit">
+      <Button
+        className="w-full"
+        isLoading={isSubmitting}
+        loadingLabel="Signing in"
+        type="submit"
+      >
         Sign in
       </Button>
     </form>

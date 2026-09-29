@@ -7,6 +7,7 @@ import {
   type AuthRole,
 } from "../../features/auth/model/authenticated-user";
 import { createAccessTokenVault } from "../../features/auth/session/access-token-vault";
+import type { AuthSessionService } from "../../features/auth/session/auth-session-service";
 import { createSessionRuntime } from "../../features/auth/session/session-runtime";
 import { SkipLink } from "../ui/skip-link";
 import { ApplicationHome } from "./application-home";
@@ -22,11 +23,33 @@ afterEach(() => {
 function renderAuthenticatedShell(roles: readonly AuthRole[]) {
   const vault = createAccessTokenVault();
   const runtime = createSessionRuntime(vault);
-  const user = createAuthenticatedUser({ userId, roles });
+  const user = createAuthenticatedUser({
+    email: "learner01@gmail.com",
+    id: userId,
+    roles,
+    username: "learner01",
+  });
   runtime.establishAuthenticatedSession({ accessToken, user });
+  const service: AuthSessionService = {
+    authenticatedRequests: {
+      execute: vi.fn(),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    },
+    bootstrap: vi.fn(async () => ({ status: "no-session" as const })),
+    confirmVerification: vi.fn(),
+    login: vi.fn(),
+    logout: vi.fn(async () => {
+      runtime.clearLocalSession();
+      return { ok: true as const, value: undefined };
+    }),
+    register: vi.fn(),
+    requestVerification: vi.fn(),
+    runtime,
+  };
 
   render(
-    <AuthProvider runtime={runtime}>
+    <AuthProvider service={service}>
       <SkipLink href="#main-content">Skip to main content</SkipLink>
       <AuthenticatedBoundary>
         <ApplicationShell>
@@ -36,7 +59,7 @@ function renderAuthenticatedShell(roles: readonly AuthRole[]) {
     </AuthProvider>,
   );
 
-  return { runtime, user, vault };
+  return { runtime, service, user, vault };
 }
 
 describe("application shell workspace presentation", () => {
@@ -91,7 +114,7 @@ describe("application shell workspace presentation", () => {
     expect(runtime.getSnapshot()).toMatchObject({
       activeWorkspace: "TEACHING",
       status: "authenticated",
-      user: { userId, roles: rolesBeforeSwitch },
+      user: { id: userId, roles: rolesBeforeSwitch },
     });
     expect(user.roles).toBe(rolesBeforeSwitch);
     expect(vault.read()).toBe(accessToken);
@@ -136,20 +159,48 @@ describe("application shell session behavior and semantics", () => {
     expect(document.body).not.toHaveTextContent(accessToken);
   });
 
-  it("clears the local session and returns to auth-required UX without network", () => {
+  it("calls logout, clears the local session, and returns to auth-required UX without network", () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockRejectedValue(new Error("Unexpected network call"));
-    const { runtime, vault } = renderAuthenticatedShell(["STUDENT", "TEACHER"]);
+    const { runtime, service, vault } = renderAuthenticatedShell([
+      "STUDENT",
+      "TEACHER",
+    ]);
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(runtime.getSnapshot()).toEqual({ status: "anonymous" });
     expect(vault.read()).toBeNull();
+    expect(service.logout).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("heading", { name: "Sign in to continue" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the shell active and announces a server logout failure", async () => {
+    const { runtime, service, vault } = renderAuthenticatedShell(["STUDENT"]);
+    vi.mocked(service.logout).mockResolvedValueOnce({
+      ok: false,
+      error: {
+        kind: "transport-error",
+        error: { kind: "network" },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sign out could not be completed",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your session is still active",
+    );
+    expect(runtime.getSnapshot().status).toBe("authenticated");
+    expect(vault.read()).toBe(accessToken);
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
   });
 });
