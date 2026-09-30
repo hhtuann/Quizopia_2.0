@@ -1,10 +1,15 @@
 package com.quizopia.quiz.api;
 
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
+import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
 import com.quizopia.quiz.application.QuizOwnershipDeniedException;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Objects;
+import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,6 +21,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public final class QuizApiExceptionHandler {
+    private final Tracer tracer;
+
+    public QuizApiExceptionHandler(ObjectProvider<Tracer> tracerProvider) {
+        this.tracer = tracerProvider.getIfAvailable();
+    }
+
     @ExceptionHandler({
         MethodArgumentNotValidException.class,
         HttpMessageNotReadableException.class,
@@ -40,10 +51,42 @@ public final class QuizApiExceptionHandler {
         return response(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Access is denied", request);
     }
 
+    @ExceptionHandler(QuizMarkdownInvalidException.class)
+    ResponseEntity<QuizMarkdownValidationErrorResponse> quizMarkdownInvalid(
+            QuizMarkdownInvalidException exception, HttpServletRequest request) {
+        var errors =
+                exception.errors().stream().map(QuizMarkdownErrorResponse::from).toList();
+        return ResponseEntity.badRequest()
+                .body(new QuizMarkdownValidationErrorResponse(
+                        "QUIZ_MARKDOWN_INVALID",
+                        "Quiz Markdown validation failed.",
+                        HttpStatus.BAD_REQUEST.value(),
+                        request.getRequestURI(),
+                        currentTraceId(),
+                        errors));
+    }
+
     private static ResponseEntity<QuizApiError> response(
             HttpStatus status, String code, String message, HttpServletRequest request) {
         return ResponseEntity.status(status)
                 .body(new QuizApiError(
                         code, Objects.requireNonNull(message, "message"), status.value(), request.getRequestURI()));
+    }
+
+    private String currentTraceId() {
+        if (tracer == null) {
+            return UUID.randomUUID().toString().replace("-", "");
+        }
+        Span current = tracer.currentSpan();
+        if (current != null) {
+            return current.context().traceId();
+        }
+
+        Span fallback = tracer.nextSpan().name("quiz-markdown-validation-error").start();
+        try {
+            return fallback.context().traceId();
+        } finally {
+            fallback.end();
+        }
     }
 }

@@ -29,6 +29,8 @@ public class SecurityConfiguration {
                         .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
                         .requestMatchers(HttpMethod.PUT, "/api/quizzes/*/draft")
                         .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
+                        .requestMatchers(HttpMethod.POST, "/api/quizzes/*/versions")
+                        .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(exceptions -> exceptions

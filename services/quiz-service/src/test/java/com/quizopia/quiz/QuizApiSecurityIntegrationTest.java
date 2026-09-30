@@ -1,6 +1,7 @@
 package com.quizopia.quiz;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,11 +27,16 @@ import com.quizopia.quiz.application.QuizApplicationService;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
+import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
 import com.quizopia.quiz.application.QuizOwnershipDeniedException;
+import com.quizopia.quiz.application.QuizPublishResult;
 import com.quizopia.quiz.configuration.SecurityConfiguration;
 import com.quizopia.quiz.domain.Quiz;
 import com.quizopia.quiz.domain.QuizDraft;
+import com.quizopia.quiz.domain.QuizVersion;
+import com.quizopia.quiz.domain.markdown.QuizMarkdownError;
+import com.quizopia.quiz.domain.markdown.QuizMarkdownParser;
 import com.quizopia.quiz.security.QuizSecurityErrorHandler;
 import com.quizopia.quiz.security.QuizopiaJwtAuthenticationConverter;
 import com.quizopia.quiz.security.QuizopiaTokenClaims;
@@ -241,6 +247,102 @@ class QuizApiSecurityIntegrationTest {
     }
 
     @Test
+    void ownerTeacherPublishesNewVersionThenReusesUnchangedLatestWithoutResponseLeakage() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        configureUserToken("teacher", ownerUserId, List.of("TEACHER"));
+        QuizVersion version = publishedVersion(versionId, quizId, 1);
+        when(quizApplicationService.publishOwnedDraft(ownerUserId, quizId))
+                .thenReturn(new QuizPublishResult(version, true), new QuizPublishResult(version, false));
+
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer teacher"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(versionId.toString()))
+                .andExpect(jsonPath("$.quizId").value(quizId.toString()))
+                .andExpect(jsonPath("$.versionNumber").value(1))
+                .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.structuredContent").doesNotExist())
+                .andExpect(jsonPath("$.sourceSnapshot").doesNotExist())
+                .andExpect(jsonPath("$.titleSnapshot").doesNotExist())
+                .andExpect(jsonPath("$.descriptionSnapshot").doesNotExist());
+
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer teacher"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(versionId.toString()))
+                .andExpect(jsonPath("$.versionNumber").value(1));
+        verify(quizApplicationService, org.mockito.Mockito.times(2)).publishOwnedDraft(ownerUserId, quizId);
+    }
+
+    @Test
+    void invalidQuizMarkdownReturnsStructured400WithTraceIdAndAllErrors() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        configureUserToken("teacher", ownerUserId, List.of("TEACHER"));
+        when(quizApplicationService.publishOwnedDraft(ownerUserId, quizId))
+                .thenThrow(new QuizMarkdownInvalidException(List.of(
+                        new QuizMarkdownError("EMPTY_STEM", 1, 1, 1, "Question stem must not be blank"),
+                        new QuizMarkdownError("MISSING_OPTION", 1, 3, 1, "Expected option B."))));
+
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer teacher"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("QUIZ_MARKDOWN_INVALID"))
+                .andExpect(jsonPath("$.message").value("Quiz Markdown validation failed."))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.path").value("/api/quizzes/" + quizId + "/versions"))
+                .andExpect(jsonPath("$.traceId", not(emptyOrNullString())))
+                .andExpect(jsonPath("$.errors.length()").value(2))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_STEM"))
+                .andExpect(jsonPath("$.errors[0].questionNumber").value(1))
+                .andExpect(jsonPath("$.errors[0].line").value(1))
+                .andExpect(jsonPath("$.errors[0].column").value(1))
+                .andExpect(jsonPath("$.errors[0].message").value("Question stem must not be blank"))
+                .andExpect(jsonPath("$.errors[1].code").value("MISSING_OPTION"));
+    }
+
+    @Test
+    void publishMapsMissingQuizOwnershipDenialAndMissingDraft() throws Exception {
+        UUID callerUserId = UUID.randomUUID();
+        UUID missingQuizId = UUID.randomUUID();
+        UUID deniedQuizId = UUID.randomUUID();
+        UUID missingDraftQuizId = UUID.randomUUID();
+        configureUserToken("teacher", callerUserId, List.of("TEACHER"));
+        when(quizApplicationService.publishOwnedDraft(callerUserId, missingQuizId))
+                .thenThrow(new QuizNotFoundException(missingQuizId));
+        when(quizApplicationService.publishOwnedDraft(callerUserId, deniedQuizId))
+                .thenThrow(new QuizOwnershipDeniedException(deniedQuizId, callerUserId));
+        when(quizApplicationService.publishOwnedDraft(callerUserId, missingDraftQuizId))
+                .thenThrow(new QuizDraftNotFoundException(missingDraftQuizId));
+
+        mvc.perform(post("/api/quizzes/{quizId}/versions", missingQuizId).header("Authorization", "Bearer teacher"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUIZ_NOT_FOUND"));
+        mvc.perform(post("/api/quizzes/{quizId}/versions", deniedQuizId).header("Authorization", "Bearer teacher"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        mvc.perform(post("/api/quizzes/{quizId}/versions", missingDraftQuizId)
+                        .header("Authorization", "Bearer teacher"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUIZ_DRAFT_NOT_FOUND"));
+    }
+
+    @Test
+    void studentAdminWithoutTeacherAndServiceCannotPublish() throws Exception {
+        UUID quizId = UUID.randomUUID();
+        configureUserToken("student", UUID.randomUUID(), List.of("STUDENT"));
+        configureUserToken("admin", UUID.randomUUID(), List.of("ADMIN"));
+        configureServiceToken("service");
+
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer student"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer admin"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer service"))
+                .andExpect(status().isForbidden());
+        verify(quizApplicationService, never()).publishOwnedDraft(any(), any());
+    }
+
+    @Test
     void studentAndAdminWithoutTeacherAndServiceAreDeniedAtTheRoute() throws Exception {
         UUID quizId = UUID.randomUUID();
         configureUserToken("student", UUID.randomUUID(), List.of("STUDENT"));
@@ -301,6 +403,9 @@ class QuizApiSecurityIntegrationTest {
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(content().string(not(containsString("quiz.write"))))
                 .andExpect(content().string(not(containsString(userId.toString()))));
+        mvc.perform(post("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer mixed"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
     @Test
@@ -331,10 +436,13 @@ class QuizApiSecurityIntegrationTest {
         JsonNode document = objectMapper.readTree(body);
         JsonNode paths = document.path("paths");
 
-        assertEquals(Set.of("/api/quizzes", "/api/quizzes/{quizId}/draft"), fieldNames(paths));
+        assertEquals(
+                Set.of("/api/quizzes", "/api/quizzes/{quizId}/draft", "/api/quizzes/{quizId}/versions"),
+                fieldNames(paths));
         JsonNode create = paths.path("/api/quizzes").path("post");
         JsonNode read = paths.path("/api/quizzes/{quizId}/draft").path("get");
         JsonNode update = paths.path("/api/quizzes/{quizId}/draft").path("put");
+        JsonNode publish = paths.path("/api/quizzes/{quizId}/versions").path("post");
 
         assertFalse(document.has("security"));
         JsonNode securitySchemes = document.path("components").path("securitySchemes");
@@ -346,18 +454,34 @@ class QuizApiSecurityIntegrationTest {
         assertOperationRequiresBearer(create);
         assertOperationRequiresBearer(read);
         assertOperationRequiresBearer(update);
+        assertOperationRequiresBearer(publish);
 
         assertFalse(create.isMissingNode());
         assertFalse(paths.path("/api/quizzes").has("get"));
         assertFalse(read.isMissingNode());
         assertFalse(update.isMissingNode());
+        assertFalse(publish.isMissingNode());
         assertFalse(paths.path("/api/quizzes/{quizId}/draft").has("delete"));
         assertResponses(create, Set.of("201", "400", "401", "403"), "201");
         assertResponses(read, Set.of("200", "400", "401", "403", "404"), "200");
         assertResponses(update, Set.of("200", "400", "401", "403", "404"), "200");
+        assertEquals(Set.of("200", "201", "400", "401", "403", "404"), fieldNames(publish.path("responses")));
+        assertResponseSchema(publish.path("responses").path("200"), "QuizVersionResponse");
+        assertResponseSchema(publish.path("responses").path("201"), "QuizVersionResponse");
+        assertResponseSchema(publish.path("responses").path("401"), "QuizApiError");
+        assertResponseSchema(publish.path("responses").path("403"), "QuizApiError");
+        assertResponseSchema(publish.path("responses").path("404"), "QuizApiError");
 
         JsonNode schemas = document.path("components").path("schemas");
-        assertEquals(Set.of("QuizApiError", "QuizDraftRequest", "QuizDraftResponse"), fieldNames(schemas));
+        assertEquals(
+                Set.of(
+                        "QuizApiError",
+                        "QuizDraftRequest",
+                        "QuizDraftResponse",
+                        "QuizMarkdownErrorResponse",
+                        "QuizMarkdownValidationErrorResponse",
+                        "QuizVersionResponse"),
+                fieldNames(schemas));
         JsonNode requestSchema = schemas.path("QuizDraftRequest");
         assertEquals(Set.of("title", "description", "authoringSource"), fieldNames(requestSchema.path("properties")));
         assertTrue(requestSchema.has("additionalProperties"));
@@ -381,6 +505,15 @@ class QuizApiSecurityIntegrationTest {
         assertEquals(
                 Set.of("code", "message", "status", "path"),
                 fieldNames(schemas.path("QuizApiError").path("properties")));
+        assertEquals(
+                Set.of("id", "quizId", "versionNumber", "createdAt"),
+                fieldNames(schemas.path("QuizVersionResponse").path("properties")));
+        assertEquals(
+                Set.of("code", "message", "status", "path", "traceId", "errors"),
+                fieldNames(schemas.path("QuizMarkdownValidationErrorResponse").path("properties")));
+        assertEquals(
+                Set.of("code", "questionNumber", "line", "column", "message"),
+                fieldNames(schemas.path("QuizMarkdownErrorResponse").path("properties")));
     }
 
     private static void assertOperationRequiresBearer(JsonNode operation) {
@@ -454,6 +587,22 @@ class QuizApiSecurityIntegrationTest {
         return new QuizDraftDetails(
                 new Quiz(quizId, ownerUserId, CREATED_AT),
                 new QuizDraft(quizId, title, description, source, updatedAt));
+    }
+
+    private static QuizVersion publishedVersion(UUID id, UUID quizId, int versionNumber) {
+        return new QuizVersion(
+                id,
+                quizId,
+                versionNumber,
+                "hidden title",
+                "hidden description",
+                "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 1234\n",
+                new QuizMarkdownParser()
+                        .parse("Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 1234\n")
+                        .content()
+                        .orElseThrow(),
+                1,
+                CREATED_AT);
     }
 
     private static Jwt jwt(String subject, Map<String, Object> additionalClaims) {
