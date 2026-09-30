@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import type { AuthenticatedRequestExecutor } from "../../lib/api/authenticated-request";
 import type { AuthApiResult } from "./api/auth-api-client";
 import type { AuthenticatedUser } from "./model/authenticated-user";
 import {
@@ -24,6 +25,7 @@ import type { SessionRuntime } from "./session/session-runtime";
 
 export interface AuthContextValue {
   readonly activeWorkspace: Workspace | null;
+  readonly authenticatedRequests: AuthenticatedRequestExecutor | null;
   readonly availableWorkspaces: readonly Workspace[];
   readonly clearLocalSession: () => void;
   readonly confirmVerification: AuthSessionService["confirmVerification"];
@@ -88,6 +90,7 @@ export function AuthProvider({
       activeWorkspace: hasAuthenticatedIdentity(session)
         ? session.activeWorkspace
         : null,
+      authenticatedRequests: activeService?.authenticatedRequests ?? null,
       availableWorkspaces: user
         ? getAvailableWorkspaces(user.roles)
         : noWorkspaces,
