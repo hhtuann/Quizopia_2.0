@@ -4,7 +4,7 @@
 >
 > **Last updated:** 2026-09-30
 >
-> **Checkpoint baseline:** `develop @ 0f2e480e71860afeaa4f9be3a04dd53b8a8c1a67`
+> **Checkpoint baseline:** `develop @ 5a1083d526171ca9d8e62c52042bb08f5869cff1`
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -87,8 +87,8 @@ Wave 2 already has:
 
 Wave 2 still needs:
 
-- final accepted Quiz Markdown grammar decisions;
-- Markdown parser/validator;
+- Markdown parser/validator implementing the accepted MVP grammar;
+- grammar-aware Quiz Markdown editor UX;
 - immutable `QuizVersion` publishing boundary;
 - frontend Quiz Library/Draft authoring integration;
 - final teacher authoring E2E;
@@ -96,11 +96,11 @@ Wave 2 still needs:
 
 ## 3. Current accepted `develop` checkpoint
 
-At the time of this update:
+At the time this Quiz Markdown contract work began:
 
-`develop = 0f2e480e71860afeaa4f9be3a04dd53b8a8c1a67`
+`develop = 5a1083d526171ca9d8e62c52042bb08f5869cff1`
 
-This is the merge commit for PR #57.
+This is the merge commit for PR #58.
 
 Important merged checkpoints:
 
@@ -114,6 +114,7 @@ Important merged checkpoints:
 | #55 | `de7e164` | Identity Auth HTTP orchestration |
 | #56 | `7aeb079` | Gateway auth/browser transport hardening |
 | #57 | `0f2e480` | Frontend Identity integration + real auth E2E |
+| #58 | `5a1083d` | Project status + MVP delivery plan |
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
@@ -160,9 +161,11 @@ Current Quiz Service supports the accepted teacher-owned foundation:
 - USER/SERVICE JWT separation;
 - explicit `TEACHER` authorization.
 
-Not yet implemented:
+Accepted but not yet implemented:
 
-- Markdown grammar/parser;
+- Quiz Markdown MVP grammar/editor contract is accepted in repository docs;
+- parser/validator implementation;
+- grammar-aware editor completion;
 - validation into final structured question representation;
 - immutable `QuizVersion`;
 - publish operation;
@@ -193,9 +196,9 @@ Planned branch:
 
 `feature/quiz-markdown-publishing`
 
-Mission after required Leader decisions are recorded:
+Mission:
 
-- define implementation against the accepted Markdown grammar;
+- implement against the accepted Markdown grammar;
 - parse and validate current opaque draft authoring source;
 - produce the accepted structured Quiz representation;
 - create immutable `QuizVersion` persistence;
@@ -204,7 +207,7 @@ Mission after required Leader decisions are recorded:
 - add Flyway migrations and comprehensive tests;
 - do not invent Assessment Publication lifecycle semantics.
 
-**Current state: BLOCKED ON PRODUCT DECISIONS in section 6.**
+**Current state: READY TO START — QM-01 through QM-05 are accepted.**
 
 ### Dev 2 — Frontend Quiz Library / Draft authoring
 
@@ -219,29 +222,47 @@ Mission:
 - use real authenticated session infrastructure from PR #57;
 - preserve `TEACHER` backend authorization as authoritative;
 - handle loading/empty/error/unauthorized states;
-- keep authoring source opaque until the accepted parser/publish contract lands;
-- integrate parser/publish UI only after the backend contract is real and merged;
+- implement the accepted grammar-aware editor completion UX now;
+- preserve authoring source exactly on save;
+- integrate authoritative validation/publish API UI only after the backend
+  parser/publish contract is real and merged;
 - add unit/component/Playwright coverage.
 
 Dev 2 does not need to wait for Dev 1 to begin library/draft UI work, but must
 not invent Markdown or publish APIs.
 
-## 6. Decisions required before Dev 1 Quiz parser work
+## 6. Accepted Quiz Markdown contract
 
-The following existing open questions must be resolved explicitly before
-implementing the final Quiz Markdown parser/publisher:
+QM-01 through QM-05 were accepted by the Leader on 2026-09-30 and no longer
+block Dev 1 or the grammar-aware portion of Dev 2.
 
-- **QM-01:** final explicit question-type syntax;
-- **QM-02:** final `NUMERIC_FILL` Markdown answer syntax;
-- **QM-03:** final allowed four-character `NUMERIC_FILL` character set and normalization;
-- **QM-05:** whether canonical Markdown preserves teacher formatting exactly or normalizes it.
+Accepted MVP decisions:
 
-Also remain open and must not be silently invented when encountered:
+- **QM-01:** `Câu <n> [TYPE]:`, four explicit case-sensitive question types,
+  multiline question/option/statement content;
+- **QM-02:** `Đáp án: <token>` on one line for `NUMERIC_FILL`;
+- **QM-03:** exact four-character ASCII numeric token using digits plus
+  constrained leading `-` / single `.`, with surrounding-whitespace trim only;
+- **QM-04:** plain text, bold, italic, inline code, and backtick fenced code
+  blocks; optional multiline `Lời giải:` is accepted; richer media/math/link
+  features are deferred;
+- **QM-05:** preserve manually authored source; do not canonicalize/re-render it
+  on save.
 
-- **QM-04:** LaTeX/code/images/explanations/rich-content support;
-- **QM-06:** structured-question → canonical-Markdown AI/import strategy.
+The editor UX contract also accepts grammar-aware completion at structural
+line-starts, including direct four-type snippets from `C`/`Câ`/`Câu`,
+context-aware A-D / `Đáp án:` / `Lời giải:` suggestions, arrow navigation,
+Tab/Enter/click acceptance, Escape dismissal, and no structural suggestions
+inside fenced code blocks.
 
-The source of truth for unresolved items is `docs/open-questions.md`.
+Authoritative details:
+
+- `docs/specifications/quiz-markdown-spec.md`
+- `docs/product/quiz-authoring.md`
+- `docs/decisions/ADR-013-numeric-fill-format.md`
+
+**QM-06 remains open** for future AI/import canonical rendering and does not
+block the current manual-authoring/publishing workstream.
 
 ## 7. Important known gap: teacher self-enablement
 

@@ -99,8 +99,9 @@ Required MVP question types are the already accepted product types:
 Current state:
 
 - stable Quiz + mutable draft backend: **MERGED / VERIFIED**
+- Quiz Markdown MVP grammar/editor contract: **DECIDED**
 - frontend authoring: **NOT STARTED**
-- parser/validator/version publishing: **BLOCKED ON QUIZ MARKDOWN DECISIONS**
+- parser/validator/version publishing: **NOT STARTED — UNBLOCKED BY ACCEPTED GRAMMAR**
 
 #### Assessment delivery
 
@@ -332,22 +333,33 @@ are stable.
 
 #### A1. Product decisions: Quiz Markdown
 
-Owner: Leader/product decision.
+**Status: COMPLETE**
 
-Resolve and record at minimum:
+The Leader accepted the MVP Quiz Markdown and editor UX contract on 2026-09-30.
 
-- QM-01 question-type syntax;
-- QM-02 `NUMERIC_FILL` answer syntax;
-- QM-03 allowed four-character charset + normalization;
-- QM-05 source-preservation/canonical formatting behavior.
+Resolved:
 
-Decide whether QM-04 rich-content support is included in MVP or explicitly
-deferred.
+- QM-01: explicit `Câu <n> [TYPE]:` question headers;
+- QM-02: `Đáp án: <token>` for `NUMERIC_FILL`;
+- QM-03: exact four-character ASCII numeric token with constrained `-` / `.`
+  and surrounding-whitespace trim only;
+- QM-04: multiline Markdown content with plain text, bold, italic, inline code,
+  and backtick fenced code blocks; optional multiline `Lời giải:` is supported;
+- QM-05: manually authored source is preserved on save rather than
+  canonicalized/re-rendered;
+- grammar-aware editor completion is accepted, including direct four-type
+  question snippets from line-start `C`/`Câ`/`Câu`, context-aware option/
+  answer/explanation suggestions, keyboard/mouse selection, and suppression
+  inside fenced code blocks.
 
-Exit criterion:
+Authoritative details:
 
-- authoritative docs no longer require implementation agents to invent MVP
-  Markdown semantics.
+- `docs/specifications/quiz-markdown-spec.md`
+- `docs/product/quiz-authoring.md`
+- `docs/decisions/ADR-013-numeric-fill-format.md`
+
+QM-06 remains open for future AI/import canonical rendering and does not block
+manual MVP authoring/publishing.
 
 #### A2. Backend Quiz Markdown + immutable publishing
 
@@ -541,11 +553,10 @@ Agents must not silently invent these decisions.
 
 ### Blocks MVP-A
 
-- QM-01
-- QM-02
-- QM-03
-- QM-05
-- MVP decision on QM-04
+Quiz Markdown QM-01 through QM-05 are resolved and no longer block MVP-A.
+
+Remaining blocker:
+
 - MVP-relevant resolution of ID-06 for teacher self-enablement
 
 ### Blocks MVP-B
@@ -576,6 +587,7 @@ Status vocabulary:
 - `VERIFIED` — implemented, merged, and proven;
 - `MERGED` — implemented/merged but not yet proven as part of the final MVP
   journey;
+- `DECIDED` — required product/contract semantics are accepted and recorded;
 - `IN PROGRESS` — active branch/workstream;
 - `BLOCKED` — cannot safely implement without a recorded decision/dependency;
 - `NOT STARTED`.
@@ -589,9 +601,9 @@ Status vocabulary:
 | Classroom core | MERGED | assignment/product integration missing |
 | Quiz stable identity + draft backend | VERIFIED | create/read/update foundation |
 | Quiz frontend library/editor | NOT STARTED | Dev 2 next |
-| Quiz Markdown grammar | BLOCKED | QM decisions |
-| Quiz parser/validator | BLOCKED | depends on grammar |
-| Immutable QuizVersion/publish | BLOCKED | depends on accepted grammar/model |
+| Quiz Markdown grammar/editor contract | DECIDED | QM-01 through QM-05 accepted |
+| Quiz parser/validator | NOT STARTED | grammar contract accepted |
+| Immutable QuizVersion/publish | NOT STARTED | grammar contract accepted |
 | Assessment Publication | BLOCKED | ASSESS decisions |
 | Delivery snapshot | BLOCKED | ASSESS decisions + QuizVersion |
 | Attempt core | NOT STARTED | depends on delivery snapshot |
