@@ -23,8 +23,8 @@ Status: **Baseline v0.2**
 
 12. Teacher can organize quizzes in folders.
 13. Quiz supports `SINGLE_CHOICE`, `MULTIPLE_CHOICE`, `TRUE_FALSE_MATRIX`, `NUMERIC_FILL`.
-14. NUMERIC_FILL intentionally keeps the fixed four-character answer requirement; exact charset/normalization remains to be finalized.
-15. Quiz Markdown must be validated before publication configuration.
+14. `NUMERIC_FILL` keeps an exact four-character answer token after surrounding-whitespace trim; accepted characters are ASCII digits plus an optional leading `-` and an optional single decimal point under the validation rules in `docs/specifications/quiz-markdown-spec.md`.
+15. Quiz Markdown uses explicit `Câu <n> [TYPE]:` headers, multiline Markdown content, optional `Lời giải:`, and supported fenced code blocks; structural markers are recognized only at column 1 outside code fences. Backend validation is authoritative, and manually authored source is preserved rather than rewritten on save.
 16. Published quiz versions are immutable.
 17. Editing after publication creates later draft/version content; old published versions remain unchanged.
 
