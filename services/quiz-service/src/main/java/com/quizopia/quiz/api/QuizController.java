@@ -3,6 +3,7 @@ package com.quizopia.quiz.api;
 import com.quizopia.quiz.application.QuizApplicationService;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
+import com.quizopia.quiz.application.QuizPublishResult;
 import com.quizopia.quiz.security.TeacherAuthoringPrincipalResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
@@ -176,6 +177,64 @@ public final class QuizController {
             Authentication authentication, @PathVariable("quizId") UUID quizId, @RequestBody QuizDraftRequest request) {
         UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
         return QuizDraftResponse.from(quizApplicationService.updateOwnedDraft(callerUserId, quizId, input(request)));
+    }
+
+    @PostMapping("/{quizId}/versions")
+    @Operation(description = "Requires an authenticated Quizopia USER token with the explicit TEACHER role.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "201",
+                description = "A new immutable quiz version was published",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizVersionResponse.class))),
+        @ApiResponse(
+                responseCode = "200",
+                description = "The unchanged current draft reused the latest quiz version",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizVersionResponse.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Invalid Quiz Markdown or invalid request",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema =
+                                        @Schema(
+                                                oneOf = {QuizMarkdownValidationErrorResponse.class, QuizApiError.class
+                                                }))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Authentication is required",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Teacher authoring access or quiz ownership is denied",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Quiz or current draft was not found",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class)))
+    })
+    public ResponseEntity<QuizVersionResponse> publishOwnedDraft(
+            Authentication authentication, @PathVariable("quizId") UUID quizId) {
+        UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
+        QuizPublishResult result = quizApplicationService.publishOwnedDraft(callerUserId, quizId);
+        QuizVersionResponse body = QuizVersionResponse.from(result.version());
+        return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
+                .body(body);
     }
 
     private static QuizDraftInput input(QuizDraftRequest request) {

@@ -9,4 +9,6 @@ public interface QuizRepository {
     void insert(Quiz quiz);
 
     Optional<Quiz> findById(UUID id);
+
+    Optional<Quiz> findByIdForUpdate(UUID id);
 }
