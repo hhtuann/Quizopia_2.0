@@ -253,6 +253,70 @@ describe("QuizEditorPage real-contract behavior", () => {
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
+  it("locks authoring while a dirty draft is saved before publish", async () => {
+    const initialSource = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50";
+    const editedSource = `${initialSource}\nLời giải: publish this snapshot`;
+    let releaseSave: (() => void) | undefined;
+    const saveGate = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    let publishCalls = 0;
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async (request) => {
+        const built = request.createRequest();
+        if (built.method === "GET") {
+          return {
+            kind: "response" as const,
+            response: response(200, draft(initialSource)),
+          };
+        }
+        if (built.method === "PUT") {
+          await saveGate;
+          return {
+            kind: "response" as const,
+            response: response(200, draft(editedSource)),
+          };
+        }
+        if (built.method === "POST") {
+          publishCalls += 1;
+          return {
+            kind: "response" as const,
+            response: response(201, {
+              id: "f87b6d86-c26d-47fe-83db-cce701112233",
+              quizId,
+              versionNumber: 1,
+              createdAt: "2026-09-30T12:10:00Z",
+            }),
+          };
+        }
+        throw new Error(`Unexpected method ${built.method}`);
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+    await screen.findByRole("heading", { name: "Network quiz" });
+
+    const editor = screen.getByRole("textbox", {
+      name: "Quiz Markdown source",
+    });
+    fireEvent.change(editor, { target: { value: editedSource } });
+    fireEvent.click(screen.getByRole("button", { name: "Publish version" }));
+
+    await waitFor(() => expect(editor).toBeDisabled());
+    expect(screen.getByRole("textbox", { name: "Title" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Description" })).toBeDisabled();
+    expect(publishCalls).toBe(0);
+
+    releaseSave?.();
+
+    expect(
+      await screen.findByText("Published immutable version 1."),
+    ).toBeInTheDocument();
+    expect(publishCalls).toBe(1);
+    expect(editor).not.toBeDisabled();
+  });
+
   it("shows authoritative publish validation and maps it back to source", async () => {
     const source = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 123";
     const executor: AuthenticatedRequestExecutor = {

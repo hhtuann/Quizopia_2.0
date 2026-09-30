@@ -311,12 +311,13 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     setPublishError(null);
     setPublishMessage(null);
     setServerDiagnostics([]);
+    setIsPublishing(true);
 
     if (dirty && !(await saveDraft())) {
+      setIsPublishing(false);
       return;
     }
 
-    setIsPublishing(true);
     const result = await client.publishDraft(quizId);
     setIsPublishing(false);
     if (!result.ok) {
@@ -475,6 +476,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           </label>
           <input
             className="mt-2 min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
+            disabled={isSaving || isPublishing}
             id="editor-title"
             onChange={(event) => setTitle(event.target.value)}
             value={title}
@@ -489,6 +491,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           </label>
           <input
             className="mt-2 min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
+            disabled={isSaving || isPublishing}
             id="editor-description"
             onChange={(event) => setDescription(event.target.value)}
             value={description}
@@ -523,6 +526,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           className={`${mobilePane === "source" ? "block" : "hidden"} min-w-0 rounded-xl border border-border bg-surface p-4 sm:p-5 lg:block`}
         >
           <QuizMarkdownEditor
+            disabled={isSaving || isPublishing}
             onChange={(value) => {
               setSource(value);
               setServerDiagnostics([]);
