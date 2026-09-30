@@ -1,41 +1,110 @@
 # Quiz Markdown Specification
 
-Status: **Draft v0.1 — grammar not fully finalized**
+Status: **Accepted v1.0 — MVP grammar**
 
-This file intentionally distinguishes already-agreed behavior from unresolved syntax.
+This file defines the accepted Quiz Markdown grammar for the MVP. Agents and
+implementations must not replace the grammar with inferred legacy behavior or a
+different Markdown convention.
 
 ## Goals
 
 Quiz Markdown must be:
 
 - easy for teachers to type;
-- easy for AI/importers to generate;
-- deterministic to parse;
-- precise enough to validate question type and answers;
-- safe to round-trip between editor and canonical quiz model;
-- able to produce live preview.
+- deterministic to parse and validate;
+- precise about question type and answer semantics;
+- friendly to live preview and grammar-aware editor assistance;
+- capable of multiline question, option, statement, and explanation content;
+- capable of fenced code blocks without interpreting code as quiz structure;
+- safe to preserve as authored source while producing an immutable structured
+  quiz representation for published versions.
 
-## Agreed lexical conventions
+## Structural recognition
 
-### Question start
+Quiz structural markers have meaning only when both conditions hold:
 
-A new question begins with:
+1. the marker begins at column 1; and
+2. the marker is outside a fenced code block.
+
+Indented lookalike text is content, not structure.
+
+Structural keywords use a colon:
 
 ```text
-Câu <number>.
+Câu 1 [SINGLE_CHOICE]:
+Đáp án:
+Lời giải:
 ```
 
-Example:
+Option/statement labels use a period:
 
 ```text
-Câu 1. Nội dung câu hỏi
+A.
+*B.
+C.
+D.
 ```
 
-The parser must validate sequence order.
+A leading `*` marks a correct option or a TRUE statement.
 
-### Options/statements
+## Question header — QM-01
 
-Option/statement labels use:
+Every question begins with exactly:
+
+```text
+Câu <number> [<TYPE>]: <optional first line of question content>
+```
+
+Accepted types are:
+
+- `SINGLE_CHOICE`
+- `MULTIPLE_CHOICE`
+- `TRUE_FALSE_MATRIX`
+- `NUMERIC_FILL`
+
+The type identifier is case-sensitive.
+
+Examples:
+
+```text
+Câu 1 [SINGLE_CHOICE]: HTTP là viết tắt của cụm từ nào?
+```
+
+and:
+
+```text
+Câu 2 [SINGLE_CHOICE]: Lan có 5 quả táo
+Lan cho em trai Lan 3 quả
+Lan ăn 1 quả
+Hỏi Lan còn mấy quả?
+```
+
+Question numbering must be continuous and begin from 1 in source order.
+
+## Multiline content blocks
+
+Question stems, choice options/statements, and explanations are Markdown content
+blocks and may contain multiple lines and paragraphs.
+
+A block ends only when the parser encounters the next valid structural marker
+for the current parser state, at column 1 and outside a fenced code block.
+
+For example:
+
+```text
+*A. Dòng đầu tiên của phương án A
+Dòng thứ hai vẫn thuộc phương án A.
+
+Một đoạn khác vẫn thuộc phương án A.
+
+B. Dòng này mới bắt đầu phương án B.
+```
+
+The same block rule applies to question stems and `Lời giải:`.
+
+## Choice questions
+
+The following types use exactly four ordered options/statements:
 
 ```text
 A.
@@ -44,78 +113,37 @@ C.
 D.
 ```
 
-Order must be validated where the question type requires A-D structure.
+Each option/statement must contain non-blank content.
 
-### Correct marker
+### SINGLE_CHOICE
 
-A leading `*` marks a correct option/statement.
+Validation:
+
+- exactly A, B, C, D in order;
+- exactly one option has a leading `*`.
 
 Example:
 
 ```text
-*B. phương án đúng
+Câu 1 [SINGLE_CHOICE]: 2 + 2 bằng bao nhiêu?
+
+A. 3
+*B. 4
+C. 5
+D. 6
 ```
-
-## Question types
-
-Required supported types:
-
-- `SINGLE_CHOICE`
-- `MULTIPLE_CHOICE`
-- `TRUE_FALSE_MATRIX`
-- `NUMERIC_FILL`
-
-## NUMERIC_FILL
-
-The answer must be exactly four characters under the final allowed-character rules.
-
-## Unresolved type grammar
-
-The simple notation below is not enough to unambiguously distinguish all question types:
-
-```text
-Câu 1. ...
-A. ...
-*B. ...
-C. ...
-D. ...
-```
-
-A final explicit type marker is therefore still **TBD**.
-
-Candidate syntax proposed during design:
-
-```text
-Câu 1 [SINGLE_CHOICE]. ...
-Câu 2 [MULTIPLE_CHOICE]. ...
-Câu 3 [TRUE_FALSE_MATRIX]. ...
-Câu 4 [NUMERIC_FILL]. ...
-```
-
-This candidate is **not yet an accepted grammar requirement**.
-
-## Candidate canonical examples
-
-### SINGLE_CHOICE
-
-```text
-Câu 1 [SINGLE_CHOICE]. HTTP là viết tắt của cụm từ nào?
-
-A. Hyper Transfer Text Protocol
-*B. HyperText Transfer Protocol
-C. High Transfer Text Protocol
-D. HyperText Translate Protocol
-```
-
-Validation:
-
-- exactly one correct option;
-- expected A-D structure.
 
 ### MULTIPLE_CHOICE
 
+Validation:
+
+- exactly A, B, C, D in order;
+- one or more options have a leading `*`.
+
+Example:
+
 ```text
-Câu 2 [MULTIPLE_CHOICE]. Chọn các giao thức tầng Application.
+Câu 2 [MULTIPLE_CHOICE]: Chọn các giao thức tầng Application.
 
 *A. HTTP
 *B. FTP
@@ -123,65 +151,295 @@ C. TCP
 D. UDP
 ```
 
-Validation:
-
-- one or more correct options;
-- expected A-D structure.
-
 ### TRUE_FALSE_MATRIX
 
+Validation:
+
+- exactly A, B, C, D in order;
+- `*` means the statement is TRUE;
+- absence of `*` means the statement is FALSE;
+- all four statements may be FALSE.
+
+Example:
+
 ```text
-Câu 3 [TRUE_FALSE_MATRIX]. Xác định tính đúng sai.
+Câu 3 [TRUE_FALSE_MATRIX]: Xác định tính đúng sai.
 
 *A. HTTP thuộc tầng Application.
 B. TCP thuộc tầng Application.
-*C. HTTPS sử dụng TLS.
+*C. HTTPS có thể sử dụng TLS.
 D. UDP đảm bảo delivery.
 ```
 
-Candidate meaning:
+## NUMERIC_FILL — QM-02 and QM-03
 
-- `*` statement = TRUE;
-- no `*` = FALSE.
+A `NUMERIC_FILL` question does not use A-D options.
 
-The final display wording and parser rules must be confirmed.
-
-### NUMERIC_FILL
-
-Candidate:
+Its answer syntax is exactly:
 
 ```text
-Câu 4 [NUMERIC_FILL]. Giá trị của biểu thức ... là bao nhiêu?
+Đáp án: <numeric-token>
+```
+
+The numeric token must be on the same line as `Đáp án:`.
+
+Valid example:
+
+```text
+Câu 4 [NUMERIC_FILL]: Giá trị của 10 / 4 là bao nhiêu?
 
 Đáp án: 2.50
 ```
 
-Final answer-key keyword/syntax is **TBD**.
+The following form is invalid:
 
-## Save/continue validation
+```text
+Đáp án:
+2.50
+```
 
-Backend must reject invalid source with structured errors.
+### Four-character answer
 
-Required validations include:
+After trimming only surrounding whitespace from the answer token:
 
-- continuous question numbering;
-- valid question-type syntax;
-- option order;
+- the token length is exactly 4 characters;
+- allowed characters are ASCII digits `0-9`, `-`, and `.`;
+- at least one digit is required;
+- `-` may appear at most once and only as the first character;
+- `.` may appear at most once;
+- `.` may not be the first or last character;
+- internal whitespace is not allowed.
+
+Valid examples:
+
+```text
+1234
+0001
+2.50
+0.25
+-3.5
+-0.5
+12.3
+```
+
+Invalid examples include:
+
+```text
+123
+12345
++123
+1,25
+.250
+250.
+1..2
+--12
+1 23
+１234
+1e03
+```
+
+Normalization is intentionally minimal:
+
+- trim surrounding whitespace only;
+- do not convert comma to decimal point;
+- do not remove `+`;
+- do not convert full-width digits;
+- do not pad/truncate;
+- do not otherwise guess teacher intent.
+
+Learner-answer comparison/grading remains governed by `GRADE-05`.
+
+## Optional explanation block
+
+Every question may contain zero or one `Lời giải:` block.
+
+The marker may have content on the same line:
+
+```text
+Lời giải: TCP và UDP thuộc tầng Transport.
+```
+
+or introduce multiline content:
+
+```text
+Lời giải:
+TCP và UDP không phải giao thức tầng Application.
+
+HTTP và FTP là hai giao thức phổ biến ở tầng Application.
+```
+
+For choice questions, `Lời giải:` may occur only after D.
+
+For `NUMERIC_FILL`, `Lời giải:` may occur only after the `Đáp án:` line.
+
+A duplicate `Lời giải:` in one question is invalid.
+
+Explanation content is part of the immutable published question content but is
+review-sensitive. Learner APIs must not expose it before the applicable
+Assessment review policy allows answer/review content.
+
+## MVP Markdown content — QM-04
+
+Question stems, options/statements, and explanations support:
+
+- plain text;
+- bold;
+- italic;
+- inline code;
+- backtick fenced code blocks.
+
+A fenced code block may include an optional language/info identifier.
+
+Example:
+
+````text
+Câu 5 [SINGLE_CHOICE]: Cho đoạn code sau:
+
+```java
+int a = 5;
+int b = 3;
+System.out.println(a - b);
+```
+
+Chương trình in gì?
+
+A. 1
+*B. 2
+C. 3
+D. 4
+````
+
+Structural-looking text inside a fenced code block is content only:
+
+````text
+```text
+Câu 99 [MULTIPLE_CHOICE]:
+*A. fake
+Lời giải: fake
+```
+````
+
+An unclosed fenced code block is invalid source.
+
+The MVP does not define support for:
+
+- images;
+- LaTeX/math rendering;
+- raw HTML;
+- audio/video embeds;
+- tables;
+- footnotes;
+- custom directives;
+- Markdown links;
+- other advanced nested rich-content structures.
+
+These may be added later through an explicit compatible specification update.
+
+## Source preservation — QM-05
+
+Teacher-authored source is preserved as submitted.
+
+Saving a draft must not:
+
+- parse and re-render the source;
+- canonicalize whitespace;
+- reorder content;
+- rewrite teacher formatting.
+
+The draft therefore preserves the teacher's `authoringSource` while validation
+produces a separate structured representation.
+
+Publishing follows:
+
+```text
+QuizDraft authoringSource
+        ↓
+parser + validator
+        ↓
+structured immutable QuizVersion
+```
+
+A published `QuizVersion` should retain both:
+
+- the immutable structured content used by downstream delivery/export; and
+- the source snapshot from which that version was created.
+
+A future canonical renderer for AI/import flows is tracked separately by
+`QM-06` and must not overwrite manually authored source by implication.
+
+## Parsing and validation
+
+Malformed structure must be rejected rather than silently repaired.
+
+Required validation includes:
+
+- question numbering begins at 1 and is continuous;
+- accepted case-sensitive question type;
+- non-blank question stem;
+- required A-D order for choice/matrix types;
+- no duplicate/skipped option label;
+- non-blank option/statement content;
 - correct-answer cardinality;
-- required answer data;
-- NUMERIC_FILL four-character rule;
-- malformed structure.
+- required `NUMERIC_FILL` answer;
+- accepted four-character numeric token;
+- explanation cardinality and position;
+- balanced supported fenced code blocks;
+- malformed structure does not silently produce a different quiz.
 
-Recommended parser error fields:
+Parser errors must be structured enough for editor mapping and should include:
 
 - error code;
-- question number;
+- question number when known;
 - line;
 - column;
 - human-readable message.
 
+The backend parser/validator is authoritative even when the frontend performs
+instant validation.
+
+## Canonical example
+
+````text
+Câu 1 [MULTIPLE_CHOICE]: Chọn các giao thức tầng Application.
+
+*A. HTTP
+*B. FTP
+C. TCP
+D. UDP
+
+Lời giải:
+TCP và UDP không phải giao thức tầng Application.
+HTTP và FTP là hai giao thức phổ biến ở tầng Application.
+
+Câu 2 [SINGLE_CHOICE]: Lan có 5 quả táo
+Lan cho em trai Lan 3 quả
+Lan ăn 1 quả
+Hỏi Lan còn mấy quả?
+
+*A. 1
+B. 2
+C. 3
+D. 4
+
+Câu 3 [NUMERIC_FILL]: Cho biểu thức:
+
+```text
+10 / 4
+```
+
+Viết kết quả với hai chữ số sau dấu chấm.
+
+Đáp án: 2.50
+
+Lời giải:
+`10 / 4 = 2.5`.
+Theo định dạng yêu cầu, đáp án là `2.50`.
+````
+
 ## AI/import interaction
 
-Excel, DOCX, and AI import/generation should converge on the same canonical quiz domain model.
+Excel, DOCX, and AI import/generation should converge on the same structured quiz
+domain model.
 
-Canonical Markdown rendering from structured data is a proposed strategy, but the team must finalize the grammar first.
+Whether machine-generated structured questions are rendered through a canonical
+Quiz Markdown renderer remains `QM-06`.
