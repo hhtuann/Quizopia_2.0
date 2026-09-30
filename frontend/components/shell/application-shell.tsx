@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
+import { Alert } from "../ui/alert";
 import { Button } from "../ui/button";
 import { PageContainer } from "../ui/page-container";
 import { WorkspaceSwitcher } from "./workspace-switcher";
@@ -12,13 +13,25 @@ export interface ApplicationShellProps {
 }
 
 export function ApplicationShell({ children }: ApplicationShellProps) {
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
   const {
     activeWorkspace,
     availableWorkspaces,
-    clearLocalSession,
+    logout,
     session,
     switchWorkspace,
   } = useAuth();
+
+  async function handleLogout() {
+    setLogoutError(false);
+    setIsSigningOut(true);
+    const result = await logout();
+    if (!result.ok) {
+      setLogoutError(true);
+      setIsSigningOut(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -49,12 +62,22 @@ export function ApplicationShell({ children }: ApplicationShellProps) {
 
           <Button
             className="sm:ml-auto"
-            onClick={clearLocalSession}
+            isLoading={isSigningOut}
+            loadingLabel="Signing out"
+            onClick={() => void handleLogout()}
             variant="secondary"
           >
             Sign out
           </Button>
         </PageContainer>
+
+        {logoutError ? (
+          <PageContainer className="pb-3">
+            <Alert title="Sign out could not be completed" variant="danger">
+              Your session is still active. Please try signing out again.
+            </Alert>
+          </PageContainer>
+        ) : null}
 
         <WorkspaceSwitcher
           activeWorkspace={activeWorkspace}

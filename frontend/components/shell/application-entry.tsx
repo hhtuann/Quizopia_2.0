@@ -6,7 +6,7 @@ import { ApplicationShell } from "./application-shell";
 
 export function ApplicationEntry() {
   return (
-    <AuthenticatedBoundary bootstrappingPresentation="unavailable">
+    <AuthenticatedBoundary>
       <ApplicationShell>
         <ApplicationHome />
       </ApplicationShell>

@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:real": "playwright test --config=playwright.real.config.ts",
+    "test:e2e:real:executor": "node tests/real-executor-e2e/run-real-executor.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -39,6 +41,7 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
+    "vite": "^7.3.6",
     "vitest": "^3.2.4"
   },
   "packageManager": "pnpm@10.15.1"

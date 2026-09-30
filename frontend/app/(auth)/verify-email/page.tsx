@@ -7,14 +7,22 @@ export const metadata: Metadata = {
   title: "Verify email | Quizopia 2.0",
 };
 
-export default function VerifyEmailPage() {
+export default async function VerifyEmailPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ username?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const username =
+    typeof params.username === "string" ? params.username : undefined;
+
   return (
     <>
       <AuthPageHeader
-        description="When a verification code has been issued for your account, enter it here to verify your email address."
+        description="Enter the six-digit code issued for your username, or request another code."
         title="Verify your email"
       />
-      <EmailVerificationForm />
+      <EmailVerificationForm initialUsername={username} />
       <p className="mt-6 text-center text-sm leading-6 text-foreground-secondary">
         Need to restart account setup?{" "}
         <Link

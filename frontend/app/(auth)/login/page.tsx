@@ -11,7 +11,7 @@ export default function LoginPage() {
   return (
     <>
       <AuthPageHeader
-        description="Use your local Quizopia username and password to access your account."
+        description="Use your Quizopia username or verified email and password to access your account."
         title="Sign in"
       />
       <LoginForm />

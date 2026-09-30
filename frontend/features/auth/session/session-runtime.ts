@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "../model/authenticated-user";
 import {
   ANONYMOUS_SESSION,
+  BOOTSTRAP_FAILED_SESSION,
   BOOTSTRAPPING_SESSION,
   EXPIRED_SESSION,
   hasAuthenticatedIdentity,
@@ -25,6 +26,7 @@ export interface SessionRuntime {
   beginRefreshing(): boolean;
   clearLocalSession(): void;
   completeBootstrapAsAnonymous(): boolean;
+  completeBootstrapAsUnavailable(): boolean;
   completeRefreshing(input: AuthenticatedSessionInput): boolean;
   establishAuthenticatedSession(input: AuthenticatedSessionInput): boolean;
   expireSession(): boolean;
@@ -55,7 +57,7 @@ export function createSessionRuntime(
   ): Workspace | null {
     if (
       hasAuthenticatedIdentity(previousState) &&
-      previousState.user.userId === user.userId
+      previousState.user.id === user.id
     ) {
       return reconcileWorkspace(user.roles, previousState.activeWorkspace);
     }
@@ -104,13 +106,28 @@ export function createSessionRuntime(
       return true;
     },
 
+    completeBootstrapAsUnavailable() {
+      if (state.status !== "bootstrapping") {
+        return false;
+      }
+
+      accessTokenVault.clear();
+      publish(BOOTSTRAP_FAILED_SESSION);
+      return true;
+    },
+
     completeRefreshing(input) {
       if (state.status !== "refreshing") {
         return false;
       }
 
+      const identityChanged = state.user.id !== input.user.id;
       const activeWorkspace = activeWorkspaceFor(input.user, state);
-      accessTokenVault.replace(input.accessToken);
+      if (identityChanged) {
+        accessTokenVault.startSession(input.accessToken);
+      } else {
+        accessTokenVault.replace(input.accessToken);
+      }
       publish(authenticatedState(input.user, activeWorkspace));
       return true;
     },
@@ -119,12 +136,13 @@ export function createSessionRuntime(
       if (
         state.status !== "bootstrapping" &&
         state.status !== "anonymous" &&
+        state.status !== "bootstrap-failed" &&
         state.status !== "session-expired"
       ) {
         return false;
       }
 
-      accessTokenVault.replace(input.accessToken);
+      accessTokenVault.startSession(input.accessToken);
       publish(
         authenticatedState(
           input.user,

@@ -16,7 +16,12 @@ function sessionInput(
 ) {
   return {
     accessToken,
-    user: createAuthenticatedUser({ userId, roles }),
+    user: createAuthenticatedUser({
+      email: `${userId}@example.test`,
+      id: userId,
+      roles,
+      username: `user-${userId.slice(0, 8)}`,
+    }),
   };
 }
 
@@ -31,9 +36,19 @@ describe("session runtime", () => {
     expect(vault.read()).toBeNull();
   });
 
+  it("keeps a transient bootstrap failure distinct from no session", () => {
+    const vault = createAccessTokenVault();
+    const runtime = createSessionRuntime(vault);
+
+    expect(runtime.completeBootstrapAsUnavailable()).toBe(true);
+    expect(runtime.getSnapshot()).toEqual({ status: "bootstrap-failed" });
+    expect(vault.read()).toBeNull();
+  });
+
   it.each([
     ["bootstrapping", false],
     ["anonymous", true],
+    ["bootstrap-failed", true],
   ] as const)(
     "establishes an authenticated session from %s using trusted domain input",
     (_startingState, completeAsAnonymous) => {
@@ -66,6 +81,7 @@ describe("session runtime", () => {
     ]);
     runtime.establishAuthenticatedSession(initial);
     runtime.switchWorkspace("TEACHING");
+    const generationBeforeRefresh = vault.readSnapshot().sessionGeneration;
 
     expect(runtime.beginRefreshing()).toBe(true);
     expect(runtime.getSnapshot()).toEqual({
@@ -86,6 +102,9 @@ describe("session runtime", () => {
       activeWorkspace: "TEACHING",
     });
     expect(vault.read()).toBe("replacement-access-token");
+    expect(vault.readSnapshot().sessionGeneration).toBe(
+      generationBeforeRefresh,
+    );
   });
 
   it("re-derives an invalid workspace when refreshed roles change", () => {
@@ -130,6 +149,7 @@ describe("session runtime", () => {
       sessionInput("initial-access-token", ["STUDENT", "TEACHER"]),
     );
     runtime.switchWorkspace("TEACHING");
+    const generationBeforeRefresh = vault.readSnapshot().sessionGeneration;
     runtime.beginRefreshing();
 
     runtime.completeRefreshing(
@@ -143,8 +163,12 @@ describe("session runtime", () => {
     expect(runtime.getSnapshot()).toMatchObject({
       status: "authenticated",
       activeWorkspace: "LEARNING",
-      user: { userId: secondUserId },
+      user: { id: secondUserId },
     });
+    expect(vault.read()).toBe("replacement-access-token");
+    expect(vault.readSnapshot().sessionGeneration).not.toBe(
+      generationBeforeRefresh,
+    );
   });
 
   it.each([

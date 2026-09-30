@@ -1,12 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
+import { useAuth } from "../auth-provider";
 
 const registrationSchema = z
   .object({
@@ -16,9 +18,8 @@ const registrationSchema = z
       .refine((value) => value.trim().length > 0, "Enter a username."),
     email: z
       .string()
-      .trim()
-      .min(1, "Enter an email address.")
       .max(320, "Email address must be 320 characters or fewer.")
+      .refine((value) => value.length > 0, "Enter an email address.")
       .email("Enter a valid email address."),
     password: z
       .string()
@@ -35,10 +36,11 @@ const registrationSchema = z
 type RegistrationFields = z.infer<typeof registrationSchema>;
 
 export function RegistrationForm() {
-  const [isIntegrationUnavailable, setIsIntegrationUnavailable] =
-    useState(false);
+  const router = useRouter();
+  const { register: registerAccount } = useAuth();
+  const [serverError, setServerError] = useState<string | null>(null);
   const {
-    formState: { errors },
+    formState: { errors, isSubmitting },
     handleSubmit,
     register,
   } = useForm<RegistrationFields>({
@@ -51,14 +53,42 @@ export function RegistrationForm() {
     resolver: zodResolver(registrationSchema),
   });
 
+  async function onSubmit(fields: RegistrationFields) {
+    setServerError(null);
+    const result = await registerAccount({
+      email: fields.email,
+      password: fields.password,
+      username: fields.username,
+    });
+    if (result.ok) {
+      router.push(
+        `/verify-email?username=${encodeURIComponent(fields.username)}`,
+      );
+      return;
+    }
+
+    if (result.error.kind === "api-error") {
+      if (result.error.error.code === "AUTH_USERNAME_UNAVAILABLE") {
+        setServerError(
+          "That username is unavailable. Choose another username.",
+        );
+        return;
+      }
+      if (result.error.error.code === "INVALID_REQUEST") {
+        setServerError("Check your account details and try again.");
+        return;
+      }
+    }
+    setServerError(
+      "Account creation could not be completed. Please try again.",
+    );
+  }
+
   return (
     <form
       className="mt-7 space-y-5"
       noValidate
-      onSubmit={handleSubmit(
-        () => setIsIntegrationUnavailable(true),
-        () => setIsIntegrationUnavailable(false),
-      )}
+      onSubmit={handleSubmit(onSubmit, () => setServerError(null))}
     >
       <TextField
         autoComplete="username"
@@ -88,14 +118,18 @@ export function RegistrationForm() {
         {...register("confirmPassword")}
       />
 
-      {isIntegrationUnavailable ? (
-        <Alert title="Account creation is not available yet">
-          Your information was checked only in this browser and was not sent or
-          saved. Please try again when account creation becomes available.
+      {serverError ? (
+        <Alert title="Account creation failed" variant="danger">
+          {serverError}
         </Alert>
       ) : null}
 
-      <Button className="w-full" type="submit">
+      <Button
+        className="w-full"
+        isLoading={isSubmitting}
+        loadingLabel="Creating account"
+        type="submit"
+      >
         Create account
       </Button>
     </form>

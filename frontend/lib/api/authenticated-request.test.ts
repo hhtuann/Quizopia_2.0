@@ -19,6 +19,7 @@ import {
 } from "./http-transport";
 
 const userId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
+const secondUserId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -31,7 +32,24 @@ function deferred<T>() {
 function session(accessToken: string) {
   return {
     accessToken,
-    user: createAuthenticatedUser({ userId, roles: ["STUDENT"] }),
+    user: createAuthenticatedUser({
+      email: "learner01@gmail.com",
+      id: userId,
+      roles: ["STUDENT"],
+      username: "learner01",
+    }),
+  };
+}
+
+function replacementIdentitySession(accessToken: string) {
+  return {
+    accessToken,
+    user: createAuthenticatedUser({
+      email: "learner02@gmail.com",
+      id: secondUserId,
+      roles: ["STUDENT"],
+      username: "learner02",
+    }),
   };
 }
 
@@ -213,6 +231,87 @@ describe("authenticated request executor", () => {
     }
   });
 
+  it("does not replay a protected request when refresh resolves to a different identity", async () => {
+    const execute = vi.fn(
+      async (request: HttpRequest): Promise<HttpTransportResult> =>
+        authorization(request) === "Bearer initial-access-token"
+          ? response(401)
+          : response(200),
+    );
+    const refreshOperation = vi.fn<RefreshOperation>();
+    refreshOperation.mockResolvedValue({
+      status: "refreshed",
+      session: replacementIdentitySession("account-b-access-token"),
+    });
+    const { accessTokenVault, executor, sessionRuntime } = authenticatedHarness(
+      { execute },
+      refreshOperation,
+    );
+    const initialGeneration = accessTokenVault.readSnapshot().sessionGeneration;
+    const request = replayableRequest("account-a-mutation");
+
+    await expect(executor.execute(request)).resolves.toEqual({
+      kind: "authentication-failure",
+      reason: "session-changed",
+    });
+
+    expect(refreshOperation).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(request.createRequest).toHaveBeenCalledTimes(1);
+    expect(accessTokenVault.read()).toBe("account-b-access-token");
+    expect(accessTokenVault.readSnapshot().sessionGeneration).not.toBe(
+      initialGeneration,
+    );
+    expect(sessionRuntime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { id: secondUserId },
+    });
+  });
+
+  it("single-flights an identity-changing refresh and rejects all concurrent stale requests", async () => {
+    const refreshAttempt = deferred<RefreshResult>();
+    const refreshOperation = vi.fn<RefreshOperation>();
+    refreshOperation.mockReturnValue(refreshAttempt.promise);
+    const execute = vi.fn(async () => response(401));
+    const { accessTokenVault, executor, sessionRuntime } = authenticatedHarness(
+      { execute },
+      refreshOperation,
+    );
+    const initialGeneration = accessTokenVault.readSnapshot().sessionGeneration;
+    const requests = ["a", "b", "c"].map((name) => replayableRequest(name));
+
+    const pendingResults = requests.map((request) => executor.execute(request));
+    await vi.waitFor(() => {
+      expect(refreshOperation).toHaveBeenCalledTimes(1);
+    });
+    refreshAttempt.resolve({
+      status: "refreshed",
+      session: replacementIdentitySession("account-b-access-token"),
+    });
+    const results = await Promise.all(pendingResults);
+
+    expect(refreshOperation).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(
+      results.every(
+        (result) =>
+          result.kind === "authentication-failure" &&
+          result.reason === "session-changed",
+      ),
+    ).toBe(true);
+    expect(accessTokenVault.read()).toBe("account-b-access-token");
+    expect(accessTokenVault.readSnapshot().sessionGeneration).not.toBe(
+      initialGeneration,
+    );
+    expect(sessionRuntime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { id: secondUserId },
+    });
+    for (const request of requests) {
+      expect(request.createRequest).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("creates a fresh replayable request body for the single retry", async () => {
     const observedBodies: BodyInit[] = [];
     const execute = vi.fn(
@@ -299,6 +398,42 @@ describe("authenticated request executor", () => {
       "Bearer initial-access-token",
       "Bearer replacement-access-token",
     ]);
+  });
+
+  it("never replays a delayed request after the authenticated account changes", async () => {
+    const delayedUnauthorized = deferred<HttpTransportResult>();
+    const execute = vi.fn(async () => delayedUnauthorized.promise);
+    const refreshOperation = vi.fn<RefreshOperation>();
+    const { accessTokenVault, executor, sessionRuntime } = authenticatedHarness(
+      { execute },
+      refreshOperation,
+    );
+    const pending = executor.execute(replayableRequest("account-a-mutation"));
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+
+    sessionRuntime.clearLocalSession();
+    sessionRuntime.establishAuthenticatedSession({
+      accessToken: "account-b-access-token",
+      user: createAuthenticatedUser({
+        email: "learner02@gmail.com",
+        id: "e7b14962-3a2e-4d2d-926a-3b36ea90c199",
+        roles: ["STUDENT"],
+        username: "learner02",
+      }),
+    });
+    delayedUnauthorized.resolve(response(401));
+
+    await expect(pending).resolves.toEqual({
+      kind: "authentication-failure",
+      reason: "session-changed",
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(refreshOperation).not.toHaveBeenCalled();
+    expect(accessTokenVault.read()).toBe("account-b-access-token");
+    expect(sessionRuntime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { username: "learner02" },
+    });
   });
 
   it("returns a typed failure and expires locally when the one retry is also unauthorized", async () => {
