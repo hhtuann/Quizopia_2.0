@@ -20,12 +20,13 @@ A new ChatGPT/Codex/Claude session should read, in this order:
 1. `AGENTS.md`
 2. `CLAUDE.md`
 3. this file: `docs/development/project-status.md`
-4. relevant `docs/product/**`
-5. relevant `docs/architecture/**`
-6. relevant `docs/specifications/**`
-7. relevant accepted ADRs under `docs/decisions/**`
-8. `docs/open-questions.md`
-9. root `DESIGN.md` for frontend/UI work
+4. `docs/development/mvp-plan.md`
+5. relevant `docs/product/**`
+6. relevant `docs/architecture/**`
+7. relevant `docs/specifications/**`
+8. relevant accepted ADRs under `docs/decisions/**`
+9. `docs/open-questions.md`
+10. root `DESIGN.md` for frontend/UI work
 
 Then:
 
@@ -37,9 +38,9 @@ Then:
 
 Suggested new-chat instruction:
 
-> Read `AGENTS.md`, `CLAUDE.md`, and
-> `docs/development/project-status.md`, then inspect the latest
-> `origin/develop`. Tell me the current project state, any drift from the
+> Read `AGENTS.md`, `CLAUDE.md`, `docs/development/project-status.md`, and
+> `docs/development/mvp-plan.md`, then inspect the latest `origin/develop`.
+> Tell me the current project state, progress toward MVP, any drift from the
 > checkpoint, active blockers, and the next workstreams before proposing code.
 
 ## 2. Current milestone
@@ -343,15 +344,21 @@ Later product areas:
 
 ## 10. Macro roadmap
 
-This is coordination guidance and may be updated as implementation reality
-changes. It is not a replacement for product specifications.
+This is long-term coordination guidance and may be updated as implementation
+reality changes. It is not a replacement for product specifications or the MVP
+cut defined in `docs/development/mvp-plan.md`.
 
 - **Wave 1 — Foundation:** CLOSED
 - **Wave 2 — Auth + Quiz Authoring Core:** CURRENT
-- **Wave 3 — Assessment Core:** Publication/delivery, Attempt, autosave, submit, grading, results, Classroom UI integration
-- **Wave 4 — Realtime + Proctoring**
-- **Wave 5 — Community + Practice + AI**
-- **Wave 6 — Product hardening / release**
+- **Wave 3 — Assessment Core:** Publication/delivery, Attempt, autosave, submit, grading, results, minimal Classroom product integration
+- **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
+- **Wave 4 — Realtime + Proctoring:** post-MVP unless explicitly promoted
+- **Wave 5 — Community + Practice + AI:** post-MVP unless explicitly promoted
+- **Wave 6 — broader product hardening / release evolution**
+
+The first MVP does **not** require completion of Waves 4–5. The authoritative
+MVP delivery path, scope tiers, blockers, and release journeys are maintained in
+`docs/development/mvp-plan.md`.
 
 Before deep Wave 3 implementation, unresolved Assessment/Publication and grading
 policy items in `docs/open-questions.md` must be resolved.
@@ -385,7 +392,15 @@ Git rules remain:
   of rebasing it;
 - Leader owns final merge.
 
-## 12. Status-file maintenance rule
+## 12. Relationship to the MVP plan
+
+- `project-status.md` answers **where the project is right now**.
+- `mvp-plan.md` answers **where the project must go to reach the first MVP**.
+
+Update this status file after material merges/checkpoints. Update the MVP plan
+when scope tiers, sequencing, blockers, or MVP completion criteria change.
+
+## 13. Status-file maintenance rule
 
 Update this file after any material checkpoint, especially:
 
