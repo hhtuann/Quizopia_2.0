@@ -34,15 +34,8 @@ outbox, retry model, and encrypted-payload architecture are already accepted.
 
 ## Quiz Markdown
 
-**QM-01.** Final explicit question-type syntax?
-
-**QM-02.** Final `NUMERIC_FILL` Markdown answer syntax?
-
-**QM-03.** Final allowed four-character `NUMERIC_FILL` character set and normalization rules?
-
-**QM-04.** Markdown support for LaTeX, code blocks, images, explanations, other rich content?
-
-**QM-05.** Does canonical Markdown preserve teacher formatting exactly or normalize on save?
+QM-01 through QM-05 are resolved by the accepted MVP grammar in
+`docs/specifications/quiz-markdown-spec.md`.
 
 **QM-06.** Accept/reject the proposed "structured question representation -> canonical Markdown renderer" AI/import strategy?
 
@@ -231,4 +224,19 @@ The following are no longer open:
 - six-digit email OTP with 10-minute expiry, 60-second resend cooldown, five
   failed attempts, replacement on successful issuance, and at most five
   successful issuances per exact email in a rolling hour;
-- centrally monitored/aligned dependencies.
+- centrally monitored/aligned dependencies;
+- Quiz Markdown question headers use `Câu <n> [TYPE]:` with explicit
+  `SINGLE_CHOICE`, `MULTIPLE_CHOICE`, `TRUE_FALSE_MATRIX`, and
+  `NUMERIC_FILL`;
+- Quiz Markdown supports multiline stems/options/statements, optional multiline
+  `Lời giải:`, and backtick fenced code blocks; structural markers are
+  recognized only at column 1 outside code fences;
+- `NUMERIC_FILL` uses `Đáp án: <token>` with an exact four-character ASCII
+  token using digits plus constrained leading `-` / single `.`, with only
+  surrounding whitespace trimmed;
+- manually authored Quiz Markdown source is preserved on save rather than
+  canonicalized/re-rendered;
+- Quiz Markdown editor completion is grammar/context aware: line-start
+  structural completion, direct four-type question snippets from `C`/`Câ`/
+  `Câu`, type fallback after `Câu <n> [`, option/answer/explanation
+  suggestions, and no structural suggestions inside fenced code blocks.
