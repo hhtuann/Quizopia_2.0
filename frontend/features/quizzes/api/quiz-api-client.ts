@@ -29,6 +29,24 @@ const versionSchema = z
   })
   .strict();
 
+const libraryItemSchema = z
+  .object({
+    quizId: z.string().uuid(),
+    title: z.string().nullable(),
+    description: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    latestVersionNumber: z.number().int().positive().nullable(),
+  })
+  .strict();
+
+const libraryPageSchema = z
+  .object({
+    items: z.array(libraryItemSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+
 const apiErrorSchema = z
   .object({
     code: z.string(),
@@ -61,6 +79,8 @@ const markdownValidationSchema = z
 
 export type QuizDraft = z.infer<typeof draftSchema>;
 export type QuizVersion = z.infer<typeof versionSchema>;
+export type QuizLibraryItem = z.infer<typeof libraryItemSchema>;
+export type QuizLibraryPage = z.infer<typeof libraryPageSchema>;
 export type QuizMarkdownServerError = z.infer<typeof markdownErrorSchema>;
 
 export interface QuizApiErrorEnvelope {
@@ -91,6 +111,11 @@ export interface QuizDraftInput {
   readonly title: string;
 }
 
+export interface QuizLibraryQuery {
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
 export interface QuizApiClient {
   createDraft(
     input: QuizDraftInput,
@@ -100,6 +125,10 @@ export interface QuizApiClient {
     quizId: string,
     signal?: AbortSignal,
   ): Promise<QuizApiResult<QuizDraft>>;
+  listOwnedQuizzes(
+    query?: QuizLibraryQuery,
+    signal?: AbortSignal,
+  ): Promise<QuizApiResult<QuizLibraryPage>>;
   publishDraft(
     quizId: string,
     signal?: AbortSignal,
@@ -230,6 +259,25 @@ export function createQuizApiClient(options: {
         signal,
       );
       return result.ok ? expectJson(result.value, [200], draftSchema) : result;
+    },
+    async listOwnedQuizzes(query = {}, signal) {
+      const parameters = new URLSearchParams();
+      if (query.limit !== undefined) {
+        parameters.set("limit", String(query.limit));
+      }
+      if (query.cursor !== undefined) {
+        parameters.set("cursor", query.cursor);
+      }
+      const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+      const result = await execute(
+        `/api/quizzes${suffix}`,
+        "GET",
+        undefined,
+        signal,
+      );
+      return result.ok
+        ? expectJson(result.value, [200], libraryPageSchema)
+        : result;
     },
     async publishDraft(quizId, signal) {
       const result = await execute(

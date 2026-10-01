@@ -13,6 +13,7 @@ import {
   type QuizApiClient,
   type QuizApiFailure,
   type QuizDraftInput,
+  type QuizLibraryItem,
   type QuizMarkdownServerError,
 } from "../api/quiz-api-client";
 import {
@@ -55,7 +56,166 @@ function inputSnapshot(input: QuizDraftInput): string {
   return JSON.stringify(input);
 }
 
+function libraryFailureTitle(failure: QuizApiFailure): string {
+  if (failure.kind === "api-error" && failure.error.status === 401) {
+    return "Quiz library authentication required";
+  }
+  if (failure.kind === "api-error" && failure.error.status === 403) {
+    return "Quiz library access denied";
+  }
+  return "Quiz library could not be loaded";
+}
+
+function libraryFailureMessage(failure: QuizApiFailure): string {
+  if (failure.kind === "transport-error") {
+    return "Quizopia could not reach the Quiz service. Try again without losing the quizzes already loaded on this page.";
+  }
+  return failureMessage(failure);
+}
+
+function appendUniqueLibraryItems(
+  current: readonly QuizLibraryItem[],
+  incoming: readonly QuizLibraryItem[],
+): readonly QuizLibraryItem[] {
+  const seen = new Set(current.map((item) => item.quizId));
+  return [
+    ...current,
+    ...incoming.filter((item) => {
+      if (seen.has(item.quizId)) {
+        return false;
+      }
+      seen.add(item.quizId);
+      return true;
+    }),
+  ];
+}
+
+function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
+  const title = item.title?.trim() || "Untitled quiz";
+  const description = item.description?.trim();
+  return (
+    <li className="rounded-xl border border-border bg-surface p-5 shadow-card">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <Link
+            className="break-words text-lg font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+            href={`/app/quizzes/${item.quizId}`}
+          >
+            {title}
+          </Link>
+          {description ? (
+            <p className="mt-2 break-words text-sm leading-6 text-foreground-secondary">
+              {description}
+            </p>
+          ) : null}
+          <p className="mt-3 break-all text-xs font-medium text-foreground-muted">
+            Quiz ID: {item.quizId}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-md bg-surface-muted px-2.5 py-1.5 text-xs font-semibold text-foreground-secondary">
+          {item.latestVersionNumber === null
+            ? "Draft only"
+            : `Latest version ${item.latestVersionNumber}`}
+        </span>
+      </div>
+      <dl className="mt-4 grid gap-2 border-t border-border pt-4 text-xs text-foreground-muted sm:grid-cols-2">
+        <div>
+          <dt className="font-semibold text-foreground-secondary">Created</dt>
+          <dd>
+            <time dateTime={item.createdAt}>{item.createdAt}</time>
+          </dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-foreground-secondary">Updated</dt>
+          <dd>
+            <time dateTime={item.updatedAt}>{item.updatedAt}</time>
+          </dd>
+        </div>
+      </dl>
+    </li>
+  );
+}
+
 export function QuizLibraryPage() {
+  const client = useQuizApiClient();
+  const [libraryState, setLibraryState] = useState<{
+    readonly client: QuizApiClient | null;
+    readonly failure: QuizApiFailure | null;
+    readonly items: readonly QuizLibraryItem[];
+    readonly nextCursor: string | null;
+  }>({ client: null, failure: null, items: [], nextCursor: null });
+  const [paginationState, setPaginationState] = useState<{
+    readonly client: QuizApiClient | null;
+    readonly failure: QuizApiFailure | null;
+    readonly isLoading: boolean;
+  }>({ client: null, failure: null, isLoading: false });
+
+  const stateMatchesClient = client !== null && libraryState.client === client;
+  const items = stateMatchesClient ? libraryState.items : [];
+  const nextCursor = stateMatchesClient ? libraryState.nextCursor : null;
+  const initialFailure = stateMatchesClient ? libraryState.failure : null;
+  const isLoading = client === null || !stateMatchesClient;
+  const paginationMatchesClient =
+    client !== null && paginationState.client === client;
+  const isLoadingMore = paginationMatchesClient && paginationState.isLoading;
+  const paginationFailure = paginationMatchesClient
+    ? paginationState.failure
+    : null;
+
+  useEffect(() => {
+    if (client === null) {
+      return;
+    }
+    const controller = new AbortController();
+
+    void client.listOwnedQuizzes({}, controller.signal).then((result) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      if (!result.ok) {
+        setLibraryState({
+          client,
+          failure: result.error,
+          items: [],
+          nextCursor: null,
+        });
+        return;
+      }
+      setLibraryState({
+        client,
+        failure: null,
+        items: result.value.items,
+        nextCursor: result.value.nextCursor,
+      });
+    });
+
+    return () => controller.abort();
+  }, [client]);
+
+  async function loadMore() {
+    if (client === null || nextCursor === null || isLoadingMore) {
+      return;
+    }
+    const cursor = nextCursor;
+    setPaginationState({ client, failure: null, isLoading: true });
+    const result = await client.listOwnedQuizzes({ cursor });
+    if (!result.ok) {
+      setPaginationState({ client, failure: result.error, isLoading: false });
+      return;
+    }
+    setLibraryState((current) =>
+      current.client === client
+        ? {
+            client,
+            failure: null,
+            items: appendUniqueLibraryItems(current.items, result.value.items),
+            nextCursor: result.value.nextCursor,
+          }
+        : current,
+    );
+    setPaginationState({ client, failure: null, isLoading: false });
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -76,23 +236,85 @@ export function QuizLibraryPage() {
         </Link>
       </div>
 
-      <Surface className="max-w-3xl p-6 sm:p-8">
-        <h2 className="text-xl font-semibold text-foreground">Your quizzes</h2>
-        <Alert
-          className="mt-5"
-          title="Quiz listing is not available yet"
-          variant="info"
+      <section aria-labelledby="quiz-library-title" className="max-w-4xl">
+        <h2
+          className="text-xl font-semibold text-foreground"
+          id="quiz-library-title"
         >
-          The current Quiz API can create a draft and open a known draft by ID,
-          but it does not yet provide a teacher quiz-list endpoint. This screen
-          therefore does not fabricate library data or store an authoritative
-          library in browser storage.
-        </Alert>
-        <p className="mt-5 text-sm leading-6 text-foreground-secondary">
-          You can create a quiz now. After creation, the editor URL contains its
-          real Quiz ID and can reopen that draft through the backend.
+          Your quizzes
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-foreground-muted">
+          Your library is loaded from the Quiz service and ordered by most
+          recently updated.
         </p>
-      </Surface>
+
+        {client === null || isLoading ? (
+          <Surface className="mt-5 flex min-h-40 items-center justify-center gap-3 p-6">
+            <LoadingIndicator label="Loading quiz library" />
+            <span className="text-sm font-medium text-foreground-secondary">
+              Loading quiz library…
+            </span>
+          </Surface>
+        ) : initialFailure !== null ? (
+          <Alert
+            className="mt-5"
+            title={libraryFailureTitle(initialFailure)}
+            variant="danger"
+          >
+            {libraryFailureMessage(initialFailure)}
+          </Alert>
+        ) : items.length === 0 ? (
+          <Surface className="mt-5 p-6 sm:p-8">
+            <h3 className="text-lg font-semibold text-foreground">
+              No quizzes yet
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-foreground-secondary">
+              Create your first quiz to start authoring and publishing Quiz
+              Markdown.
+            </p>
+            <Link
+              className={`${linkButtonClasses} mt-5`}
+              href="/app/quizzes/new"
+            >
+              Create your first quiz
+            </Link>
+          </Surface>
+        ) : (
+          <div className="mt-5">
+            <ul aria-live="polite" className="space-y-4">
+              {items.map((item) => (
+                <LibraryQuizCard item={item} key={item.quizId} />
+              ))}
+            </ul>
+
+            {paginationFailure !== null ? (
+              <Alert
+                className="mt-5"
+                title="More quizzes could not be loaded"
+                variant="danger"
+              >
+                {libraryFailureMessage(paginationFailure)}
+              </Alert>
+            ) : null}
+
+            {nextCursor !== null ? (
+              <Button
+                className="mt-5"
+                isLoading={isLoadingMore}
+                loadingLabel="Loading more quizzes"
+                onClick={() => void loadMore()}
+                variant="secondary"
+              >
+                Load more
+              </Button>
+            ) : (
+              <p className="mt-5 text-sm text-foreground-muted" role="status">
+                All quizzes loaded.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

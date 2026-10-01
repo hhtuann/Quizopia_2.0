@@ -100,7 +100,7 @@ Current state:
 
 - stable Quiz + mutable draft backend: **MERGED / VERIFIED**
 - Quiz Markdown MVP grammar/editor contract: **DECIDED**
-- frontend authoring: **IN PROGRESS — REAL AUTHORING FLOW IMPLEMENTED; LIBRARY LIST API BLOCKED**
+- frontend authoring: **IN PROGRESS — REAL QUIZ LIBRARY + AUTHORING FLOW IMPLEMENTED ON FEATURE BRANCH; FINAL REVIEW/MERGE PENDING**
 - parser/validator/version publishing: **MERGED / VERIFIED**
 
 #### Assessment delivery
@@ -592,29 +592,29 @@ Status vocabulary:
 - `BLOCKED` — cannot safely implement without a recorded decision/dependency;
 - `NOT STARTED`.
 
-| Capability                            | Status                | Notes                                                               |
-| ------------------------------------- | --------------------- | ------------------------------------------------------------------- |
-| Scaffold / service isolation          | VERIFIED              | Wave 1                                                              |
-| Local account auth                    | VERIFIED              | Browser → Gateway → Identity                                        |
-| Frontend auth/session                 | VERIFIED              | refresh/bootstrap/logout E2E                                        |
-| Teacher self-enablement               | BLOCKED               | MVP policy / ID-06 + HTTP/UI gap                                    |
-| Classroom core                        | MERGED                | assignment/product integration missing                              |
-| Quiz stable identity + draft backend  | VERIFIED              | create/read/update foundation                                       |
-| Quiz frontend library/editor          | IN PROGRESS / BLOCKED | real create/edit/save/publish implemented; teacher list API missing |
-| Quiz Markdown grammar/editor contract | DECIDED               | QM-01 through QM-05 accepted                                        |
-| Quiz parser/validator                 | VERIFIED              | merged in PR #60                                                    |
-| Immutable QuizVersion/publish         | VERIFIED              | merged in PR #60                                                    |
-| Assessment Publication                | BLOCKED               | ASSESS decisions                                                    |
-| Delivery snapshot                     | BLOCKED               | ASSESS decisions + QuizVersion                                      |
-| Attempt core                          | NOT STARTED           | depends on delivery snapshot                                        |
-| Autosave/stale-write protection       | NOT STARTED           | Attempt core                                                        |
-| Submit/idempotency                    | NOT STARTED           | Attempt core                                                        |
-| Grading                               | BLOCKED               | GRADE decisions                                                     |
-| Learner result                        | NOT STARTED           | grading/result model                                                |
-| Teacher result                        | NOT STARTED           | grading/result model                                                |
-| Classroom assignment integration      | NOT STARTED           | Assessment publication                                              |
-| Full MVP E2E                          | NOT STARTED           | all MUST capabilities                                               |
-| MVP hardening/release                 | NOT STARTED           | full MVP E2E first                                                  |
+| Capability                            | Status      | Notes                                                                                                        |
+| ------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
+| Scaffold / service isolation          | VERIFIED    | Wave 1                                                                                                       |
+| Local account auth                    | VERIFIED    | Browser → Gateway → Identity                                                                                 |
+| Frontend auth/session                 | VERIFIED    | refresh/bootstrap/logout E2E                                                                                 |
+| Teacher self-enablement               | BLOCKED     | MVP policy / ID-06 + HTTP/UI gap                                                                             |
+| Classroom core                        | MERGED      | assignment/product integration missing                                                                       |
+| Quiz stable identity + draft backend  | VERIFIED    | create/read/update foundation                                                                                |
+| Quiz frontend library/editor          | IN PROGRESS | real persistent library + create/edit/save/publish implemented on feature branch; final review/merge pending |
+| Quiz Markdown grammar/editor contract | DECIDED     | QM-01 through QM-05 accepted                                                                                 |
+| Quiz parser/validator                 | VERIFIED    | merged in PR #60                                                                                             |
+| Immutable QuizVersion/publish         | VERIFIED    | merged in PR #60                                                                                             |
+| Assessment Publication                | BLOCKED     | ASSESS decisions                                                                                             |
+| Delivery snapshot                     | BLOCKED     | ASSESS decisions + QuizVersion                                                                               |
+| Attempt core                          | NOT STARTED | depends on delivery snapshot                                                                                 |
+| Autosave/stale-write protection       | NOT STARTED | Attempt core                                                                                                 |
+| Submit/idempotency                    | NOT STARTED | Attempt core                                                                                                 |
+| Grading                               | BLOCKED     | GRADE decisions                                                                                              |
+| Learner result                        | NOT STARTED | grading/result model                                                                                         |
+| Teacher result                        | NOT STARTED | grading/result model                                                                                         |
+| Classroom assignment integration      | NOT STARTED | Assessment publication                                                                                       |
+| Full MVP E2E                          | NOT STARTED | all MUST capabilities                                                                                        |
+| MVP hardening/release                 | NOT STARTED | full MVP E2E first                                                                                           |
 
 Update this table whenever a material workstream merges or becomes blocked.
 

@@ -47,10 +47,15 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   let publishCalls = 0;
 
   await page.route("**/api/quizzes", async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.fallback();
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ items: [], nextCursor: null }),
+      });
       return;
     }
+    expect(route.request().method()).toBe("POST");
     createCalls += 1;
     const body = route.request().postDataJSON() as {
       authoringSource: string;
@@ -140,6 +145,9 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   await expect(
     page.getByRole("heading", { name: "Quiz authoring" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "No quizzes yet" }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Create quiz" }).click();
 
   await page.getByLabel("Title").fill(title);
@@ -180,6 +188,142 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
     page.getByRole("status").filter({ hasText: "Publish complete" }),
   ).toContainText("Published immutable version 1");
   expect(publishCalls).toBe(1);
+});
+
+test("teacher lists a backend quiz and opens its existing draft", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const existingSource = "Câu 1 [NUMERIC_FILL]: 1 + 1?\nĐáp án: 2.00";
+
+  await page.route("**/api/quizzes", async (route) => {
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        items: [
+          {
+            quizId,
+            title: "Existing quiz",
+            description: "Loaded from the teacher library",
+            createdAt: "2026-09-30T12:00:00Z",
+            updatedAt: "2026-10-01T03:00:00Z",
+            latestVersionNumber: 2,
+          },
+        ],
+        nextCursor: null,
+      }),
+    });
+  });
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Existing quiz",
+        description: "Loaded from the teacher library",
+        authoringSource: existingSource,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-10-01T03:00:00Z",
+      }),
+    });
+  });
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/app/quizzes");
+  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  const quizLink = page.getByRole("link", { name: "Existing quiz" });
+  await expect(quizLink).toBeVisible();
+  await expect(page.getByText("Latest version 2")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  await quizLink.click();
+  await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
+  await expect(
+    page.getByRole("heading", { name: "Existing quiz" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Quiz Markdown source" }),
+  ).toHaveValue(existingSource);
+});
+
+test("teacher loads the next opaque-cursor library page", async ({ page }) => {
+  await mockTeacherBootstrap(page);
+  const secondQuizId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";
+  const observedUrls: string[] = [];
+  let cursorCalls = 0;
+
+  await page.route("**/api/quizzes*", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    const requestUrl = route.request().url();
+    observedUrls.push(requestUrl);
+    const cursor = new URL(requestUrl).searchParams.get("cursor");
+    if (cursor !== null) {
+      cursorCalls += 1;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify(
+        cursor === null
+          ? {
+              items: [
+                {
+                  quizId,
+                  title: "First page quiz",
+                  description: null,
+                  createdAt: "2026-09-30T12:00:00Z",
+                  updatedAt: "2026-10-01T03:00:00Z",
+                  latestVersionNumber: null,
+                },
+              ],
+              nextCursor: "opaque-next-token",
+            }
+          : {
+              items: [
+                {
+                  quizId: secondQuizId,
+                  title: "Second page quiz",
+                  description: null,
+                  createdAt: "2026-09-30T11:00:00Z",
+                  updatedAt: "2026-10-01T02:00:00Z",
+                  latestVersionNumber: 1,
+                },
+              ],
+              nextCursor: null,
+            },
+      ),
+    });
+  });
+
+  await page.goto("/app/quizzes");
+  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  await expect(
+    page.getByRole("link", { name: "First page quiz" }),
+  ).toBeVisible();
+  const loadMore = page.getByRole("button", { name: "Load more" });
+  await loadMore.focus();
+  await expect(loadMore).toBeFocused();
+  await loadMore.press("Enter");
+  await expect(
+    page.getByRole("link", { name: "Second page quiz" }),
+  ).toBeVisible();
+  expect(cursorCalls).toBe(1);
+  expect(
+    observedUrls.some(
+      (url) => new URL(url).searchParams.get("cursor") === "opaque-next-token",
+    ),
+  ).toBe(true);
 });
 
 test("quiz authoring remains usable without horizontal overflow at 375px", async ({

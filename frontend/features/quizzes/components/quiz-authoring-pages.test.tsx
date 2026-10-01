@@ -12,9 +12,10 @@ import { createAccessTokenVault } from "../../auth/session/access-token-vault";
 import type { AuthSessionService } from "../../auth/session/auth-session-service";
 import { createSessionRuntime } from "../../auth/session/session-runtime";
 import { QuizAuthoringLayout } from "./quiz-authoring-layout";
-import { QuizEditorPage } from "./quiz-authoring-pages";
+import { QuizEditorPage, QuizLibraryPage } from "./quiz-authoring-pages";
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
+const secondQuizId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";
 const userId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 
 function response(status: number, value: unknown): HttpResponse {
@@ -34,6 +35,21 @@ function draft(authoringSource: string) {
     authoringSource,
     createdAt: "2026-09-30T12:00:00Z",
     updatedAt: "2026-09-30T12:00:01Z",
+  };
+}
+
+function libraryItem(
+  id: string,
+  title: string | null,
+  latestVersionNumber: number | null,
+) {
+  return {
+    quizId: id,
+    title,
+    description: title === null ? null : `${title} description`,
+    createdAt: "2026-09-30T12:00:00Z",
+    updatedAt: "2026-10-01T03:00:00Z",
+    latestVersionNumber,
   };
 }
 
@@ -107,6 +123,286 @@ describe("Quiz teacher authoring access", () => {
       activeWorkspace: "TEACHING",
       user: { roles: ["STUDENT", "TEACHER"] },
     });
+  });
+});
+
+describe("QuizLibraryPage real listing contract", () => {
+  it("shows an accessible loading state and then the true backend empty state", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => {
+        await gate;
+        return {
+          kind: "response" as const,
+          response: response(200, { items: [], nextCursor: null }),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading quiz library",
+    );
+    release?.();
+
+    expect(
+      await screen.findByRole("heading", { name: "No quizzes yet" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Create your first quiz" }),
+    ).toHaveAttribute("href", "/app/quizzes/new");
+  });
+
+  it("renders multiple backend quizzes and links each real Quiz ID to the existing editor route", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "response" as const,
+        response: response(200, {
+          items: [
+            libraryItem(quizId, "Newest quiz", 3),
+            libraryItem(secondQuizId, null, null),
+          ],
+          nextCursor: null,
+        }),
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(
+      await screen.findByRole("link", { name: "Newest quiz" }),
+    ).toHaveAttribute("href", `/app/quizzes/${quizId}`);
+    expect(screen.getByText("Newest quiz description")).toBeInTheDocument();
+    expect(screen.getByText("Latest version 3")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Untitled quiz" })).toHaveAttribute(
+      "href",
+      `/app/quizzes/${secondQuizId}`,
+    );
+    expect(screen.getByText("Draft only")).toBeInTheDocument();
+    expect(screen.getAllByText("2026-10-01T03:00:00Z")).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("All quizzes loaded.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Create quiz" })).toHaveAttribute(
+      "href",
+      "/app/quizzes/new",
+    );
+  });
+
+  it("appends the next opaque-cursor page without duplicating already loaded quizzes", async () => {
+    let calls = 0;
+    const targets: string[] = [];
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async (request) => {
+        calls += 1;
+        targets.push(String(request.createRequest().target));
+        return {
+          kind: "response" as const,
+          response:
+            calls === 1
+              ? response(200, {
+                  items: [libraryItem(quizId, "First quiz", 1)],
+                  nextCursor: "opaque-next-token",
+                })
+              : response(200, {
+                  items: [
+                    libraryItem(quizId, "First quiz", 1),
+                    libraryItem(secondQuizId, "Second quiz", 2),
+                  ],
+                  nextCursor: null,
+                }),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    await screen.findByRole("link", { name: "First quiz" });
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(
+      await screen.findByRole("link", { name: "Second quiz" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "First quiz" })).toHaveLength(1);
+    expect(targets).toEqual([
+      "/api/quizzes",
+      "/api/quizzes?cursor=opaque-next-token",
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("prevents duplicate load-more requests while pagination is in flight", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            kind: "response" as const,
+            response: response(200, {
+              items: [libraryItem(quizId, "First quiz", 1)],
+              nextCursor: "opaque-next-token",
+            }),
+          };
+        }
+        await gate;
+        return {
+          kind: "response" as const,
+          response: response(200, { items: [], nextCursor: null }),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+    await screen.findByRole("link", { name: "First quiz" });
+
+    const loadMore = screen.getByRole("button", { name: "Load more" });
+    fireEvent.click(loadMore);
+    fireEvent.click(loadMore);
+    await waitFor(() => expect(calls).toBe(2));
+    expect(
+      screen.getByRole("button", { name: "Loading more quizzes" }),
+    ).toBeDisabled();
+    release?.();
+    await screen.findByText("All quizzes loaded.");
+    expect(calls).toBe(2);
+  });
+
+  it("keeps loaded quizzes usable when a next-page request fails", async () => {
+    let calls = 0;
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => {
+        calls += 1;
+        return {
+          kind: "response" as const,
+          response:
+            calls === 1
+              ? response(200, {
+                  items: [libraryItem(quizId, "Keep me", null)],
+                  nextCursor: "opaque-next-token",
+                })
+              : response(500, {
+                  code: "INTERNAL_ERROR",
+                  message: "Library page failed",
+                  status: 500,
+                  path: "/api/quizzes",
+                }),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+    const existing = await screen.findByRole("link", { name: "Keep me" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(await screen.findByText("Library page failed")).toBeInTheDocument();
+    expect(existing).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Load more" })).toBeEnabled();
+  });
+
+  it.each([
+    [401, "UNAUTHENTICATED", "Quiz library authentication required"],
+    [403, "ACCESS_DENIED", "Quiz library access denied"],
+  ] as const)(
+    "renders backend %s as an explicit library state",
+    async (status, code, title) => {
+      const executor: AuthenticatedRequestExecutor = {
+        execute: vi.fn(async () => ({
+          kind: "response" as const,
+          response: response(status, {
+            code,
+            message: `Library ${status}`,
+            status,
+            path: "/api/quizzes",
+          }),
+        })),
+        executeOnce: vi.fn(),
+        executeOnceWithAccessToken: vi.fn(),
+      };
+      renderAuthenticated(<QuizLibraryPage />, { executor });
+
+      expect(await screen.findByText(title)).toBeInTheDocument();
+      expect(screen.getByText(`Library ${status}`)).toBeInTheDocument();
+    },
+  );
+
+  it("renders a transport failure without inventing local library state", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "transport-error" as const,
+        error: { kind: "network" as const },
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(
+      await screen.findByText("Quiz library could not be loaded"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/could not reach the Quiz service/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Draft only")).not.toBeInTheDocument();
+  });
+
+  it("renders an authentication executor failure explicitly", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "authentication-failure" as const,
+        reason: "no-session" as const,
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(
+      await screen.findByText("Quiz library could not be loaded"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your authenticated session is not available for this request.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a malformed successful response as an unexpected backend response", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "response" as const,
+        response: response(200, { items: "not-an-array", nextCursor: null }),
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(
+      await screen.findByText("Quiz library could not be loaded"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The Quiz service returned an unexpected response (200).",
+      ),
+    ).toBeInTheDocument();
   });
 });
 

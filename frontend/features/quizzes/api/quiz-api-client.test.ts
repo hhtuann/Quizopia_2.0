@@ -43,7 +43,135 @@ function draft(authoringSource: string) {
   };
 }
 
+function libraryPage(nextCursor: string | null = "opaque-next") {
+  return {
+    items: [
+      {
+        quizId,
+        title: "Quiz",
+        description: "Description",
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-10-01T03:00:00Z",
+        latestVersionNumber: 3,
+      },
+    ],
+    nextCursor,
+  };
+}
+
 describe("Quiz API client", () => {
+  it("lists the owned quiz library through the exact cursor contract", async () => {
+    const observed: string[] = [];
+    const { executor } = executorWith(async (request) => {
+      const built = request.createRequest();
+      observed.push(String(built.target));
+      expect(built.method).toBe("GET");
+      return jsonResponse(200, libraryPage());
+    });
+    const client = createQuizApiClient({ authenticatedRequests: executor });
+
+    await expect(client.listOwnedQuizzes()).resolves.toMatchObject({
+      ok: true,
+      value: {
+        items: [{ quizId, latestVersionNumber: 3 }],
+        nextCursor: "opaque-next",
+      },
+    });
+    await expect(
+      client.listOwnedQuizzes({ limit: 7, cursor: "opaque-cursor-token" }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(observed).toEqual([
+      "/api/quizzes",
+      "/api/quizzes?limit=7&cursor=opaque-cursor-token",
+    ]);
+  });
+
+  it("accepts an empty final library page with a null next cursor", async () => {
+    const { executor } = executorWith(async () =>
+      jsonResponse(200, { items: [], nextCursor: null }),
+    );
+    const client = createQuizApiClient({ authenticatedRequests: executor });
+
+    await expect(client.listOwnedQuizzes()).resolves.toEqual({
+      ok: true,
+      value: { items: [], nextCursor: null },
+    });
+  });
+
+  it.each([401, 403, 500])(
+    "preserves backend %s API errors for library requests",
+    async (status) => {
+      const { executor } = executorWith(async () =>
+        jsonResponse(status, {
+          code: status === 401 ? "UNAUTHENTICATED" : "ACCESS_DENIED",
+          message: `Library failed with ${status}`,
+          status,
+          path: "/api/quizzes",
+        }),
+      );
+      const client = createQuizApiClient({ authenticatedRequests: executor });
+
+      await expect(client.listOwnedQuizzes()).resolves.toMatchObject({
+        ok: false,
+        error: {
+          kind: "api-error",
+          error: { status, path: "/api/quizzes" },
+        },
+      });
+    },
+  );
+
+  it("normalizes transport and authentication failures for library requests", async () => {
+    const transportExecutor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "transport-error" as const,
+        error: { kind: "network" as const },
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    const authExecutor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "authentication-failure" as const,
+        reason: "no-session" as const,
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+
+    await expect(
+      createQuizApiClient({
+        authenticatedRequests: transportExecutor,
+      }).listOwnedQuizzes(),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "transport-error", error: { kind: "network" } },
+    });
+    await expect(
+      createQuizApiClient({
+        authenticatedRequests: authExecutor,
+      }).listOwnedQuizzes(),
+    ).resolves.toEqual({
+      ok: false,
+      error: { kind: "authentication-failure", reason: "no-session" },
+    });
+  });
+
+  it("rejects malformed successful library responses", async () => {
+    const { executor } = executorWith(async () =>
+      jsonResponse(200, {
+        items: [{ quizId, title: "Quiz" }],
+        nextCursor: "opaque-next",
+      }),
+    );
+    const client = createQuizApiClient({ authenticatedRequests: executor });
+
+    await expect(client.listOwnedQuizzes()).resolves.toEqual({
+      ok: false,
+      error: { kind: "unexpected-response", status: 200 },
+    });
+  });
+
   it("uses the authenticated executor and preserves source bytes in create/update bodies", async () => {
     const observed: Array<{ method?: string; target: string; body?: string }> =
       [];
