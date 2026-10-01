@@ -38,6 +38,7 @@ import com.quizopia.identity.support.TestRsaKeyMaterial;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -69,8 +70,9 @@ class InitialLoginIntegrationTest {
     private static final String ISSUER = "https://identity.login.test";
     private static final String KEY_ID = "wave-2a-login-test-key";
     private static final Duration USER_ACCESS_TOKEN_TTL = Duration.ofMinutes(5);
-    private static final Instant LOGIN_TIME = Instant.parse("2026-09-24T01:00:00Z");
     private static final TestRsaKeyMaterial KEY_MATERIAL = TestRsaKeyMaterial.create("quizopia-login-");
+
+    private Instant loginTime;
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
@@ -138,7 +140,8 @@ class InitialLoginIntegrationTest {
         jdbc.update("DELETE FROM user_role");
         jdbc.update("DELETE FROM user_access_revocation");
         jdbc.update("DELETE FROM user_account");
-        when(clock.instant()).thenReturn(LOGIN_TIME);
+        loginTime = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        when(clock.instant()).thenReturn(loginTime);
     }
 
     @AfterAll
@@ -155,7 +158,7 @@ class InitialLoginIntegrationTest {
 
         assertEquals(InitialLoginStatus.AUTHENTICATED, result.status());
         var session = result.session().orElseThrow();
-        assertEquals(LOGIN_TIME.plus(InitialLoginSessionPolicy.FAMILY_LIFETIME), session.familyExpiresAt());
+        assertEquals(loginTime.plus(InitialLoginSessionPolicy.FAMILY_LIFETIME), session.familyExpiresAt());
         assertEquals(1L, count("SELECT COUNT(*) FROM refresh_token_family WHERE user_id = ?", user.getId()));
         assertEquals(1L, count("SELECT COUNT(*) FROM refresh_token"));
         assertEquals(
@@ -176,9 +179,9 @@ class InitialLoginIntegrationTest {
         assertEquals(
                 QuizopiaTokenClaims.USER, jwt.getJWTClaimsSet().getStringClaim(QuizopiaTokenClaims.PRINCIPAL_TYPE));
         assertEquals(Set.of("STUDENT"), Set.copyOf(jwt.getJWTClaimsSet().getStringListClaim("roles")));
-        assertEquals(LOGIN_TIME, jwt.getJWTClaimsSet().getIssueTime().toInstant());
+        assertEquals(loginTime, jwt.getJWTClaimsSet().getIssueTime().toInstant());
         assertEquals(
-                LOGIN_TIME.plus(USER_ACCESS_TOKEN_TTL),
+                loginTime.plus(USER_ACCESS_TOKEN_TTL),
                 jwt.getJWTClaimsSet().getExpirationTime().toInstant());
     }
 
@@ -355,7 +358,7 @@ class InitialLoginIntegrationTest {
             String username, String email, String password, String status, boolean verified, boolean student) {
         UserAccountEntity user = new UserAccountEntity(email, username);
         user.setAccountStatus(status);
-        user.setEmailVerifiedAt(verified ? LOGIN_TIME.minusSeconds(60) : null);
+        user.setEmailVerifiedAt(verified ? loginTime.minusSeconds(60) : null);
         user = userAccountRepository.saveAndFlush(user);
         if (password != null) {
             localCredentialRepository.saveAndFlush(new LocalCredentialEntity(user, passwordEncoder.encode(password)));
