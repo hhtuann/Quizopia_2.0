@@ -120,7 +120,7 @@ Important merged checkpoints:
 | #59 | `06f1af7`    | Accepted Quiz Markdown contract               |
 | #60 | `58fd7c2`    | Quiz Markdown parser + immutable publishing   |
 | #61 | `c6c81fc`    | Teacher Quiz Library cursor listing           |
-| #62 | `c6c81fc`    | Identity login-test expiry rollover hardening |
+| #62 | `f6664fb`    | Identity login-test expiry rollover hardening |
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
