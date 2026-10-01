@@ -16,6 +16,8 @@ import com.quizopia.quiz.application.QuizApplicationService;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
 import com.quizopia.quiz.application.QuizDraftRepository;
+import com.quizopia.quiz.application.QuizLibraryPage;
+import com.quizopia.quiz.application.QuizLibraryService;
 import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizPublishResult;
 import com.quizopia.quiz.application.QuizRepository;
@@ -99,6 +101,9 @@ class QuizServiceApplicationTests {
     QuizApplicationService quizApplicationService;
 
     @Autowired
+    QuizLibraryService quizLibraryService;
+
+    @Autowired
     Flyway flyway;
 
     @Autowired
@@ -121,13 +126,13 @@ class QuizServiceApplicationTests {
 
     @Test
     void contextLoadsAfterFlywayMigrationAndHibernateValidation() {
-        assertEquals("2", flyway.info().current().getVersion().getVersion());
+        assertEquals("3", flyway.info().current().getVersion().getVersion());
         assertEquals(0, flyway.info().pending().length);
         flyway.validate();
         assertEquals(
-                2,
+                3,
                 jdbc.queryForObject(
-                        "select count(*) from flyway_schema_history where version in ('1', '2') and success",
+                        "select count(*) from flyway_schema_history where version in ('1', '2', '3') and success",
                         Integer.class));
         assertTrue(entityManagerFactory.isOpen());
         assertEquals(3, entityManagerFactory.getMetamodel().getEntities().size());
@@ -551,6 +556,80 @@ class QuizServiceApplicationTests {
     }
 
     @Test
+    void quizLibraryPostgresQueryFiltersOwnerOrdersDeterministicallyPaginatesAndAggregatesLatestVersion()
+            throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID otherOwnerUserId = UUID.randomUUID();
+        UUID newestId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID tieHighId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        UUID tieLowId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID otherId = UUID.fromString("00000000-0000-0000-0000-000000000004");
+        Instant createdAt = Instant.parse("2026-09-30T00:00:00Z");
+        Instant newestUpdatedAt = Instant.parse("2026-10-01T03:00:00.123456Z");
+        Instant tiedUpdatedAt = Instant.parse("2026-10-01T02:00:00.123456Z");
+
+        saveLibraryQuiz(newestId, ownerUserId, "Newest", null, createdAt, newestUpdatedAt);
+        saveLibraryQuiz(tieHighId, ownerUserId, "Tie high", "three versions", createdAt, tiedUpdatedAt);
+        saveLibraryQuiz(tieLowId, ownerUserId, "Tie low", "one version", createdAt, tiedUpdatedAt);
+        saveLibraryQuiz(
+                otherId,
+                otherOwnerUserId,
+                "Other teacher",
+                "must be excluded",
+                createdAt,
+                Instant.parse("2026-10-01T04:00:00Z"));
+
+        QuizContent content =
+                new QuizMarkdownParser().parse(richPublishedSource()).content().orElseThrow();
+        versions.insert(version(UUID.randomUUID(), tieHighId, 1, "v1", content));
+        versions.insert(version(UUID.randomUUID(), tieHighId, 2, "v2", content));
+        versions.insert(version(UUID.randomUUID(), tieHighId, 3, "v3", content));
+        versions.insert(version(UUID.randomUUID(), tieLowId, 1, "v1", content));
+        versions.insert(version(UUID.randomUUID(), otherId, 9, "other", content));
+
+        QuizLibraryPage first = quizLibraryService.listOwned(ownerUserId, 2, null);
+
+        assertEquals(
+                List.of(newestId, tieHighId),
+                first.items().stream().map(item -> item.quizId()).toList());
+        assertEquals("Newest", first.items().get(0).title());
+        assertEquals(newestUpdatedAt, first.items().get(0).updatedAt());
+        assertEquals(null, first.items().get(0).latestVersionNumber());
+        assertEquals(3, first.items().get(1).latestVersionNumber());
+        assertNotNull(first.nextCursor());
+
+        QuizLibraryPage second = quizLibraryService.listOwned(ownerUserId, 2, first.nextCursor());
+        assertEquals(
+                List.of(tieLowId),
+                second.items().stream().map(item -> item.quizId()).toList());
+        assertEquals(1, second.items().get(0).latestVersionNumber());
+        assertEquals(null, second.nextCursor());
+
+        QuizLibraryPage empty = quizLibraryService.listOwned(UUID.randomUUID(), 20, null);
+        assertEquals(List.of(), empty.items());
+        assertEquals(null, empty.nextCursor());
+    }
+
+    @Test
+    void quizLibraryHttpUsesDefaultLimitAndNeverReturnsAuthoringSource() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        String token = "postgres-library-teacher";
+        when(jwtDecoder.decode(token)).thenReturn(jwt(ownerUserId, List.of("TEACHER")));
+        QuizDraftDetails created = quizApplicationService.create(
+                ownerUserId, new QuizDraftInput("Library title", null, "private authoring source"));
+
+        mvc.perform(get("/api/quizzes").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(
+                        jsonPath("$.items[0].quizId").value(created.quiz().id().toString()))
+                .andExpect(jsonPath("$.items[0].title").value("Library title"))
+                .andExpect(jsonPath("$.items[0].latestVersionNumber").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.items[0].authoringSource").doesNotExist())
+                .andExpect(jsonPath("$.nextCursor").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     void invalidMarkdownHttpPublishReturnsStructured400AndPersistsNothing() throws Exception {
         UUID ownerUserId = UUID.randomUUID();
         String token = "postgres-invalid-publish";
@@ -606,6 +685,12 @@ class QuizServiceApplicationTests {
         request.put("description", description);
         request.put("authoringSource", authoringSource);
         return objectMapper.writeValueAsString(request);
+    }
+
+    private void saveLibraryQuiz(
+            UUID quizId, UUID ownerUserId, String title, String description, Instant createdAt, Instant updatedAt) {
+        quizzes.insert(new Quiz(quizId, ownerUserId, createdAt));
+        drafts.save(new QuizDraft(quizId, title, description, "private source", updatedAt));
     }
 
     private static Jwt jwt(UUID userId, List<String> roles) {

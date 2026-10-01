@@ -25,6 +25,8 @@ public class SecurityConfiguration {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/quizzes")
                         .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
+                        .requestMatchers(HttpMethod.GET, "/api/quizzes")
+                        .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
                         .requestMatchers(HttpMethod.GET, "/api/quizzes/*/draft")
                         .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
                         .requestMatchers(HttpMethod.PUT, "/api/quizzes/*/draft")
