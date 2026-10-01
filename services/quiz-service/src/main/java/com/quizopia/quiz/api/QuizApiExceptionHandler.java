@@ -1,5 +1,6 @@
 package com.quizopia.quiz.api;
 
+import com.quizopia.quiz.application.InvalidQuizLibraryRequestException;
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
 import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
@@ -30,7 +31,8 @@ public final class QuizApiExceptionHandler {
     @ExceptionHandler({
         MethodArgumentNotValidException.class,
         HttpMessageNotReadableException.class,
-        MethodArgumentTypeMismatchException.class
+        MethodArgumentTypeMismatchException.class,
+        InvalidQuizLibraryRequestException.class
     })
     ResponseEntity<QuizApiError> invalidRequest(Exception exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Request is invalid", request);

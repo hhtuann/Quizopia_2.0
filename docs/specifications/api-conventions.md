@@ -1,6 +1,6 @@
 # API Conventions
 
-Status: **Accepted scaffold-level conventions v0.2**
+Status: **Accepted scaffold-level conventions v0.3**
 
 ## Public edge
 
@@ -74,9 +74,13 @@ Assessment submit is mandatory idempotent behavior.
 
 ## Pagination
 
-Unbounded lists must use a repository-wide documented pagination convention.
+New unbounded collection APIs use cursor pagination by default.
 
-Cursor vs page-number strategy remains TBD.
+- cursors are opaque to clients;
+- ordering must be deterministic and encoded by the cursor;
+- APIs may define bounded `limit` defaults/minimums/maximums in their accepted contract;
+- malformed cursors and invalid limits return `400` using the standard API error convention;
+- total counts are optional and must be explicitly required by the endpoint contract.
 
 ## Authentication
 

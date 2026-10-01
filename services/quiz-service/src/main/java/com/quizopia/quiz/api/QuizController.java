@@ -3,9 +3,11 @@ package com.quizopia.quiz.api;
 import com.quizopia.quiz.application.QuizApplicationService;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
+import com.quizopia.quiz.application.QuizLibraryService;
 import com.quizopia.quiz.application.QuizPublishResult;
 import com.quizopia.quiz.security.TeacherAuthoringPrincipalResolver;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -40,13 +43,62 @@ public final class QuizController {
     static final String BEARER_SECURITY_SCHEME = "quizopiaBearerAuth";
 
     private final QuizApplicationService quizApplicationService;
+    private final QuizLibraryService quizLibraryService;
     private final TeacherAuthoringPrincipalResolver teacherAuthoringPrincipalResolver;
 
     public QuizController(
             QuizApplicationService quizApplicationService,
+            QuizLibraryService quizLibraryService,
             TeacherAuthoringPrincipalResolver teacherAuthoringPrincipalResolver) {
         this.quizApplicationService = quizApplicationService;
+        this.quizLibraryService = quizLibraryService;
         this.teacherAuthoringPrincipalResolver = teacherAuthoringPrincipalResolver;
+    }
+
+    @GetMapping
+    @Operation(
+            description =
+                    "Lists quizzes owned by the authenticated Quizopia USER with the explicit TEACHER role. Cursor values are opaque.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Owned quiz library page",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizLibraryResponse.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Invalid limit or cursor",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Authentication is required",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Teacher authoring access is denied",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class)))
+    })
+    public QuizLibraryResponse listOwned(
+            Authentication authentication,
+            @Parameter(description = "Page size from 1 to 100", example = "20")
+                    @RequestParam(name = "limit", defaultValue = "20")
+                    int limit,
+            @Parameter(description = "Opaque cursor returned by a previous page")
+                    @RequestParam(name = "cursor", required = false)
+                    String cursor) {
+        UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
+        return QuizLibraryResponse.from(quizLibraryService.listOwned(callerUserId, limit, cursor));
     }
 
     @PostMapping

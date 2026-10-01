@@ -23,10 +23,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.quizopia.quiz.api.QuizApiExceptionHandler;
 import com.quizopia.quiz.api.QuizController;
+import com.quizopia.quiz.application.InvalidQuizLibraryRequestException;
 import com.quizopia.quiz.application.QuizApplicationService;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
+import com.quizopia.quiz.application.QuizLibraryItem;
+import com.quizopia.quiz.application.QuizLibraryPage;
+import com.quizopia.quiz.application.QuizLibraryService;
 import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
 import com.quizopia.quiz.application.QuizOwnershipDeniedException;
@@ -86,11 +90,96 @@ class QuizApiSecurityIntegrationTest {
     QuizApplicationService quizApplicationService;
 
     @Autowired
+    QuizLibraryService quizLibraryService;
+
+    @Autowired
     JwtDecoder jwtDecoder;
 
     @BeforeEach
     void resetMocks() {
-        reset(quizApplicationService, jwtDecoder);
+        reset(quizApplicationService, quizLibraryService, jwtDecoder);
+    }
+
+    @Test
+    void teacherListsOnlyAuthenticatedOwnersLibraryWithDefaultLimitAndMetadataOnlyItems() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID ignoredClientOwner = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        configureUserToken("teacher-list", ownerUserId, List.of("TEACHER"));
+        when(quizLibraryService.listOwned(ownerUserId, 20, null))
+                .thenReturn(new QuizLibraryPage(
+                        List.of(new QuizLibraryItem(quizId, "Title", "Description", CREATED_AT, UPDATED_AT, 3)),
+                        "opaque-next"));
+
+        String body = mvc.perform(get("/api/quizzes")
+                        .queryParam("ownerUserId", ignoredClientOwner.toString())
+                        .header("Authorization", "Bearer teacher-list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].quizId").value(quizId.toString()))
+                .andExpect(jsonPath("$.items[0].title").value("Title"))
+                .andExpect(jsonPath("$.items[0].description").value("Description"))
+                .andExpect(jsonPath("$.items[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].updatedAt").value(UPDATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].latestVersionNumber").value(3))
+                .andExpect(jsonPath("$.items[0].authoringSource").doesNotExist())
+                .andExpect(jsonPath("$.items[0].ownerUserId").doesNotExist())
+                .andExpect(jsonPath("$.nextCursor").value("opaque-next"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertEquals(Set.of("items", "nextCursor"), fieldNames(objectMapper.readTree(body)));
+        assertEquals(
+                Set.of("quizId", "title", "description", "createdAt", "updatedAt", "latestVersionNumber"),
+                fieldNames(objectMapper.readTree(body).path("items").get(0)));
+        verify(quizLibraryService).listOwned(ownerUserId, 20, null);
+    }
+
+    @Test
+    void listAcceptsCustomAndMaxLimitsAndMapsInvalidLimitOrCursorTo400() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        configureUserToken("teacher-list-limits", ownerUserId, List.of("TEACHER"));
+        QuizLibraryPage empty = new QuizLibraryPage(List.of(), null);
+        when(quizLibraryService.listOwned(ownerUserId, 7, "cursor-token")).thenReturn(empty);
+        when(quizLibraryService.listOwned(ownerUserId, 100, null)).thenReturn(empty);
+        when(quizLibraryService.listOwned(ownerUserId, 0, null))
+                .thenThrow(new InvalidQuizLibraryRequestException("invalid"));
+        when(quizLibraryService.listOwned(ownerUserId, -1, null))
+                .thenThrow(new InvalidQuizLibraryRequestException("invalid"));
+        when(quizLibraryService.listOwned(ownerUserId, 101, null))
+                .thenThrow(new InvalidQuizLibraryRequestException("invalid"));
+        when(quizLibraryService.listOwned(ownerUserId, 20, "malformed"))
+                .thenThrow(new InvalidQuizLibraryRequestException("invalid"));
+
+        mvc.perform(get("/api/quizzes")
+                        .queryParam("limit", "7")
+                        .queryParam("cursor", "cursor-token")
+                        .header("Authorization", "Bearer teacher-list-limits"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").value(org.hamcrest.Matchers.nullValue()));
+        mvc.perform(get("/api/quizzes")
+                        .queryParam("limit", "100")
+                        .header("Authorization", "Bearer teacher-list-limits"))
+                .andExpect(status().isOk());
+        for (String invalid : List.of("0", "-1", "101")) {
+            mvc.perform(get("/api/quizzes")
+                            .queryParam("limit", invalid)
+                            .header("Authorization", "Bearer teacher-list-limits"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+        mvc.perform(get("/api/quizzes")
+                        .queryParam("limit", "not-an-int")
+                        .header("Authorization", "Bearer teacher-list-limits"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(get("/api/quizzes")
+                        .queryParam("cursor", "malformed")
+                        .header("Authorization", "Bearer teacher-list-limits"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test
@@ -349,6 +438,16 @@ class QuizApiSecurityIntegrationTest {
         configureUserToken("admin", UUID.randomUUID(), List.of("ADMIN"));
         configureServiceToken("service");
 
+        mvc.perform(get("/api/quizzes").header("Authorization", "Bearer student"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        mvc.perform(get("/api/quizzes").header("Authorization", "Bearer admin"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        mvc.perform(get("/api/quizzes").header("Authorization", "Bearer service"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
         mvc.perform(get("/api/quizzes/{quizId}/draft", quizId).header("Authorization", "Bearer student"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
@@ -359,6 +458,7 @@ class QuizApiSecurityIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
         verify(quizApplicationService, never()).getOwnedDraft(any(), any());
+        verify(quizLibraryService, never()).listOwned(any(), any(Integer.class), any());
     }
 
     @Test
@@ -396,6 +496,9 @@ class QuizApiSecurityIntegrationTest {
                                 List.of("quiz.write"))));
 
         mvc.perform(get("/api/quizzes/{quizId}/draft", quizId))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mvc.perform(get("/api/quizzes").header("Authorization", "Bearer mixed"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mvc.perform(get("/api/quizzes/{quizId}/draft", quizId).header("Authorization", "Bearer mixed"))
@@ -439,6 +542,7 @@ class QuizApiSecurityIntegrationTest {
         assertEquals(
                 Set.of("/api/quizzes", "/api/quizzes/{quizId}/draft", "/api/quizzes/{quizId}/versions"),
                 fieldNames(paths));
+        JsonNode list = paths.path("/api/quizzes").path("get");
         JsonNode create = paths.path("/api/quizzes").path("post");
         JsonNode read = paths.path("/api/quizzes/{quizId}/draft").path("get");
         JsonNode update = paths.path("/api/quizzes/{quizId}/draft").path("put");
@@ -451,17 +555,19 @@ class QuizApiSecurityIntegrationTest {
         assertEquals("http", bearerScheme.path("type").asString());
         assertEquals("bearer", bearerScheme.path("scheme").asString());
         assertEquals("JWT", bearerScheme.path("bearerFormat").asString());
+        assertOperationRequiresBearer(list);
         assertOperationRequiresBearer(create);
         assertOperationRequiresBearer(read);
         assertOperationRequiresBearer(update);
         assertOperationRequiresBearer(publish);
 
         assertFalse(create.isMissingNode());
-        assertFalse(paths.path("/api/quizzes").has("get"));
+        assertFalse(list.isMissingNode());
         assertFalse(read.isMissingNode());
         assertFalse(update.isMissingNode());
         assertFalse(publish.isMissingNode());
         assertFalse(paths.path("/api/quizzes/{quizId}/draft").has("delete"));
+        assertResponses(list, Set.of("200", "400", "401", "403"), "200", "QuizLibraryResponse");
         assertResponses(create, Set.of("201", "400", "401", "403"), "201");
         assertResponses(read, Set.of("200", "400", "401", "403", "404"), "200");
         assertResponses(update, Set.of("200", "400", "401", "403", "404"), "200");
@@ -478,10 +584,18 @@ class QuizApiSecurityIntegrationTest {
                         "QuizApiError",
                         "QuizDraftRequest",
                         "QuizDraftResponse",
+                        "QuizLibraryItemResponse",
+                        "QuizLibraryResponse",
                         "QuizMarkdownErrorResponse",
                         "QuizMarkdownValidationErrorResponse",
                         "QuizVersionResponse"),
                 fieldNames(schemas));
+        assertEquals(
+                Set.of("items", "nextCursor"),
+                fieldNames(schemas.path("QuizLibraryResponse").path("properties")));
+        assertEquals(
+                Set.of("quizId", "title", "description", "createdAt", "updatedAt", "latestVersionNumber"),
+                fieldNames(schemas.path("QuizLibraryItemResponse").path("properties")));
         JsonNode requestSchema = schemas.path("QuizDraftRequest");
         assertEquals(Set.of("title", "description", "authoringSource"), fieldNames(requestSchema.path("properties")));
         assertTrue(requestSchema.has("additionalProperties"));
@@ -526,9 +640,14 @@ class QuizApiSecurityIntegrationTest {
     }
 
     private static void assertResponses(JsonNode operation, Set<String> expectedCodes, String successCode) {
+        assertResponses(operation, expectedCodes, successCode, "QuizDraftResponse");
+    }
+
+    private static void assertResponses(
+            JsonNode operation, Set<String> expectedCodes, String successCode, String successSchema) {
         JsonNode responses = operation.path("responses");
         assertEquals(expectedCodes, fieldNames(responses));
-        assertResponseSchema(responses.path(successCode), "QuizDraftResponse");
+        assertResponseSchema(responses.path(successCode), successSchema);
         expectedCodes.stream()
                 .filter(code -> !code.equals(successCode))
                 .forEach(code -> assertResponseSchema(responses.path(code), "QuizApiError"));
@@ -646,6 +765,11 @@ class QuizApiSecurityIntegrationTest {
         @Bean
         QuizApplicationService quizApplicationService() {
             return mock(QuizApplicationService.class);
+        }
+
+        @Bean
+        QuizLibraryService quizLibraryService() {
+            return mock(QuizLibraryService.class);
         }
 
         @Bean
