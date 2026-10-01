@@ -161,8 +161,6 @@ This group was added after independent Codex/Claude review identified that v0.1 
 
 ## API
 
-**API-01.** Pagination convention: cursor vs page-number/size?
-
 **API-02.** Standardize whether `422` is used or validation remains primarily `400`?
 
 **API-03.** Exact API-versioning convention/path/header strategy?
