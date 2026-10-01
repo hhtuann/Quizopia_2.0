@@ -2,9 +2,9 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-09-30
+> **Last updated:** 2026-10-01
 >
-> **Checkpoint baseline:** `develop @ 5a1083d526171ca9d8e62c52042bb08f5869cff1`
+> **Checkpoint baseline:** `develop @ c6c81fcddaf6fa144bda58028ffc9e4fca13f680`
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -68,7 +68,7 @@ Completed foundation includes:
 
 Current phase:
 
-**Identity local-auth milestone is CLOSED. Quiz Authoring is next.**
+**Identity local-auth milestone is CLOSED. Quiz Authoring is active.**
 
 Wave 2 already has:
 
@@ -83,38 +83,44 @@ Wave 2 already has:
 - real Browser → Gateway → Identity E2E;
 - stable Quiz identity;
 - mutable current QuizDraft;
-- teacher-owned Quiz create/read/update backend foundation.
+- teacher-owned Quiz create/read/update backend foundation;
+- teacher-owned cursor-paginated Quiz Library listing API;
+- accepted Quiz Markdown parser/validator;
+- immutable `QuizVersion` persistence and publish API.
 
 Wave 2 still needs:
 
-- Markdown parser/validator implementing the accepted MVP grammar;
-- grammar-aware Quiz Markdown editor UX;
-- immutable `QuizVersion` publishing boundary;
-- frontend Quiz Library/Draft authoring integration;
+- merge/review of the grammar-aware Quiz Markdown editor and real draft/publish frontend integration;
+- final review/merge of the persistent teacher Quiz Library frontend integration;
 - final teacher authoring E2E;
 - Wave 2 final independent review and merge verification.
 
 ## 3. Current accepted `develop` checkpoint
 
-At the time this Quiz Markdown contract work began:
+Current accepted checkpoint:
 
-`develop = 5a1083d526171ca9d8e62c52042bb08f5869cff1`
+`develop = c6c81fcddaf6fa144bda58028ffc9e4fca13f680`
 
-This is the merge commit for PR #58.
+This checkpoint includes PR #61 (teacher Quiz Library listing) and PR #62
+(Identity login-test rollover hardening).
 
 Important merged checkpoints:
 
-| PR | Merge commit | Result |
-| --- | --- | --- |
-| #49 | `91b68ea` | Wave 1A Identity/Auth core |
-| #51 | `eb0112f` | USER/SERVICE access-token principal contract |
-| #52 | `c5fb0bf` | Classroom core |
-| #53 | `6a3f15f` | Frontend auth/application-shell foundation |
-| #54 | `d697e40` | Quiz Library/Draft backend core |
-| #55 | `de7e164` | Identity Auth HTTP orchestration |
-| #56 | `7aeb079` | Gateway auth/browser transport hardening |
-| #57 | `0f2e480` | Frontend Identity integration + real auth E2E |
-| #58 | `5a1083d` | Project status + MVP delivery plan |
+| PR  | Merge commit | Result                                        |
+| --- | ------------ | --------------------------------------------- |
+| #49 | `91b68ea`    | Wave 1A Identity/Auth core                    |
+| #51 | `eb0112f`    | USER/SERVICE access-token principal contract  |
+| #52 | `c5fb0bf`    | Classroom core                                |
+| #53 | `6a3f15f`    | Frontend auth/application-shell foundation    |
+| #54 | `d697e40`    | Quiz Library/Draft backend core               |
+| #55 | `de7e164`    | Identity Auth HTTP orchestration              |
+| #56 | `7aeb079`    | Gateway auth/browser transport hardening      |
+| #57 | `0f2e480`    | Frontend Identity integration + real auth E2E |
+| #58 | `5a1083d`    | Project status + MVP delivery plan            |
+| #59 | `06f1af7`    | Accepted Quiz Markdown contract               |
+| #60 | `58fd7c2`    | Quiz Markdown parser + immutable publishing   |
+| #61 | `c6c81fc`    | Teacher Quiz Library cursor listing           |
+| #62 | `f6664fb`    | Identity login-test expiry rollover hardening |
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
@@ -156,20 +162,23 @@ Current Quiz Service supports the accepted teacher-owned foundation:
 - create;
 - read owned draft;
 - update owned draft;
+- list the authenticated teacher's quizzes with stable cursor pagination;
 - PostgreSQL/Flyway persistence;
 - ownership enforcement;
 - USER/SERVICE JWT separation;
 - explicit `TEACHER` authorization.
 
-Accepted but not yet implemented:
+Implemented backend capability:
 
-- Quiz Markdown MVP grammar/editor contract is accepted in repository docs;
-- parser/validator implementation;
-- grammar-aware editor completion;
-- validation into final structured question representation;
+- Quiz Markdown MVP grammar is accepted in repository docs;
+- parser/validator and structured question representation;
 - immutable `QuizVersion`;
-- publish operation;
-- frontend Quiz Library/editor workflow;
+- publish operation.
+
+Frontend work in `feature/frontend-quiz-library` implements the persistent
+teacher Quiz Library plus grammar-aware editor completion and real
+create/read/update/publish integration. Remaining product gaps:
+
 - import/export;
 - Assessment publication/delivery lifecycle.
 
@@ -207,7 +216,8 @@ Mission:
 - add Flyway migrations and comprehensive tests;
 - do not invent Assessment Publication lifecycle semantics.
 
-**Current state: READY TO START — QM-01 through QM-05 are accepted.**
+**Current state: MERGED / VERIFIED — PR #60 added the accepted parser, validator,
+immutable QuizVersion persistence, and publish API.**
 
 ### Dev 2 — Frontend Quiz Library / Draft authoring
 
@@ -218,6 +228,7 @@ Planned branch:
 Mission:
 
 - consume the already-merged Quiz create/read/update draft API through Gateway;
+- consume the merged teacher-owned `GET /api/quizzes` cursor listing contract;
 - build the teacher Quiz Library/Draft authoring workflow using `DESIGN.md`;
 - use real authenticated session infrastructure from PR #57;
 - preserve `TEACHER` backend authorization as authoritative;
@@ -230,6 +241,13 @@ Mission:
 
 Dev 2 does not need to wait for Dev 1 to begin library/draft UI work, but must
 not invent Markdown or publish APIs.
+
+**Current state on `feature/frontend-quiz-library`:** authenticated teacher
+Quiz Library listing, create/read/update authoring, live preview, grammar-aware
+completion, save, and real publish integration are implemented against merged
+contracts. The Library uses backend-owned state and the opaque cursor returned by
+`GET /api/quizzes`; it does not use browser storage or production fixtures as an
+authoritative store. Final verification/review and merge are still pending.
 
 ## 6. Accepted Quiz Markdown contract
 
@@ -318,9 +336,10 @@ Wave 2 can close when all of the following are true:
 - parser/validator exists with accepted error behavior;
 - immutable `QuizVersion` exists;
 - publishing a draft creates an immutable version;
-- frontend teacher can create/read/update a draft through the real topology;
-- frontend can use the real publish contract once available;
-- final Quiz authoring E2E passes;
+- frontend branch consumes the real create/read/update/publish contracts through the existing authenticated request architecture;
+- frontend branch consumes the real teacher-owned Quiz Library listing contract through the same authenticated request architecture;
+- contract-level frontend Playwright covers library listing/open/pagination plus create/edit/save/reload/publish;
+- real Browser → Gateway → Quiz Service teacher-authoring E2E remains pending an accepted TEACHER fixture/self-enablement path and runnable local topology;
 - no unresolved Blocker/High finding remains.
 
 **Current status: IN PROGRESS.**

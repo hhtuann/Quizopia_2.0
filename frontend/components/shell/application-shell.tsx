@@ -10,9 +10,13 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 
 export interface ApplicationShellProps {
   readonly children: ReactNode;
+  readonly currentSection?: "home" | "quizzes";
 }
 
-export function ApplicationShell({ children }: ApplicationShellProps) {
+export function ApplicationShell({
+  children,
+  currentSection = "home",
+}: ApplicationShellProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
   const {
@@ -21,7 +25,14 @@ export function ApplicationShell({ children }: ApplicationShellProps) {
     logout,
     session,
     switchWorkspace,
+    user,
   } = useAuth();
+  const isApplicationHome = currentSection === "home";
+  const isQuizAuthoring = currentSection === "quizzes";
+  const showQuizAuthoring =
+    activeWorkspace === "TEACHING" && user?.roles.includes("TEACHER");
+  const navLinkClasses =
+    "inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none";
 
   async function handleLogout() {
     setLogoutError(false);
@@ -50,14 +61,34 @@ export function ApplicationShell({ children }: ApplicationShellProps) {
             Quizopia 2.0
           </Link>
 
-          <nav aria-label="Primary navigation" className="sm:ml-3">
+          <nav
+            aria-label="Primary navigation"
+            className="flex flex-wrap gap-1 sm:ml-3"
+          >
             <Link
-              aria-current="page"
-              className="inline-flex min-h-11 items-center rounded-lg bg-surface-muted px-3 py-2 text-sm font-semibold text-primary transition-colors duration-200 hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+              aria-current={isApplicationHome ? "page" : undefined}
+              className={`${navLinkClasses} ${
+                isApplicationHome
+                  ? "bg-surface-muted text-primary"
+                  : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
+              }`}
               href="/app"
             >
               Application home
             </Link>
+            {showQuizAuthoring ? (
+              <Link
+                aria-current={isQuizAuthoring ? "page" : undefined}
+                className={`${navLinkClasses} ${
+                  isQuizAuthoring
+                    ? "bg-surface-muted text-primary"
+                    : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
+                }`}
+                href="/app/quizzes"
+              >
+                Quiz authoring
+              </Link>
+            ) : null}
           </nav>
 
           <Button
