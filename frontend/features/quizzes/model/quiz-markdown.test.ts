@@ -42,7 +42,9 @@ describe("Quiz Markdown autocomplete context", () => {
   it("offers exactly four type fallbacks after a manual opening bracket", () => {
     const result = suggestions("Câu 3 [");
     expect(result).toHaveLength(4);
-    expect(result.map((item) => item.label)).toEqual(QUIZ_QUESTION_TYPES);
+    expect(result.map((item) => item.label)).toEqual(
+      QUIZ_QUESTION_TYPES.map((type) => `Câu 3 [${type}]:`),
+    );
     expect(result[3]?.insertText).toBe("Câu 3 [NUMERIC_FILL]: ");
   });
 
@@ -118,6 +120,164 @@ describe("Quiz Markdown autocomplete context", () => {
         suggestions(`${complete.slice(0, -1)}${prefix}`)[0]?.insertText,
       ).toBe("Lời giải: ");
     }
+  });
+
+  it.each([
+    "c",
+    "câu",
+    "Câu 5 ",
+    "Câu 5 [",
+    "Câu 5 [S",
+    "Câu 5 [SIN",
+    "Câu 5 [SINGLE_CHOICE",
+    "Câu 5 [SINGLE_CHOICE]",
+    "Câu 5 [SINGLE_CHOICE]:",
+  ])("progressively matches the full question marker for %j", (prefix) => {
+    const result = suggestions(prefix);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.every((item) => item.mode === "prefix-completion")).toBe(
+      true,
+    );
+    if (prefix.includes("[S")) {
+      expect(result.map((item) => item.label)).toEqual([
+        "Câu 5 [SINGLE_CHOICE]:",
+      ]);
+    }
+  });
+
+  it.each([
+    ["Câu 5 [M", "MULTIPLE_CHOICE"],
+    ["Câu 5 [T", "TRUE_FALSE_MATRIX"],
+    ["Câu 5 [N", "NUMERIC_FILL"],
+    ["Câu 5 [S", "SINGLE_CHOICE"],
+  ])("filters %j to %s", (prefix, type) => {
+    expect(suggestions(prefix).map((item) => item.label)).toEqual([
+      `Câu 5 [${type}]:`,
+    ]);
+  });
+
+  it.each([
+    "Lời",
+    "Lời ",
+    "Lời g",
+    "Lời gi",
+    "Lời giả",
+    "Lời giải",
+    "lời giải:",
+  ])("progressively completes the full explanation marker for %j", (prefix) => {
+    const source = `Câu 1 [SINGLE_CHOICE]: choose\n*A. a\nB. b\nC. c\nD. d\n${prefix}`;
+    expect(suggestions(source)).toMatchObject([
+      { insertText: "Lời giải: ", replaceEnd: source.length },
+    ]);
+  });
+
+  it.each(["Đáp", "Đáp ", "Đáp á", "Đáp án", "đáp án:"])(
+    "progressively completes the full numeric answer marker for %j",
+    (prefix) => {
+      const source = `Câu 1 [NUMERIC_FILL]: value?\n${prefix}`;
+      expect(suggestions(source)).toMatchObject([
+        { insertText: "Đáp án: ", replaceEnd: source.length },
+      ]);
+    },
+  );
+
+  it.each([
+    ["B", ["B."]],
+    ["B.", ["B."]],
+    ["*", ["*B."]],
+    ["*B", ["*B."]],
+    ["*B.", ["*B."]],
+  ] as const)(
+    "progressively filters the expected option marker for %j",
+    (prefix, expected) => {
+      const source = `Câu 1 [MULTIPLE_CHOICE]: choose\nA. a\n${prefix}`;
+      expect(suggestions(source).map((item) => item.label)).toEqual(expected);
+      expect(
+        suggestions(source).every(
+          (item) => !/[ACD]/.test(item.label.replace("MULTIPLE_CHOICE", "")),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("offers all question-type replacements across an existing marker", () => {
+    const source = "Câu 1 [MULTIPLE_CHOICE]: Stem";
+    const markerCarets = [
+      0,
+      2,
+      source.indexOf("1"),
+      source.indexOf("["),
+      source.indexOf("MULTIPLE_CHOICE") + 3,
+      source.indexOf("]"),
+      source.indexOf(":"),
+      source.indexOf(":") + 1,
+    ];
+
+    for (const markerCaret of markerCarets) {
+      const result = getQuizAutocompleteSuggestions(source, markerCaret);
+      expect(result).toHaveLength(4);
+      expect(
+        result.every((item) => item.mode === "question-marker-replacement"),
+      ).toBe(true);
+      const single = result.find((item) =>
+        item.label.includes("SINGLE_CHOICE"),
+      );
+      expect(
+        source.slice(0, single?.replaceStart) +
+          single?.insertText +
+          source.slice(single?.replaceEnd),
+      ).toBe("Câu 1 [SINGLE_CHOICE]: Stem");
+    }
+  });
+
+  it.each([
+    ["B. Văn", 1, "*B.", "*B. Văn"],
+    ["*B. Văn", 2, "B.", "B. Văn"],
+  ] as const)(
+    "replaces only an existing option marker in %j",
+    (optionLine, caretInMarker, selectedLabel, expectedLine) => {
+      const prefix = "Câu 1 [MULTIPLE_CHOICE]: choose\nA. a\n";
+      const source = `${prefix}${optionLine}`;
+      const result = getQuizAutocompleteSuggestions(
+        source,
+        prefix.length + caretInMarker,
+      );
+      expect(result.map((item) => item.label)).toEqual(["B.", "*B."]);
+      expect(
+        result.every((item) => item.mode === "option-marker-replacement"),
+      ).toBe(true);
+      const selected = result.find((item) => item.label === selectedLabel);
+      expect(
+        source.slice(0, selected?.replaceStart) +
+          selected?.insertText +
+          source.slice(selected?.replaceEnd),
+      ).toBe(`${prefix}${expectedLine}`);
+    },
+  );
+
+  it.each([
+    "    Lời g",
+    "ordinary prose Lời g",
+    "Câu 1 [SINGLE_CHOICE]: choose\n```text\nLời g",
+    "Câu 1 [SINGLE_CHOICE]: choose\nB",
+  ])("rejects invalid progressive context %j", (source) => {
+    expect(suggestions(source)).toEqual([]);
+  });
+
+  it("does not show one-item replacement popups for complete answer or explanation markers", () => {
+    const numeric = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50";
+    expect(
+      getQuizAutocompleteSuggestions(numeric, numeric.indexOf("Đáp") + 2),
+    ).toEqual([]);
+
+    const explanation =
+      "Câu 1 [SINGLE_CHOICE]: choose\n*A. a\nB. b\nC. c\nD. d\nLời giải: detail";
+    expect(
+      getQuizAutocompleteSuggestions(
+        explanation,
+        explanation.indexOf("Lời giải") + 3,
+      ),
+    ).toEqual([]);
   });
 });
 

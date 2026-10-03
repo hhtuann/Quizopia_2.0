@@ -52,7 +52,7 @@ test("login controls remain reachable in logical keyboard order", async ({
     page.getByRole("link", { name: "Skip to main content" }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Quizopia 2.0" })).toBeFocused();
+  await expect(page.getByRole("link", { name: "Quizopia home" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Username or email")).toBeFocused();
   await page.keyboard.press("Tab");

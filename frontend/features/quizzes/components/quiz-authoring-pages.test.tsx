@@ -464,6 +464,13 @@ describe("CreateQuizPage direct editor flow", () => {
 
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Description")).not.toBeInTheDocument();
+    const transitionBrand = screen.getByRole("link", {
+      name: "Back to Quiz Library",
+    });
+    expect(transitionBrand).toContainElement(
+      screen.getByTestId("quizopia-brand-mark"),
+    );
+    expect(transitionBrand).toHaveTextContent("Quizopiaversion 2.0");
     expect(screen.getByText("Preparing your editor…")).toBeInTheDocument();
     await waitFor(() =>
       expect(createBody).toEqual({
@@ -697,7 +704,7 @@ describe("QuizEditorPage real-contract behavior", () => {
   });
 
   it("shows authoritative publish validation and maps it back to source", async () => {
-    const source = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 123";
+    const source = "Câu 1 [NUMERIC_FILL]: value?\r\nĐáp án: 123";
     const executor: AuthenticatedRequestExecutor = {
       execute: vi.fn(async (request) => {
         const built = request.createRequest();
@@ -753,6 +760,15 @@ describe("QuizEditorPage real-contract behavior", () => {
         screen.getByRole("textbox", { name: "Quiz Markdown source" }),
       ).toHaveFocus(),
     );
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Quiz Markdown source",
+    });
+    const sourceOffset = source.indexOf("Đáp án:") + 8;
+    const textareaOffset = source
+      .slice(0, sourceOffset)
+      .replace(/\r\n|\r/g, "\n").length;
+    expect(editor.selectionStart).toBe(textareaOffset);
+    expect(editor.selectionEnd).toBe(textareaOffset);
   });
 
   it("reports backend 200 publish reuse without faking a new version", async () => {
@@ -812,6 +828,9 @@ describe("QuizEditorPage real-contract behavior", () => {
     const editor = await screen.findByRole<HTMLTextAreaElement>("textbox", {
       name: "Quiz Markdown source",
     });
+    expect(
+      screen.getByRole("link", { name: "Back to Quiz Library" }),
+    ).toContainElement(screen.getByTestId("quizopia-brand-mark"));
 
     fireEvent.click(
       screen.getByRole("button", { name: /Jump to source for question 2/ }),
@@ -822,11 +841,110 @@ describe("QuizEditorPage real-contract behavior", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "B. Not marked correct" }),
     );
-    await waitFor(() =>
-      expect(editor).toHaveValue(
-        source.replace("*A. alpha", "A. alpha").replace("B. beta", "*B. beta"),
-      ),
+    const updatedSource = source
+      .replace("*A. alpha", "A. alpha")
+      .replace("B. beta", "*B. beta");
+    await waitFor(() => expect(editor).toHaveValue(updatedSource));
+    expect(editor.selectionStart).toBe(
+      updatedSource.indexOf("*B. beta") + "*B. ".length,
     );
+    expect(
+      screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+
+    const markerCaret = updatedSource.indexOf("*B. beta") + 2;
+    editor.setSelectionRange(markerCaret, markerCaret);
+    fireEvent.click(editor);
+    expect(
+      screen.getAllByRole("option").map((item) => item.textContent),
+    ).toEqual(["B.", "*B."]);
+    fireEvent.keyDown(editor, { key: "Escape" });
+
+    const typedSource = `${updatedSource}\nc`;
+    fireEvent.change(editor, {
+      target: {
+        selectionEnd: typedSource.length,
+        selectionStart: typedSource.length,
+        value: typedSource,
+      },
+    });
+    expect(
+      screen.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).toBeInTheDocument();
   });
+
+  it.each([
+    {
+      action: "A. Not marked correct",
+      content: "alpha",
+      expected:
+        "Câu 1 [SINGLE_CHOICE]: choose\n*A. alpha\nB. beta\nC. gamma\nD. delta",
+      marker: "*A. ",
+      name: "SINGLE_CHOICE B to A",
+      source:
+        "Câu 1 [SINGLE_CHOICE]: choose\nA. alpha\n*B. beta\nC. gamma\nD. delta",
+    },
+    {
+      action: "B. Not marked correct",
+      content: "beta",
+      expected:
+        "Câu 1 [MULTIPLE_CHOICE]: choose\n*A. alpha\n*B. beta\nC. gamma\nD. delta",
+      marker: "*B. ",
+      name: "MULTIPLE_CHOICE add",
+      source:
+        "Câu 1 [MULTIPLE_CHOICE]: choose\n*A. alpha\nB. beta\nC. gamma\nD. delta",
+    },
+    {
+      action: "B. Marked correct",
+      content: "beta",
+      expected:
+        "Câu 1 [MULTIPLE_CHOICE]: choose\n*A. alpha\nB. beta\nC. gamma\nD. delta",
+      marker: "B. ",
+      name: "MULTIPLE_CHOICE remove",
+      source:
+        "Câu 1 [MULTIPLE_CHOICE]: choose\n*A. alpha\n*B. beta\nC. gamma\nD. delta",
+    },
+    {
+      action: "A. Not marked correct",
+      content: "alpha",
+      expected:
+        "Câu 1 [TRUE_FALSE_MATRIX]: choose\r\n*A. alpha\r\n*B. beta\r\nC. gamma\r\nD. delta",
+      marker: "*A. ",
+      name: "TRUE_FALSE_MATRIX CRLF add",
+      source:
+        "Câu 1 [TRUE_FALSE_MATRIX]: choose\r\nA. alpha\r\n*B. beta\r\nC. gamma\r\nD. delta",
+    },
+  ])(
+    "places the final caret from post-edit source for $name",
+    async ({ action, content, expected, marker, source }) => {
+      const executor: AuthenticatedRequestExecutor = {
+        execute: vi.fn(async () => ({
+          kind: "response" as const,
+          response: response(200, draft(source)),
+        })),
+        executeOnce: vi.fn(),
+        executeOnceWithAccessToken: vi.fn(),
+      };
+      renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+      const editor = await screen.findByRole<HTMLTextAreaElement>("textbox", {
+        name: "Quiz Markdown source",
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: action }));
+      await waitFor(() =>
+        expect(editor).toHaveValue(expected.replace(/\r\n|\r/g, "\n")),
+      );
+      const sourceCaret =
+        expected.indexOf(`${marker}${content}`) + marker.length;
+      const textareaCaret = expected
+        .slice(0, sourceCaret)
+        .replace(/\r\n|\r/g, "\n").length;
+      expect(editor.selectionStart).toBe(textareaCaret);
+      expect(editor.selectionEnd).toBe(textareaCaret);
+      expect(
+        screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

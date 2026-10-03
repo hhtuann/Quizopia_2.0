@@ -1,3 +1,8 @@
+import {
+  quizMarkdownLineStarts,
+  sourceLineBoundsAtOffset,
+} from "./quiz-markdown-coordinates";
+
 export const QUIZ_QUESTION_TYPES = [
   "SINGLE_CHOICE",
   "MULTIPLE_CHOICE",
@@ -49,6 +54,10 @@ export interface QuizAutocompleteSuggestion {
   readonly id: string;
   readonly insertText: string;
   readonly label: string;
+  readonly mode:
+    | "option-marker-replacement"
+    | "prefix-completion"
+    | "question-marker-replacement";
   readonly replaceEnd: number;
   readonly replaceStart: number;
 }
@@ -97,21 +106,6 @@ function diagnostic(
 
 function sourceLines(source: string): string[] {
   return source.split(/\r\n|\r|\n/);
-}
-
-function sourceLineOffsets(source: string): number[] {
-  const offsets = [0];
-  for (let index = 0; index < source.length; index += 1) {
-    if (source[index] === "\r") {
-      if (source[index + 1] === "\n") {
-        index += 1;
-      }
-      offsets.push(index + 1);
-    } else if (source[index] === "\n") {
-      offsets.push(index + 1);
-    }
-  }
-  return offsets;
 }
 
 function openingFenceLength(line: string): number | null {
@@ -214,7 +208,7 @@ function orderedOptionsComplete(options: readonly MutableOption[]): boolean {
 export function analyzeQuizMarkdown(source: string): QuizMarkdownAnalysis {
   const diagnostics: QuizMarkdownDiagnostic[] = [];
   const questions: MutableQuestion[] = [];
-  const lineOffsets = sourceLineOffsets(source);
+  const lineOffsets = quizMarkdownLineStarts(source);
   let current: MutableQuestion | null = null;
   let target: ContentTarget = "none";
   let fence: { ticks: number; line: number } | null = null;
@@ -874,14 +868,59 @@ function isInsideFenceBeforeLine(sourceBeforeCurrentLine: string): boolean {
   return fenceTicks !== null;
 }
 
-function matchesStructuralPrefix(
-  value: string,
-  accepted: readonly string[],
-): boolean {
-  const folded = value.toLocaleLowerCase("vi");
-  return accepted.some(
-    (candidate) => candidate.toLocaleLowerCase("vi") === folded,
+function foldAutocompleteText(value: string): string {
+  return value.toLocaleLowerCase("vi-VN");
+}
+
+function isCanonicalPrefix(fragment: string, canonical: string): boolean {
+  return foldAutocompleteText(canonical).startsWith(
+    foldAutocompleteText(fragment),
   );
+}
+
+function questionMarkerSuggestions(
+  number: number,
+  replaceStart: number,
+  replaceEnd: number,
+  mode: QuizAutocompleteSuggestion["mode"],
+  fragment?: string,
+): readonly QuizAutocompleteSuggestion[] {
+  return QUIZ_QUESTION_TYPES.map((type) => {
+    const marker = `Câu ${number} [${type}]:`;
+    return {
+      id: `${mode}-question-${type}`,
+      insertText: mode === "prefix-completion" ? `${marker} ` : marker,
+      label: marker,
+      mode,
+      replaceEnd,
+      replaceStart,
+    };
+  }).filter(
+    (suggestion) =>
+      fragment === undefined || isCanonicalPrefix(fragment, suggestion.label),
+  );
+}
+
+function singlePrefixSuggestion(
+  id: string,
+  fragment: string,
+  canonicalMarker: string,
+  replaceStart: number,
+  replaceEnd: number,
+): readonly QuizAutocompleteSuggestion[] {
+  if (fragment.length === 0 || !isCanonicalPrefix(fragment, canonicalMarker)) {
+    return [];
+  }
+  return [
+    {
+      id,
+      insertText: `${canonicalMarker} `,
+      label: canonicalMarker,
+      mode: "prefix-completion",
+      replaceEnd,
+      replaceStart,
+    },
+  ];
 }
 
 export function getQuizAutocompleteSuggestions(
@@ -889,72 +928,105 @@ export function getQuizAutocompleteSuggestions(
   caret: number,
 ): readonly QuizAutocompleteSuggestion[] {
   const safeCaret = Math.max(0, Math.min(caret, source.length));
-  const lineStart = source.lastIndexOf("\n", safeCaret - 1) + 1;
-  const linePrefix = source.slice(lineStart, safeCaret).replace(/^\r/, "");
-  const beforeLine = source.slice(0, lineStart);
+  const bounds = sourceLineBoundsAtOffset(source, safeCaret);
+  const linePrefix = source.slice(bounds.start, safeCaret);
+  const fullLine = source.slice(bounds.start, bounds.contentEnd);
+  const beforeLine = source.slice(0, bounds.start);
 
-  if (/^[\t ]/.test(linePrefix) || isInsideFenceBeforeLine(beforeLine)) {
+  if (/^[\t ]/.test(fullLine) || isInsideFenceBeforeLine(beforeLine)) {
     return [];
   }
 
   const state = scanEditorState(beforeLine);
-  const range = { replaceStart: lineStart, replaceEnd: safeCaret };
+  const atLineEnd = safeCaret === bounds.contentEnd;
+  const range = { replaceStart: bounds.start, replaceEnd: safeCaret };
 
-  if (matchesStructuralPrefix(linePrefix, ["C", "Câ", "Câu"])) {
-    const next = state.questionCount + 1;
-    return QUIZ_QUESTION_TYPES.map((type) => {
-      const insertText = `Câu ${next} [${type}]: `;
-      return {
-        id: `question-${type}`,
-        insertText,
-        label: insertText.trimEnd(),
-        ...range,
-      };
-    });
-  }
-
-  const typePrefix = /^Câu ([0-9]+) \[$/iu.exec(linePrefix);
-  if (typePrefix) {
-    return QUIZ_QUESTION_TYPES.map((type) => ({
-      id: `type-${type}`,
-      insertText: `Câu ${typePrefix[1]} [${type}]: `,
-      label: type,
-      ...range,
-    }));
+  const existingHeader = QUESTION_HEADER.exec(fullLine);
+  if (existingHeader && isAcceptedType(existingHeader[2])) {
+    const marker = `Câu ${existingHeader[1]} [${existingHeader[2]}]:`;
+    const markerEnd = bounds.start + marker.length;
+    if (
+      safeCaret >= bounds.start &&
+      safeCaret <= markerEnd &&
+      (fullLine.slice(marker.length).length > 0 || safeCaret < markerEnd)
+    ) {
+      return questionMarkerSuggestions(
+        Number.parseInt(existingHeader[1], 10),
+        bounds.start,
+        markerEnd,
+        "question-marker-replacement",
+      );
+    }
   }
 
   const current = state.current;
+  const existingOption = OPTION.exec(fullLine);
+  if (
+    existingOption &&
+    current !== null &&
+    current.type !== "NUMERIC_FILL" &&
+    !current.explanationSeen
+  ) {
+    const label = existingOption[2] as QuizOptionLabel;
+    const expected = OPTION_LABELS[current.options.length];
+    const marker = `${existingOption[1] ?? ""}${label}.`;
+    const markerEnd = bounds.start + marker.length;
+    if (
+      label === expected &&
+      safeCaret >= bounds.start &&
+      safeCaret <= markerEnd &&
+      (existingOption[3].length > 0 || safeCaret < markerEnd)
+    ) {
+      return [false, true].map((correct) => ({
+        id: `option-marker-replacement-${label}-${correct ? "correct" : "plain"}`,
+        insertText: `${correct ? "*" : ""}${label}.`,
+        label: `${correct ? "*" : ""}${label}.`,
+        mode: "option-marker-replacement" as const,
+        replaceEnd: markerEnd,
+        replaceStart: bounds.start,
+      }));
+    }
+  }
+
+  if (atLineEnd && linePrefix.length > 0) {
+    const explicitNumber = /^Câu ([0-9]+)/iu.exec(linePrefix);
+    const questionNumber = explicitNumber
+      ? Number.parseInt(explicitNumber[1], 10)
+      : state.questionCount + 1;
+    const questionSuggestions = questionMarkerSuggestions(
+      questionNumber,
+      bounds.start,
+      safeCaret,
+      "prefix-completion",
+      linePrefix,
+    );
+    if (questionSuggestions.length > 0) {
+      return questionSuggestions;
+    }
+  }
+
   if (current === null || current.explanationSeen) {
     return [];
   }
 
   if (current.type === "NUMERIC_FILL") {
-    if (
-      !current.answerPresent &&
-      matchesStructuralPrefix(linePrefix, ["Đ", "Đá", "Đáp"])
-    ) {
-      return [
-        {
-          id: "numeric-answer",
-          insertText: "Đáp án: ",
-          label: "Đáp án:",
-          ...range,
-        },
-      ];
+    if (!current.answerPresent && atLineEnd) {
+      return singlePrefixSuggestion(
+        "numeric-answer",
+        linePrefix,
+        "Đáp án:",
+        range.replaceStart,
+        range.replaceEnd,
+      );
     }
-    if (
-      current.answerPresent &&
-      current.answerTextPresent &&
-      matchesStructuralPrefix(linePrefix, ["L", "Lờ", "Lời"])
-    ) {
-      return [
-        {
-          id: "explanation",
-          insertText: "Lời giải: ",
-          label: "Lời giải:",
-          ...range,
-        },
-      ];
+    if (current.answerPresent && current.answerTextPresent && atLineEnd) {
+      return singlePrefixSuggestion(
+        "explanation",
+        linePrefix,
+        "Lời giải:",
+        range.replaceStart,
+        range.replaceEnd,
+      );
     }
     return [];
   }
@@ -964,24 +1036,16 @@ export function getQuizAutocompleteSuggestions(
     const completedInOrder = current.options.every(
       (option, index) => option.label === OPTION_LABELS[index],
     );
-    if (
-      completedInOrder &&
-      ["", expected, `*${expected}`].includes(linePrefix)
-    ) {
-      return [
-        {
-          id: `option-${expected}`,
-          insertText: `${expected}. `,
-          label: `${expected}.`,
+    if (completedInOrder && atLineEnd) {
+      return [`${expected}.`, `*${expected}.`]
+        .filter((marker) => isCanonicalPrefix(linePrefix, marker))
+        .map((marker) => ({
+          id: `option-${expected}-${marker.startsWith("*") ? "correct" : "plain"}`,
+          insertText: `${marker} `,
+          label: marker,
+          mode: "prefix-completion" as const,
           ...range,
-        },
-        {
-          id: `option-${expected}-correct`,
-          insertText: `*${expected}. `,
-          label: `*${expected}.`,
-          ...range,
-        },
-      ];
+        }));
     }
   }
 
@@ -989,16 +1053,15 @@ export function getQuizAutocompleteSuggestions(
     orderedOptionsComplete(
       current.options.map((option) => ({ ...option, content: [], line: 0 })),
     ) &&
-    matchesStructuralPrefix(linePrefix, ["L", "Lờ", "Lời"])
+    atLineEnd
   ) {
-    return [
-      {
-        id: "explanation",
-        insertText: "Lời giải: ",
-        label: "Lời giải:",
-        ...range,
-      },
-    ];
+    return singlePrefixSuggestion(
+      "explanation",
+      linePrefix,
+      "Lời giải:",
+      range.replaceStart,
+      range.replaceEnd,
+    );
   }
 
   return [];

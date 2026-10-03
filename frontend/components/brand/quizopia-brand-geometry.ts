@@ -1,0 +1,2 @@
+export const QUIZOPIA_BOLT_PATH =
+  "M13.25 2.5 5.75 13h5l-1 8.5L18.25 10h-5.1l.1-7.5Z";

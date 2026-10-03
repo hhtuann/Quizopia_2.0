@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import { QuizopiaLogo } from "../../../components/brand/quizopia-logo";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
@@ -17,10 +25,12 @@ import {
   type QuizMarkdownServerError,
 } from "../api/quiz-api-client";
 import {
+  analyzeQuizMarkdown,
   toggleQuizOptionCorrectness,
   type QuizPreviewOption,
   type QuizPreviewQuestion,
 } from "../model/quiz-markdown";
+import { sourceLocationToOffset } from "../model/quiz-markdown-coordinates";
 import {
   QuizMarkdownCodeEditor,
   type QuizMarkdownCodeEditorHandle,
@@ -59,6 +69,30 @@ function failureMessage(failure: QuizApiFailure): string {
 
 function inputSnapshot(input: QuizDraftInput): string {
   return JSON.stringify(input);
+}
+
+function optionContentOffset(
+  source: string,
+  question: QuizPreviewQuestion,
+  option: QuizPreviewOption,
+): number | null {
+  const updatedQuestion = analyzeQuizMarkdown(source).questions.find(
+    (candidate) =>
+      candidate.number === question.number &&
+      candidate.source.line === question.source.line,
+  );
+  const updatedOption = updatedQuestion?.options.find(
+    (candidate) => candidate.label === option.label,
+  );
+  if (updatedOption === undefined) {
+    return null;
+  }
+
+  let offset = updatedOption.source.markerOffset + 2;
+  while (source[offset] === " " || source[offset] === "\t") {
+    offset += 1;
+  }
+  return offset;
 }
 
 function libraryFailureTitle(failure: QuizApiFailure): string {
@@ -117,7 +151,7 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
             Quiz ID: {item.quizId}
           </p>
         </div>
-        <span className="shrink-0 rounded-md bg-surface-muted px-2.5 py-1.5 text-xs font-semibold text-foreground-secondary">
+        <span className="shrink-0 rounded-md bg-surface-muted px-2.5 py-1.5 font-mono text-xs font-semibold text-foreground-secondary">
           {item.latestVersionNumber === null
             ? "Draft only"
             : `Latest version ${item.latestVersionNumber}`}
@@ -228,7 +262,7 @@ export function QuizLibraryPage() {
           <p className="text-sm font-semibold text-primary">
             Teaching workspace
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.02em] text-foreground">
+          <h1 className="mt-2 font-heading text-3xl font-normal tracking-[-0.02em] text-foreground">
             Quiz authoring
           </h1>
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
@@ -375,13 +409,13 @@ export function CreateQuizPage() {
       <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
         <Link
           aria-label="Back to Quiz Library"
-          className="flex min-h-11 items-center gap-3 rounded-lg text-sm font-bold text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
+          className="flex min-h-11 items-center rounded-lg text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
           href="/app/quizzes"
         >
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-foreground-inverse shadow-primary">
-            Q
-          </span>
-          <span className="hidden sm:inline">Quizopia 2.0</span>
+          <QuizopiaLogo
+            markClassName="size-9 rounded-lg"
+            wordmarkClassName="hidden sm:flex"
+          />
         </Link>
         <span aria-hidden="true" className="h-6 w-px bg-border" />
         <span className="text-sm font-semibold text-foreground-secondary">
@@ -432,6 +466,11 @@ export function CreateQuizPage() {
 
 type LoadState = "loading" | "ready" | "forbidden" | "not-found" | "error";
 
+interface PendingEditorFocus {
+  readonly offset: number;
+  readonly suppressAutocomplete: boolean;
+}
+
 export interface QuizEditorPageProps {
   readonly quizId: string;
 }
@@ -439,6 +478,11 @@ export interface QuizEditorPageProps {
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const client = useQuizApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
+  const pendingEditorFocusRef = useRef<PendingEditorFocus | null>(null);
+  const [focusRequestVersion, requestEditorFocus] = useReducer(
+    (version: number) => version + 1,
+    0,
+  );
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -462,6 +506,17 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   );
   const dirty =
     savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
+
+  useLayoutEffect(() => {
+    const pendingEditorFocus = pendingEditorFocusRef.current;
+    if (pendingEditorFocus === null || mobilePane !== "source") {
+      return;
+    }
+    pendingEditorFocusRef.current = null;
+    editorRef.current?.focusOffset(pendingEditorFocus.offset, {
+      suppressAutocomplete: pendingEditorFocus.suppressAutocomplete,
+    });
+  }, [focusRequestVersion, mobilePane, source]);
 
   useEffect(() => {
     if (client === null) {
@@ -576,11 +631,16 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     if (nextSource === source) {
       return;
     }
+    const caretOffset = optionContentOffset(nextSource, question, option);
+    if (caretOffset !== null) {
+      pendingEditorFocusRef.current = {
+        offset: caretOffset,
+        suppressAutocomplete: true,
+      };
+      requestEditorFocus();
+    }
     updateSource(nextSource);
     setMobilePane("source");
-    requestAnimationFrame(() =>
-      editorRef.current?.focusLocation(option.source.line, 1),
-    );
   }
 
   if (client === null || loadState === "loading") {
@@ -600,7 +660,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   if (loadState === "forbidden") {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="font-heading text-2xl font-normal text-foreground">
           Quiz access denied
         </h1>
         <Alert
@@ -618,7 +678,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   if (loadState === "not-found") {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="font-heading text-2xl font-normal text-foreground">
           Quiz draft not found
         </h1>
         <p className="mt-3 text-base leading-7 text-foreground-secondary">
@@ -635,7 +695,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   if (loadState === "error") {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="font-heading text-2xl font-normal text-foreground">
           Quiz could not be loaded
         </h1>
         <Alert className="mt-5" title="Loading failed" variant="danger">
@@ -650,13 +710,13 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
       <header className="z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:gap-3 sm:px-5">
         <Link
           aria-label="Back to Quiz Library"
-          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg text-sm font-bold text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
+          className="flex min-h-11 shrink-0 items-center rounded-lg text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
           href="/app/quizzes"
         >
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-foreground-inverse shadow-primary">
-            Q
-          </span>
-          <span className="hidden xl:inline">Quizopia 2.0</span>
+          <QuizopiaLogo
+            markClassName="size-9 rounded-lg"
+            wordmarkClassName="hidden xl:flex"
+          />
         </Link>
         <span
           aria-hidden="true"
@@ -678,7 +738,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         <div className="ml-auto flex items-center gap-2">
           <span
             aria-live="polite"
-            className="hidden text-xs font-semibold text-foreground-muted sm:inline"
+            className="hidden font-mono text-xs font-semibold text-foreground-muted sm:inline"
           >
             {isSaving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
           </span>
@@ -764,16 +824,20 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             <QuizPreview
               onDiagnosticSelect={(line, column) => {
                 setMobilePane("source");
-                requestAnimationFrame(() =>
-                  editorRef.current?.focusLocation(line, column),
-                );
+                pendingEditorFocusRef.current = {
+                  offset: sourceLocationToOffset(source, line, column),
+                  suppressAutocomplete: true,
+                };
+                requestEditorFocus();
               }}
               onOptionToggle={handleOptionToggle}
               onQuestionSelect={(question) => {
                 setMobilePane("source");
-                requestAnimationFrame(() =>
-                  editorRef.current?.focusOffset(question.source.offset),
-                );
+                pendingEditorFocusRef.current = {
+                  offset: question.source.offset,
+                  suppressAutocomplete: true,
+                };
+                requestEditorFocus();
               }}
               serverDiagnostics={serverDiagnostics}
               source={source}

@@ -22,7 +22,7 @@ function TeacherAuthoringBoundary({
   if (!user.roles.includes("TEACHER")) {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="font-heading text-2xl font-normal text-foreground">
           Teacher access required
         </h1>
         <Alert
@@ -40,7 +40,7 @@ function TeacherAuthoringBoundary({
   if (activeWorkspace !== "TEACHING") {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-foreground">
+        <h1 className="font-heading text-2xl font-normal text-foreground">
           Open the Teaching workspace
         </h1>
         <p className="mt-3 text-base leading-7 text-foreground-secondary">

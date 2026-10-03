@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
+import { QuizopiaLogo } from "../brand/quizopia-logo";
 import { PageContainer } from "../ui/page-container";
 import { AuthenticatedUserMenu } from "./authenticated-user-menu";
 
@@ -28,16 +29,11 @@ export function ApplicationShell({
       <header className="border-b border-border bg-surface">
         <PageContainer className="flex max-w-none flex-col items-start gap-3 py-3 sm:flex-row sm:items-center">
           <Link
-            className="inline-flex min-h-11 items-center gap-3 rounded-lg pr-2 text-sm font-bold text-foreground transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+            aria-label="Quizopia home"
+            className="inline-flex min-h-11 items-center rounded-lg pr-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
             href="/"
           >
-            <span
-              aria-hidden="true"
-              className="flex size-9 items-center justify-center rounded-lg bg-primary text-base text-foreground-inverse shadow-primary"
-            >
-              Q
-            </span>
-            Quizopia 2.0
+            <QuizopiaLogo markClassName="size-9 rounded-lg" />
           </Link>
 
           <nav
