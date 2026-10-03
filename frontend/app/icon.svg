@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="quizopia-brand-gradient" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#quizopia-brand-gradient)"/>
+  <path d="M35.3 11 17.8 35.5h11.7L27.2 55 47 28.2H35.1L35.3 11Z" fill="white" stroke="white" stroke-linejoin="round" stroke-width="2.5"/>
+</svg>

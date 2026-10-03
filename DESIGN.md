@@ -200,18 +200,29 @@ Use semantic naming in the styling layer rather than scattering raw colors:
 
 # 5. Typography
 
-## 5.1 Font Family
+## 5.1 Font roles
 
-Primary font:
+Quizopia uses three locally managed `next/font` roles:
 
-**Plus Jakarta Sans**
+- **Calistoga — headings and brand:** the Quizopia wordmark, key page titles,
+  major section headings, and selected prominent brand-facing headings;
+- **Inter — body and UI:** paragraphs, navigation, forms, buttons, helper text,
+  and normal application copy;
+- **JetBrains Mono — technical labels:** Quiz Markdown source, code, line
+  numbers, question-type chips, badges, compact status tokens, and technical
+  identifiers where fixed-width clarity adds value.
 
-Use a robust system sans-serif fallback stack.
+Do not apply Calistoga to every small heading or dense label. Small card titles
+and routine control labels may remain Inter when that improves scanning. Use
+JetBrains Mono selectively; ordinary prose and controls remain Inter.
+
+Fonts are loaded through `next/font` with appropriate fallback stacks. Do not
+add a second web-font loader or runtime stylesheet request.
 
 ## 5.2 Weights
 
-- Display/Hero: ExtraBold `800`
-- Section Headings: Bold `700`
+- Calistoga display/page headings: Regular `400`
+- Inter section headings: SemiBold/Bold `600–700`
 - Subheadings/Card Titles: SemiBold `600`
 - Navigation/Labels: Medium `500`
 - Body: Regular `400`
@@ -244,6 +255,22 @@ Use a predictable scale rather than arbitrary feature-level sizes.
 - **Caption/Metadata:** `12px`
 
 Application dashboards and editors must not use marketing-scale typography for routine page headings.
+
+## 5.6 Quizopia brand signature
+
+The reusable Quizopia logo consists of:
+
+1. a clean geometric lightning bolt inside an Indigo-to-Violet rounded block;
+2. a two-line wordmark to its right;
+3. `Quizopia` on line one, with `Quiz` in Text Primary and `opia` using the
+   restrained Primary-to-Secondary gradient;
+4. understated Inter text `version 2.0` on line two.
+
+`Quizopia` uses Calistoga. The version line uses Inter. The bolt silhouette is
+the canonical mark for navigation, authentication, focused authoring chrome,
+and favicon/app-icon assets. Do not reintroduce the legacy letter `Q` badge or
+an unrelated blue favicon. Reuse the centralized brand components rather than
+duplicating SVG paths or wordmark markup.
 
 ---
 
@@ -445,6 +472,18 @@ overflow.
 Description belongs in the pre-publication interaction rather than occupying
 the permanent editor workspace. QuizVersion publication must not be presented
 as Assessment timing, audience, or classroom configuration.
+
+The editor and preview panes use one shared header hierarchy: matching
+Calistoga titles plus matching Inter helper size, color, line height, and
+spacing. Pane headers should align visually even when helper copy lengths
+differ.
+
+The source pane behaves like a focused code editor while preserving exact
+authoring text. Tab accepts a visible completion; otherwise it inserts a literal
+tab or indents selected lines. Shift+Tab removes one leading tab only. Explicit
+preview navigation may suppress autocomplete for that navigation event so
+moving a correctness marker does not imply that the teacher started typing a
+new option. Normal typed completion resumes immediately after user input.
 
 ---
 
@@ -1040,6 +1079,9 @@ Editor UI prioritizes:
 - content readability
 - deterministic controls
 - minimal motion
+- exact source preservation, including explicitly authored tabs
+- balanced shared pane-header hierarchy
+- intent-aware preview-to-source navigation without unsolicited completion
 
 Decorative gradients/3D treatments should not appear inside the editing workspace.
 
@@ -1063,14 +1105,15 @@ Quizopia Corporate Trust identity is expressed through:
 
 1. Indigo primary brand
 2. Violet secondary accent
-3. Plus Jakarta Sans
-4. clean cool-neutral surfaces
-5. subtle colored shadows
-6. restrained gradients
-7. rounded but professional geometry
-8. strong accessibility/focus treatment
-9. calm refined motion
-10. selective decorative depth on public/marketing surfaces only
+3. geometric lightning-bolt mark and two-line Quizopia wordmark
+4. Calistoga headings, Inter UI/body, and selective JetBrains Mono labels
+5. clean cool-neutral surfaces
+6. subtle colored shadows
+7. restrained gradients
+8. rounded but professional geometry
+9. strong accessibility/focus treatment
+10. calm refined motion
+11. selective decorative depth on public/marketing surfaces only
 
 The product should feel branded without sacrificing clarity.
 
@@ -1125,7 +1168,7 @@ For the current Quizopia 2.0 frontend baseline:
 - Theme: Light only
 - Primary: Indigo 600
 - Secondary: Violet 600
-- Typography: Plus Jakarta Sans
+- Typography: Calistoga for key headings and the product wordmark, Inter for body and general UI, and JetBrains Mono for compact labels, badges, and technical tokens
 - Product button default: solid Indigo, rounded-lg
 - Marketing CTA: gradient allowed
 - Product cards: restrained elevation
@@ -1133,5 +1176,6 @@ For the current Quizopia 2.0 frontend baseline:
 - Workspace personas: `LEARNING` / `TEACHING`
 - Motion: refined and reduced-motion aware
 - Styling: Tailwind CSS 4
-- Icons: use existing project strategy; `lucide-react` only if already accepted
+- Brand icon: the reusable Quizopia lightning-bolt mark; do not reintroduce the legacy `Q` badge or unrelated blue favicon treatment
+- General UI icons: use the existing project strategy; `lucide-react` only if already accepted
 - New UI libraries: explicit justification required

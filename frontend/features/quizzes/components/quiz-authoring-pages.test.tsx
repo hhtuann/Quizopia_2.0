@@ -812,6 +812,9 @@ describe("QuizEditorPage real-contract behavior", () => {
     const editor = await screen.findByRole<HTMLTextAreaElement>("textbox", {
       name: "Quiz Markdown source",
     });
+    expect(
+      screen.getByRole("link", { name: "Back to Quiz Library" }),
+    ).toContainElement(screen.getByTestId("quizopia-brand-mark"));
 
     fireEvent.click(
       screen.getByRole("button", { name: /Jump to source for question 2/ }),
@@ -822,11 +825,28 @@ describe("QuizEditorPage real-contract behavior", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "B. Not marked correct" }),
     );
-    await waitFor(() =>
-      expect(editor).toHaveValue(
-        source.replace("*A. alpha", "A. alpha").replace("B. beta", "*B. beta"),
-      ),
+    const updatedSource = source
+      .replace("*A. alpha", "A. alpha")
+      .replace("B. beta", "*B. beta");
+    await waitFor(() => expect(editor).toHaveValue(updatedSource));
+    expect(editor.selectionStart).toBe(
+      updatedSource.indexOf("*B. beta") + "*B. ".length,
     );
+    expect(
+      screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+
+    const typedSource = `${updatedSource}\nc`;
+    fireEvent.change(editor, {
+      target: {
+        selectionEnd: typedSource.length,
+        selectionStart: typedSource.length,
+        value: typedSource,
+      },
+    });
+    expect(
+      screen.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).toBeInTheDocument();
   });
 });

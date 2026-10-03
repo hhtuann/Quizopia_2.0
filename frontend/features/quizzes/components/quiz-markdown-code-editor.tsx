@@ -16,12 +16,21 @@ import {
   type UIEvent,
 } from "react";
 import { getQuizAutocompleteSuggestions } from "../model/quiz-markdown";
+import { EditorPaneHeader } from "./editor-pane-header";
 
 const EDITOR_LINE_HEIGHT = 24;
 
+export interface QuizMarkdownEditorFocusOptions {
+  readonly suppressAutocomplete?: boolean;
+}
+
 export interface QuizMarkdownCodeEditorHandle {
-  focusLocation(line: number, column: number): void;
-  focusOffset(offset: number): void;
+  focusLocation(
+    line: number,
+    column: number,
+    options?: QuizMarkdownEditorFocusOptions,
+  ): void;
+  focusOffset(offset: number, options?: QuizMarkdownEditorFocusOptions): void;
 }
 
 export interface QuizMarkdownCodeEditorProps {
@@ -56,6 +65,194 @@ function offsetForLocation(
 
 function lineForOffset(source: string, offset: number): number {
   return source.slice(0, Math.max(0, offset)).split(/\r\n|\r|\n/).length;
+}
+
+function normalizedTextareaValue(source: string): string {
+  return source.replace(/\r\n|\r/g, "\n");
+}
+
+function sourceOffsetFromTextareaOffset(
+  source: string,
+  textareaOffset: number,
+): number {
+  const target = Math.max(0, textareaOffset);
+  let normalizedOffset = 0;
+  let sourceOffset = 0;
+  while (sourceOffset < source.length && normalizedOffset < target) {
+    if (source[sourceOffset] === "\r" && source[sourceOffset + 1] === "\n") {
+      sourceOffset += 2;
+    } else {
+      sourceOffset += 1;
+    }
+    normalizedOffset += 1;
+  }
+  return sourceOffset;
+}
+
+function textareaOffsetFromSourceOffset(
+  source: string,
+  sourceOffset: number,
+): number {
+  return normalizedTextareaValue(
+    source.slice(0, Math.max(0, Math.min(sourceOffset, source.length))),
+  ).length;
+}
+
+function preferredLineEnding(source: string): "\r\n" | "\r" | "\n" {
+  if (source.includes("\r\n")) {
+    return "\r\n";
+  }
+  if (source.includes("\r")) {
+    return "\r";
+  }
+  return "\n";
+}
+
+function preserveSourceLineEndings(
+  source: string,
+  nextTextareaValue: string,
+): string {
+  const previousTextareaValue = normalizedTextareaValue(source);
+  let prefixLength = 0;
+  while (
+    prefixLength < previousTextareaValue.length &&
+    prefixLength < nextTextareaValue.length &&
+    previousTextareaValue[prefixLength] === nextTextareaValue[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let suffixLength = 0;
+  while (
+    suffixLength < previousTextareaValue.length - prefixLength &&
+    suffixLength < nextTextareaValue.length - prefixLength &&
+    previousTextareaValue[previousTextareaValue.length - 1 - suffixLength] ===
+      nextTextareaValue[nextTextareaValue.length - 1 - suffixLength]
+  ) {
+    suffixLength += 1;
+  }
+
+  const sourceEditStart = sourceOffsetFromTextareaOffset(source, prefixLength);
+  const sourceEditEnd = sourceOffsetFromTextareaOffset(
+    source,
+    previousTextareaValue.length - suffixLength,
+  );
+  const insertedTextareaText = nextTextareaValue.slice(
+    prefixLength,
+    nextTextareaValue.length - suffixLength,
+  );
+  const insertedSourceText = insertedTextareaText.replace(
+    /\n/g,
+    preferredLineEnding(source),
+  );
+  return (
+    source.slice(0, sourceEditStart) +
+    insertedSourceText +
+    source.slice(sourceEditEnd)
+  );
+}
+
+interface EditorSelection {
+  readonly end: number;
+  readonly start: number;
+}
+
+interface IndentationResult {
+  readonly selection: EditorSelection;
+  readonly value: string;
+}
+
+function lineStartForOffset(source: string, offset: number): number {
+  const safeOffset = Math.max(0, Math.min(offset, source.length));
+  return (
+    Math.max(
+      source.lastIndexOf("\n", safeOffset - 1),
+      source.lastIndexOf("\r", safeOffset - 1),
+    ) + 1
+  );
+}
+
+function selectedLineStarts(
+  source: string,
+  selectionStart: number,
+  selectionEnd: number,
+): number[] {
+  const first = lineStartForOffset(source, selectionStart);
+  const effectiveEnd =
+    selectionEnd > selectionStart &&
+    lineStartForOffset(source, selectionEnd) === selectionEnd
+      ? selectionEnd - 1
+      : selectionEnd;
+  const starts = [first];
+
+  for (let offset = first; offset < effectiveEnd; offset += 1) {
+    if (source[offset] === "\r" && source[offset + 1] === "\n") {
+      starts.push(offset + 2);
+      offset += 1;
+    } else if (source[offset] === "\r" || source[offset] === "\n") {
+      starts.push(offset + 1);
+    }
+  }
+  return starts;
+}
+
+function editIndentation(
+  source: string,
+  selectionStart: number,
+  selectionEnd: number,
+  outdent: boolean,
+): IndentationResult | null {
+  if (selectionStart === selectionEnd && !outdent) {
+    return {
+      selection: {
+        start: selectionStart + 1,
+        end: selectionEnd + 1,
+      },
+      value:
+        source.slice(0, selectionStart) + "\t" + source.slice(selectionEnd),
+    };
+  }
+
+  const lineStarts = selectedLineStarts(source, selectionStart, selectionEnd);
+  if (!outdent) {
+    const value = [...lineStarts]
+      .reverse()
+      .reduce(
+        (current, lineStart) =>
+          current.slice(0, lineStart) + "\t" + current.slice(lineStart),
+        source,
+      );
+    return {
+      selection: {
+        start: selectionStart + 1,
+        end: selectionEnd + lineStarts.length,
+      },
+      value,
+    };
+  }
+
+  const removals = lineStarts.filter((lineStart) => source[lineStart] === "\t");
+  if (removals.length === 0) {
+    return null;
+  }
+  const value = [...removals]
+    .reverse()
+    .reduce(
+      (current, lineStart) =>
+        current.slice(0, lineStart) + current.slice(lineStart + 1),
+      source,
+    );
+  return {
+    selection: {
+      start:
+        selectionStart -
+        removals.filter((lineStart) => lineStart < selectionStart).length,
+      end:
+        selectionEnd -
+        removals.filter((lineStart) => lineStart < selectionEnd).length,
+    },
+    value,
+  };
 }
 
 function fenceLength(line: string): number | null {
@@ -162,7 +359,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
   const [dismissedSignature, setDismissedSignature] = useState<string | null>(
     null,
   );
-  const pendingSelectionRef = useRef<number | null>(null);
+  const pendingSelectionRef = useRef<EditorSelection | null>(null);
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const rawSuggestions = useMemo(
     () => getQuizAutocompleteSuggestions(value, caret),
@@ -173,25 +370,43 @@ export const QuizMarkdownCodeEditor = forwardRef<
   const lines = value.split(/\r\n|\r|\n/);
   const activeLine = lineForOffset(value, caret);
 
-  const focusEditorOffset = useCallback(
-    (offset: number) => {
-      const safeOffset = Math.max(0, Math.min(offset, value.length));
+  const positionEditorSelection = useCallback(
+    (selection: EditorSelection) => {
+      const safeStart = Math.max(0, Math.min(selection.start, value.length));
+      const safeEnd = Math.max(
+        safeStart,
+        Math.min(selection.end, value.length),
+      );
       const textarea = textareaRef.current;
       if (textarea === null) {
         return;
       }
       textarea.focus();
-      textarea.setSelectionRange(safeOffset, safeOffset);
-      const line = lineForOffset(value, safeOffset);
+      textarea.setSelectionRange(
+        textareaOffsetFromSourceOffset(value, safeStart),
+        textareaOffsetFromSourceOffset(value, safeEnd),
+      );
+      const line = lineForOffset(value, safeStart);
       const targetTop = Math.max(
         0,
         (line - 1) * EDITOR_LINE_HEIGHT - textarea.clientHeight / 2,
       );
       textarea.scrollTop = targetTop;
       setScroll({ left: textarea.scrollLeft, top: targetTop });
-      setCaret(safeOffset);
+      setCaret(safeStart);
     },
     [value],
+  );
+
+  const focusEditorOffset = useCallback(
+    (offset: number, options: QuizMarkdownEditorFocusOptions = {}) => {
+      const safeOffset = Math.max(0, Math.min(offset, value.length));
+      setDismissedSignature(
+        options.suppressAutocomplete ? `${value}\u0000${safeOffset}` : null,
+      );
+      positionEditorSelection({ start: safeOffset, end: safeOffset });
+    },
+    [positionEditorSelection, value],
   );
 
   useLayoutEffect(() => {
@@ -200,24 +415,24 @@ export const QuizMarkdownCodeEditor = forwardRef<
       return;
     }
     pendingSelectionRef.current = null;
-    focusEditorOffset(pendingSelection);
-  }, [focusEditorOffset, value]);
+    positionEditorSelection(pendingSelection);
+  }, [positionEditorSelection, value]);
 
   useImperativeHandle(
     ref,
     () => ({
-      focusLocation(line, column) {
-        focusEditorOffset(offsetForLocation(value, line, column));
+      focusLocation(line, column, options) {
+        focusEditorOffset(offsetForLocation(value, line, column), options);
       },
-      focusOffset(offset) {
-        focusEditorOffset(offset);
+      focusOffset(offset, options) {
+        focusEditorOffset(offset, options);
       },
     }),
     [focusEditorOffset, value],
   );
 
   function syncCaret(target: HTMLTextAreaElement) {
-    setCaret(target.selectionStart ?? 0);
+    setCaret(sourceOffsetFromTextareaOffset(value, target.selectionStart ?? 0));
     setDismissedSignature(null);
   }
 
@@ -227,8 +442,14 @@ export const QuizMarkdownCodeEditor = forwardRef<
   }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
-    onChange(event.target.value);
-    setCaret(event.target.selectionStart ?? event.target.value.length);
+    const nextValue = preserveSourceLineEndings(value, event.target.value);
+    onChange(nextValue);
+    setCaret(
+      sourceOffsetFromTextareaOffset(
+        nextValue,
+        event.target.selectionStart ?? event.target.value.length,
+      ),
+    );
     setActiveIndex(0);
     setDismissedSignature(null);
   }
@@ -252,28 +473,59 @@ export const QuizMarkdownCodeEditor = forwardRef<
     const nextCaret = suggestion.replaceStart + suggestion.insertText.length;
     onChange(nextValue);
     setDismissedSignature(`${nextValue}\u0000${nextCaret}`);
-    pendingSelectionRef.current = nextCaret;
+    pendingSelectionRef.current = { start: nextCaret, end: nextCaret };
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.nativeEvent.isComposing || suggestions.length === 0) {
+    if (event.nativeEvent.isComposing) {
       return;
     }
 
-    if (event.key === "ArrowDown") {
+    if (suggestions.length > 0 && event.key === "ArrowDown") {
       event.preventDefault();
       setActiveIndex((current) => (current + 1) % suggestions.length);
-    } else if (event.key === "ArrowUp") {
+      return;
+    }
+    if (suggestions.length > 0 && event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex(
         (current) => (current - 1 + suggestions.length) % suggestions.length,
       );
-    } else if (event.key === "Tab" || event.key === "Enter") {
+      return;
+    }
+    if (
+      suggestions.length > 0 &&
+      ((event.key === "Tab" && !event.shiftKey) || event.key === "Enter")
+    ) {
       event.preventDefault();
       acceptSuggestion(activeIndex);
-    } else if (event.key === "Escape") {
+      return;
+    }
+    if (suggestions.length > 0 && event.key === "Escape") {
       event.preventDefault();
       setDismissedSignature(signature);
+      return;
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      const target = event.currentTarget;
+      const edit = editIndentation(
+        value,
+        sourceOffsetFromTextareaOffset(value, target.selectionStart ?? 0),
+        sourceOffsetFromTextareaOffset(
+          value,
+          target.selectionEnd ?? target.selectionStart ?? 0,
+        ),
+        event.shiftKey,
+      );
+      if (edit === null) {
+        return;
+      }
+      onChange(edit.value);
+      setCaret(edit.selection.start);
+      setActiveIndex(0);
+      setDismissedSignature(`${edit.value}\u0000${edit.selection.start}`);
+      pendingSelectionRef.current = edit.selection;
     }
   }
 
@@ -288,21 +540,14 @@ export const QuizMarkdownCodeEditor = forwardRef<
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="mb-3 shrink-0">
-        <label
-          className="block text-sm font-semibold text-foreground-secondary"
-          htmlFor="quiz-markdown-source"
-        >
-          Quiz Markdown source
-        </label>
-        <p
-          className="mt-1 text-xs leading-5 text-foreground-muted"
-          id="quiz-editor-help"
-        >
-          Column-1 completion stays canonical; publish validation remains
-          authoritative.
-        </p>
-      </div>
+      <EditorPaneHeader
+        className="mb-3"
+        description="Column-1 completion stays canonical; publish validation remains authoritative."
+        descriptionId="quiz-editor-help"
+        htmlFor="quiz-markdown-source"
+        title="Quiz Markdown source"
+        titleId="quiz-editor-title"
+      />
 
       <div className="relative min-h-[20rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-surface font-mono text-sm leading-6 shadow-inner focus-within:border-primary focus-within:ring-2 focus-within:ring-focus/30">
         <div
@@ -364,19 +609,27 @@ export const QuizMarkdownCodeEditor = forwardRef<
             onClick={(event) => resetCaret(event.currentTarget)}
             onKeyDown={handleKeyDown}
             onKeyUp={(event) => {
-              syncCaret(event.currentTarget);
               if (
-                event.key !== "ArrowDown" &&
-                event.key !== "ArrowUp" &&
-                event.key !== "Enter" &&
-                event.key !== "Tab" &&
-                event.key !== "Escape"
+                event.key === "Tab" ||
+                (suggestions.length > 0 &&
+                  ["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(
+                    event.key,
+                  ))
               ) {
-                setActiveIndex(0);
+                return;
               }
+              syncCaret(event.currentTarget);
+              setActiveIndex(0);
             }}
             onScroll={handleScroll}
-            onSelect={(event) => syncCaret(event.currentTarget)}
+            onSelect={(event) =>
+              setCaret(
+                sourceOffsetFromTextareaOffset(
+                  value,
+                  event.currentTarget.selectionStart ?? 0,
+                ),
+              )
+            }
             ref={textareaRef}
             spellCheck={false}
             style={{ caretColor: "var(--color-foreground)" }}

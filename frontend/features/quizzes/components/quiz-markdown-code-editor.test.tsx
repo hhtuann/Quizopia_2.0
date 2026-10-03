@@ -1,11 +1,41 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useRef, useState } from "react";
 import { describe, expect, it } from "vitest";
 import { QuizMarkdownCodeEditor } from "./quiz-markdown-code-editor";
+import type { QuizMarkdownCodeEditorHandle } from "./quiz-markdown-code-editor";
 
 function EditorHarness({ initial }: { readonly initial: string }) {
   const [value, setValue] = useState(initial);
-  return <QuizMarkdownCodeEditor onChange={setValue} value={value} />;
+  return (
+    <>
+      <output data-testid="exact-editor-value">{value}</output>
+      <QuizMarkdownCodeEditor onChange={setValue} value={value} />
+    </>
+  );
+}
+
+function ProgrammaticFocusHarness({ initial }: { readonly initial: string }) {
+  const [value, setValue] = useState(initial);
+  const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
+  return (
+    <>
+      <button
+        onClick={() =>
+          editorRef.current?.focusOffset(value.length, {
+            suppressAutocomplete: true,
+          })
+        }
+        type="button"
+      >
+        Focus without completion
+      </button>
+      <QuizMarkdownCodeEditor
+        onChange={setValue}
+        ref={editorRef}
+        value={value}
+      />
+    </>
+  );
 }
 
 describe("QuizMarkdownCodeEditor", () => {
@@ -68,5 +98,108 @@ describe("QuizMarkdownCodeEditor", () => {
 
     expect(editor.value).toBe("Câu 1 [MULTIPLE_CHOICE]: ");
     expect(editor.selectionStart).toBe(editor.value.length);
+  });
+
+  it("accepts an active completion with Tab", () => {
+    render(<EditorHarness initial="câu" />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    fireEvent.select(editor, {
+      target: { selectionStart: 3, selectionEnd: 3 },
+    });
+    fireEvent.keyDown(editor, { key: "Tab" });
+
+    expect(editor.value).toBe("Câu 1 [SINGLE_CHOICE]: ");
+    expect(editor.selectionStart).toBe(editor.value.length);
+  });
+
+  it("inserts an exact tab at the caret and retains editor focus", async () => {
+    render(<EditorHarness initial="alpha" />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    editor.focus();
+    editor.setSelectionRange(2, 2);
+    fireEvent.keyDown(editor, { key: "Tab" });
+
+    expect(editor.value).toBe("al\tpha");
+    await waitFor(() => expect(editor.selectionStart).toBe(3));
+    expect(editor.selectionEnd).toBe(3);
+    expect(editor).toHaveFocus();
+  });
+
+  it("preserves a literal tab authored inside fenced code", async () => {
+    const source = "```text\nvalue\n```";
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    const caret = source.indexOf("value");
+    editor.focus();
+    editor.setSelectionRange(caret, caret);
+    fireEvent.keyDown(editor, { key: "Tab" });
+
+    expect(editor.value).toBe("```text\n\tvalue\n```");
+    await waitFor(() => expect(editor.selectionStart).toBe(caret + 1));
+    expect(editor).toHaveFocus();
+  });
+
+  it("indents and outdents selected lines without changing CRLF endings", async () => {
+    const source = "one\r\ntwo\r\nthree";
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    editor.focus();
+    editor.setSelectionRange(0, source.length);
+    fireEvent.keyDown(editor, { key: "Tab" });
+
+    expect(screen.getByTestId("exact-editor-value").textContent).toBe(
+      "\tone\r\n\ttwo\r\n\tthree",
+    );
+    expect(editor.value).toBe("\tone\n\ttwo\n\tthree");
+    await waitFor(() => expect(editor.selectionStart).toBe(1));
+    expect(editor.selectionEnd).toBe(source.replace(/\r\n/g, "\n").length + 3);
+
+    fireEvent.keyDown(editor, { key: "Tab", shiftKey: true });
+    expect(screen.getByTestId("exact-editor-value").textContent).toBe(source);
+    expect(editor.value).toBe(source.replace(/\r\n/g, "\n"));
+    await waitFor(() => expect(editor.selectionStart).toBe(0));
+    expect(editor.selectionEnd).toBe(source.replace(/\r\n/g, "\n").length);
+  });
+
+  it("does not remove authored text when Shift+Tab has no leading tab", () => {
+    render(<EditorHarness initial="alpha" />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    editor.focus();
+    editor.setSelectionRange(3, 3);
+    fireEvent.keyDown(editor, { key: "Tab", shiftKey: true });
+
+    expect(editor.value).toBe("alpha");
+    expect(editor).toHaveFocus();
+  });
+
+  it("suppresses completion for programmatic navigation until real typing", () => {
+    render(<ProgrammaticFocusHarness initial="câu" />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Focus without completion" }),
+    );
+    expect(
+      screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(editor, {
+      target: { selectionStart: 2, selectionEnd: 2, value: "câ" },
+    });
+    expect(
+      screen.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).toBeInTheDocument();
   });
 });

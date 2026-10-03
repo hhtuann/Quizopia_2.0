@@ -184,6 +184,14 @@ describe("application shell session behavior and semantics", () => {
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toBeInTheDocument();
+    const brandLink = screen.getByRole("link", { name: "Quizopia home" });
+    expect(
+      within(brandLink).getByTestId("quizopia-brand-mark"),
+    ).toBeInTheDocument();
+    expect(within(brandLink).getByText("Quiz")).toBeInTheDocument();
+    expect(within(brandLink).getByText("opia")).toBeInTheDocument();
+    expect(within(brandLink).getByText("version 2.0")).toBeInTheDocument();
+    expect(within(brandLink).queryByText("Q")).not.toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(

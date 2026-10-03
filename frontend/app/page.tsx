@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { QuizopiaLogo } from "../components/brand/quizopia-logo";
 import { Alert } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import { PageContainer } from "../components/ui/page-container";
@@ -15,8 +16,8 @@ export default function HomePage() {
       <PageContainer className="flex min-h-screen items-center py-10 sm:py-16">
         <Surface className="mx-auto w-full max-w-2xl p-6 sm:p-8">
           <header className="max-w-xl">
-            <p className="text-sm font-semibold text-primary">Quizopia 2.0</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-[-0.02em] text-foreground">
+            <QuizopiaLogo />
+            <h1 className="mt-5 font-heading text-3xl font-normal tracking-[-0.02em] text-foreground">
               Product interface foundation
             </h1>
             <p className="mt-3 text-base leading-7 text-foreground-secondary">

@@ -29,7 +29,7 @@ export function ApplicationHome() {
     <>
       <div className="max-w-2xl">
         <p className="text-sm font-semibold text-primary">Application home</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-[-0.02em] text-foreground">
+        <h1 className="mt-2 font-heading text-3xl font-normal tracking-[-0.02em] text-foreground">
           Your Quizopia workspace
         </h1>
         <p className="mt-3 text-base leading-7 text-foreground-secondary">
@@ -73,7 +73,7 @@ export function ApplicationHome() {
                 <ul className="flex flex-wrap gap-2" aria-label="Account roles">
                   {user.roles.map((role) => (
                     <li
-                      className="rounded-lg border border-border bg-surface-muted px-3 py-1.5 text-sm font-medium text-foreground-secondary"
+                      className="rounded-lg border border-border bg-surface-muted px-3 py-1.5 font-mono text-xs font-medium text-foreground-secondary"
                       key={role}
                     >
                       {roleLabels[role]}

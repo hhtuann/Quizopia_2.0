@@ -8,6 +8,7 @@ import {
   type QuizPreviewOption,
   type QuizPreviewQuestion,
 } from "../model/quiz-markdown";
+import { EditorPaneHeader } from "./editor-pane-header";
 
 interface QuizPreviewProps {
   readonly onDiagnosticSelect?: (line: number, column: number) => void;
@@ -163,7 +164,7 @@ function PreviewQuestion({
           >
             Source
           </button>
-          <span className="rounded-md bg-surface-muted px-2 py-1 text-xs font-semibold text-foreground-secondary">
+          <span className="rounded-md bg-surface-muted px-2 py-1 font-mono text-xs font-semibold text-foreground-secondary">
             {question.type}
           </span>
         </div>
@@ -277,13 +278,12 @@ export function QuizPreview({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Live preview</h2>
-        <p className="mt-1 text-sm leading-6 text-foreground-muted">
-          Safe preview of the accepted Markdown subset. Frontend diagnostics are
-          authoring guidance; publish validation is authoritative.
-        </p>
-      </div>
+      <EditorPaneHeader
+        description="Safe preview of the accepted Markdown subset. Frontend diagnostics are authoring guidance; publish validation is authoritative."
+        descriptionId="quiz-preview-help"
+        title="Live preview"
+        titleId="quiz-preview-title"
+      />
 
       {serverDiagnostics.length > 0 ? (
         <section aria-labelledby="server-diagnostics-title">

@@ -161,6 +161,10 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   await page.getByRole("link", { name: "Create quiz" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
+  const editorBrand = page.getByRole("link", { name: "Back to Quiz Library" });
+  await expect(editorBrand.getByTestId("quizopia-brand-mark")).toBeVisible();
+  await expect(editorBrand).toContainText("Quizopia");
+  await expect(editorBrand).toContainText("version 2.0");
   await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
     "Untitled quiz",
   );
@@ -196,6 +200,15 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
     .replace("*A. HTTP", "A. HTTP")
     .replace("B. FTP", "*B. FTP");
   await expect(editor).toHaveValue(previewEditedSource);
+  await expect(
+    page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+  ).toHaveCount(0);
+  await editor.fill(`${previewEditedSource}\nc`);
+  await expect(
+    page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+  ).toBeVisible();
+  await editor.press("Escape");
+  await editor.fill(previewEditedSource);
   await expect(page.getByText("Unsaved changes")).toBeVisible();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();
