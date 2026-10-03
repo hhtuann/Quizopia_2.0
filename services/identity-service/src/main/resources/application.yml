@@ -69,6 +69,8 @@ quizopia:
     email-outbox:
       encryption:
         active-key-version: ${IDENTITY_EMAIL_OUTBOX_ACTIVE_KEY_VERSION:}
+        keys:
+          v1: ${QUIZOPIA_IDENTITY_EMAIL_OUTBOX_ENCRYPTION_KEYS_V1:}
       dispatcher:
         enabled: ${IDENTITY_EMAIL_OUTBOX_DISPATCHER_ENABLED:false}
         polling-interval: ${IDENTITY_EMAIL_OUTBOX_POLLING_INTERVAL:PT5S}
