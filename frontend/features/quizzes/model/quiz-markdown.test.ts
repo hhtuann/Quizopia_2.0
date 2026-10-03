@@ -4,6 +4,7 @@ import {
   analyzeQuizMarkdown,
   getQuizAutocompleteSuggestions,
   isValidNumericAnswerToken,
+  toggleQuizOptionCorrectness,
 } from "./quiz-markdown";
 
 function suggestions(source: string) {
@@ -19,6 +20,15 @@ describe("Quiz Markdown autocomplete context", () => {
       expect(result.map((item) => item.label)).toEqual(
         QUIZ_QUESTION_TYPES.map((type) => `Câu 1 [${type}]:`),
       );
+    },
+  );
+
+  it.each(["c", "câ", "câu"])(
+    "accepts lowercase question prefix %s and inserts canonical syntax",
+    (prefix) => {
+      const result = suggestions(prefix);
+      expect(result).toHaveLength(4);
+      expect(result[0]?.insertText).toBe("Câu 1 [SINGLE_CHOICE]: ");
     },
   );
 
@@ -78,6 +88,11 @@ describe("Quiz Markdown autocomplete context", () => {
       ),
     ).toEqual(["Đáp án:"]);
     expect(suggestions("Câu 1 [SINGLE_CHOICE]: choose\nĐáp")).toEqual([]);
+    for (const prefix of ["đ", "đá", "đáp"]) {
+      expect(
+        suggestions(`Câu 1 [NUMERIC_FILL]: value?\n${prefix}`)[0]?.insertText,
+      ).toBe("Đáp án: ");
+    }
   });
 
   it("offers explanation only after the required answer structure and never twice", () => {
@@ -98,6 +113,11 @@ describe("Quiz Markdown autocomplete context", () => {
     expect(suggestions(`${complete.slice(0, -1)}Lời giải: done\nL`)).toEqual(
       [],
     );
+    for (const prefix of ["l", "lờ", "lời"]) {
+      expect(
+        suggestions(`${complete.slice(0, -1)}${prefix}`)[0]?.insertText,
+      ).toBe("Lời giải: ");
+    }
   });
 });
 
@@ -142,12 +162,60 @@ describe("Quiz Markdown frontend analysis", () => {
       stem: "line one\nline two",
       explanation: "why\nmore detail",
     });
-    expect(result.questions[0]?.options[0]).toEqual({
+    expect(result.questions[0]?.options[0]).toMatchObject({
       label: "A",
       content: "first\ncontinued",
       correct: true,
     });
     expect(result.diagnostics).toEqual([]);
+  });
+
+  it("maps question and option offsets correctly across CRLF and multiline fenced content", () => {
+    const source =
+      "Câu 1 [SINGLE_CHOICE]: inspect\r\n```text\r\nCâu 99 [NUMERIC_FILL]: fake\r\n```\r\n*A. real\r\nB. b\r\nC. c\r\nD. d\r\n\r\nCâu 2 [NUMERIC_FILL]: value\r\nĐáp án: 2.50";
+    const result = analyzeQuizMarkdown(source);
+
+    expect(result.questions[0]?.source).toEqual({ line: 1, offset: 0 });
+    expect(result.questions[0]?.options[0]?.source).toEqual({
+      line: 5,
+      markerOffset: source.indexOf("A. real"),
+      starOffset: source.indexOf("*A. real"),
+    });
+    expect(result.questions[1]?.source).toEqual({
+      line: 10,
+      offset: source.indexOf("Câu 2"),
+    });
+  });
+
+  it("moves a SINGLE_CHOICE marker without normalizing unrelated source", () => {
+    const source =
+      "Câu 1 [SINGLE_CHOICE]: stem\r\n*A. first\r\ncontinued\r\nB. second\r\nC. third\r\nD. fourth\r\n\r\nLời giải: keep  two spaces";
+    const question = analyzeQuizMarkdown(source).questions[0]!;
+    const next = toggleQuizOptionCorrectness(
+      source,
+      question,
+      question.options[1]!,
+    );
+
+    expect(next).toBe(
+      "Câu 1 [SINGLE_CHOICE]: stem\r\nA. first\r\ncontinued\r\n*B. second\r\nC. third\r\nD. fourth\r\n\r\nLời giải: keep  two spaces",
+    );
+  });
+
+  it.each([
+    ["MULTIPLE_CHOICE", "*B. second"],
+    ["TRUE_FALSE_MATRIX", "*B. second"],
+  ])("toggles only the selected %s marker", (type, expectedLine) => {
+    const source = `Câu 1 [${type}]: stem\n*A. first\nB. second\nC. third\nD. fourth`;
+    const question = analyzeQuizMarkdown(source).questions[0]!;
+    const next = toggleQuizOptionCorrectness(
+      source,
+      question,
+      question.options[1]!,
+    );
+
+    expect(next.split("\n")[2]).toBe(expectedLine);
+    expect(next.replace("*B. second", "B. second")).toBe(source);
   });
 
   it("supports TRUE_FALSE_MATRIX and NUMERIC_FILL preview structures", () => {

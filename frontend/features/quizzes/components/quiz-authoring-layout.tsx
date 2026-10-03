@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Alert } from "../../../components/ui/alert";
@@ -60,6 +61,23 @@ export function QuizAuthoringLayout({
 }: {
   readonly children: ReactNode;
 }) {
+  const pathname = usePathname();
+  const isFocusedEditor = pathname !== "/app/quizzes";
+
+  if (isFocusedEditor) {
+    return (
+      <AuthenticatedBoundary>
+        <main
+          className="flex h-dvh min-h-[32rem] min-w-0 flex-col overflow-hidden bg-background"
+          id="main-content"
+          tabIndex={-1}
+        >
+          <TeacherAuthoringBoundary>{children}</TeacherAuthoringBoundary>
+        </main>
+      </AuthenticatedBoundary>
+    );
+  }
+
   return (
     <AuthenticatedBoundary>
       <ApplicationShell currentSection="quizzes">

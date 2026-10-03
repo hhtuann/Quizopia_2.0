@@ -20,6 +20,11 @@ export interface QuizPreviewOption {
   readonly content: string;
   readonly correct: boolean;
   readonly label: QuizOptionLabel;
+  readonly source: {
+    readonly line: number;
+    readonly markerOffset: number;
+    readonly starOffset: number | null;
+  };
 }
 
 export interface QuizPreviewQuestion {
@@ -27,6 +32,10 @@ export interface QuizPreviewQuestion {
   readonly number: number;
   readonly numericAnswer: string | null;
   readonly options: readonly QuizPreviewOption[];
+  readonly source: {
+    readonly line: number;
+    readonly offset: number;
+  };
   readonly stem: string;
   readonly type: QuizQuestionType | string;
 }
@@ -88,6 +97,21 @@ function diagnostic(
 
 function sourceLines(source: string): string[] {
   return source.split(/\r\n|\r|\n/);
+}
+
+function sourceLineOffsets(source: string): number[] {
+  const offsets = [0];
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === "\r") {
+      if (source[index + 1] === "\n") {
+        index += 1;
+      }
+      offsets.push(index + 1);
+    } else if (source[index] === "\n") {
+      offsets.push(index + 1);
+    }
+  }
+  return offsets;
 }
 
 function openingFenceLength(line: string): number | null {
@@ -190,6 +214,7 @@ function orderedOptionsComplete(options: readonly MutableOption[]): boolean {
 export function analyzeQuizMarkdown(source: string): QuizMarkdownAnalysis {
   const diagnostics: QuizMarkdownDiagnostic[] = [];
   const questions: MutableQuestion[] = [];
+  const lineOffsets = sourceLineOffsets(source);
   let current: MutableQuestion | null = null;
   let target: ContentTarget = "none";
   let fence: { ticks: number; line: number } | null = null;
@@ -665,11 +690,95 @@ export function analyzeQuizMarkdown(source: string): QuizMarkdownAnalysis {
         content: option.content.join("\n"),
         correct: option.correct,
         label: option.label,
+        source: {
+          line: option.line,
+          markerOffset:
+            (lineOffsets[option.line - 1] ?? source.length) +
+            (option.correct ? 1 : 0),
+          starOffset: option.correct
+            ? (lineOffsets[option.line - 1] ?? source.length)
+            : null,
+        },
       })),
+      source: {
+        line: question.headerLine,
+        offset: lineOffsets[question.headerLine - 1] ?? source.length,
+      },
       stem: question.stem.join("\n"),
       type: question.type,
     })),
   };
+}
+
+interface SourceEdit {
+  readonly insert: string;
+  readonly offset: number;
+  readonly remove: number;
+}
+
+function applySourceEdits(
+  source: string,
+  edits: readonly SourceEdit[],
+): string {
+  return [...edits]
+    .sort((left, right) => right.offset - left.offset)
+    .reduce(
+      (current, edit) =>
+        current.slice(0, edit.offset) +
+        edit.insert +
+        current.slice(edit.offset + edit.remove),
+      source,
+    );
+}
+
+/**
+ * Applies only the explicit structural `*` edit requested from the preview.
+ * All prose, whitespace, line endings, and unrelated questions remain intact.
+ */
+export function toggleQuizOptionCorrectness(
+  source: string,
+  question: QuizPreviewQuestion,
+  selected: QuizPreviewOption,
+): string {
+  if (question.type === "NUMERIC_FILL") {
+    return source;
+  }
+
+  if (question.type === "SINGLE_CHOICE") {
+    if (selected.correct) {
+      return source;
+    }
+    const edits: SourceEdit[] = question.options
+      .filter((option) => option.correct && option.source.starOffset !== null)
+      .filter((option) => source[option.source.starOffset ?? -1] === "*")
+      .map((option) => ({
+        insert: "",
+        offset: option.source.starOffset ?? 0,
+        remove: 1,
+      }));
+    edits.push({
+      insert: "*",
+      offset: selected.source.markerOffset,
+      remove: 0,
+    });
+    return applySourceEdits(source, edits);
+  }
+
+  if (selected.correct && selected.source.starOffset !== null) {
+    return source[selected.source.starOffset] === "*"
+      ? applySourceEdits(source, [
+          {
+            insert: "",
+            offset: selected.source.starOffset,
+            remove: 1,
+          },
+        ])
+      : source;
+  }
+
+  return applySourceEdits(source, [
+    { insert: "*", offset: selected.source.markerOffset, remove: 0 },
+  ]);
 }
 
 interface EditorQuestionState {
@@ -765,6 +874,16 @@ function isInsideFenceBeforeLine(sourceBeforeCurrentLine: string): boolean {
   return fenceTicks !== null;
 }
 
+function matchesStructuralPrefix(
+  value: string,
+  accepted: readonly string[],
+): boolean {
+  const folded = value.toLocaleLowerCase("vi");
+  return accepted.some(
+    (candidate) => candidate.toLocaleLowerCase("vi") === folded,
+  );
+}
+
 export function getQuizAutocompleteSuggestions(
   source: string,
   caret: number,
@@ -781,7 +900,7 @@ export function getQuizAutocompleteSuggestions(
   const state = scanEditorState(beforeLine);
   const range = { replaceStart: lineStart, replaceEnd: safeCaret };
 
-  if (["C", "Câ", "Câu"].includes(linePrefix)) {
+  if (matchesStructuralPrefix(linePrefix, ["C", "Câ", "Câu"])) {
     const next = state.questionCount + 1;
     return QUIZ_QUESTION_TYPES.map((type) => {
       const insertText = `Câu ${next} [${type}]: `;
@@ -794,10 +913,11 @@ export function getQuizAutocompleteSuggestions(
     });
   }
 
-  if (/^Câu [0-9]+ \[$/.test(linePrefix)) {
+  const typePrefix = /^Câu ([0-9]+) \[$/iu.exec(linePrefix);
+  if (typePrefix) {
     return QUIZ_QUESTION_TYPES.map((type) => ({
       id: `type-${type}`,
-      insertText: `${linePrefix}${type}]: `,
+      insertText: `Câu ${typePrefix[1]} [${type}]: `,
       label: type,
       ...range,
     }));
@@ -809,7 +929,10 @@ export function getQuizAutocompleteSuggestions(
   }
 
   if (current.type === "NUMERIC_FILL") {
-    if (!current.answerPresent && ["Đ", "Đá", "Đáp"].includes(linePrefix)) {
+    if (
+      !current.answerPresent &&
+      matchesStructuralPrefix(linePrefix, ["Đ", "Đá", "Đáp"])
+    ) {
       return [
         {
           id: "numeric-answer",
@@ -822,7 +945,7 @@ export function getQuizAutocompleteSuggestions(
     if (
       current.answerPresent &&
       current.answerTextPresent &&
-      ["L", "Lờ", "Lời"].includes(linePrefix)
+      matchesStructuralPrefix(linePrefix, ["L", "Lờ", "Lời"])
     ) {
       return [
         {
@@ -866,7 +989,7 @@ export function getQuizAutocompleteSuggestions(
     orderedOptionsComplete(
       current.options.map((option) => ({ ...option, content: [], line: 0 })),
     ) &&
-    ["L", "Lờ", "Lời"].includes(linePrefix)
+    matchesStructuralPrefix(linePrefix, ["L", "Lờ", "Lời"])
   ) {
     return [
       {

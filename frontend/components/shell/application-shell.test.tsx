@@ -63,32 +63,32 @@ function renderAuthenticatedShell(roles: readonly AuthRole[]) {
 }
 
 describe("application shell workspace presentation", () => {
-  it.each<readonly [string, readonly AuthRole[], string, boolean]>([
-    ["student", ["STUDENT"], "Learning workspace", false],
-    ["teacher", ["TEACHER"], "Teaching workspace", false],
-    ["student and teacher", ["STUDENT", "TEACHER"], "Learning workspace", true],
-    ["admin", ["ADMIN"], "No workspace", false],
-    ["admin and student", ["ADMIN", "STUDENT"], "Learning workspace", false],
-    ["admin and teacher", ["ADMIN", "TEACHER"], "Teaching workspace", false],
-    ["all roles", ["ADMIN", "STUDENT", "TEACHER"], "Learning workspace", true],
+  it.each<readonly [string, readonly AuthRole[], string]>([
+    ["student", ["STUDENT"], "Learning workspace"],
+    ["teacher", ["TEACHER"], "Teaching workspace"],
+    ["student and teacher", ["STUDENT", "TEACHER"], "Learning workspace"],
+    ["admin", ["ADMIN"], "No workspace"],
+    ["admin and student", ["ADMIN", "STUDENT"], "Learning workspace"],
+    ["admin and teacher", ["ADMIN", "TEACHER"], "Teaching workspace"],
+    ["all roles", ["ADMIN", "STUDENT", "TEACHER"], "Learning workspace"],
   ])(
-    "derives workspace controls for %s presentation",
-    (_name, roles, expectedWorkspace, hasSwitcher) => {
+    "derives workspace context for %s presentation",
+    (_name, roles, expectedWorkspace) => {
       renderAuthenticatedShell(roles);
 
       const context = screen.getByRole("region", {
         name: "Current account context",
       });
       expect(within(context).getByText(expectedWorkspace)).toBeInTheDocument();
-      if (hasSwitcher) {
-        expect(
-          screen.getByRole("group", { name: "Choose workspace" }),
-        ).toBeInTheDocument();
-      } else {
-        expect(
-          screen.queryByRole("group", { name: "Choose workspace" }),
-        ).not.toBeInTheDocument();
-      }
+      expect(
+        screen.getByRole("button", { name: /Open user menu for learner01/ }),
+      ).toHaveTextContent(expectedWorkspace.replace(" workspace", ""));
+      expect(
+        screen.queryByText("Workspace", { selector: "span" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("group", { name: "Choose workspace" }),
+      ).not.toBeInTheDocument();
     },
   );
 
@@ -102,11 +102,13 @@ describe("application shell workspace presentation", () => {
     ]);
     const rolesBeforeSwitch = user.roles;
 
-    const teachingButton = screen.getByRole("button", { name: "Teaching" });
-    expect(teachingButton).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(teachingButton);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Open user menu for learner01/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Switch to Teaching" }),
+    );
 
-    expect(teachingButton).toHaveAttribute("aria-pressed", "true");
     const context = screen.getByRole("region", {
       name: "Current account context",
     });
@@ -119,6 +121,28 @@ describe("application shell workspace presentation", () => {
     expect(user.roles).toBe(rolesBeforeSwitch);
     expect(vault.read()).toBe(accessToken);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows username, fallback avatar, truthful teacher registration, and closes with Escape", () => {
+    renderAuthenticatedShell(["STUDENT"]);
+
+    const trigger = screen.getByRole("button", {
+      name: /Open user menu for learner01, Learning workspace/,
+    });
+    expect(trigger).toHaveTextContent("learner01");
+    expect(
+      screen.getByRole("img", { name: "learner01 avatar fallback" }),
+    ).toHaveTextContent("L");
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("menuitem", { name: /Register as teacher/ }),
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByRole("menuitem", { name: /Account settings/ }),
+    ).toHaveAttribute("aria-disabled", "true");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 });
 
@@ -135,7 +159,9 @@ describe("application shell session behavior and semantics", () => {
     expect(
       screen.getByRole("link", { name: "Application home" }),
     ).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /Open user menu for learner01/ }),
+    ).toBeEnabled();
     expect(
       screen.getByRole("link", { name: "Skip to main content" }),
     ).toHaveAttribute("href", "#main-content");
@@ -155,7 +181,9 @@ describe("application shell session behavior and semantics", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Updating your session",
     );
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /Open user menu for learner01/ }),
+    ).toBeEnabled();
     expect(document.body).not.toHaveTextContent(accessToken);
   });
 
@@ -168,7 +196,8 @@ describe("application shell session behavior and semantics", () => {
       "TEACHER",
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
 
     expect(runtime.getSnapshot()).toEqual({ status: "anonymous" });
     expect(vault.read()).toBeNull();
@@ -190,17 +219,18 @@ describe("application shell session behavior and semantics", () => {
       },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("status")).toHaveTextContent(
       "Sign out could not be completed",
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    expect(screen.getByRole("status")).toHaveTextContent(
       "Your session is still active",
     );
     expect(runtime.getSnapshot().status).toBe("authenticated");
     expect(vault.read()).toBe(accessToken);
     expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeEnabled();
   });
 });

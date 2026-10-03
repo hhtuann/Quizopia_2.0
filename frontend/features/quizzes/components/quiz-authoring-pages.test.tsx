@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedRequestExecutor } from "../../../lib/api/authenticated-request";
 import type { HttpResponse } from "../../../lib/api/http-transport";
@@ -12,7 +12,18 @@ import { createAccessTokenVault } from "../../auth/session/access-token-vault";
 import type { AuthSessionService } from "../../auth/session/auth-session-service";
 import { createSessionRuntime } from "../../auth/session/session-runtime";
 import { QuizAuthoringLayout } from "./quiz-authoring-layout";
-import { QuizEditorPage, QuizLibraryPage } from "./quiz-authoring-pages";
+import {
+  CreateQuizPage,
+  QuizEditorPage,
+  QuizLibraryPage,
+} from "./quiz-authoring-pages";
+
+const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/app/quizzes",
+  useRouter: () => navigation,
+}));
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const secondQuizId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";
@@ -406,6 +417,44 @@ describe("QuizLibraryPage real listing contract", () => {
   });
 });
 
+describe("CreateQuizPage direct editor flow", () => {
+  it("creates a minimal real backend draft and enters the focused editor route", async () => {
+    let createBody: unknown = null;
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async (request) => {
+        const built = request.createRequest();
+        createBody = JSON.parse(String(built.body));
+        return {
+          kind: "response" as const,
+          response: response(201, draft("")),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    navigation.replace.mockClear();
+    renderAuthenticated(
+      <StrictMode>
+        <CreateQuizPage />
+      </StrictMode>,
+      { executor },
+    );
+
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Description")).not.toBeInTheDocument();
+    expect(screen.getByText("Preparing your editor…")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(createBody).toEqual({
+        authoringSource: "",
+        description: "",
+        title: "Untitled quiz",
+      }),
+    );
+    expect(navigation.replace).toHaveBeenCalledWith(`/app/quizzes/${quizId}`);
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("QuizEditorPage real-contract behavior", () => {
   it("loads and saves through the authenticated executor without rewriting source", async () => {
     let savedBody: unknown = null;
@@ -439,8 +488,8 @@ describe("QuizEditorPage real-contract behavior", () => {
     renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
 
     expect(
-      await screen.findByRole("heading", { name: "Network quiz" }),
-    ).toBeInTheDocument();
+      await screen.findByRole("textbox", { name: "Quiz title" }),
+    ).toHaveValue("Network quiz");
     const editor = screen.getByRole("textbox", {
       name: "Quiz Markdown source",
     });
@@ -534,7 +583,7 @@ describe("QuizEditorPage real-contract behavior", () => {
       executeOnceWithAccessToken: vi.fn(),
     };
     renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
-    await screen.findByRole("heading", { name: "Network quiz" });
+    await screen.findByRole("textbox", { name: "Quiz title" });
 
     const editor = screen.getByRole("textbox", {
       name: "Quiz Markdown source",
@@ -591,16 +640,22 @@ describe("QuizEditorPage real-contract behavior", () => {
       executeOnceWithAccessToken: vi.fn(),
     };
     renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
-    await screen.findByRole("heading", { name: "Network quiz" });
+    await screen.findByRole("textbox", { name: "Quiz title" });
 
     const editor = screen.getByRole("textbox", {
       name: "Quiz Markdown source",
     });
     fireEvent.change(editor, { target: { value: editedSource } });
-    fireEvent.click(screen.getByRole("button", { name: "Publish version" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(
+      screen.getByRole("heading", { name: "Publish immutable QuizVersion" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Publish QuizVersion" }),
+    );
 
     await waitFor(() => expect(editor).toBeDisabled());
-    expect(screen.getByRole("textbox", { name: "Title" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Quiz title" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Description" })).toBeDisabled();
     expect(publishCalls).toBe(0);
 
@@ -651,8 +706,11 @@ describe("QuizEditorPage real-contract behavior", () => {
       executeOnceWithAccessToken: vi.fn(),
     };
     renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
-    await screen.findByRole("heading", { name: "Network quiz" });
-    fireEvent.click(screen.getByRole("button", { name: "Publish version" }));
+    await screen.findByRole("textbox", { name: "Quiz title" });
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Publish QuizVersion" }),
+    );
 
     expect(
       await screen.findByRole("heading", { name: "Publish validation" }),
@@ -697,14 +755,50 @@ describe("QuizEditorPage real-contract behavior", () => {
       executeOnceWithAccessToken: vi.fn(),
     };
     renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
-    await screen.findByRole("heading", { name: "Network quiz" });
+    await screen.findByRole("textbox", { name: "Quiz title" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Publish version" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Publish QuizVersion" }),
+    );
 
     expect(
       await screen.findByText(
         "Version 2 already matches this unchanged draft.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("moves between preview and exact source and minimally edits correctness", async () => {
+    const source =
+      "Câu 1 [SINGLE_CHOICE]: first\nline two\n*A. alpha\ncontinued\nB. beta\nC. gamma\nD. delta\n\nCâu 2 [NUMERIC_FILL]: value\nĐáp án: 2.50";
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "response" as const,
+        response: response(200, draft(source)),
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+    const editor = await screen.findByRole<HTMLTextAreaElement>("textbox", {
+      name: "Quiz Markdown source",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Jump to source for question 2/ }),
+    );
+    await waitFor(() => expect(editor).toHaveFocus());
+    expect(editor.selectionStart).toBe(source.indexOf("Câu 2"));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "B. Not marked correct" }),
+    );
+    await waitFor(() =>
+      expect(editor).toHaveValue(
+        source.replace("*A. alpha", "A. alpha").replace("B. beta", "*B. beta"),
+      ),
+    );
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 });

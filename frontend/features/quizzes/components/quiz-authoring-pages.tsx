@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
@@ -17,9 +17,14 @@ import {
   type QuizMarkdownServerError,
 } from "../api/quiz-api-client";
 import {
-  QuizMarkdownEditor,
-  type QuizMarkdownEditorHandle,
-} from "./quiz-markdown-editor";
+  toggleQuizOptionCorrectness,
+  type QuizPreviewOption,
+  type QuizPreviewQuestion,
+} from "../model/quiz-markdown";
+import {
+  QuizMarkdownCodeEditor,
+  type QuizMarkdownCodeEditorHandle,
+} from "./quiz-markdown-code-editor";
 import { QuizPreview } from "./quiz-preview";
 
 const linkButtonClasses =
@@ -236,7 +241,7 @@ export function QuizLibraryPage() {
         </Link>
       </div>
 
-      <section aria-labelledby="quiz-library-title" className="max-w-4xl">
+      <section aria-labelledby="quiz-library-title">
         <h2
           className="text-xl font-semibold text-foreground"
           id="quiz-library-title"
@@ -281,7 +286,10 @@ export function QuizLibraryPage() {
           </Surface>
         ) : (
           <div className="mt-5">
-            <ul aria-live="polite" className="space-y-4">
+            <ul
+              aria-live="polite"
+              className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3"
+            >
               {items.map((item) => (
                 <LibraryQuizCard item={item} key={item.quizId} />
               ))}
@@ -322,111 +330,102 @@ export function QuizLibraryPage() {
 export function CreateQuizPage() {
   const client = useQuizApiClient();
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
+  const creationStarted = useRef(false);
+  const creationPageIsActive = useRef(false);
+  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (client === null || isCreating) {
+  useEffect(() => {
+    if (client === null) {
       return;
     }
+    creationPageIsActive.current = true;
 
-    setError(null);
-    setIsCreating(true);
-    const result = await client.createDraft({
-      authoringSource: "",
-      description,
-      title,
-    });
-    if (!result.ok) {
-      setError(failureMessage(result.error));
-      setIsCreating(false);
-      return;
+    if (creationStarted.current) {
+      return () => {
+        creationPageIsActive.current = false;
+      };
     }
+    creationStarted.current = true;
 
-    router.push(`/app/quizzes/${result.value.quizId}`);
-  }
+    void client
+      .createDraft({
+        authoringSource: "",
+        description: "",
+        title: "Untitled quiz",
+      })
+      .then((result) => {
+        if (!creationPageIsActive.current) {
+          return;
+        }
+        if (!result.ok) {
+          setError(failureMessage(result.error));
+          return;
+        }
+        router.replace(`/app/quizzes/${result.value.quizId}`);
+      });
+
+    return () => {
+      creationPageIsActive.current = false;
+    };
+  }, [attempt, client, router]);
 
   return (
-    <div className="max-w-3xl">
-      <Link
-        className="text-sm font-semibold text-primary hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-focus"
-        href="/app/quizzes"
-      >
-        ← Quiz authoring
-      </Link>
-      <h1 className="mt-5 text-3xl font-bold tracking-[-0.02em] text-foreground">
-        Create a quiz draft
-      </h1>
-      <p className="mt-3 text-base leading-7 text-foreground-secondary">
-        This creates the real teacher-owned Quiz and mutable draft before
-        opening the Markdown editor.
-      </p>
-
-      <Surface className="mt-8 p-6 sm:p-8">
-        {error ? (
-          <Alert
-            className="mb-6"
-            title="Quiz could not be created"
-            variant="danger"
-          >
-            {error}
-          </Alert>
-        ) : null}
-        <form
-          className="space-y-6"
-          onSubmit={(event) => void handleSubmit(event)}
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
+        <Link
+          aria-label="Back to Quiz Library"
+          className="flex min-h-11 items-center gap-3 rounded-lg text-sm font-bold text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
+          href="/app/quizzes"
         >
-          <div>
-            <label
-              className="text-sm font-semibold text-foreground-secondary"
-              htmlFor="quiz-title"
+          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-foreground-inverse shadow-primary">
+            Q
+          </span>
+          <span className="hidden sm:inline">Quizopia 2.0</span>
+        </Link>
+        <span aria-hidden="true" className="h-6 w-px bg-border" />
+        <span className="text-sm font-semibold text-foreground-secondary">
+          New quiz
+        </span>
+      </header>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+        <Surface className="w-full max-w-lg p-6 text-center sm:p-8">
+          {error ? (
+            <>
+              <Alert title="Quiz could not be created" variant="danger">
+                {error}
+              </Alert>
+              <div className="mt-5 flex justify-center gap-3">
+                <Button
+                  onClick={() => {
+                    creationStarted.current = false;
+                    setError(null);
+                    setAttempt((current) => current + 1);
+                  }}
+                >
+                  Try again
+                </Button>
+                <Link
+                  className="inline-flex min-h-11 items-center rounded-lg border border-border-strong px-4 text-sm font-semibold text-foreground-secondary"
+                  href="/app/quizzes"
+                >
+                  Back to library
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div
+              className="flex items-center justify-center gap-3"
+              role="status"
             >
-              Title
-            </label>
-            <input
-              className="mt-2 min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
-              id="quiz-title"
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Networking fundamentals"
-              value={title}
-            />
-          </div>
-          <div>
-            <label
-              className="text-sm font-semibold text-foreground-secondary"
-              htmlFor="quiz-description"
-            >
-              Description
-            </label>
-            <textarea
-              className="mt-2 min-h-28 w-full resize-y rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
-              id="quiz-description"
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Optional context for this quiz"
-              value={description}
-            />
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={client === null}
-              isLoading={isCreating}
-              loadingLabel="Creating quiz"
-              type="submit"
-            >
-              Create and open editor
-            </Button>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-foreground-secondary hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus"
-              href="/app/quizzes"
-            >
-              Cancel
-            </Link>
-          </div>
-        </form>
-      </Surface>
+              <LoadingIndicator label="Creating quiz editor" />
+              <span className="text-sm font-medium text-foreground-secondary">
+                Preparing your editor…
+              </span>
+            </div>
+          )}
+        </Surface>
+      </div>
     </div>
   );
 }
@@ -439,7 +438,7 @@ export interface QuizEditorPageProps {
 
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const client = useQuizApiClient();
-  const editorRef = useRef<QuizMarkdownEditorHandle>(null);
+  const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -455,6 +454,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     readonly QuizMarkdownServerError[]
   >([]);
   const [mobilePane, setMobilePane] = useState<"source" | "preview">("source");
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
 
   const currentInput = useMemo<QuizDraftInput>(
     () => ({ authoringSource: source, description, title }),
@@ -558,6 +558,29 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         ? `Published immutable version ${result.value.version.versionNumber}.`
         : `Version ${result.value.version.versionNumber} already matches this unchanged draft.`,
     );
+    setPublishDialogOpen(false);
+  }
+
+  function updateSource(value: string) {
+    setSource(value);
+    setServerDiagnostics([]);
+    setPublishError(null);
+    setPublishMessage(null);
+  }
+
+  function handleOptionToggle(
+    question: QuizPreviewQuestion,
+    option: QuizPreviewOption,
+  ) {
+    const nextSource = toggleQuizOptionCorrectness(source, question, option);
+    if (nextSource === source) {
+      return;
+    }
+    updateSource(nextSource);
+    setMobilePane("source");
+    requestAnimationFrame(() =>
+      editorRef.current?.focusLocation(option.source.line, 1),
+    );
   }
 
   if (client === null || loadState === "loading") {
@@ -623,30 +646,44 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   }
 
   return (
-    <div className="min-w-0">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 max-w-3xl">
-          <Link
-            className="text-sm font-semibold text-primary hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-focus"
-            href="/app/quizzes"
-          >
-            ← Quiz authoring
-          </Link>
-          <h1 className="mt-4 break-words text-3xl font-bold tracking-[-0.02em] text-foreground">
-            {title.trim().length > 0 ? title : "Untitled quiz"}
-          </h1>
-          <p className="mt-2 break-all text-xs font-medium text-foreground-muted">
-            Quiz ID: {quizId}
-          </p>
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      <header className="z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:gap-3 sm:px-5">
+        <Link
+          aria-label="Back to Quiz Library"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg text-sm font-bold text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
+          href="/app/quizzes"
+        >
+          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-foreground-inverse shadow-primary">
+            Q
+          </span>
+          <span className="hidden xl:inline">Quizopia 2.0</span>
+        </Link>
+        <span
+          aria-hidden="true"
+          className="hidden h-7 w-px bg-border sm:block"
+        />
+        <div className="min-w-[10rem] flex-1 sm:max-w-xl">
+          <label className="sr-only" htmlFor="editor-title">
+            Quiz title
+          </label>
+          <input
+            className="min-h-11 w-full rounded-lg border border-transparent bg-transparent px-3 py-2 text-base font-semibold text-foreground outline-none hover:bg-surface-muted focus:border-primary focus:bg-surface focus:ring-2 focus:ring-focus/30"
+            disabled={isSaving || isPublishing}
+            id="editor-title"
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Untitled quiz"
+            value={title}
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
           <span
             aria-live="polite"
-            className="text-sm font-medium text-foreground-secondary"
+            className="hidden text-xs font-semibold text-foreground-muted sm:inline"
           >
             {isSaving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
           </span>
           <Button
+            className="px-3 sm:px-4"
             disabled={!dirty || isPublishing}
             isLoading={isSaving}
             loadingLabel="Saving draft"
@@ -656,124 +693,159 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             Save
           </Button>
           <Button
+            className="px-3 sm:px-4"
             disabled={isSaving}
-            isLoading={isPublishing}
-            loadingLabel="Publishing quiz"
-            onClick={() => void publishDraft()}
+            onClick={() => setPublishDialogOpen(true)}
           >
-            Publish version
+            Publish
           </Button>
         </div>
-      </div>
+      </header>
 
-      {saveError ? (
-        <Alert className="mt-6" title="Draft was not saved" variant="danger">
-          {saveError}
-        </Alert>
-      ) : null}
-      {publishError ? (
-        <Alert className="mt-6" title="Quiz was not published" variant="danger">
-          {publishError}
-        </Alert>
-      ) : null}
-      {publishMessage ? (
-        <Alert className="mt-6" title="Publish complete" variant="success">
-          {publishMessage}
-        </Alert>
-      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3">
+        {saveError || publishError || publishMessage ? (
+          <div className="shrink-0">
+            {saveError ? (
+              <Alert title="Draft was not saved" variant="danger">
+                {saveError}
+              </Alert>
+            ) : null}
+            {publishError ? (
+              <Alert title="Quiz was not published" variant="danger">
+                {publishError}
+              </Alert>
+            ) : null}
+            {publishMessage ? (
+              <Alert title="Publish complete" variant="success">
+                {publishMessage}
+              </Alert>
+            ) : null}
+          </div>
+        ) : null}
 
-      <section
-        className="mt-7 grid gap-5 rounded-xl border border-border bg-surface p-5 sm:p-6 lg:grid-cols-2"
-        aria-labelledby="quiz-details-title"
-      >
-        <h2 className="sr-only" id="quiz-details-title">
-          Quiz details
-        </h2>
-        <div>
-          <label
-            className="text-sm font-semibold text-foreground-secondary"
-            htmlFor="editor-title"
-          >
-            Title
-          </label>
-          <input
-            className="mt-2 min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
-            disabled={isSaving || isPublishing}
-            id="editor-title"
-            onChange={(event) => setTitle(event.target.value)}
-            value={title}
-          />
-        </div>
-        <div>
-          <label
-            className="text-sm font-semibold text-foreground-secondary"
-            htmlFor="editor-description"
-          >
-            Description
-          </label>
-          <input
-            className="mt-2 min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
-            disabled={isSaving || isPublishing}
-            id="editor-description"
-            onChange={(event) => setDescription(event.target.value)}
-            value={description}
-          />
-        </div>
-      </section>
-
-      <div
-        className="mt-6 flex rounded-lg border border-border-strong bg-surface p-1 lg:hidden"
-        aria-label="Editor pane"
-        role="group"
-      >
-        {(["source", "preview"] as const).map((pane) => (
-          <button
-            aria-pressed={mobilePane === pane}
-            className={`min-h-11 flex-1 rounded-md px-3 py-2 text-sm font-semibold ${
-              mobilePane === pane
-                ? "bg-primary text-foreground-inverse"
-                : "text-foreground-secondary hover:bg-surface-muted"
-            }`}
-            key={pane}
-            onClick={() => setMobilePane(pane)}
-            type="button"
-          >
-            {pane === "source" ? "Source" : "Preview"}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-5 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <section
-          className={`${mobilePane === "source" ? "block" : "hidden"} min-w-0 rounded-xl border border-border bg-surface p-4 sm:p-5 lg:block`}
+        <div
+          aria-label="Editor pane"
+          className="flex shrink-0 rounded-lg border border-border-strong bg-surface p-1 lg:hidden"
+          role="group"
         >
-          <QuizMarkdownEditor
-            disabled={isSaving || isPublishing}
-            onChange={(value) => {
-              setSource(value);
-              setServerDiagnostics([]);
-              setPublishError(null);
-              setPublishMessage(null);
-            }}
-            ref={editorRef}
-            value={source}
-          />
-        </section>
-        <section
-          className={`${mobilePane === "preview" ? "block" : "hidden"} min-w-0 rounded-xl border border-border bg-surface-muted/50 p-4 sm:p-5 lg:block`}
-        >
-          <QuizPreview
-            onDiagnosticSelect={(line, column) => {
-              setMobilePane("source");
-              requestAnimationFrame(() =>
-                editorRef.current?.focusLocation(line, column),
-              );
-            }}
-            serverDiagnostics={serverDiagnostics}
-            source={source}
-          />
-        </section>
+          {(["source", "preview"] as const).map((pane) => (
+            <button
+              aria-pressed={mobilePane === pane}
+              className={`min-h-11 flex-1 rounded-md px-3 py-2 text-sm font-semibold ${
+                mobilePane === pane
+                  ? "bg-primary text-foreground-inverse"
+                  : "text-foreground-secondary hover:bg-surface-muted"
+              }`}
+              key={pane}
+              onClick={() => setMobilePane(pane)}
+              type="button"
+            >
+              {pane === "source" ? "Editor" : "Preview"}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-2">
+          <section
+            aria-label="Quiz Markdown editor"
+            className={`${mobilePane === "source" ? "block" : "hidden"} min-h-0 min-w-0 overflow-hidden rounded-xl border border-border bg-surface p-3 sm:p-4 lg:block`}
+          >
+            <QuizMarkdownCodeEditor
+              disabled={isSaving || isPublishing}
+              onChange={updateSource}
+              ref={editorRef}
+              value={source}
+            />
+          </section>
+          <section
+            aria-label="Live quiz preview"
+            className={`${mobilePane === "preview" ? "block" : "hidden"} min-h-0 min-w-0 overflow-y-auto rounded-xl border border-border bg-surface-muted/50 p-3 sm:p-4 lg:block`}
+          >
+            <QuizPreview
+              onDiagnosticSelect={(line, column) => {
+                setMobilePane("source");
+                requestAnimationFrame(() =>
+                  editorRef.current?.focusLocation(line, column),
+                );
+              }}
+              onOptionToggle={handleOptionToggle}
+              onQuestionSelect={(question) => {
+                setMobilePane("source");
+                requestAnimationFrame(() =>
+                  editorRef.current?.focusOffset(question.source.offset),
+                );
+              }}
+              serverDiagnostics={serverDiagnostics}
+              source={source}
+            />
+          </section>
+        </div>
       </div>
+
+      {publishDialogOpen ? (
+        <div
+          aria-labelledby="publish-dialog-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/35 p-4"
+          onClick={(event) => {
+            if (event.currentTarget === event.target && !isPublishing) {
+              setPublishDialogOpen(false);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !isPublishing) {
+              setPublishDialogOpen(false);
+            }
+          }}
+          role="dialog"
+        >
+          <Surface className="w-full max-w-xl p-5 shadow-card sm:p-6">
+            <h2
+              className="text-xl font-semibold text-foreground"
+              id="publish-dialog-title"
+            >
+              Publish immutable QuizVersion
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-foreground-secondary">
+              This publishes quiz content only. Assessment timing, audience, and
+              classroom delivery remain a separate product flow.
+            </p>
+            <div className="mt-5">
+              <label
+                className="text-sm font-semibold text-foreground-secondary"
+                htmlFor="publish-description"
+              >
+                Description
+              </label>
+              <textarea
+                autoFocus
+                className="mt-2 min-h-28 w-full resize-y rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-focus/30"
+                disabled={isPublishing}
+                id="publish-description"
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Optional context saved with this quiz draft"
+                value={description}
+              />
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Button
+                disabled={isPublishing}
+                onClick={() => setPublishDialogOpen(false)}
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+              <Button
+                isLoading={isPublishing}
+                loadingLabel="Publishing quiz"
+                onClick={() => void publishDraft()}
+              >
+                Publish QuizVersion
+              </Button>
+            </div>
+          </Surface>
+        </div>
+      ) : null}
     </div>
   );
 }
