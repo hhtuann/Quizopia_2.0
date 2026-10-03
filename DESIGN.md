@@ -500,6 +500,10 @@ that coordinate model. The syntax-highlight mirror and editable textarea must
 also use identical font family, size, weight, line height, letter spacing, and
 tab metrics so visible text remains pixel-aligned with the native caret. Syntax
 color may differ, but metric-changing emphasis must not shift the mirror.
+Programmatic navigation must synchronize those visual layers from the
+textarea's actual scroll offsets after the browser applies its scroll bounds;
+an unclamped requested scroll position must never drive the mirror, gutter, or
+active-line position.
 
 Preview correctness changes first apply the minimal `*` edit, then locate the
 updated option in the post-edit source and place the caret at its content start.

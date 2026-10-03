@@ -469,6 +469,96 @@ test("question marker replacement keeps visible text and textarea caret aligned"
   await expect(editor).toHaveValue(replacedSource.replace("đúng", "đúnga"));
 });
 
+test("preview correctness navigation keeps editor overlays aligned near the source end", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const source = Array.from({ length: 4 }, (_, index) => {
+    const number = index + 1;
+    return [
+      `Câu ${number} [SINGLE_CHOICE]: Question ${number}`,
+      `*A. alpha ${number}`,
+      `B. beta ${number}`,
+      `C. gamma ${number}`,
+      `D. delta ${number}`,
+    ].join("\n");
+  }).join("\n");
+
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Preview scroll alignment quiz",
+        description: "Preview scroll alignment coverage",
+        authoringSource: source,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/app/quizzes/${quizId}`);
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  const questionFourOptions = page.getByRole("list", {
+    name: "Options for question 4",
+  });
+  const optionB = questionFourOptions.getByRole("button", {
+    name: "B. Not marked correct",
+  });
+
+  await optionB.click();
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveValue(
+    source
+      .replace("*A. alpha 4", "A. alpha 4")
+      .replace("B. beta 4", "*B. beta 4"),
+  );
+
+  const scrollState = await editor.evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector(
+      '[data-testid="quiz-markdown-line-numbers"] > div',
+    ) as HTMLElement | null;
+    const highlight = document.querySelector(
+      '[data-testid="quiz-markdown-highlight-layer"]',
+    ) as HTMLElement | null;
+    const activeLine = document.querySelector(
+      '[data-testid="quiz-markdown-active-line"]',
+    ) as HTMLElement | null;
+    return {
+      activeLineTop: activeLine?.style.top ?? null,
+      highlightTransform: highlight?.style.transform ?? null,
+      lineNumberTransform: lineNumbers?.style.transform ?? null,
+      scrollTop: textarea.scrollTop,
+    };
+  });
+
+  const visualScrollTop =
+    scrollState.scrollTop === 0 ? 0 : -scrollState.scrollTop;
+  expect(scrollState.lineNumberTransform).toBe(
+    `translateY(${visualScrollTop}px)`,
+  );
+  expect(scrollState.highlightTransform).toBe(
+    `translate(0px, ${visualScrollTop}px)`,
+  );
+  const finalSource = await editor.inputValue();
+  const caret = finalSource.indexOf("*B. beta 4") + "*B. ".length;
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => ({
+        end: (element as HTMLTextAreaElement).selectionEnd,
+        start: (element as HTMLTextAreaElement).selectionStart,
+      })),
+    )
+    .toEqual({ end: caret, start: caret });
+  expect(scrollState.activeLineTop).toBe(
+    `${12 + (18 - 1) * 24 - scrollState.scrollTop}px`,
+  );
+});
+
 test("autocomplete follows a scrolled caret and flips inside the editor", async ({
   page,
 }) => {

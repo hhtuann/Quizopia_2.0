@@ -315,7 +315,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
         (line - 1) * EDITOR_LINE_HEIGHT - textarea.clientHeight / 2,
       );
       textarea.scrollTop = targetTop;
-      setScroll({ left: textarea.scrollLeft, top: targetTop });
+      setScroll({ left: textarea.scrollLeft, top: textarea.scrollTop });
       setCaret(safeStart);
     },
     [value],
