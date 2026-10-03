@@ -24,6 +24,7 @@ Priority order when making UI decisions:
 Do not create a new visual pattern when an established pattern already solves the same problem.
 
 If a feature genuinely requires a new reusable pattern:
+
 - design it deliberately;
 - make it reusable;
 - document it here if it becomes part of the system.
@@ -70,12 +71,14 @@ Quizopia has two visual contexts. They share the same tokens and typography but 
 ## 3.1 Marketing / Public Pages
 
 Examples:
+
 - landing page
 - public quiz discovery
 - about/product pages
 - selected promotional sections
 
 These pages may use the full Corporate Trust visual language:
+
 - gradient headlines
 - atmospheric blobs
 - isometric illustrations
@@ -86,6 +89,7 @@ These pages may use the full Corporate Trust visual language:
 ## 3.2 Product / Application UI
 
 Examples:
+
 - authenticated dashboard
 - classrooms
 - quiz library
@@ -98,6 +102,7 @@ Examples:
 - authentication forms
 
 Application UI must prioritize:
+
 - clarity
 - task completion
 - information density
@@ -106,6 +111,7 @@ Application UI must prioritize:
 - predictable states
 
 For product UI:
+
 - use gradients sparingly;
 - avoid decorative blobs behind dense content;
 - do not use 3D transforms on functional controls;
@@ -161,6 +167,7 @@ Semantic colors communicate meaning and must not be replaced by arbitrary brand 
 - **Info:** `#2563EB` — Blue 600
 
 Rules:
+
 - do not use Primary/Secondary to represent success, warning, or error;
 - never rely on color alone;
 - pair semantic color with text and/or icon where practical;
@@ -255,6 +262,7 @@ Application dashboards and editors must not use marketing-scale typography for r
 **Product UI buttons use `rounded-lg` by default.**
 
 `rounded-full` is a deliberate exception, mainly for:
+
 - marketing hero CTAs
 - pill filters/tags
 - circular icon/avatar controls
@@ -278,6 +286,7 @@ Application dashboards and editors must not use marketing-scale typography for r
 Use elevation selectively in application UI.
 
 Flat or lightly bordered surfaces are preferred for:
+
 - tables
 - editors
 - nested panels
@@ -302,6 +311,7 @@ Indigo 600 → Violet 600.
 Gradients are brand accents, not default surface treatments.
 
 For product screens:
+
 - normally use at most one dominant gradient treatment per visual region;
 - do not use gradient text for ordinary page headings, labels, table content, form text, or metadata;
 - prefer solid Primary for routine application actions;
@@ -312,6 +322,7 @@ For product screens:
 Allowed only for decorative or promotional visuals.
 
 Never apply perspective or rotation to:
+
 - forms
 - tables
 - navigation
@@ -328,9 +339,11 @@ Never apply perspective or rotation to:
 ## 8.1 Container
 
 Marketing:
+
 - `max-w-7xl` / approximately 1280px
 
 Application:
+
 - use width based on task needs;
 - dense editors and tables may use wider content regions;
 - reading-heavy pages should constrain line length.
@@ -338,6 +351,7 @@ Application:
 ## 8.2 Horizontal Gutters
 
 Recommended:
+
 - mobile: `px-4`
 - small/tablet: `sm:px-6`
 - large desktop: `lg:px-8`
@@ -345,11 +359,13 @@ Recommended:
 ## 8.3 Vertical Rhythm
 
 Marketing:
+
 - mobile: `py-16`
 - tablet: `py-20`
 - desktop: `py-24`
 
 Application:
+
 - page sections usually use tighter rhythm;
 - prefer approximately 16–32px between related UI blocks;
 - use 40–64px only for major page-level separation.
@@ -369,6 +385,7 @@ Authenticated application pages should share a consistent shell.
 ## 9.1 Desktop
 
 May include:
+
 - persistent or collapsible primary navigation
 - top utility area if needed
 - page content region
@@ -391,6 +408,7 @@ Quizopia supports UI personas/workspaces:
 These are frontend workspace concepts.
 
 Switching workspace:
+
 - must not imply backend role mutation;
 - must not require token mutation merely to change UI persona;
 - may change navigation and default landing context.
@@ -403,6 +421,31 @@ Role-aware navigation is UX guidance only.
 
 Backend/Gateway/service authorization remains authoritative.
 
+## 9.5 Authenticated user menu
+
+Normal authenticated application pages use one user control in the navbar that
+shows a deterministic avatar fallback, username, and current Learning/Teaching
+workspace. Its accessible menu owns account-settings intent, permitted
+workspace switching, and sign out. Do not add a second standalone workspace
+strip or a separate navbar sign-out button.
+
+Unavailable profile/avatar editing or teacher self-enablement must be presented
+truthfully until Identity exposes accepted APIs. Frontend workspace switching
+must never mutate roles or tokens.
+
+## 9.6 Focused authoring surfaces
+
+Quiz editor routes are an intentional shell exception. They use compact,
+viewport-filling editor chrome with a library return path, inline editable
+title, save state, Save, and Publish. The Markdown editor and live preview share
+the remaining desktop width and height and scroll independently. Narrow screens
+use an accessible Editor/Preview switch without viewport-level horizontal
+overflow.
+
+Description belongs in the pre-publication interaction rather than occupying
+the permanent editor workspace. QuizVersion publication must not be presented
+as Assessment timing, audience, or classroom configuration.
+
 ---
 
 # 10. Buttons
@@ -410,6 +453,7 @@ Backend/Gateway/service authorization remains authoritative.
 ## 10.1 Primary Product Button
 
 Default product button:
+
 - solid Primary background
 - white text
 - rounded-lg
@@ -417,16 +461,19 @@ Default product button:
 - clear focus-visible ring
 
 Hover:
+
 - Primary Hover
 - optional subtle `-translate-y-0.5` only for non-dense contexts
 
 Active:
+
 - remove or reduce lift
 - visually acknowledge press
 
 ## 10.2 Marketing Primary CTA
 
 May use:
+
 - Indigo → Violet gradient
 - stronger shadow
 - rounded-full or rounded-lg
@@ -456,11 +503,13 @@ Every button variant must define:
 - loading
 
 Disabled buttons:
+
 - must remain readable;
 - must not show hover/lift behavior;
 - should not rely on opacity alone.
 
 Loading buttons:
+
 - disable duplicate submission;
 - retain width where practical;
 - expose loading state accessibly.
@@ -524,6 +573,7 @@ Non-field-specific submission errors should appear in a form-level alert.
 May use show/hide controls where appropriate.
 
 The toggle must:
+
 - have accessible labeling;
 - not change field content;
 - remain keyboard accessible.
@@ -548,6 +598,7 @@ Do not make every informational panel lift on hover.
 ## 12.3 Feature / Marketing Cards
 
 May use:
+
 - soft brand icon containers
 - colored shadows
 - stronger hover elevation
@@ -560,6 +611,7 @@ May use:
 Quizopia includes data-heavy workflows.
 
 Examples:
+
 - class roster
 - quiz library
 - attempt history
@@ -570,6 +622,7 @@ Examples:
 ## 13.1 Tables
 
 Tables should provide:
+
 - strong column alignment
 - readable headers
 - optional Surface Muted header
@@ -580,6 +633,7 @@ Tables should provide:
 Do not replace naturally tabular data with cards on desktop merely for visual style.
 
 On small screens:
+
 - use responsive column prioritization;
 - stacked rows/cards may be used when necessary;
 - horizontal scrolling should be a deliberate last resort.
@@ -599,6 +653,7 @@ Neutral metadata badges should remain neutral.
 ## 13.4 Pagination
 
 Provide:
+
 - clear current page
 - disabled states
 - accessible labels
@@ -613,6 +668,7 @@ Provide:
 Use dialogs for focused actions that should interrupt the current workflow.
 
 Must support:
+
 - focus management
 - keyboard dismissal where appropriate
 - clear title
@@ -649,6 +705,7 @@ Every data-backed or asynchronous screen must deliberately handle:
 Use skeletons when preserving layout improves perceived performance.
 
 Use spinners for:
+
 - compact actions
 - short isolated operations
 
@@ -665,6 +722,7 @@ A useful empty state should explain:
 ## 15.3 Error State
 
 Errors should:
+
 - explain what failed in user-facing language;
 - offer recovery when possible;
 - preserve user work where feasible.
@@ -682,6 +740,7 @@ Routine state changes do not always need celebratory UI.
 Navigation should be stable and predictable.
 
 Rules:
+
 - active state must be visually clear;
 - icons should support labels, not replace them where comprehension matters;
 - mobile navigation must preserve critical destinations;
@@ -714,9 +773,11 @@ Do not add another icon library for isolated features without justification.
 ## 17.4 Accessibility
 
 Decorative icons:
+
 - hide from screen readers when paired with visible text
 
 Meaningful icon-only controls:
+
 - require accessible name / label
 
 ---
@@ -728,6 +789,7 @@ Meaningful icon-only controls:
 **Refined Motion**
 
 Motion should:
+
 - clarify interaction;
 - reinforce hierarchy;
 - feel calm and deliberate;
@@ -756,6 +818,7 @@ Animate transform and opacity where practical.
 ## 18.4 Hover Motion
 
 Allowed:
+
 - buttons: subtle lift in appropriate contexts
 - interactive cards: slight lift
 - directional icons: small translate
@@ -776,6 +839,7 @@ Decorative pulse/floating effects should be removed or minimized for reduced-mot
 Large blurred brand orbs may be used on marketing/public pages.
 
 Guidelines:
+
 - low opacity
 - non-interactive
 - behind content
@@ -792,6 +856,7 @@ Guidelines:
 Begin with approximately 375px-wide mobile layouts and progressively enhance.
 
 Recommended breakpoints follow the established Tailwind configuration, typically:
+
 - `sm`: 640px
 - `md`: 768px
 - `lg`: 1024px
@@ -872,6 +937,7 @@ Current baseline:
 **LIGHT MODE ONLY**
 
 Rules:
+
 - do not independently invent dark-mode values or dark-mode component variants;
 - design tokens should remain semantic so a future dark theme can be introduced centrally;
 - future dark mode requires an explicit design-system update.
@@ -883,6 +949,7 @@ Rules:
 Quizopia uses Tailwind CSS 4.
 
 Rules:
+
 - centralize tokens through the project’s established theme/global token mechanism;
 - prefer semantic reusable component variants over repeated long utility strings;
 - keep feature-level CSS minimal and purposeful;
@@ -898,6 +965,7 @@ Avoid scattering raw hex values throughout components when an established semant
 Do not introduce a new component library solely because an AI agent prefers it.
 
 Before adding:
+
 - shadcn/ui
 - Radix
 - Headless UI
@@ -908,6 +976,7 @@ Before adding:
 first verify whether the repository has already adopted a component strategy.
 
 Any new UI dependency requires explicit justification based on:
+
 - accessibility
 - maintainability
 - bundle impact
@@ -923,6 +992,7 @@ Do not duplicate a primitive that already exists in the project.
 ## 25.1 Authentication Pages
 
 Authentication pages should:
+
 - be calm and focused;
 - keep one dominant primary action;
 - avoid excessive decorative motion;
@@ -931,6 +1001,7 @@ Authentication pages should:
 - remain usable on mobile and keyboard-only workflows.
 
 Brand decoration may appear in:
+
 - side panel
 - background accent
 - logo region
@@ -940,6 +1011,7 @@ but must not interfere with the form.
 ## 25.2 Dashboard
 
 Dashboard should prioritize:
+
 - current tasks
 - recent activity
 - important metrics
@@ -950,6 +1022,7 @@ Do not fill dashboards with decorative cards that have no actionable value.
 ## 25.3 Classroom
 
 Classroom screens should emphasize:
+
 - class identity
 - membership
 - invitations
@@ -961,6 +1034,7 @@ Dense roster content should favor stable tables/lists over decorative card grids
 ## 25.4 Quiz Editor
 
 Editor UI prioritizes:
+
 - authoring speed
 - stable layout
 - content readability
@@ -972,6 +1046,7 @@ Decorative gradients/3D treatments should not appear inside the editing workspac
 ## 25.5 Assessment
 
 Assessment UI prioritizes:
+
 - answer clarity
 - timing/state clarity
 - low distraction
@@ -1034,6 +1109,7 @@ When implementation and this document differ:
 3. update this document when a reusable design decision is intentionally changed.
 
 For AI-assisted development:
+
 - AI agents must inspect existing components and global styles before creating new patterns;
 - AI agents must not silently invent a competing design system;
 - AI agents should favor existing reusable primitives;
