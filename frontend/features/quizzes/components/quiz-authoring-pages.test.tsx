@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedRequestExecutor } from "../../../lib/api/authenticated-request";
 import type { HttpResponse } from "../../../lib/api/http-transport";
 import { AuthProvider } from "../../auth/auth-provider";
@@ -18,16 +18,23 @@ import {
   QuizLibraryPage,
 } from "./quiz-authoring-pages";
 
-const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+const navigation = vi.hoisted(() => ({
+  pathname: "/app/quizzes",
+  replace: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/quizzes",
+  usePathname: () => navigation.pathname,
   useRouter: () => navigation,
 }));
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const secondQuizId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";
 const userId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
+
+beforeEach(() => {
+  navigation.pathname = "/app/quizzes";
+});
 
 function response(status: number, value: unknown): HttpResponse {
   return {
@@ -105,6 +112,21 @@ function renderAuthenticated(
 }
 
 describe("Quiz teacher authoring access", () => {
+  it("uses the focused full-viewport shell for editor routes", () => {
+    navigation.pathname = `/app/quizzes/${quizId}`;
+    renderAuthenticated(
+      <QuizAuthoringLayout>
+        <p>Focused authoring content</p>
+      </QuizAuthoringLayout>,
+      { roles: ["TEACHER"] },
+    );
+
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("h-dvh", "overflow-hidden");
+    expect(screen.getByText("Focused authoring content")).toBeInTheDocument();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+  });
+
   it("shows a truthful role state for an authenticated student without TEACHER", () => {
     renderAuthenticated(
       <QuizAuthoringLayout>
@@ -490,6 +512,12 @@ describe("QuizEditorPage real-contract behavior", () => {
     expect(
       await screen.findByRole("textbox", { name: "Quiz title" }),
     ).toHaveValue("Network quiz");
+    expect(
+      screen.getByRole("region", { name: "Quiz Markdown editor" }),
+    ).toHaveClass("overflow-hidden");
+    expect(
+      screen.getByRole("region", { name: "Live quiz preview" }),
+    ).toHaveClass("overflow-y-auto");
     const editor = screen.getByRole("textbox", {
       name: "Quiz Markdown source",
     });

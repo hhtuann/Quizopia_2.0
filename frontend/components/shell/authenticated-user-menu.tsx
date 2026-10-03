@@ -14,6 +14,7 @@ export function AuthenticatedUserMenu() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -27,6 +28,9 @@ export function AuthenticatedUserMenu() {
       }
     }
 
+    menuRef.current
+      ?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
+      ?.focus();
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () =>
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
@@ -150,6 +154,7 @@ export function AuthenticatedUserMenu() {
           aria-label="User menu"
           className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-2 shadow-card"
           onKeyDown={handleMenuKeyDown}
+          ref={menuRef}
           role="menu"
         >
           <div className="border-b border-border px-3 py-2">

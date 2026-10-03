@@ -118,6 +118,19 @@ describe("application shell workspace presentation", () => {
       status: "authenticated",
       user: { id: userId, roles: rolesBeforeSwitch },
     });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Open user menu for learner01/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Switch to Learning" }),
+    );
+    expect(within(context).getByText("Learning workspace")).toBeInTheDocument();
+    expect(runtime.getSnapshot()).toMatchObject({
+      activeWorkspace: "LEARNING",
+      status: "authenticated",
+      user: { id: userId, roles: rolesBeforeSwitch },
+    });
     expect(user.roles).toBe(rolesBeforeSwitch);
     expect(vault.read()).toBe(accessToken);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -140,7 +153,16 @@ describe("application shell workspace presentation", () => {
     expect(
       screen.getByRole("menuitem", { name: /Account settings/ }),
     ).toHaveAttribute("aria-disabled", "true");
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    const accountSettings = screen.getByRole("menuitem", {
+      name: /Account settings/,
+    });
+    const teacherRegistration = screen.getByRole("menuitem", {
+      name: /Register as teacher/,
+    });
+    expect(accountSettings).toHaveFocus();
+    fireEvent.keyDown(accountSettings, { key: "ArrowDown" });
+    expect(teacherRegistration).toHaveFocus();
+    fireEvent.keyDown(teacherRegistration, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });
