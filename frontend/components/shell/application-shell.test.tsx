@@ -147,21 +147,29 @@ describe("application shell workspace presentation", () => {
       screen.getByRole("img", { name: "learner01 avatar fallback" }),
     ).toHaveTextContent("L");
     fireEvent.click(trigger);
-    expect(
-      screen.getByRole("menuitem", { name: /Register as teacher/ }),
-    ).toHaveAttribute("aria-disabled", "true");
-    expect(
-      screen.getByRole("menuitem", { name: /Account settings/ }),
-    ).toHaveAttribute("aria-disabled", "true");
     const accountSettings = screen.getByRole("menuitem", {
       name: /Account settings/,
     });
     const teacherRegistration = screen.getByRole("menuitem", {
       name: /Register as teacher/,
     });
+    expect(accountSettings).not.toHaveAttribute("aria-disabled");
+    expect(accountSettings).toBeEnabled();
+    expect(teacherRegistration).not.toHaveAttribute("aria-disabled");
+    expect(teacherRegistration).toBeEnabled();
     expect(accountSettings).toHaveFocus();
     fireEvent.keyDown(accountSettings, { key: "ArrowDown" });
     expect(teacherRegistration).toHaveFocus();
+
+    fireEvent.click(accountSettings);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
+    );
+    fireEvent.click(teacherRegistration);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Teacher registration is not available until Identity exposes the accepted self-enablement API.",
+    );
+
     fireEvent.keyDown(teacherRegistration, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
@@ -229,6 +237,19 @@ describe("application shell session behavior and semantics", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("renders the intended sign-out loading label without mojibake", () => {
+    const { service } = renderAuthenticatedShell(["STUDENT"]);
+    vi.mocked(service.logout).mockReturnValueOnce(new Promise(() => {}));
+
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Signing out…" }),
+    ).toBeDisabled();
+    expect(screen.queryByText("Signing outâ€¦")).not.toBeInTheDocument();
   });
 
   it("keeps the shell active and announces a server logout failure", async () => {

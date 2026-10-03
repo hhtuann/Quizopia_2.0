@@ -167,7 +167,6 @@ export function AuthenticatedUserMenu() {
           </div>
 
           <button
-            aria-disabled="true"
             className={menuItemClasses}
             onClick={() =>
               setMessage(
@@ -205,7 +204,6 @@ export function AuthenticatedUserMenu() {
           ) : null}
           {needsTeacherRegistration ? (
             <button
-              aria-disabled="true"
               className={menuItemClasses}
               onClick={() =>
                 setMessage(
@@ -230,7 +228,7 @@ export function AuthenticatedUserMenu() {
               role="menuitem"
               type="button"
             >
-              {isSigningOut ? "Signing outâ€¦" : "Sign out"}
+              {isSigningOut ? "Signing out…" : "Sign out"}
             </button>
           </div>
 
