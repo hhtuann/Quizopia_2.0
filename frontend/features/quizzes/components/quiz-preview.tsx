@@ -5,11 +5,17 @@ import type { QuizMarkdownServerError } from "../api/quiz-api-client";
 import {
   analyzeQuizMarkdown,
   type QuizMarkdownDiagnostic,
+  type QuizPreviewOption,
   type QuizPreviewQuestion,
 } from "../model/quiz-markdown";
 
 interface QuizPreviewProps {
   readonly onDiagnosticSelect?: (line: number, column: number) => void;
+  readonly onOptionToggle?: (
+    question: QuizPreviewQuestion,
+    option: QuizPreviewOption,
+  ) => void;
+  readonly onQuestionSelect?: (question: QuizPreviewQuestion) => void;
   readonly serverDiagnostics?: readonly QuizMarkdownServerError[];
   readonly source: string;
 }
@@ -124,19 +130,43 @@ function MarkdownContent({ value }: { readonly value: string }) {
 }
 
 function PreviewQuestion({
+  onOptionToggle,
+  onQuestionSelect,
   question,
 }: {
+  readonly onOptionToggle?: (
+    question: QuizPreviewQuestion,
+    option: QuizPreviewOption,
+  ) => void;
+  readonly onQuestionSelect?: (question: QuizPreviewQuestion) => void;
   readonly question: QuizPreviewQuestion;
 }) {
   return (
-    <article className="rounded-xl border border-border bg-surface p-5">
+    <article
+      className="cursor-pointer rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary/40 focus-within:border-primary/50 motion-reduce:transition-none"
+      data-source-line={question.source.line}
+      onClick={() => onQuestionSelect?.(question)}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-foreground">
           Câu {question.number}
         </h3>
-        <span className="rounded-md bg-surface-muted px-2 py-1 text-xs font-semibold text-foreground-secondary">
-          {question.type}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            aria-label={`Jump to source for question ${question.number}, line ${question.source.line}`}
+            className="min-h-9 rounded-md px-2 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-focus"
+            onClick={(event) => {
+              event.stopPropagation();
+              onQuestionSelect?.(question);
+            }}
+            type="button"
+          >
+            Source
+          </button>
+          <span className="rounded-md bg-surface-muted px-2 py-1 text-xs font-semibold text-foreground-secondary">
+            {question.type}
+          </span>
+        </div>
       </div>
       <div className="mt-4 text-sm text-foreground-secondary">
         <MarkdownContent value={question.stem} />
@@ -147,26 +177,46 @@ function PreviewQuestion({
           aria-label={`Options for question ${question.number}`}
         >
           {question.options.map((option) => (
-            <li
-              className="rounded-lg border border-border bg-surface-muted p-3"
-              key={`${question.number}-${option.label}`}
-            >
-              <div className="flex gap-3">
-                <span className="font-semibold text-foreground">
-                  {option.label}.
-                </span>
-                <div className="min-w-0 flex-1 text-sm text-foreground-secondary">
-                  <MarkdownContent value={option.content} />
-                </div>
-                {option.correct ? (
-                  <span
-                    className="text-xs font-semibold text-success"
-                    aria-label="Correct answer"
-                  >
-                    Correct
+            <li key={`${question.number}-${option.label}`}>
+              <button
+                aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
+                aria-pressed={option.correct}
+                className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
+                  option.correct
+                    ? "border-primary/50 bg-primary/10 hover:bg-primary/15"
+                    : "border-border bg-surface-muted hover:border-primary/30 hover:bg-primary/5"
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOptionToggle?.(question, option);
+                }}
+                type="button"
+              >
+                <span className="flex gap-3">
+                  <span className="font-semibold text-foreground">
+                    {option.label}.
                   </span>
-                ) : null}
-              </div>
+                  <div className="min-w-0 flex-1 text-sm text-foreground-secondary">
+                    <MarkdownContent value={option.content} />
+                  </div>
+                  {option.correct ? (
+                    <svg
+                      aria-hidden="true"
+                      className="mt-0.5 size-5 shrink-0 text-primary"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="m5 12 4 4L19 6"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2.5"
+                      />
+                    </svg>
+                  ) : null}
+                </span>
+              </button>
             </li>
           ))}
         </ol>
@@ -218,6 +268,8 @@ function DiagnosticButton({
 
 export function QuizPreview({
   onDiagnosticSelect,
+  onOptionToggle,
+  onQuestionSelect,
   serverDiagnostics = [],
   source,
 }: QuizPreviewProps) {
@@ -288,6 +340,8 @@ export function QuizPreview({
           {analysis.questions.map((question, index) => (
             <PreviewQuestion
               key={`${question.number}-${index}`}
+              onOptionToggle={onOptionToggle}
+              onQuestionSelect={onQuestionSelect}
               question={question}
             />
           ))}

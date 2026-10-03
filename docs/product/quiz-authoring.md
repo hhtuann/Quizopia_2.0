@@ -1,6 +1,6 @@
 # Quiz Authoring
 
-Status: **Baseline v0.2 — Quiz Markdown and editor UX accepted**
+Status: **Baseline v0.3 — Quiz Markdown and focused editor UX accepted**
 
 ## Quiz library
 
@@ -42,6 +42,39 @@ The accepted grammar is defined by
 
 The editor may provide instant validation and authoring assistance, but the
 backend parser/validator remains authoritative.
+
+### Focused creation and editor flow
+
+Creating a quiz enters the focused editor directly and uses the real Quiz draft
+create contract; there is no separate metadata-only form. The title is editable
+in compact editor chrome. Description is edited in the QuizVersion
+pre-publication interaction rather than occupying the permanent authoring
+surface.
+
+On desktop, source and preview fill the remaining viewport and scroll
+independently. On narrow screens, an accessible Editor/Preview switch keeps the
+surface usable without viewport-level horizontal overflow.
+
+The source editor provides aligned line numbers, a restrained active-line
+state, and structural syntax highlighting without changing source text.
+Autocomplete prefix matching is case-insensitive for typing while accepted
+insertions remain canonical and backend grammar remains case-sensitive.
+
+Preview question cards navigate to their exact parsed source locations.
+Explicit option clicks minimally add/remove only the structural `*` marker:
+
+- `SINGLE_CHOICE` moves the sole correct marker;
+- `MULTIPLE_CHOICE` toggles the selected marker independently;
+- `TRUE_FALSE_MATRIX` toggles TRUE/FALSE marker state;
+- `NUMERIC_FILL` has no choice-marker interaction.
+
+Correct options use an accessible brand-selected state (`aria-pressed`) rather
+than a visible "Correct" badge. Preview edits never reserialize or normalize
+unrelated Markdown.
+
+QuizVersion publication remains separate from Assessment delivery. Timing,
+class/audience, review policy, and other Assessment configuration must not be
+persisted or implied until accepted Assessment contracts exist.
 
 ## Supported question types
 

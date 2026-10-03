@@ -34,14 +34,24 @@ async function mockTeacherBootstrap(page: Page) {
   });
 }
 
+async function switchToTeaching(page: Page) {
+  const userMenu = page.getByRole("button", { name: /Open user menu/ });
+  if ((await userMenu.count()) > 0) {
+    await userMenu.click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+    return;
+  }
+  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+}
+
 test("teacher creates, authors, saves, reloads and publishes a real-contract draft", async ({
   page,
 }) => {
   await mockTeacherBootstrap(page);
 
   let source = "";
-  let title = "Network quiz";
-  let description = "Created from Playwright";
+  let title = "Untitled quiz";
+  let description = "";
   let createCalls = 0;
   let updateCalls = 0;
   let publishCalls = 0;
@@ -141,7 +151,7 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   await expect(
     page.getByRole("heading", { name: "Open the Teaching workspace" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  await switchToTeaching(page);
   await expect(
     page.getByRole("heading", { name: "Quiz authoring" }),
   ).toBeVisible();
@@ -150,15 +160,22 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   ).toBeVisible();
   await page.getByRole("link", { name: "Create quiz" }).click();
 
-  await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Description").fill(description);
-  await page.getByRole("button", { name: "Create and open editor" }).click();
   await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
-  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+    "Untitled quiz",
+  );
   expect(createCalls).toBe(1);
+  expect({ source, title, description }).toEqual({
+    source: "",
+    title: "Untitled quiz",
+    description: "",
+  });
+
+  title = "Network quiz";
+  await page.getByRole("textbox", { name: "Quiz title" }).fill(title);
 
   const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
-  await editor.fill("C");
+  await editor.fill("câu");
   await expect(
     page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
   ).toBeVisible();
@@ -168,22 +185,36 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   await expect(editor).toHaveValue("Câu 1 [MULTIPLE_CHOICE]: ");
 
   const exactSource =
-    "Câu 1 [MULTIPLE_CHOICE]: Chọn giao thức\n*A. HTTP\n*B. FTP\nC. TCP\nD. UDP\n\nLời giải:  keep  spacing";
+    "Câu 1 [SINGLE_CHOICE]: Chọn giao thức\n*A. HTTP\nB. FTP\nC. TCP\nD. UDP\n\nLời giải:  keep  spacing";
   await editor.fill(exactSource);
+  await page
+    .getByRole("button", { name: /Jump to source for question 1/ })
+    .click();
+  await expect(editor).toBeFocused();
+  await page.getByRole("button", { name: "B. Not marked correct" }).click();
+  const previewEditedSource = exactSource
+    .replace("*A. HTTP", "A. HTTP")
+    .replace("B. FTP", "*B. FTP");
+  await expect(editor).toHaveValue(previewEditedSource);
   await expect(page.getByText("Unsaved changes")).toBeVisible();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();
   expect(updateCalls).toBe(1);
-  expect(source).toBe(exactSource);
+  expect(source).toBe(previewEditedSource);
 
   await page.reload();
-  await page.getByRole("button", { name: "Switch to Teaching" }).click();
-  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await switchToTeaching(page);
+  await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+    title,
+  );
   await expect(
     page.getByRole("textbox", { name: "Quiz Markdown source" }),
-  ).toHaveValue(exactSource);
+  ).toHaveValue(previewEditedSource);
 
-  await page.getByRole("button", { name: "Publish version" }).click();
+  await page.getByRole("button", { name: "Publish" }).click();
+  description = "Created from Playwright";
+  await page.getByLabel("Description").fill(description);
+  await page.getByRole("button", { name: "Publish QuizVersion" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Publish complete" }),
   ).toContainText("Published immutable version 1");
@@ -234,7 +265,7 @@ test("teacher lists a backend quiz and opens its existing draft", async ({
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/app/quizzes");
-  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  await switchToTeaching(page);
   const quizLink = page.getByRole("link", { name: "Existing quiz" });
   await expect(quizLink).toBeVisible();
   await expect(page.getByText("Latest version 2")).toBeVisible();
@@ -246,9 +277,9 @@ test("teacher lists a backend quiz and opens its existing draft", async ({
 
   await quizLink.click();
   await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
-  await expect(
-    page.getByRole("heading", { name: "Existing quiz" }),
-  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+    "Existing quiz",
+  );
   await expect(
     page.getByRole("textbox", { name: "Quiz Markdown source" }),
   ).toHaveValue(existingSource);
@@ -307,7 +338,7 @@ test("teacher loads the next opaque-cursor library page", async ({ page }) => {
   });
 
   await page.goto("/app/quizzes");
-  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  await switchToTeaching(page);
   await expect(
     page.getByRole("link", { name: "First page quiz" }),
   ).toBeVisible();
@@ -348,10 +379,10 @@ test("quiz authoring remains usable without horizontal overflow at 375px", async
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/app/quizzes/${quizId}`);
-  await page.getByRole("button", { name: "Switch to Teaching" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Responsive quiz" }),
-  ).toBeVisible();
+  await switchToTeaching(page);
+  await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+    "Responsive quiz",
+  );
 
   const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
   await expect(editor).toBeVisible();

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { QuizPreview } from "./quiz-preview";
 
 describe("QuizPreview", () => {
@@ -51,5 +51,40 @@ describe("QuizPreview", () => {
     );
     expect(screen.getByText("Lời giải")).toBeInTheDocument();
     expect(screen.getByText(/first line/)).toHaveTextContent("second line");
+  });
+
+  it("exposes accessible selected options and source-linked interactions", () => {
+    const onOptionToggle = vi.fn();
+    const onQuestionSelect = vi.fn();
+    render(
+      <QuizPreview
+        onOptionToggle={onOptionToggle}
+        onQuestionSelect={onQuestionSelect}
+        source={
+          "Câu 1 [SINGLE_CHOICE]: first\nline two\n*A. a\nB. b\nC. c\nD. d"
+        }
+      />,
+    );
+
+    const selected = screen.getByRole("button", { name: "A. Marked correct" });
+    const unselected = screen.getByRole("button", {
+      name: "B. Not marked correct",
+    });
+    expect(selected).toHaveAttribute("aria-pressed", "true");
+    expect(unselected).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("Correct")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Jump to source for question 1/ }),
+    );
+    expect(onQuestionSelect.mock.calls[0]?.[0].source).toEqual({
+      line: 1,
+      offset: 0,
+    });
+    fireEvent.click(unselected);
+    expect(onOptionToggle.mock.calls[0]?.[1]).toMatchObject({
+      label: "B",
+      source: { line: 4 },
+    });
   });
 });

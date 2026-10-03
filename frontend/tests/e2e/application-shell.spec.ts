@@ -58,6 +58,9 @@ test("application reload restores an intercepted refresh session before showing 
     page.getByRole("heading", { name: "Your Quizopia workspace" }),
   ).toBeVisible();
   await expect(
+    page.getByRole("button", { name: /Open user menu for learner01/ }),
+  ).toContainText("Learning");
+  await expect(
     page.getByRole("heading", { name: "Checking your session" }),
   ).toHaveCount(0);
 
@@ -131,7 +134,10 @@ test("intercepted logout clears the frontend session and returns to auth-require
     page.getByRole("heading", { name: "Your Quizopia workspace" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page
+    .getByRole("button", { name: /Open user menu for learner01/ })
+    .click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
 
   await expect(
     page.getByRole("heading", { name: "Sign in to continue" }),
