@@ -203,6 +203,26 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   await expect(
     page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
   ).toHaveCount(0);
+  const postEditCaret = previewEditedSource.indexOf("*B. FTP") + "*B. ".length;
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => ({
+        end: (element as HTMLTextAreaElement).selectionEnd,
+        start: (element as HTMLTextAreaElement).selectionStart,
+      })),
+    )
+    .toEqual({ end: postEditCaret, start: postEditCaret });
+
+  await editor.click({ position: { x: 24, y: 72 } });
+  await expect(
+    page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+  ).toBeVisible();
+  await expect(page.getByRole("option")).toHaveText(["B.", "*B."]);
+  await page.getByRole("option", { name: "B.", exact: true }).click();
+  const manuallyUnstarred = previewEditedSource.replace("*B. FTP", "B. FTP");
+  await expect(editor).toHaveValue(manuallyUnstarred);
+  await expect(editor).toBeFocused();
+
   await editor.fill(`${previewEditedSource}\nc`);
   await expect(
     page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
@@ -368,6 +388,75 @@ test("teacher loads the next opaque-cursor library page", async ({ page }) => {
       (url) => new URL(url).searchParams.get("cursor") === "opaque-next-token",
     ),
   ).toBe(true);
+});
+
+test("autocomplete follows a scrolled caret and flips inside the editor", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const longLine = "x".repeat(180);
+  const source = `Câu 1 [NUMERIC_FILL]: ${longLine}\n${Array.from(
+    { length: 24 },
+    (_, index) => `detail line ${index + 1}`,
+  ).join("\n")}\nĐáp án: 2.50`;
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Popup geometry quiz",
+        description: "Geometry coverage",
+        authoringSource: source,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/app/quizzes/${quizId}`);
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  await editor.fill(`${source}\nCâu 2 [`);
+  const popup = page.getByRole("listbox", {
+    name: "Quiz Markdown suggestions",
+  });
+  await expect(popup).toBeVisible();
+  await editor.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expect
+    .poll(() => editor.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  await expect(popup).toHaveAttribute("data-placement", "above");
+
+  const frame = page.getByTestId("quiz-markdown-editor-frame");
+  const [frameBox, popupBox] = await Promise.all([
+    frame.boundingBox(),
+    popup.boundingBox(),
+  ]);
+  expect(frameBox).not.toBeNull();
+  expect(popupBox).not.toBeNull();
+  expect(popupBox!.y).toBeGreaterThan(frameBox!.y + 40);
+  expect(popupBox!.y).toBeGreaterThanOrEqual(frameBox!.y);
+  expect(popupBox!.y + popupBox!.height).toBeLessThanOrEqual(
+    frameBox!.y + frameBox!.height + 1,
+  );
+
+  await editor.evaluate((element) => {
+    element.scrollLeft = 120;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expect
+    .poll(() => editor.evaluate((element) => element.scrollLeft))
+    .toBe(120);
+  const scrolledPopupBox = await popup.boundingBox();
+  expect(scrolledPopupBox).not.toBeNull();
+  expect(scrolledPopupBox!.x).toBeGreaterThanOrEqual(frameBox!.x);
+  expect(scrolledPopupBox!.x + scrolledPopupBox!.width).toBeLessThanOrEqual(
+    frameBox!.x + frameBox!.width + 1,
+  );
 });
 
 test("quiz authoring remains usable without horizontal overflow at 375px", async ({

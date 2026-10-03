@@ -208,9 +208,12 @@ Quizopia uses three locally managed `next/font` roles:
   major section headings, and selected prominent brand-facing headings;
 - **Inter — body and UI:** paragraphs, navigation, forms, buttons, helper text,
   and normal application copy;
-- **JetBrains Mono — technical labels:** Quiz Markdown source, code, line
-  numbers, question-type chips, badges, compact status tokens, and technical
-  identifiers where fixed-width clarity adds value.
+- **JetBrains Mono — source and technical labels:** the editable Quiz Markdown
+  source text, code, line numbers, question-type chips, badges, compact status
+  tokens, and technical identifiers where fixed-width clarity adds value.
+
+`Quiz Markdown source` and `Live preview` are pane headings, so they use
+Calistoga. The source characters edited beneath the heading use JetBrains Mono.
 
 Do not apply Calistoga to every small heading or dense label. Small card titles
 and routine control labels may remain Inter when that improves scanning. Use
@@ -264,13 +267,16 @@ The reusable Quizopia logo consists of:
 2. a two-line wordmark to its right;
 3. `Quizopia` on line one, with `Quiz` in Text Primary and `opia` using the
    restrained Primary-to-Secondary gradient;
-4. understated Inter text `version 2.0` on line two.
+4. understated Inter text `version 2.0` on line two, tucked closely beneath the
+   product name so both lines read as one compact lockup.
 
-`Quizopia` uses Calistoga. The version line uses Inter. The bolt silhouette is
-the canonical mark for navigation, authentication, focused authoring chrome,
-and favicon/app-icon assets. Do not reintroduce the legacy letter `Q` badge or
-an unrelated blue favicon. Reuse the centralized brand components rather than
-duplicating SVG paths or wordmark markup.
+`Quizopia` uses Calistoga. The version line uses Inter. One canonical bolt path
+defines the silhouette for navigation, authentication, focused authoring
+chrome, and favicon/app-icon assets. The favicon may use its own favicon-safe
+rounded block, but must not redraw or substitute the bolt geometry. Do not
+reintroduce the legacy letter `Q` badge or an unrelated blue favicon. Reuse the
+centralized brand components rather than duplicating SVG paths or wordmark
+markup.
 
 ---
 
@@ -484,6 +490,28 @@ tab or indents selected lines. Shift+Tab removes one leading tab only. Explicit
 preview navigation may suppress autocomplete for that navigation event so
 moving a correctness marker does not imply that the teacher started typing a
 new option. Normal typed completion resumes immediately after user input.
+
+Exact source offsets are the editor's authoritative caret coordinates.
+Conversions to textarea offsets, one-based line/column locations, and visual
+columns must preserve LF/CRLF source and expand literal tabs only for display
+geometry. Line numbers, active-line highlighting, syntax highlighting,
+diagnostic navigation, Preview navigation, and autocomplete positioning share
+that coordinate model.
+
+Preview correctness changes first apply the minimal `*` edit, then locate the
+updated option in the post-edit source and place the caret at its content start.
+Programmatic navigation suppresses autocomplete only for that focus state;
+manual caret movement and typing restore normal assistance without timers.
+
+Autocomplete progressively matches the complete canonical question, option,
+`Đáp án:`, or `Lời giải:` marker without removing Vietnamese diacritics.
+Matching is case-insensitive, while accepted insertion remains canonical and
+the backend grammar remains authoritative. A manual caret within an existing
+question or option marker may replace only that exact marker range. Completion
+stays disabled in prose, indented structural lookalikes, fenced code, and
+invalid parser states. The listbox follows the visual caret, accounts for tabs
+and editor scrolling, clamps horizontally, and flips above near the visible
+bottom while preserving its keyboard and screen-reader semantics.
 
 ---
 
@@ -1082,6 +1110,9 @@ Editor UI prioritizes:
 - exact source preservation, including explicitly authored tabs
 - balanced shared pane-header hierarchy
 - intent-aware preview-to-source navigation without unsolicited completion
+- LF/CRLF-safe source, textarea, line/column, and visual-caret mapping
+- progressive full-marker completion and exact existing-marker replacement
+- caret-anchored completion that remains inside the editor viewport
 
 Decorative gradients/3D treatments should not appear inside the editing workspace.
 
@@ -1168,7 +1199,7 @@ For the current Quizopia 2.0 frontend baseline:
 - Theme: Light only
 - Primary: Indigo 600
 - Secondary: Violet 600
-- Typography: Calistoga for key headings and the product wordmark, Inter for body and general UI, and JetBrains Mono for compact labels, badges, and technical tokens
+- Typography: Calistoga for key headings and the product wordmark, Inter for body and general UI, and JetBrains Mono for editable source/code plus compact technical labels
 - Product button default: solid Indigo, rounded-lg
 - Marketing CTA: gradient allowed
 - Product cards: restrained elevation

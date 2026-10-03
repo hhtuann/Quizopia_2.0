@@ -1,4 +1,5 @@
 import type { ComponentPropsWithoutRef } from "react";
+import { QUIZOPIA_BOLT_PATH } from "./quizopia-brand-geometry";
 
 export type QuizopiaBrandMarkProps = ComponentPropsWithoutRef<"span">;
 
@@ -19,7 +20,7 @@ export function QuizopiaBrandMark({
         viewBox="0 0 24 24"
       >
         <path
-          d="M13.25 2.5 5.75 13h5l-1 8.5L18.25 10h-5.1l.1-7.5Z"
+          d={QUIZOPIA_BOLT_PATH}
           fill="currentColor"
           stroke="currentColor"
           strokeLinejoin="round"

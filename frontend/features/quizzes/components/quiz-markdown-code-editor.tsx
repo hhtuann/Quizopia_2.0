@@ -16,9 +16,23 @@ import {
   type UIEvent,
 } from "react";
 import { getQuizAutocompleteSuggestions } from "../model/quiz-markdown";
+import {
+  QUIZ_MARKDOWN_TAB_SIZE,
+  preserveQuizMarkdownTextareaEdit,
+  quizMarkdownPopupGeometry,
+  sourceLineBoundsAtOffset,
+  sourceLocationToOffset,
+  sourceOffsetFromTextareaOffset,
+  sourceOffsetToLocation,
+  sourceOffsetToVisualLocation,
+  textareaOffsetFromSourceOffset,
+} from "../model/quiz-markdown-coordinates";
 import { EditorPaneHeader } from "./editor-pane-header";
 
 const EDITOR_LINE_HEIGHT = 24;
+const EDITOR_GUTTER_WIDTH = 48;
+const EDITOR_PADDING_LEFT = 16;
+const EDITOR_PADDING_TOP = 12;
 
 export interface QuizMarkdownEditorFocusOptions {
   readonly suppressAutocomplete?: boolean;
@@ -39,119 +53,6 @@ export interface QuizMarkdownCodeEditorProps {
   readonly value: string;
 }
 
-function offsetForLocation(
-  source: string,
-  line: number,
-  column: number,
-): number {
-  const targetLine = Math.max(1, line);
-  const targetColumn = Math.max(1, column);
-  let currentLine = 1;
-  let offset = 0;
-
-  while (currentLine < targetLine && offset < source.length) {
-    if (source[offset] === "\r" && source[offset + 1] === "\n") {
-      offset += 2;
-      currentLine += 1;
-    } else if (source[offset] === "\r" || source[offset] === "\n") {
-      offset += 1;
-      currentLine += 1;
-    } else {
-      offset += 1;
-    }
-  }
-  return Math.min(source.length, offset + targetColumn - 1);
-}
-
-function lineForOffset(source: string, offset: number): number {
-  return source.slice(0, Math.max(0, offset)).split(/\r\n|\r|\n/).length;
-}
-
-function normalizedTextareaValue(source: string): string {
-  return source.replace(/\r\n|\r/g, "\n");
-}
-
-function sourceOffsetFromTextareaOffset(
-  source: string,
-  textareaOffset: number,
-): number {
-  const target = Math.max(0, textareaOffset);
-  let normalizedOffset = 0;
-  let sourceOffset = 0;
-  while (sourceOffset < source.length && normalizedOffset < target) {
-    if (source[sourceOffset] === "\r" && source[sourceOffset + 1] === "\n") {
-      sourceOffset += 2;
-    } else {
-      sourceOffset += 1;
-    }
-    normalizedOffset += 1;
-  }
-  return sourceOffset;
-}
-
-function textareaOffsetFromSourceOffset(
-  source: string,
-  sourceOffset: number,
-): number {
-  return normalizedTextareaValue(
-    source.slice(0, Math.max(0, Math.min(sourceOffset, source.length))),
-  ).length;
-}
-
-function preferredLineEnding(source: string): "\r\n" | "\r" | "\n" {
-  if (source.includes("\r\n")) {
-    return "\r\n";
-  }
-  if (source.includes("\r")) {
-    return "\r";
-  }
-  return "\n";
-}
-
-function preserveSourceLineEndings(
-  source: string,
-  nextTextareaValue: string,
-): string {
-  const previousTextareaValue = normalizedTextareaValue(source);
-  let prefixLength = 0;
-  while (
-    prefixLength < previousTextareaValue.length &&
-    prefixLength < nextTextareaValue.length &&
-    previousTextareaValue[prefixLength] === nextTextareaValue[prefixLength]
-  ) {
-    prefixLength += 1;
-  }
-
-  let suffixLength = 0;
-  while (
-    suffixLength < previousTextareaValue.length - prefixLength &&
-    suffixLength < nextTextareaValue.length - prefixLength &&
-    previousTextareaValue[previousTextareaValue.length - 1 - suffixLength] ===
-      nextTextareaValue[nextTextareaValue.length - 1 - suffixLength]
-  ) {
-    suffixLength += 1;
-  }
-
-  const sourceEditStart = sourceOffsetFromTextareaOffset(source, prefixLength);
-  const sourceEditEnd = sourceOffsetFromTextareaOffset(
-    source,
-    previousTextareaValue.length - suffixLength,
-  );
-  const insertedTextareaText = nextTextareaValue.slice(
-    prefixLength,
-    nextTextareaValue.length - suffixLength,
-  );
-  const insertedSourceText = insertedTextareaText.replace(
-    /\n/g,
-    preferredLineEnding(source),
-  );
-  return (
-    source.slice(0, sourceEditStart) +
-    insertedSourceText +
-    source.slice(sourceEditEnd)
-  );
-}
-
 interface EditorSelection {
   readonly end: number;
   readonly start: number;
@@ -162,14 +63,31 @@ interface IndentationResult {
   readonly value: string;
 }
 
+function measuredCharacterWidth(
+  textarea: HTMLTextAreaElement,
+  container: HTMLElement,
+): number {
+  const computed = window.getComputedStyle(textarea);
+  const probe = document.createElement("span");
+  probe.setAttribute("aria-hidden", "true");
+  probe.textContent = "0000000000";
+  probe.style.font = computed.font;
+  probe.style.letterSpacing = computed.letterSpacing;
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.whiteSpace = "pre";
+  container.append(probe);
+  const measured = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  if (measured > 0) {
+    return measured;
+  }
+  const fontSize = Number.parseFloat(computed.fontSize);
+  return Number.isFinite(fontSize) ? fontSize * 0.6 : 8.4;
+}
+
 function lineStartForOffset(source: string, offset: number): number {
-  const safeOffset = Math.max(0, Math.min(offset, source.length));
-  return (
-    Math.max(
-      source.lastIndexOf("\n", safeOffset - 1),
-      source.lastIndexOf("\r", safeOffset - 1),
-    ) + 1
-  );
+  return sourceLineBoundsAtOffset(source, offset).start;
 }
 
 function selectedLineStarts(
@@ -353,6 +271,8 @@ export const QuizMarkdownCodeEditor = forwardRef<
   QuizMarkdownCodeEditorHandle,
   QuizMarkdownCodeEditorProps
 >(function QuizMarkdownCodeEditor({ disabled = false, onChange, value }, ref) {
+  const editorFrameRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLUListElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caret, setCaret] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -368,7 +288,10 @@ export const QuizMarkdownCodeEditor = forwardRef<
   const signature = `${value}\u0000${caret}`;
   const suggestions = dismissedSignature === signature ? [] : rawSuggestions;
   const lines = value.split(/\r\n|\r|\n/);
-  const activeLine = lineForOffset(value, caret);
+  const activeLine = sourceOffsetToLocation(value, caret).line;
+  const popupSignature = `${signature}\u0000${scroll.left}\u0000${scroll.top}\u0000${suggestions
+    .map((suggestion) => suggestion.id)
+    .join("|")}`;
 
   const positionEditorSelection = useCallback(
     (selection: EditorSelection) => {
@@ -386,7 +309,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
         textareaOffsetFromSourceOffset(value, safeStart),
         textareaOffsetFromSourceOffset(value, safeEnd),
       );
-      const line = lineForOffset(value, safeStart);
+      const line = sourceOffsetToLocation(value, safeStart).line;
       const targetTop = Math.max(
         0,
         (line - 1) * EDITOR_LINE_HEIGHT - textarea.clientHeight / 2,
@@ -418,11 +341,59 @@ export const QuizMarkdownCodeEditor = forwardRef<
     positionEditorSelection(pendingSelection);
   }, [positionEditorSelection, value]);
 
+  useLayoutEffect(() => {
+    if (suggestions.length === 0) {
+      return;
+    }
+    const frame = editorFrameRef.current;
+    const popup = popupRef.current;
+    const textarea = textareaRef.current;
+    if (frame === null || popup === null || textarea === null) {
+      return;
+    }
+
+    const frameRect = frame.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    const viewportWidth = frame.clientWidth || frameRect.width;
+    const viewportHeight = frame.clientHeight || frameRect.height;
+    const popupWidth =
+      popupRect.width || Math.min(448, Math.max(200, viewportWidth - 56));
+    const popupHeight =
+      popupRect.height || Math.min(256, suggestions.length * 40 + 8);
+    const visual = sourceOffsetToVisualLocation(value, caret);
+    const geometry = quizMarkdownPopupGeometry({
+      caretLine: visual.line,
+      caretVisualColumn: visual.visualColumn,
+      characterWidth: measuredCharacterWidth(textarea, frame),
+      gutterWidth: EDITOR_GUTTER_WIDTH,
+      lineHeight: EDITOR_LINE_HEIGHT,
+      paddingLeft: EDITOR_PADDING_LEFT,
+      paddingTop: EDITOR_PADDING_TOP,
+      popupHeight,
+      popupWidth,
+      scrollLeft: scroll.left,
+      scrollTop: scroll.top,
+      viewportHeight,
+      viewportWidth,
+    });
+    popup.style.left = `${geometry.left}px`;
+    popup.style.top = `${geometry.top}px`;
+    popup.style.visibility = "visible";
+    popup.dataset.placement = geometry.placement;
+  }, [
+    caret,
+    popupSignature,
+    scroll.left,
+    scroll.top,
+    suggestions.length,
+    value,
+  ]);
+
   useImperativeHandle(
     ref,
     () => ({
       focusLocation(line, column, options) {
-        focusEditorOffset(offsetForLocation(value, line, column), options);
+        focusEditorOffset(sourceLocationToOffset(value, line, column), options);
       },
       focusOffset(offset, options) {
         focusEditorOffset(offset, options);
@@ -442,7 +413,10 @@ export const QuizMarkdownCodeEditor = forwardRef<
   }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
-    const nextValue = preserveSourceLineEndings(value, event.target.value);
+    const nextValue = preserveQuizMarkdownTextareaEdit(
+      value,
+      event.target.value,
+    );
     onChange(nextValue);
     setCaret(
       sourceOffsetFromTextareaOffset(
@@ -549,7 +523,11 @@ export const QuizMarkdownCodeEditor = forwardRef<
         titleId="quiz-editor-title"
       />
 
-      <div className="relative min-h-[20rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-surface font-mono text-sm leading-6 shadow-inner focus-within:border-primary focus-within:ring-2 focus-within:ring-focus/30">
+      <div
+        className="relative min-h-[20rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-surface font-mono text-sm leading-6 shadow-inner focus-within:border-primary focus-within:ring-2 focus-within:ring-focus/30"
+        data-testid="quiz-markdown-editor-frame"
+        ref={editorFrameRef}
+      >
         <div
           aria-hidden="true"
           className="absolute inset-y-0 left-0 w-12 overflow-hidden border-r border-border bg-surface-muted text-right text-foreground-muted"
@@ -632,39 +610,48 @@ export const QuizMarkdownCodeEditor = forwardRef<
             }
             ref={textareaRef}
             spellCheck={false}
-            style={{ caretColor: "var(--color-foreground)" }}
+            style={{
+              caretColor: "var(--color-foreground)",
+              tabSize: QUIZ_MARKDOWN_TAB_SIZE,
+            }}
             value={value}
             wrap="off"
           />
         </div>
+        {suggestions.length > 0 ? (
+          <ul
+            aria-label="Quiz Markdown suggestions"
+            className="absolute z-20 max-h-64 overflow-auto rounded-lg border border-border-strong bg-surface p-1 shadow-card"
+            id="quiz-markdown-suggestions"
+            ref={popupRef}
+            role="listbox"
+            style={{
+              left: 0,
+              top: 0,
+              visibility: "hidden",
+              width: "min(28rem, calc(100% - 3.5rem))",
+            }}
+          >
+            {suggestions.map((suggestion, index) => (
+              <li
+                aria-selected={index === activeIndex}
+                className={`cursor-pointer rounded-md px-3 py-2 font-mono text-sm ${
+                  index === activeIndex
+                    ? "bg-primary text-foreground-inverse"
+                    : "text-foreground hover:bg-surface-muted"
+                }`}
+                id={`quiz-markdown-suggestion-${suggestion.id}`}
+                key={suggestion.id}
+                onClick={() => acceptSuggestion(index)}
+                onMouseDown={handleSuggestionMouseDown}
+                role="option"
+              >
+                {suggestion.label}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
-
-      {suggestions.length > 0 ? (
-        <ul
-          aria-label="Quiz Markdown suggestions"
-          className="absolute left-14 right-3 top-20 z-20 max-h-64 overflow-auto rounded-lg border border-border-strong bg-surface p-1 shadow-card"
-          id="quiz-markdown-suggestions"
-          role="listbox"
-        >
-          {suggestions.map((suggestion, index) => (
-            <li
-              aria-selected={index === activeIndex}
-              className={`cursor-pointer rounded-md px-3 py-2 font-mono text-sm ${
-                index === activeIndex
-                  ? "bg-primary text-foreground-inverse"
-                  : "text-foreground hover:bg-surface-muted"
-              }`}
-              id={`quiz-markdown-suggestion-${suggestion.id}`}
-              key={suggestion.id}
-              onClick={() => acceptSuggestion(index)}
-              onMouseDown={handleSuggestionMouseDown}
-              role="option"
-            >
-              {suggestion.label}
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       <p aria-live="polite" className="sr-only">
         {suggestions.length > 0

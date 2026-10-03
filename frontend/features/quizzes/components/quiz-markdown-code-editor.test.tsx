@@ -14,14 +14,20 @@ function EditorHarness({ initial }: { readonly initial: string }) {
   );
 }
 
-function ProgrammaticFocusHarness({ initial }: { readonly initial: string }) {
+function ProgrammaticFocusHarness({
+  focusOffset,
+  initial,
+}: {
+  readonly focusOffset?: number;
+  readonly initial: string;
+}) {
   const [value, setValue] = useState(initial);
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
   return (
     <>
       <button
         onClick={() =>
-          editorRef.current?.focusOffset(value.length, {
+          editorRef.current?.focusOffset(focusOffset ?? value.length, {
             suppressAutocomplete: true,
           })
         }
@@ -202,4 +208,78 @@ describe("QuizMarkdownCodeEditor", () => {
       screen.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
     ).toBeInTheDocument();
   });
+
+  it("restores marker replacement suggestions after a real manual click", () => {
+    const source =
+      "Câu 1 [MULTIPLE_CHOICE]: choose\nA. alpha\nB. Văn\nC. gamma\nD. delta";
+    const markerCaret = source.indexOf("B. Văn") + 1;
+    render(
+      <ProgrammaticFocusHarness focusOffset={markerCaret} initial={source} />,
+    );
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Focus without completion" }),
+    );
+    expect(
+      screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
+    ).not.toBeInTheDocument();
+
+    editor.setSelectionRange(markerCaret, markerCaret);
+    fireEvent.click(editor);
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["B.", "*B."]);
+  });
+
+  it("replaces an existing question marker and preserves the stem exactly", async () => {
+    const source = "Câu 1 [MULTIPLE_CHOICE]: Stem  with  spaces";
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    const caret = source.indexOf("MULTIPLE_CHOICE") + 4;
+    editor.setSelectionRange(caret, caret);
+    fireEvent.click(editor);
+    fireEvent.click(
+      screen.getByRole("option", { name: "Câu 1 [SINGLE_CHOICE]:" }),
+    );
+
+    const expected = "Câu 1 [SINGLE_CHOICE]: Stem  with  spaces";
+    expect(editor.value).toBe(expected);
+    await waitFor(() =>
+      expect(editor.selectionStart).toBe(expected.indexOf(":") + 1),
+    );
+    expect(editor.selectionEnd).toBe(editor.selectionStart);
+  });
+
+  it.each([
+    ["B. Văn", "*B.", "*B. Văn"],
+    ["*B. Văn", "B.", "B. Văn"],
+  ] as const)(
+    "replaces only the existing option marker in %s",
+    async (optionLine, selectedMarker, expectedLine) => {
+      const prefix = "Câu 1 [MULTIPLE_CHOICE]: choose\nA. alpha\n";
+      const source = `${prefix}${optionLine}\nC. gamma\nD. delta`;
+      render(<EditorHarness initial={source} />);
+      const editor = screen.getByLabelText<HTMLTextAreaElement>(
+        "Quiz Markdown source",
+      );
+      const caret = prefix.length + (optionLine.startsWith("*") ? 2 : 1);
+      editor.setSelectionRange(caret, caret);
+      fireEvent.click(editor);
+      fireEvent.click(screen.getByRole("option", { name: selectedMarker }));
+
+      const expected = `${prefix}${expectedLine}\nC. gamma\nD. delta`;
+      expect(editor.value).toBe(expected);
+      await waitFor(() =>
+        expect(editor.selectionStart).toBe(
+          prefix.length + selectedMarker.length,
+        ),
+      );
+      expect(editor.selectionEnd).toBe(editor.selectionStart);
+    },
+  );
 });

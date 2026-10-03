@@ -17,7 +17,7 @@ export function QuizopiaWordmark({
           opia
         </span>
       </span>
-      <span className="mt-1 font-sans text-[0.625rem] font-medium tracking-[0.08em] text-foreground-muted">
+      <span className="mt-0.5 font-sans text-[0.625rem] font-medium leading-none tracking-[0.08em] text-foreground-muted">
         version 2.0
       </span>
     </span>

@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { QuizopiaLogo } from "../../../components/brand/quizopia-logo";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
@@ -23,6 +30,7 @@ import {
   type QuizPreviewOption,
   type QuizPreviewQuestion,
 } from "../model/quiz-markdown";
+import { sourceLocationToOffset } from "../model/quiz-markdown-coordinates";
 import {
   QuizMarkdownCodeEditor,
   type QuizMarkdownCodeEditorHandle,
@@ -67,15 +75,17 @@ function optionContentOffset(
   source: string,
   question: QuizPreviewQuestion,
   option: QuizPreviewOption,
-): number {
+): number | null {
   const updatedQuestion = analyzeQuizMarkdown(source).questions.find(
-    (candidate) => candidate.source.line === question.source.line,
+    (candidate) =>
+      candidate.number === question.number &&
+      candidate.source.line === question.source.line,
   );
   const updatedOption = updatedQuestion?.options.find(
     (candidate) => candidate.label === option.label,
   );
   if (updatedOption === undefined) {
-    return Math.min(source.length, option.source.markerOffset + 2);
+    return null;
   }
 
   let offset = updatedOption.source.markerOffset + 2;
@@ -456,6 +466,11 @@ export function CreateQuizPage() {
 
 type LoadState = "loading" | "ready" | "forbidden" | "not-found" | "error";
 
+interface PendingEditorFocus {
+  readonly offset: number;
+  readonly suppressAutocomplete: boolean;
+}
+
 export interface QuizEditorPageProps {
   readonly quizId: string;
 }
@@ -463,7 +478,11 @@ export interface QuizEditorPageProps {
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const client = useQuizApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
-  const pendingOptionFocusRef = useRef<number | null>(null);
+  const pendingEditorFocusRef = useRef<PendingEditorFocus | null>(null);
+  const [focusRequestVersion, requestEditorFocus] = useReducer(
+    (version: number) => version + 1,
+    0,
+  );
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -489,15 +508,15 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
 
   useLayoutEffect(() => {
-    const pendingOffset = pendingOptionFocusRef.current;
-    if (pendingOffset === null) {
+    const pendingEditorFocus = pendingEditorFocusRef.current;
+    if (pendingEditorFocus === null || mobilePane !== "source") {
       return;
     }
-    pendingOptionFocusRef.current = null;
-    editorRef.current?.focusOffset(pendingOffset, {
-      suppressAutocomplete: true,
+    pendingEditorFocusRef.current = null;
+    editorRef.current?.focusOffset(pendingEditorFocus.offset, {
+      suppressAutocomplete: pendingEditorFocus.suppressAutocomplete,
     });
-  }, [source]);
+  }, [focusRequestVersion, mobilePane, source]);
 
   useEffect(() => {
     if (client === null) {
@@ -613,7 +632,13 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
       return;
     }
     const caretOffset = optionContentOffset(nextSource, question, option);
-    pendingOptionFocusRef.current = caretOffset;
+    if (caretOffset !== null) {
+      pendingEditorFocusRef.current = {
+        offset: caretOffset,
+        suppressAutocomplete: true,
+      };
+      requestEditorFocus();
+    }
     updateSource(nextSource);
     setMobilePane("source");
   }
@@ -799,16 +824,20 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             <QuizPreview
               onDiagnosticSelect={(line, column) => {
                 setMobilePane("source");
-                requestAnimationFrame(() =>
-                  editorRef.current?.focusLocation(line, column),
-                );
+                pendingEditorFocusRef.current = {
+                  offset: sourceLocationToOffset(source, line, column),
+                  suppressAutocomplete: true,
+                };
+                requestEditorFocus();
               }}
               onOptionToggle={handleOptionToggle}
               onQuestionSelect={(question) => {
                 setMobilePane("source");
-                requestAnimationFrame(() =>
-                  editorRef.current?.focusOffset(question.source.offset),
-                );
+                pendingEditorFocusRef.current = {
+                  offset: question.source.offset,
+                  suppressAutocomplete: true,
+                };
+                requestEditorFocus();
               }}
               serverDiagnostics={serverDiagnostics}
               source={source}
