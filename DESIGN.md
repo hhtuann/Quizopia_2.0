@@ -516,7 +516,9 @@ Matching is case-insensitive, while accepted insertion remains canonical and
 the backend grammar remains authoritative. A manual caret within an existing
 question or option marker may replace only that exact marker range. Completion
 stays disabled in prose, indented structural lookalikes, fenced code, and
-invalid parser states. The listbox follows the visual caret, accounts for tabs
+invalid parser states. Completion also stays disabled while the textarea has a
+non-collapsed text selection; suggestions resume only after the selection
+collapses back to a single caret position. The listbox follows the visual caret, accounts for tabs
 and editor scrolling, clamps horizontally, and flips above near the visible
 bottom while preserving its keyboard and screen-reader semantics.
 

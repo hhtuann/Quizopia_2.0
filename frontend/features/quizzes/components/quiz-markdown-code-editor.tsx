@@ -4,6 +4,7 @@ import {
   Fragment,
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
@@ -275,6 +276,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
   const popupRef = useRef<HTMLUListElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caret, setCaret] = useState(0);
+  const [hasTextSelection, setHasTextSelection] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissedSignature, setDismissedSignature] = useState<string | null>(
     null,
@@ -286,12 +288,35 @@ export const QuizMarkdownCodeEditor = forwardRef<
     [caret, value],
   );
   const signature = `${value}\u0000${caret}`;
-  const suggestions = dismissedSignature === signature ? [] : rawSuggestions;
+  const suggestions =
+    hasTextSelection || dismissedSignature === signature ? [] : rawSuggestions;
   const lines = value.split(/\r\n|\r|\n/);
   const activeLine = sourceOffsetToLocation(value, caret).line;
   const popupSignature = `${signature}\u0000${scroll.left}\u0000${scroll.top}\u0000${suggestions
     .map((suggestion) => suggestion.id)
     .join("|")}`;
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea === null) {
+      return;
+    }
+    const selectionTarget = textarea;
+
+    function handleSelectionChange() {
+      if (document.activeElement !== selectionTarget) {
+        return;
+      }
+      const selectionStart = selectionTarget.selectionStart ?? 0;
+      const selectionEnd = selectionTarget.selectionEnd ?? selectionStart;
+      setCaret(sourceOffsetFromTextareaOffset(value, selectionStart));
+      setHasTextSelection(selectionStart !== selectionEnd);
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () =>
+      document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [value]);
 
   const positionEditorSelection = useCallback(
     (selection: EditorSelection) => {
@@ -317,6 +342,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
       textarea.scrollTop = targetTop;
       setScroll({ left: textarea.scrollLeft, top: textarea.scrollTop });
       setCaret(safeStart);
+      setHasTextSelection(safeStart !== safeEnd);
     },
     [value],
   );
@@ -404,6 +430,9 @@ export const QuizMarkdownCodeEditor = forwardRef<
 
   function syncCaret(target: HTMLTextAreaElement) {
     setCaret(sourceOffsetFromTextareaOffset(value, target.selectionStart ?? 0));
+    setHasTextSelection(
+      (target.selectionStart ?? 0) !== (target.selectionEnd ?? 0),
+    );
     setDismissedSignature(null);
   }
 
@@ -423,6 +452,9 @@ export const QuizMarkdownCodeEditor = forwardRef<
         nextValue,
         event.target.selectionStart ?? event.target.value.length,
       ),
+    );
+    setHasTextSelection(
+      (event.target.selectionStart ?? 0) !== (event.target.selectionEnd ?? 0),
     );
     setActiveIndex(0);
     setDismissedSignature(null);
@@ -447,6 +479,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
     const nextCaret = suggestion.replaceStart + suggestion.insertText.length;
     onChange(nextValue);
     setDismissedSignature(`${nextValue}\u0000${nextCaret}`);
+    setHasTextSelection(false);
     pendingSelectionRef.current = { start: nextCaret, end: nextCaret };
   }
 
@@ -497,6 +530,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
       }
       onChange(edit.value);
       setCaret(edit.selection.start);
+      setHasTextSelection(edit.selection.start !== edit.selection.end);
       setActiveIndex(0);
       setDismissedSignature(`${edit.value}\u0000${edit.selection.start}`);
       pendingSelectionRef.current = edit.selection;
@@ -599,15 +633,20 @@ export const QuizMarkdownCodeEditor = forwardRef<
               syncCaret(event.currentTarget);
               setActiveIndex(0);
             }}
+            onMouseUp={(event) => resetCaret(event.currentTarget)}
             onScroll={handleScroll}
-            onSelect={(event) =>
+            onSelect={(event) => {
               setCaret(
                 sourceOffsetFromTextareaOffset(
                   value,
                   event.currentTarget.selectionStart ?? 0,
                 ),
-              )
-            }
+              );
+              setHasTextSelection(
+                (event.currentTarget.selectionStart ?? 0) !==
+                  (event.currentTarget.selectionEnd ?? 0),
+              );
+            }}
             ref={textareaRef}
             spellCheck={false}
             style={{

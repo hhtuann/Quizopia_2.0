@@ -44,12 +44,8 @@ async function switchToTeaching(page: Page) {
   await page.getByRole("button", { name: "Switch to Teaching" }).click();
 }
 
-async function clickVisibleEditorTextEnd(
-  page: Page,
-  editor: Locator,
-  needle: string,
-) {
-  const point = await page
+async function visibleEditorTextEndPoint(page: Page, needle: string) {
+  return page
     .getByTestId("quiz-markdown-highlight-layer")
     .evaluate((layer, target) => {
       const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
@@ -70,6 +66,14 @@ async function clickVisibleEditorTextEnd(
 
       throw new Error(`Unable to find visible editor text: ${target}`);
     }, needle);
+}
+
+async function clickVisibleEditorTextEnd(
+  page: Page,
+  editor: Locator,
+  needle: string,
+) {
+  const point = await visibleEditorTextEndPoint(page, needle);
 
   const editorBox = await editor.boundingBox();
   expect(editorBox).not.toBeNull();
@@ -467,6 +471,70 @@ test("question marker replacement keeps visible text and textarea caret aligned"
   await clickVisibleEditorTextEnd(page, editor, "đúng");
   await editor.press("a");
   await expect(editor).toHaveValue(replacedSource.replace("đúng", "đúnga"));
+});
+
+test("range selection touching a marker suppresses autocomplete until it collapses", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const source =
+    "Câu 1 [SINGLE_CHOICE]: choose\n*A. alpha\nB. beta\nC. gamma\nD. delta";
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Selection autocomplete quiz",
+        description: "Selection autocomplete coverage",
+        authoringSource: source,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/app/quizzes/${quizId}`);
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  const markerPoint = await visibleEditorTextEndPoint(page, "SING");
+  const stemPoint = await visibleEditorTextEndPoint(page, "choose");
+
+  await page.mouse.move(markerPoint.x, markerPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(stemPoint.x, stemPoint.y, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => {
+        const textarea = element as HTMLTextAreaElement;
+        return textarea.selectionEnd - textarea.selectionStart;
+      }),
+    )
+    .toBeGreaterThan(0);
+  await expect(
+    page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+  ).toHaveCount(0);
+
+  await page.mouse.click(markerPoint.x, markerPoint.y);
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => {
+        const textarea = element as HTMLTextAreaElement;
+        return {
+          end: textarea.selectionEnd,
+          start: textarea.selectionStart,
+        };
+      }),
+    )
+    .toEqual({
+      end: source.indexOf("SINGLE_CHOICE") + 4,
+      start: source.indexOf("SINGLE_CHOICE") + 4,
+    });
+  await expect(
+    page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+  ).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(4);
 });
 
 test("preview correctness navigation keeps editor overlays aligned near the source end", async ({

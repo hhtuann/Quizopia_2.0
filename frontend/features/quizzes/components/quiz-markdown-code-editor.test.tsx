@@ -240,6 +240,45 @@ describe("QuizMarkdownCodeEditor", () => {
     ).toEqual(["B.", "*B."]);
   });
 
+  it.each([
+    [
+      "question marker",
+      "Câu 1 [MULTIPLE_CHOICE]: choose\nA. alpha\nB. beta\nC. gamma\nD. delta",
+      "MULTIPLE_CHOICE",
+    ],
+    [
+      "option marker",
+      "Câu 1 [MULTIPLE_CHOICE]: choose\nA. alpha\nB. beta\nC. gamma\nD. delta",
+      "B. beta",
+    ],
+  ] as const)(
+    "hides autocomplete while a range selection touches a %s",
+    (_label, source, marker) => {
+      render(<EditorHarness initial={source} />);
+      const editor = screen.getByLabelText<HTMLTextAreaElement>(
+        "Quiz Markdown source",
+      );
+      const markerCaret = source.indexOf(marker) + 1;
+
+      fireEvent.select(editor, {
+        target: {
+          selectionStart: markerCaret,
+          selectionEnd: markerCaret + 4,
+        },
+      });
+      expect(
+        screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.select(editor, {
+        target: { selectionStart: markerCaret, selectionEnd: markerCaret },
+      });
+      expect(
+        screen.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+      ).toBeInTheDocument();
+    },
+  );
+
   it("replaces an existing question marker and preserves the stem exactly", async () => {
     const source = "Câu 1 [MULTIPLE_CHOICE]: Stem  with  spaces";
     render(<EditorHarness initial={source} />);
