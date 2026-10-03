@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const versionId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
@@ -42,6 +42,38 @@ async function switchToTeaching(page: Page) {
     return;
   }
   await page.getByRole("button", { name: "Switch to Teaching" }).click();
+}
+
+async function clickVisibleEditorTextEnd(
+  page: Page,
+  editor: Locator,
+  needle: string,
+) {
+  const point = await page
+    .getByTestId("quiz-markdown-highlight-layer")
+    .evaluate((layer, target) => {
+      const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+
+      while (node !== null) {
+        const text = node.textContent ?? "";
+        const targetStart = text.indexOf(target);
+        if (targetStart >= 0) {
+          const range = document.createRange();
+          range.setStart(node, targetStart + target.length);
+          range.collapse(true);
+          const rect = range.getBoundingClientRect();
+          return { x: rect.x, y: rect.y + rect.height / 2 };
+        }
+        node = walker.nextNode();
+      }
+
+      throw new Error(`Unable to find visible editor text: ${target}`);
+    }, needle);
+
+  const editorBox = await editor.boundingBox();
+  expect(editorBox).not.toBeNull();
+  await page.mouse.click(point.x, point.y);
 }
 
 test("teacher creates, authors, saves, reloads and publishes a real-contract draft", async ({
@@ -388,6 +420,53 @@ test("teacher loads the next opaque-cursor library page", async ({ page }) => {
       (url) => new URL(url).searchParams.get("cursor") === "opaque-next-token",
     ),
   ).toBe(true);
+});
+
+test("question marker replacement keeps visible text and textarea caret aligned", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const source =
+    "Câu 1 [TRUE_FALSE_MATRIX]: đúng\n*A. alpha\nB. beta\nC. gamma\nD. delta";
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Caret alignment quiz",
+        description: "Caret alignment coverage",
+        authoringSource: source,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/app/quizzes/${quizId}`);
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+
+  const markerCaret = source.indexOf("TRUE_FALSE_MATRIX") + 4;
+  await editor.evaluate((element, offset) => {
+    const textarea = element as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(offset, offset);
+    textarea.dispatchEvent(new Event("select", { bubbles: true }));
+  }, markerCaret);
+  await expect(
+    page.getByRole("listbox", { name: "Quiz Markdown suggestions" }),
+  ).toBeVisible();
+  await page.getByRole("option", { name: "Câu 1 [SINGLE_CHOICE]:" }).click();
+
+  const replacedSource = source.replace(
+    "Câu 1 [TRUE_FALSE_MATRIX]:",
+    "Câu 1 [SINGLE_CHOICE]:",
+  );
+  await expect(editor).toHaveValue(replacedSource);
+  await clickVisibleEditorTextEnd(page, editor, "đúng");
+  await editor.press("a");
+  await expect(editor).toHaveValue(replacedSource.replace("đúng", "đúnga"));
 });
 
 test("autocomplete follows a scrolled caret and flips inside the editor", async ({

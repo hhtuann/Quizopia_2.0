@@ -496,7 +496,10 @@ Conversions to textarea offsets, one-based line/column locations, and visual
 columns must preserve LF/CRLF source and expand literal tabs only for display
 geometry. Line numbers, active-line highlighting, syntax highlighting,
 diagnostic navigation, Preview navigation, and autocomplete positioning share
-that coordinate model.
+that coordinate model. The syntax-highlight mirror and editable textarea must
+also use identical font family, size, weight, line height, letter spacing, and
+tab metrics so visible text remains pixel-aligned with the native caret. Syntax
+color may differ, but metric-changing emphasis must not shift the mirror.
 
 Preview correctness changes first apply the minimal `*` edit, then locate the
 updated option in the post-edit source and place the caret at its content start.

@@ -70,7 +70,13 @@ describe("QuizMarkdownCodeEditor", () => {
     );
     const layer = screen.getByTestId("quiz-markdown-highlight-layer");
     expect(editor.value).toBe(source);
-    expect(layer.querySelectorAll(".font-semibold").length).toBeGreaterThan(3);
+    expect(
+      layer.querySelectorAll(".text-primary, .text-secondary, .text-warning")
+        .length,
+    ).toBeGreaterThan(3);
+    expect(layer.querySelectorAll(".font-semibold, .font-bold")).toHaveLength(
+      0,
+    );
     expect(layer).toHaveTextContent("SINGLE_CHOICE");
     expect(layer).toHaveTextContent("Lời giải:");
   });

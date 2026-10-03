@@ -180,7 +180,7 @@ function fenceLength(line: string): number | null {
 
 function highlightedLine(line: string, inFence: boolean): ReactNode {
   if (fenceLength(line) !== null) {
-    return <span className="font-semibold text-warning">{line}</span>;
+    return <span className="text-warning">{line}</span>;
   }
   if (inFence) {
     return <span className="text-foreground-secondary">{line}</span>;
@@ -193,11 +193,11 @@ function highlightedLine(line: string, inFence: boolean): ReactNode {
   if (header) {
     return (
       <>
-        <span className="font-semibold text-primary">{header[1]}</span>
-        <span className="font-semibold text-secondary">{header[2]}</span>
-        <span className="font-semibold text-primary">{header[3]}</span>
-        <span className="font-semibold text-secondary">{header[4]}</span>
-        <span className="font-semibold text-primary">{header[5]}</span>
+        <span className="text-primary">{header[1]}</span>
+        <span className="text-secondary">{header[2]}</span>
+        <span className="text-primary">{header[3]}</span>
+        <span className="text-secondary">{header[4]}</span>
+        <span className="text-primary">{header[5]}</span>
         <span className="text-foreground">{header[6]}</span>
       </>
     );
@@ -207,9 +207,9 @@ function highlightedLine(line: string, inFence: boolean): ReactNode {
   if (option) {
     return (
       <>
-        {option[1] ? <span className="font-bold text-secondary">*</span> : null}
-        <span className="font-semibold text-primary">{option[2]}</span>
-        <span className="font-semibold text-primary">{option[3]}</span>
+        {option[1] ? <span className="text-secondary">*</span> : null}
+        <span className="text-primary">{option[2]}</span>
+        <span className="text-primary">{option[3]}</span>
         <span className="text-foreground">{option[4]}</span>
       </>
     );
@@ -219,7 +219,7 @@ function highlightedLine(line: string, inFence: boolean): ReactNode {
   if (answer) {
     return (
       <>
-        <span className="font-semibold text-secondary">{answer[1]}</span>
+        <span className="text-secondary">{answer[1]}</span>
         <span className="text-foreground">{answer[2]}</span>
       </>
     );
@@ -229,7 +229,7 @@ function highlightedLine(line: string, inFence: boolean): ReactNode {
   if (explanation) {
     return (
       <>
-        <span className="font-semibold text-primary">{explanation[1]}</span>
+        <span className="text-primary">{explanation[1]}</span>
         <span className="text-foreground">{explanation[2]}</span>
       </>
     );
@@ -565,7 +565,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
           />
           <pre
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 top-0 min-h-full min-w-full whitespace-pre px-4 py-3"
+            className="pointer-events-none absolute left-0 top-0 min-h-full min-w-full whitespace-pre px-4 py-3 font-mono font-normal"
             data-testid="quiz-markdown-highlight-layer"
             style={{
               transform: `translate(${-scroll.left}px, ${-scroll.top}px)`,
@@ -580,7 +580,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
             aria-describedby="quiz-editor-help"
             autoCapitalize="off"
             autoCorrect="off"
-            className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre bg-transparent px-4 py-3 text-transparent outline-none caret-foreground selection:bg-primary/20 disabled:cursor-not-allowed"
+            className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre bg-transparent px-4 py-3 font-mono font-normal text-transparent outline-none caret-foreground selection:bg-primary/20 disabled:cursor-not-allowed"
             disabled={disabled}
             id="quiz-markdown-source"
             onChange={handleChange}
