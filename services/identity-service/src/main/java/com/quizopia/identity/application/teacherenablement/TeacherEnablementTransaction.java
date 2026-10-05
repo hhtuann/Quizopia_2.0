@@ -48,6 +48,9 @@ public class TeacherEnablementTransaction {
         }
 
         List<UserRoleEntity> currentRoles = userRoleRepository.findAllByUser_Id(authenticatedUserId);
+        if (currentRoles.stream().noneMatch(role -> role.getRole() == UserRole.STUDENT)) {
+            return TeacherEnablementStatus.INELIGIBLE;
+        }
         if (currentRoles.stream().anyMatch(role -> role.getRole() == UserRole.TEACHER)) {
             return TeacherEnablementStatus.ALREADY_ENABLED;
         }

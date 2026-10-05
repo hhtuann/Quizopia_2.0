@@ -158,47 +158,11 @@ class GatewayAuthIntegrationTest {
     }
 
     @Test
-    void teacherEnablementRequiresUserJwtAndRoutesTheBodylessPostToIdentity() {
-        client.post()
-                .uri("/api/auth/teacher-enablement")
-                .exchange()
-                .expectStatus()
-                .isUnauthorized();
-        assertTrue(CAPTURED.isEmpty());
-
-        client.post()
-                .uri("/api/auth/teacher-enablement")
-                .headers(headers -> headers.setBearerAuth(serviceToken()))
-                .exchange()
-                .expectStatus()
-                .isForbidden();
-        assertTrue(CAPTURED.isEmpty());
-
-        String userToken = userToken();
-        client.post()
-                .uri("/api/auth/teacher-enablement")
-                .headers(headers -> headers.setBearerAuth(userToken))
-                .exchange()
-                .expectStatus()
-                .isNoContent();
-        CapturedRequest captured = CAPTURED.remove();
-        assertEquals(HttpMethod.POST.name(), captured.method());
-        assertEquals("/api/auth/teacher-enablement", captured.path());
-        assertEquals("", captured.body());
-        assertEquals("Bearer " + userToken, captured.authorization());
-    }
-
-    @Test
     void wrongMethodsAndNeighboringAuthPathsNeverBecomeAnonymous() {
         client.get().uri("/api/auth/login").exchange().expectStatus().isUnauthorized();
         client.put().uri("/api/auth/refresh").exchange().expectStatus().isUnauthorized();
         client.get().uri("/api/auth/logout").exchange().expectStatus().isUnauthorized();
         client.post().uri("/api/auth/me").exchange().expectStatus().isUnauthorized();
-        client.get()
-                .uri("/api/auth/teacher-enablement")
-                .exchange()
-                .expectStatus()
-                .isUnauthorized();
         client.post().uri("/api/auth/foo").exchange().expectStatus().isUnauthorized();
         assertTrue(CAPTURED.isEmpty());
     }
@@ -500,7 +464,6 @@ class GatewayAuthIntegrationTest {
                                 + "\"username\":\"gateway-user\",\"email\":\"gateway-user@gmail.com\","
                                 + "\"roles\":[\"STUDENT\"]}"))
                         .then();
-            case "/api/auth/teacher-enablement" -> response.status(204).send().then();
             default -> response.status(404).send().then();
         };
     }

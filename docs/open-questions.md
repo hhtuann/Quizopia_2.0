@@ -220,11 +220,11 @@ The following are no longer open:
 - six-digit email OTP with 10-minute expiry, 60-second resend cooldown, five
   failed attempts, replacement on successful issuance, and at most five
   successful issuances per exact email in a rolling hour;
-- teacher self-enablement is available to an authenticated eligible ACTIVE,
-  email-verified USER; TEACHER is additive and idempotent, the first grant is
-  durably audited in the role-mutation transaction, no institution approval or
-  dedicated MVP rate limit is required, and a normal refresh is required for a
-  new JWT role claim;
+- teacher self-enablement is available to an authenticated ACTIVE,
+  email-verified USER who retains the authoritative persisted `STUDENT` role;
+  TEACHER is additive and idempotent, the first grant is durably audited in the
+  role-mutation transaction, no institution approval or dedicated MVP rate
+  limit is required, and a normal refresh is required for a new JWT role claim;
 - centrally monitored/aligned dependencies;
 - Quiz Markdown question headers use `Câu <n> [TYPE]:` with explicit
   `SINGLE_CHOICE`, `MULTIPLE_CHOICE`, `TRUE_FALSE_MATRIX`, and

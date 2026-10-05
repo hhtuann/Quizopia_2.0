@@ -67,7 +67,7 @@ feature in the product overview.
 - rotating HttpOnly refresh session;
 - logout;
 - memory-only browser access token;
-- teacher self-enablement for an authenticated verified user;
+- teacher self-enablement for an authenticated verified `STUDENT`;
 - USER/SERVICE token separation;
 - real browser traffic through Gateway.
 
@@ -407,8 +407,8 @@ Bounded Identity/frontend workstream.
 
 Deliver:
 
-- authenticated verified user can grant their own `TEACHER` capability under
-  the accepted MVP policy;
+- authenticated verified user who retains the authoritative `STUDENT` role can
+  grant their own `TEACHER` capability under the accepted MVP policy;
 - authoritative role update;
 - correct token/session behavior after role grant;
 - browser UI entry point;

@@ -247,6 +247,23 @@ class TeacherEnablementHttpIntegrationTest {
     }
 
     @Test
+    void authoritativeMissingStudentIsForbiddenDespiteEligibleLookingTokenClaims() throws Exception {
+        UserAccountEntity user = persistUser(AccountLifecycleStatus.ACTIVE, true, false);
+        userRoleRepository.saveAndFlush(new UserRoleEntity(user, UserRole.ADMIN));
+        String token = signedUserToken(user.getId(), List.of("STUDENT", "ADMIN"), Map.of());
+
+        ResponseEntity<String> response = enableTeacher(token);
+
+        assertAccessStatus(HttpStatus.FORBIDDEN, response);
+        JsonNode body = json(response);
+        assertEquals("ACCESS_DENIED", body.path("code").asText());
+        assertFalse(response.getBody().contains("STUDENT"));
+        assertFalse(response.getBody().contains("ROLE"));
+        assertEquals(0L, count("SELECT COUNT(*) FROM user_role WHERE role = 'TEACHER'"));
+        assertEquals(0L, count("SELECT COUNT(*) FROM role_grant_audit"));
+    }
+
+    @Test
     void openApiPublishesOnlyTheAcceptedPostContract() throws Exception {
         ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());

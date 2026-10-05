@@ -28,7 +28,6 @@ public class SecurityConfiguration {
     private static final String REFRESH_PATH = "/api/auth/refresh";
     private static final String LOGOUT_PATH = "/api/auth/logout";
     private static final String ME_PATH = "/api/auth/me";
-    private static final String TEACHER_ENABLEMENT_PATH = "/api/auth/teacher-enablement";
 
     @Bean
     @Order(0)
@@ -60,8 +59,6 @@ public class SecurityConfiguration {
                         .pathMatchers("/actuator/health/**", "/actuator/info")
                         .permitAll()
                         .pathMatchers(HttpMethod.GET, ME_PATH)
-                        .hasAuthority(QuizopiaTokenClaims.USER_AUTHORITY)
-                        .pathMatchers(HttpMethod.POST, TEACHER_ENABLEMENT_PATH)
                         .hasAuthority(QuizopiaTokenClaims.USER_AUTHORITY)
                         .anyExchange()
                         .authenticated())

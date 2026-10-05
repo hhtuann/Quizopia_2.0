@@ -76,7 +76,9 @@ Do not implement workspace switching by deleting roles, changing database roles,
 MVP behavior:
 
 - an authenticated Quizopia `USER` whose authoritative account is `ACTIVE`,
-  email-verified, and otherwise eligible may self-enable `TEACHER`;
+  email-verified, and retains the required persisted `STUDENT` role may
+  self-enable `TEACHER`; missing `STUDENT` is an inconsistent, ineligible
+  lifecycle state;
 - no academic-admin approval, institution verification, invite code, or separate
   approval workflow is required;
 - `TEACHER` is additive: `STUDENT` and any other valid existing roles remain;

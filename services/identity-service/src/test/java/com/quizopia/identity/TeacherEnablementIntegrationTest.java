@@ -95,11 +95,11 @@ class TeacherEnablementIntegrationTest {
 
     @Test
     void activeVerifiedStudentReceivesAdditiveTeacherRoleAndDurableFirstGrantAudit() {
-        UserAccountEntity user = persistAccount(AccountLifecycleStatus.ACTIVE, true, UserRole.STUDENT, UserRole.ADMIN);
+        UserAccountEntity user = persistAccount(AccountLifecycleStatus.ACTIVE, true, UserRole.STUDENT);
 
         assertEquals(TeacherEnablementStatus.ENABLED, teacherEnablementService.enable(user.getId()));
 
-        assertEquals(List.of("ADMIN", "STUDENT", "TEACHER"), roleNames(user.getId()));
+        assertEquals(List.of("STUDENT", "TEACHER"), roleNames(user.getId()));
         assertEquals(1L, teacherRoleCount(user.getId()));
         assertEquals(1L, auditRepository.count());
         assertEquals(user.getId(), jdbc.queryForObject("SELECT actor_user_id FROM role_grant_audit", UUID.class));
@@ -123,13 +123,35 @@ class TeacherEnablementIntegrationTest {
     }
 
     @Test
-    void activeVerifiedAdminOnlyUserReceivesAdditiveTeacherRole() {
-        UserAccountEntity user = persistAccount(AccountLifecycleStatus.ACTIVE, true, UserRole.ADMIN);
+    void activeVerifiedStudentAndAdminReceivesTeacherWhilePreservingBothRoles() {
+        UserAccountEntity user = persistAccount(AccountLifecycleStatus.ACTIVE, true, UserRole.STUDENT, UserRole.ADMIN);
 
         assertEquals(TeacherEnablementStatus.ENABLED, teacherEnablementService.enable(user.getId()));
 
-        assertEquals(List.of("ADMIN", "TEACHER"), roleNames(user.getId()));
+        assertEquals(List.of("ADMIN", "STUDENT", "TEACHER"), roleNames(user.getId()));
         assertEquals(1L, auditRepository.count());
+    }
+
+    @Test
+    void activeVerifiedAdminOnlyUserIsIneligibleWithoutMutationOrAudit() {
+        UserAccountEntity user = persistAccount(AccountLifecycleStatus.ACTIVE, true, UserRole.ADMIN);
+
+        assertEquals(TeacherEnablementStatus.INELIGIBLE, teacherEnablementService.enable(user.getId()));
+
+        assertEquals(List.of("ADMIN"), roleNames(user.getId()));
+        assertEquals(0L, teacherRoleCount(user.getId()));
+        assertEquals(0L, auditRepository.count());
+    }
+
+    @Test
+    void activeVerifiedUserWithoutStudentIsIneligibleWithoutMutationOrAudit() {
+        UserAccountEntity user = persistAccount(AccountLifecycleStatus.ACTIVE, true);
+
+        assertEquals(TeacherEnablementStatus.INELIGIBLE, teacherEnablementService.enable(user.getId()));
+
+        assertEquals(List.of(), roleNames(user.getId()));
+        assertEquals(0L, teacherRoleCount(user.getId()));
+        assertEquals(0L, auditRepository.count());
     }
 
     @Test

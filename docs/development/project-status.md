@@ -295,10 +295,10 @@ Identity owns teacher-role enablement.
 The completed local-auth milestone does **not** currently establish a complete
 end-user teacher self-enablement HTTP/UI journey in this checkpoint.
 
-The Leader accepted **ID-06** for MVP: an eligible ACTIVE, email-verified USER
-may idempotently add TEACHER; the first grant is durably audited with the role
-mutation; there is no dedicated MVP rate limit; and a normal refresh is required
-for a new JWT role claim.
+The Leader accepted **ID-06** for MVP: an ACTIVE, email-verified USER who retains
+the authoritative persisted `STUDENT` role may idempotently add TEACHER; the
+first grant is durably audited with the role mutation; there is no dedicated MVP
+rate limit; and a normal refresh is required for a new JWT role claim.
 
 Therefore:
 

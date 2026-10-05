@@ -308,11 +308,13 @@ PostgreSQL revocation cutoff using the established inclusive rule: a token with
 The user-only `POST /api/auth/teacher-enablement` endpoint accepts no request
 body and derives the target exclusively from the authenticated USER subject.
 Identity locks and reloads the authoritative account, requires the account to be
-active, email-verified, and currently eligible, then atomically adds `TEACHER`
-without removing `STUDENT` or other valid roles. The first real grant and its
-minimal self-service audit record commit in one transaction. Repeated requests
-are successful no-ops and do not add another role or audit row. SERVICE
-principals and ineligible users receive the standard forbidden result.
+active, email-verified, and still assigned the authoritative persisted `STUDENT`
+role, then atomically adds `TEACHER` without removing `STUDENT` or other valid
+roles. Missing `STUDENT` fails closed as the same generic ineligible result. The
+first real grant and its minimal self-service audit record commit in one
+transaction. Repeated requests are successful no-ops and do not add another role
+or audit row. SERVICE principals and ineligible users receive the standard
+forbidden result.
 
 Teacher enablement does not mutate an already-issued access JWT, revoke or
 replace its refresh family, or extend the family expiry. The next normal refresh
@@ -323,9 +325,10 @@ continues to reload current roles from Identity persistence.
 The browser reaches these endpoints through Spring Cloud Gateway. Gateway grants
 anonymous access only to the exact `POST` registration, email-verification,
 login, refresh, and logout paths; wrong methods and neighboring `/api/auth/**`
-paths remain protected. `GET /api/auth/me` and
-`POST /api/auth/teacher-enablement` require a validated `TOKEN_USER` principal
-at Gateway and are validated again by Identity.
+paths remain protected. `GET /api/auth/me` requires a validated `TOKEN_USER`
+principal at Gateway. Teacher enablement uses the existing authenticated
+`/api/auth/**` Gateway route; Identity independently requires `TOKEN_USER` and
+enforces the authoritative account lifecycle before mutation.
 
 Gateway credentialed CORS uses the same explicit `GATEWAY_ALLOWED_ORIGINS`
 source. Valid preflights are handled at the edge. Routed requests preserve the
