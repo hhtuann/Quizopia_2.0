@@ -11,6 +11,8 @@ The Gateway is the browser-facing HTTP edge. It routes `/api/auth/**` to Identit
 validates Quizopia bearer JWTs for protected requests, and permits anonymous access
 only to the exact `POST` registration, email-verification, login, refresh, and
 logout endpoints. `GET /api/auth/me` requires a Quizopia `TOKEN_USER` principal.
+`POST /api/auth/teacher-enablement` is routed by the existing `/api/auth/**`
+route and also requires `TOKEN_USER`; SERVICE tokens are rejected at the edge.
 
 Browser CORS uses the explicit origins supplied by `GATEWAY_ALLOWED_ORIGINS` and
 allows credentials. The local default is `http://localhost:3000`; production has

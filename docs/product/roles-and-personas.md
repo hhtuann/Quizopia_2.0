@@ -73,13 +73,25 @@ Do not implement workspace switching by deleting roles, changing database roles,
 
 ## Teacher enrollment
 
-Baseline behavior:
+MVP behavior:
 
-- authenticated user clicks "Register as teacher";
-- teacher role is granted;
-- no academic institution approval is required.
+- an authenticated Quizopia `USER` whose authoritative account is `ACTIVE`,
+  email-verified, and otherwise eligible may self-enable `TEACHER`;
+- no academic-admin approval, institution verification, invite code, or separate
+  approval workflow is required;
+- `TEACHER` is additive: `STUDENT` and any other valid existing roles remain;
+- enablement is idempotent and returns the same successful outcome when the user
+  is already a teacher;
+- the first real grant is durably audited by Identity in the same transaction as
+  the role mutation;
+- there is no dedicated teacher-enablement rate limiter for MVP;
+- the access token used to enable the role remains unchanged. The browser must
+  use the existing refresh flow to obtain a new JWT with the current `TEACHER`
+  claim.
 
-Audit details, anti-abuse limits, and whether an extra confirmation step is required remain implementation details unless later specified.
+Identity derives the target user only from the authenticated USER subject.
+Client-supplied user IDs or role values are not accepted, and SERVICE principals
+cannot use the self-enablement operation.
 
 ## Legacy roles
 

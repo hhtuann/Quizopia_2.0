@@ -66,6 +66,9 @@ public class SecurityConfiguration {
                         .permitAll()
                         .requestMatchers(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, AuthController.ME_PATH))
                         .hasAuthority(QuizopiaTokenClaims.USER_AUTHORITY)
+                        .requestMatchers(PathPatternRequestMatcher.pathPattern(
+                                HttpMethod.POST, AuthController.TEACHER_ENABLEMENT_PATH))
+                        .hasAuthority(QuizopiaTokenClaims.USER_AUTHORITY)
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(

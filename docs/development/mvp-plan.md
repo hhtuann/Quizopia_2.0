@@ -418,7 +418,8 @@ Deliver:
 
 Dependency:
 
-- resolve the MVP-relevant part of ID-06 before exposing the public action.
+- ID-06 is resolved for MVP; backend, frontend, and real-topology proof still
+  complete independently.
 
 Wave 2 exit:
 
@@ -555,9 +556,8 @@ Agents must not silently invent these decisions.
 
 Quiz Markdown QM-01 through QM-05 are resolved and no longer block MVP-A.
 
-Remaining blocker:
-
-- MVP-relevant resolution of ID-06 for teacher self-enablement
+ID-06 is resolved. Teacher self-enablement remains an implementation/E2E
+workstream rather than a product-policy blocker.
 
 ### Blocks MVP-B
 
@@ -597,7 +597,7 @@ Status vocabulary:
 | Scaffold / service isolation          | VERIFIED    | Wave 1                                                                                                       |
 | Local account auth                    | VERIFIED    | Browser → Gateway → Identity                                                                                 |
 | Frontend auth/session                 | VERIFIED    | refresh/bootstrap/logout E2E                                                                                 |
-| Teacher self-enablement               | BLOCKED     | MVP policy / ID-06 + HTTP/UI gap                                                                             |
+| Teacher self-enablement               | IN PROGRESS | ID-06 resolved; backend/UI/E2E closure in progress                                                           |
 | Classroom core                        | MERGED      | assignment/product integration missing                                                                       |
 | Quiz stable identity + draft backend  | VERIFIED    | create/read/update foundation                                                                                |
 | Quiz frontend library/editor          | IN PROGRESS | real persistent library + create/edit/save/publish implemented on feature branch; final review/merge pending |

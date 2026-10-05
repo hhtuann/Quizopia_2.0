@@ -12,6 +12,8 @@ import com.quizopia.identity.application.refresh.RefreshAccessStatus;
 import com.quizopia.identity.application.registration.LocalRegistrationInput;
 import com.quizopia.identity.application.registration.LocalRegistrationService;
 import com.quizopia.identity.application.registration.LocalRegistrationStatus;
+import com.quizopia.identity.application.teacherenablement.TeacherEnablementService;
+import com.quizopia.identity.application.teacherenablement.TeacherEnablementStatus;
 import com.quizopia.identity.security.emailverification.RawEmailVerificationOtp;
 import com.quizopia.identity.security.password.RawLocalPassword;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,6 +56,7 @@ public class AuthController {
     public static final String REFRESH_PATH = AUTH_ROOT + "/refresh";
     public static final String LOGOUT_PATH = AUTH_ROOT + "/logout";
     public static final String ME_PATH = AUTH_ROOT + "/me";
+    public static final String TEACHER_ENABLEMENT_PATH = AUTH_ROOT + "/teacher-enablement";
     public static final String REQUEST_PATH = AUTH_ROOT + "/email-verification/request";
     public static final String CONFIRM_PATH = AUTH_ROOT + "/email-verification/confirm";
 
@@ -69,6 +72,7 @@ public class AuthController {
     private final RefreshAccessService refreshAccessService;
     private final CurrentSessionLogoutService logoutService;
     private final CurrentUserService currentUserService;
+    private final TeacherEnablementService teacherEnablementService;
     private final RefreshCookieCredentialResolver refreshCredentialResolver;
     private final RefreshCookieFactory refreshCookieFactory;
     private final Clock clock;
@@ -80,6 +84,7 @@ public class AuthController {
             RefreshAccessService refreshAccessService,
             CurrentSessionLogoutService logoutService,
             CurrentUserService currentUserService,
+            TeacherEnablementService teacherEnablementService,
             RefreshCookieCredentialResolver refreshCredentialResolver,
             RefreshCookieFactory refreshCookieFactory,
             @Qualifier("identityClock") Clock clock) {
@@ -89,6 +94,7 @@ public class AuthController {
         this.refreshAccessService = refreshAccessService;
         this.logoutService = logoutService;
         this.currentUserService = currentUserService;
+        this.teacherEnablementService = teacherEnablementService;
         this.refreshCredentialResolver = refreshCredentialResolver;
         this.refreshCookieFactory = refreshCookieFactory;
         this.clock = clock;
@@ -314,6 +320,31 @@ public class AuthController {
                 .findEligible(UUID.fromString(jwt.getSubject()), jwt.getIssuedAt())
                 .map(CurrentUserResponse::from)
                 .orElseThrow(AuthController::accessDenied);
+    }
+
+    @PostMapping("/teacher-enablement")
+    @Operation(
+            summary = "Enable teacher capability for the current user",
+            description =
+                    "Idempotently grants TEACHER to the authenticated eligible USER. A refreshed access token is required before the new role appears in JWT claims.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Teacher capability is enabled or was already enabled"),
+        @ApiResponse(responseCode = "401", description = "Missing, invalid, or expired bearer token"),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Authenticated principal is not an eligible current user",
+                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public ResponseEntity<Void> enableTeacher(@AuthenticationPrincipal Jwt jwt) {
+        if (jwt == null) {
+            throw accessDenied();
+        }
+        TeacherEnablementStatus status = teacherEnablementService.enable(UUID.fromString(jwt.getSubject()));
+        if (status == TeacherEnablementStatus.INELIGIBLE) {
+            throw accessDenied();
+        }
+        return ResponseEntity.noContent().build();
     }
 
     private static AuthApiException refreshFailed() {

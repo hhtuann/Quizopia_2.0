@@ -295,8 +295,10 @@ Identity owns teacher-role enablement.
 The completed local-auth milestone does **not** currently establish a complete
 end-user teacher self-enablement HTTP/UI journey in this checkpoint.
 
-`docs/open-questions.md` still contains **ID-06** for exact anti-abuse/audit/
-rate-limit policy.
+The Leader accepted **ID-06** for MVP: an eligible ACTIVE, email-verified USER
+may idempotently add TEACHER; the first grant is durably audited with the role
+mutation; there is no dedicated MVP rate limit; and a normal refresh is required
+for a new JWT role claim.
 
 Therefore:
 
@@ -305,9 +307,9 @@ Therefore:
   this checkpoint;
 - teacher-authoring tests may use accepted controlled test setup/fixtures where
   appropriate;
-- before claiming a full self-service user → teacher → authoring product journey,
-  inspect and close the teacher-enablement gap under an explicitly bounded
-  Identity workstream/decision.
+- the bounded Identity backend workstream provides the authoritative public
+  operation, while the frontend entry point and real end-to-end authoring proof
+  remain required before claiming the complete product journey.
 
 This does not reopen the completed **local authentication** milestone
 (register/verify/login/refresh/logout/me); it records a separate accepted product

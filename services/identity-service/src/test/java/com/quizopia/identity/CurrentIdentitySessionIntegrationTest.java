@@ -20,6 +20,7 @@ import com.quizopia.identity.persistence.repository.UserRoleRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +40,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest
 @ActiveProfiles("persistence-test")
 class CurrentIdentitySessionIntegrationTest {
-    private static final Instant NOW = Instant.parse("2026-10-01T12:00:00Z");
+    private static final Instant NOW = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine");
