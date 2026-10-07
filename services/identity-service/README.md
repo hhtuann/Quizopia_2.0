@@ -34,7 +34,14 @@ idempotently revokes only the recognized current refresh family, and clears the
 cookie without creating access-token blacklist state. `GET /api/auth/me`
 requires a USER bearer token and returns only the authoritative current ID,
 username, email, and persisted roles after current eligibility and PostgreSQL
-revocation-cutoff checks. The outbox
+revocation-cutoff checks. `POST /api/auth/teacher-enablement` requires a USER
+bearer token and no body, then requires the authoritative account to remain
+active, email-verified, and assigned `STUDENT` before idempotently granting
+`TEACHER`. Missing persisted `STUDENT` fails closed; eligible users preserve
+`STUDENT` and every other valid role. Identity durably records the first grant in
+the same database transaction. The existing refresh flow must be used afterward
+to receive a JWT containing the new authoritative role; enablement does not
+replace or extend the refresh family. The outbox
 cipher requires `IDENTITY_EMAIL_OUTBOX_ACTIVE_KEY_VERSION`
 plus runtime key-ring entries such as
 `QUIZOPIA_IDENTITY_EMAIL_OUTBOX_ENCRYPTION_KEYS_V1`; each entry is Base64 for
@@ -54,8 +61,8 @@ Identity defines the cross-service access-token principal contract in
 The production user-token issuer signs short-lived RS256 JWTs only for active,
 email-verified users with the baseline `STUDENT` role. Existing Client
 Credentials tokens retain OAuth scopes and now carry the explicit `SERVICE`
-principal discriminator. Service principals cannot access the user-only
-current-profile endpoint.
+principal discriminator. Service principals cannot access user-only current
+profile or teacher-enablement endpoints.
 
 Default local port: 8081. See `.env.example` and the root development documentation for configuration.
 

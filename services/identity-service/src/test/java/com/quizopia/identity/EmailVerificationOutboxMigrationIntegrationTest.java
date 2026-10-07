@@ -51,7 +51,7 @@ class EmailVerificationOutboxMigrationIntegrationTest {
         Flyway upgrade = flyway();
         upgrade.migrate();
 
-        assertEquals("11", upgrade.info().current().getVersion().getVersion());
+        assertEquals("12", upgrade.info().current().getVersion().getVersion());
         assertEquals(1L, count("SELECT COUNT(*) FROM email_verification_issuance WHERE id = ?", issuanceId));
         assertEquals(0L, count("SELECT COUNT(*) FROM email_verification_email_outbox"));
     }
@@ -66,7 +66,7 @@ class EmailVerificationOutboxMigrationIntegrationTest {
         Flyway upgrade = flyway();
         upgrade.migrate();
 
-        assertEquals("11", upgrade.info().current().getVersion().getVersion());
+        assertEquals("12", upgrade.info().current().getVersion().getVersion());
         assertTerminalLegacyJob(sentJob, "SENT");
         assertTerminalLegacyJob(failedJob, "FAILED");
         assertTerminalLegacyJob(expiredJob, "EXPIRED");
@@ -147,7 +147,7 @@ class EmailVerificationOutboxMigrationIntegrationTest {
         Flyway upgrade = flyway();
         upgrade.migrate();
 
-        assertEquals("11", upgrade.info().current().getVersion().getVersion());
+        assertEquals("12", upgrade.info().current().getVersion().getVersion());
         assertNull(value("SELECT current_issuance_id FROM email_verification_challenge WHERE user_id = ?", userId));
         execute(
                 "UPDATE email_verification_challenge SET current_issuance_id = ? WHERE user_id = ?",

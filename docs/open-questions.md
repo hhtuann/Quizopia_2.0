@@ -16,8 +16,6 @@ extend that original expiry.
 
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
 
-**ID-06.** Teacher self-enablement anti-abuse/audit/rate-limit policy?
-
 **ID-07.** Which production SMTP service/deployment and sender identity should
 Identity use for OTP delivery? The provider-neutral SMTP adapter, transactional
 outbox, retry model, and encrypted-payload architecture are already accepted.
@@ -222,6 +220,11 @@ The following are no longer open:
 - six-digit email OTP with 10-minute expiry, 60-second resend cooldown, five
   failed attempts, replacement on successful issuance, and at most five
   successful issuances per exact email in a rolling hour;
+- teacher self-enablement is available to an authenticated ACTIVE,
+  email-verified USER who retains the authoritative persisted `STUDENT` role;
+  TEACHER is additive and idempotent, the first grant is durably audited in the
+  role-mutation transaction, no institution approval or dedicated MVP rate
+  limit is required, and a normal refresh is required for a new JWT role claim;
 - centrally monitored/aligned dependencies;
 - Quiz Markdown question headers use `Câu <n> [TYPE]:` with explicit
   `SINGLE_CHOICE`, `MULTIPLE_CHOICE`, `TRUE_FALSE_MATRIX`, and

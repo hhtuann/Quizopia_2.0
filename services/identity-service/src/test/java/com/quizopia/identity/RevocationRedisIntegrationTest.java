@@ -86,7 +86,7 @@ class RevocationRedisIntegrationTest {
     @Test
     @Order(1)
     void flywayCreatesRevocationTableAndRedisStoresOnlyTheCutoff() {
-        assertEquals("11", flyway.info().current().getVersion().getVersion());
+        assertEquals("12", flyway.info().current().getVersion().getVersion());
         Integer tableCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables "
                         + "WHERE table_schema = 'public' AND table_name = 'user_access_revocation'",
