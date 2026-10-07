@@ -12,6 +12,7 @@ import {
   type AuthApiResult,
 } from "../api/auth-api-client";
 import type { AuthenticatedUser } from "../model/authenticated-user";
+import { hasRole } from "../model/authenticated-user";
 import { hasAuthenticatedIdentity } from "../model/session-state";
 import { createAccessTokenVault } from "./access-token-vault";
 import {
@@ -30,6 +31,7 @@ export interface AuthSessionService {
     readonly otp: string;
     readonly username: string;
   }): Promise<AuthApiResult<void>>;
+  enableTeacher(): Promise<TeacherEnablementResult>;
   login(input: {
     readonly identifier: string;
     readonly password: string;
@@ -44,6 +46,18 @@ export interface AuthSessionService {
     readonly username: string;
   }): Promise<AuthApiResult<"VERIFICATION_REQUEST_ACCEPTED">>;
 }
+
+export type TeacherEnablementFailure =
+  | AuthApiFailure
+  | {
+      readonly kind: "session-update-failure";
+      readonly cause?: unknown;
+      readonly reason: "refresh-failed" | "teacher-role-not-reflected";
+    };
+
+export type TeacherEnablementResult =
+  | { readonly ok: true; readonly value: AuthenticatedUser }
+  | { readonly ok: false; readonly error: TeacherEnablementFailure };
 
 function clientStateFailure(reason: string): AuthApiResult<never> {
   return {
@@ -127,6 +141,7 @@ export function createAuthSessionService(
   });
 
   let bootstrapPromise: Promise<RefreshResult> | null = null;
+  let teacherEnablementPromise: Promise<TeacherEnablementResult> | null = null;
   let logoutPromise: Promise<AuthApiResult<void>> | null = null;
   function bootstrap(): Promise<RefreshResult> {
     if (runtime.getSnapshot().status !== "bootstrapping") {
@@ -152,6 +167,57 @@ export function createAuthSessionService(
 
     confirmVerification(input) {
       return client.confirmVerification(input);
+    },
+
+    enableTeacher() {
+      if (teacherEnablementPromise !== null) {
+        return teacherEnablementPromise;
+      }
+
+      const attempt = (async (): Promise<TeacherEnablementResult> => {
+        await waitForBootstrap();
+        await refreshCoordinator.waitForIdle();
+
+        const enabled = await client.enableTeacher(authenticatedRequests);
+        if (!enabled.ok) {
+          return enabled;
+        }
+
+        const refreshed = await refreshCoordinator.refresh();
+        if (refreshed.status === "no-session") {
+          return clientStateFailure("no-session");
+        }
+        if (refreshed.status === "transient-failure") {
+          return {
+            ok: false,
+            error: {
+              kind: "session-update-failure",
+              cause: refreshed.cause,
+              reason: "refresh-failed",
+            },
+          };
+        }
+        if (!hasRole(refreshed.session.user, "TEACHER")) {
+          return {
+            ok: false,
+            error: {
+              kind: "session-update-failure",
+              reason: "teacher-role-not-reflected",
+            },
+          };
+        }
+
+        return { ok: true, value: refreshed.session.user };
+      })();
+
+      teacherEnablementPromise = attempt;
+      const clearTeacherEnablement = () => {
+        if (teacherEnablementPromise === attempt) {
+          teacherEnablementPromise = null;
+        }
+      };
+      void attempt.then(clearTeacherEnablement, clearTeacherEnablement);
+      return attempt;
     },
 
     async login(input) {

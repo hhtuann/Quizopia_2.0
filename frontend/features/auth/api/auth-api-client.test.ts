@@ -116,6 +116,39 @@ describe("auth API client", () => {
     expect(JSON.stringify(requests)).not.toContain("refreshToken");
   });
 
+  it("sends teacher enablement as one authenticated empty-body POST", async () => {
+    const execute = vi.fn<AuthenticatedRequestExecutor["execute"]>(
+      async (request): Promise<AuthenticatedRequestResult> => {
+        const created = request.createRequest();
+        expect(created.target).toBe(
+          "https://gateway.example/api/auth/teacher-enablement",
+        );
+        expect(created.method).toBe("POST");
+        expect(created.body).toBeUndefined();
+        expect(created.credentials).toBeUndefined();
+        expect(new Headers(created.headers).has("authorization")).toBe(false);
+        expect(JSON.stringify(created)).not.toContain("userId");
+        expect(JSON.stringify(created)).not.toContain("role");
+        return emptyResponse(204);
+      },
+    );
+    const authenticatedRequests: AuthenticatedRequestExecutor = {
+      execute,
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    const client = createAuthApiClient({
+      apiBaseUrl: "https://gateway.example/",
+      transport: { execute: vi.fn() },
+    });
+
+    await expect(client.enableTeacher(authenticatedRequests)).resolves.toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   it("uses username as the verification subject and sends only a six-digit OTP on confirm", async () => {
     const requests: HttpRequest[] = [];
     const responses = [

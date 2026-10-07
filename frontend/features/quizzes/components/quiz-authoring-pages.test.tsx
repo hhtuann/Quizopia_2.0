@@ -100,6 +100,7 @@ function renderAuthenticated(
     authenticatedRequests: executor,
     bootstrap: vi.fn(async () => ({ status: "no-session" as const })),
     confirmVerification: vi.fn(),
+    enableTeacher: vi.fn(),
     login: vi.fn(),
     logout: vi.fn(async () => ({ ok: true as const, value: undefined })),
     register: vi.fn(),
@@ -108,7 +109,7 @@ function renderAuthenticated(
   };
 
   render(<AuthProvider service={service}>{children}</AuthProvider>);
-  return { runtime };
+  return { runtime, service };
 }
 
 describe("Quiz teacher authoring access", () => {
@@ -127,8 +128,8 @@ describe("Quiz teacher authoring access", () => {
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
   });
 
-  it("shows a truthful role state for an authenticated student without TEACHER", () => {
-    renderAuthenticated(
+  it("offers teacher self-enablement for an authenticated student without TEACHER", async () => {
+    const { runtime, service } = renderAuthenticated(
       <QuizAuthoringLayout>
         <p>Authoring content</p>
       </QuizAuthoringLayout>,
@@ -138,6 +139,40 @@ describe("Quiz teacher authoring access", () => {
       screen.getByRole("heading", { name: "Teacher access required" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Authoring content")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Register as teacher" }),
+    ).toBeEnabled();
+
+    vi.mocked(service.enableTeacher).mockImplementationOnce(async () => {
+      const authoritativeUser = createAuthenticatedUser({
+        email: "teacher@gmail.com",
+        id: userId,
+        roles: ["STUDENT", "TEACHER"],
+        username: "teacher",
+      });
+      runtime.beginRefreshing();
+      runtime.completeRefreshing({
+        accessToken: "teacher-enabled-access",
+        user: authoritativeUser,
+      });
+      return { ok: true, value: authoritativeUser };
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register as teacher" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Open the Teaching workspace" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Teacher access is ready",
+    );
+    expect(runtime.getSnapshot()).toMatchObject({
+      activeWorkspace: "LEARNING",
+      user: { roles: ["STUDENT", "TEACHER"] },
+    });
   });
 
   it("moves a teacher into the Teaching workspace without changing roles", () => {

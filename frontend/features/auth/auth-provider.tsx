@@ -29,6 +29,7 @@ export interface AuthContextValue {
   readonly availableWorkspaces: readonly Workspace[];
   readonly clearLocalSession: () => void;
   readonly confirmVerification: AuthSessionService["confirmVerification"];
+  readonly enableTeacher: AuthSessionService["enableTeacher"];
   readonly login: AuthSessionService["login"];
   readonly logout: AuthSessionService["logout"];
   readonly register: AuthSessionService["register"];
@@ -97,6 +98,9 @@ export function AuthProvider({
       clearLocalSession: activeRuntime.clearLocalSession,
       confirmVerification:
         activeService?.confirmVerification ?? (() => unavailableResult<void>()),
+      enableTeacher:
+        activeService?.enableTeacher ??
+        (() => unavailableResult<AuthenticatedUser>()),
       login:
         activeService?.login ?? (() => unavailableResult<AuthenticatedUser>()),
       logout: activeService?.logout ?? (() => unavailableResult<void>()),

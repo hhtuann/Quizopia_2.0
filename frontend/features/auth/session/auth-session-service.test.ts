@@ -264,6 +264,244 @@ describe("auth session service", () => {
     expect(service.runtime.getSnapshot().status).toBe("authenticated");
   });
 
+  it("enables teacher through POST, refresh, and authoritative /me without locally fabricating roles", async () => {
+    const pendingRefresh = deferred<HttpTransportResult>();
+    const requests: HttpRequest[] = [];
+    let refreshCalls = 0;
+    let meCalls = 0;
+    const transport: HttpTransport = {
+      async execute(request) {
+        requests.push(request);
+        switch (targetPath(request)) {
+          case "/api/auth/refresh":
+            refreshCalls += 1;
+            return refreshCalls === 1
+              ? loginResponse("initial-access")
+              : pendingRefresh.promise;
+          case "/api/auth/me":
+            meCalls += 1;
+            expect(authorization(request)).toBe(
+              meCalls === 1 ? "Bearer initial-access" : "Bearer teacher-access",
+            );
+            return currentUser(
+              meCalls === 1 ? ["STUDENT"] : ["STUDENT", "TEACHER"],
+            );
+          case "/api/auth/teacher-enablement":
+            expect(request.method).toBe("POST");
+            expect(request.body).toBeUndefined();
+            expect(authorization(request)).toBe("Bearer initial-access");
+            return emptyResponse(204);
+          case "/api/quizzes":
+            expect(authorization(request)).toBe("Bearer teacher-access");
+            return jsonResponse(200, { items: [] });
+          default:
+            throw new Error(`Unexpected request ${String(request.target)}`);
+        }
+      },
+    };
+    const service = createAuthSessionService({ transport });
+    await service.bootstrap();
+
+    const firstAttempt = service.enableTeacher();
+    const duplicateAttempt = service.enableTeacher();
+    await vi.waitFor(() => expect(refreshCalls).toBe(2));
+
+    expect(firstAttempt).toBe(duplicateAttempt);
+    expect(
+      requests.filter(
+        (request) => targetPath(request) === "/api/auth/teacher-enablement",
+      ),
+    ).toHaveLength(1);
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      status: "refreshing",
+      user: { roles: ["STUDENT"] },
+    });
+
+    pendingRefresh.resolve(loginResponse("teacher-access"));
+    await expect(firstAttempt).resolves.toEqual({
+      ok: true,
+      value: {
+        email: "learner01@gmail.com",
+        id: userId,
+        roles: ["STUDENT", "TEACHER"],
+        username: "learner01",
+      },
+    });
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      activeWorkspace: "LEARNING",
+      status: "authenticated",
+      user: { roles: ["STUDENT", "TEACHER"] },
+    });
+
+    await service.authenticatedRequests.executeOnce({
+      createRequest: () => ({ target: "/api/quizzes" }),
+    });
+  });
+
+  it("keeps authoritative roles unchanged when teacher enablement is forbidden", async () => {
+    const transport: HttpTransport = {
+      async execute(request) {
+        switch (targetPath(request)) {
+          case "/api/auth/refresh":
+            return loginResponse("initial-access");
+          case "/api/auth/me":
+            return currentUser(["STUDENT"]);
+          case "/api/auth/teacher-enablement":
+            return jsonResponse(403, {
+              code: "ACCESS_DENIED",
+              message: "Access denied.",
+              path: "/api/auth/teacher-enablement",
+              status: 403,
+              traceId: null,
+            });
+          default:
+            throw new Error(`Unexpected request ${String(request.target)}`);
+        }
+      },
+    };
+    const service = createAuthSessionService({ transport });
+    await service.bootstrap();
+
+    await expect(service.enableTeacher()).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "api-error", error: { status: 403 } },
+    });
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { roles: ["STUDENT"] },
+    });
+  });
+
+  it("keeps authoritative roles unchanged when the teacher enablement POST has a network failure", async () => {
+    const transport: HttpTransport = {
+      async execute(request) {
+        switch (targetPath(request)) {
+          case "/api/auth/refresh":
+            return loginResponse("initial-access");
+          case "/api/auth/me":
+            return currentUser(["STUDENT"]);
+          case "/api/auth/teacher-enablement":
+            return {
+              kind: "transport-error",
+              error: { kind: "network", cause: new Error("offline") },
+            };
+          default:
+            throw new Error(`Unexpected request ${String(request.target)}`);
+        }
+      },
+    };
+    const service = createAuthSessionService({ transport });
+    await service.bootstrap();
+
+    await expect(service.enableTeacher()).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "transport-error", error: { kind: "network" } },
+    });
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { roles: ["STUDENT"] },
+    });
+  });
+
+  it("reports a recoverable post-grant session update failure and succeeds on idempotent retry", async () => {
+    let refreshCalls = 0;
+    let meCalls = 0;
+    let enablementCalls = 0;
+    const transport: HttpTransport = {
+      async execute(request) {
+        switch (targetPath(request)) {
+          case "/api/auth/refresh":
+            refreshCalls += 1;
+            return loginResponse(
+              refreshCalls === 1
+                ? "initial-access"
+                : refreshCalls === 2
+                  ? "unhydrated-teacher-access"
+                  : "recovered-teacher-access",
+            );
+          case "/api/auth/me":
+            meCalls += 1;
+            if (meCalls === 2) {
+              return {
+                kind: "transport-error",
+                error: { kind: "network", cause: new Error("offline") },
+              };
+            }
+            return currentUser(
+              meCalls === 1 ? ["STUDENT"] : ["STUDENT", "TEACHER"],
+            );
+          case "/api/auth/teacher-enablement":
+            enablementCalls += 1;
+            expect(authorization(request)).toBe("Bearer initial-access");
+            return emptyResponse(204);
+          default:
+            throw new Error(`Unexpected request ${String(request.target)}`);
+        }
+      },
+    };
+    const service = createAuthSessionService({ transport });
+    await service.bootstrap();
+
+    await expect(service.enableTeacher()).resolves.toMatchObject({
+      ok: false,
+      error: {
+        kind: "session-update-failure",
+        reason: "refresh-failed",
+      },
+    });
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { roles: ["STUDENT"] },
+    });
+
+    await expect(service.enableTeacher()).resolves.toMatchObject({
+      ok: true,
+      value: { roles: ["STUDENT", "TEACHER"] },
+    });
+    expect(enablementCalls).toBe(2);
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      status: "authenticated",
+      user: { roles: ["STUDENT", "TEACHER"] },
+    });
+  });
+
+  it("uses existing session expiry behavior when teacher enablement cannot authenticate", async () => {
+    let refreshCalls = 0;
+    const transport: HttpTransport = {
+      async execute(request) {
+        switch (targetPath(request)) {
+          case "/api/auth/refresh":
+            refreshCalls += 1;
+            return refreshCalls === 1
+              ? loginResponse("initial-access")
+              : refreshFailure();
+          case "/api/auth/me":
+            return currentUser(["STUDENT"]);
+          case "/api/auth/teacher-enablement":
+            return jsonResponse(401, {
+              code: "UNAUTHORIZED",
+              message: "Unauthorized.",
+              path: "/api/auth/teacher-enablement",
+              status: 401,
+              traceId: null,
+            });
+          default:
+            throw new Error(`Unexpected request ${String(request.target)}`);
+        }
+      },
+    };
+    const service = createAuthSessionService({ transport });
+    await service.bootstrap();
+
+    await expect(service.enableTeacher()).resolves.toMatchObject({
+      ok: false,
+      error: { kind: "authentication-failure", reason: "no-session" },
+    });
+    expect(service.runtime.getSnapshot()).toEqual({
+      status: "session-expired",
+    });
+  });
+
   it("clears the in-memory session after cookie logout completes", async () => {
     let logoutObservedAuthenticated = false;
     let service!: ReturnType<typeof createAuthSessionService>;

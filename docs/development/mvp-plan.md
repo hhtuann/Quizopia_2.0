@@ -74,7 +74,8 @@ feature in the product overview.
 Current state:
 
 - local authentication/session path: **VERIFIED**
-- teacher self-enablement end-user HTTP/UI path: **NOT COMPLETE**
+- teacher self-enablement end-user HTTP/UI path: **VERIFIED — backend (PR #66)
+  and frontend entry point merged/proven with real-topology E2E**
 
 #### Quiz authoring
 
@@ -100,7 +101,8 @@ Current state:
 
 - stable Quiz + mutable draft backend: **MERGED / VERIFIED**
 - Quiz Markdown MVP grammar/editor contract: **DECIDED**
-- frontend authoring: **IN PROGRESS — REAL QUIZ LIBRARY + AUTHORING FLOW IMPLEMENTED ON FEATURE BRANCH; FINAL REVIEW/MERGE PENDING**
+- frontend authoring: **MERGED (PR #63 persistent library, PR #64 authoring UX,
+  PR #65 editor/branding polish)**
 - parser/validator/version publishing: **MERGED / VERIFIED**
 
 #### Assessment delivery
@@ -403,9 +405,11 @@ Deliver:
 
 #### A4. Teacher self-enablement closure
 
+**Status: COMPLETE**
+
 Bounded Identity/frontend workstream.
 
-Deliver:
+Delivered:
 
 - authenticated verified user who retains the authoritative `STUDENT` role can
   grant their own `TEACHER` capability under the accepted MVP policy;
@@ -416,10 +420,15 @@ Deliver:
 - E2E proof that a fresh verified STUDENT can become a TEACHER and enter the
   teacher authoring journey.
 
+Evidence: backend merged as PR #66; frontend entry point (user menu +
+authoring boundary) drives `POST /api/auth/teacher-enablement` → 204 →
+existing refresh coordinator → replacement JWT → authoritative `/me` with
+`STUDENT` + `TEACHER`; the real-topology E2E completes the journey through
+Quiz create/edit/save/reload/publish of an immutable `QuizVersion`.
+
 Dependency:
 
-- ID-06 is resolved for MVP; backend, frontend, and real-topology proof still
-  complete independently.
+- ID-06 is resolved for MVP.
 
 Wave 2 exit:
 
@@ -556,8 +565,8 @@ Agents must not silently invent these decisions.
 
 Quiz Markdown QM-01 through QM-05 are resolved and no longer block MVP-A.
 
-ID-06 is resolved. Teacher self-enablement remains an implementation/E2E
-workstream rather than a product-policy blocker.
+ID-06 is resolved. Teacher self-enablement is complete end to end (backend
+PR #66 + frontend + real-topology E2E) and no longer blocks MVP-A.
 
 ### Blocks MVP-B
 
@@ -597,10 +606,10 @@ Status vocabulary:
 | Scaffold / service isolation          | VERIFIED    | Wave 1                                                                                                       |
 | Local account auth                    | VERIFIED    | Browser → Gateway → Identity                                                                                 |
 | Frontend auth/session                 | VERIFIED    | refresh/bootstrap/logout E2E                                                                                 |
-| Teacher self-enablement               | IN PROGRESS | ID-06 resolved; backend/UI/E2E closure in progress                                                           |
+| Teacher self-enablement               | VERIFIED    | backend PR #66 + frontend; real user → teacher → publish E2E proven                                          |
 | Classroom core                        | MERGED      | assignment/product integration missing                                                                       |
 | Quiz stable identity + draft backend  | VERIFIED    | create/read/update foundation                                                                                |
-| Quiz frontend library/editor          | IN PROGRESS | real persistent library + create/edit/save/publish implemented on feature branch; final review/merge pending |
+| Quiz frontend library/editor          | MERGED      | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish                                |
 | Quiz Markdown grammar/editor contract | DECIDED     | QM-01 through QM-05 accepted                                                                                 |
 | Quiz parser/validator                 | VERIFIED    | merged in PR #60                                                                                             |
 | Immutable QuizVersion/publish         | VERIFIED    | merged in PR #60                                                                                             |
