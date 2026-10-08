@@ -1,10 +1,12 @@
 package com.quizopia.quiz.api;
 
 import com.quizopia.quiz.application.InvalidQuizLibraryRequestException;
+import com.quizopia.quiz.application.InvalidQuizVersionRequestException;
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
 import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
 import com.quizopia.quiz.application.QuizOwnershipDeniedException;
+import com.quizopia.quiz.application.QuizVersionNotFoundException;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,7 +34,8 @@ public final class QuizApiExceptionHandler {
         MethodArgumentNotValidException.class,
         HttpMessageNotReadableException.class,
         MethodArgumentTypeMismatchException.class,
-        InvalidQuizLibraryRequestException.class
+        InvalidQuizLibraryRequestException.class,
+        InvalidQuizVersionRequestException.class
     })
     ResponseEntity<QuizApiError> invalidRequest(Exception exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Request is invalid", request);
@@ -46,6 +49,12 @@ public final class QuizApiExceptionHandler {
     @ExceptionHandler(QuizDraftNotFoundException.class)
     ResponseEntity<QuizApiError> quizDraftNotFound(QuizDraftNotFoundException exception, HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, "QUIZ_DRAFT_NOT_FOUND", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(QuizVersionNotFoundException.class)
+    ResponseEntity<QuizApiError> quizVersionNotFound(
+            QuizVersionNotFoundException exception, HttpServletRequest request) {
+        return response(HttpStatus.NOT_FOUND, "QUIZ_VERSION_NOT_FOUND", exception.getMessage(), request);
     }
 
     @ExceptionHandler({QuizOwnershipDeniedException.class, AccessDeniedException.class})

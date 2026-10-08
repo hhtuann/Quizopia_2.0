@@ -5,6 +5,7 @@ import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
 import com.quizopia.quiz.application.QuizLibraryService;
 import com.quizopia.quiz.application.QuizPublishResult;
+import com.quizopia.quiz.application.QuizVersionQueryService;
 import com.quizopia.quiz.security.TeacherAuthoringPrincipalResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -44,14 +45,17 @@ public final class QuizController {
 
     private final QuizApplicationService quizApplicationService;
     private final QuizLibraryService quizLibraryService;
+    private final QuizVersionQueryService quizVersionQueryService;
     private final TeacherAuthoringPrincipalResolver teacherAuthoringPrincipalResolver;
 
     public QuizController(
             QuizApplicationService quizApplicationService,
             QuizLibraryService quizLibraryService,
+            QuizVersionQueryService quizVersionQueryService,
             TeacherAuthoringPrincipalResolver teacherAuthoringPrincipalResolver) {
         this.quizApplicationService = quizApplicationService;
         this.quizLibraryService = quizLibraryService;
+        this.quizVersionQueryService = quizVersionQueryService;
         this.teacherAuthoringPrincipalResolver = teacherAuthoringPrincipalResolver;
     }
 
@@ -287,6 +291,109 @@ public final class QuizController {
         QuizVersionResponse body = QuizVersionResponse.from(result.version());
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(body);
+    }
+
+    @GetMapping("/{quizId}/versions")
+    @Operation(
+            description =
+                    "Lists immutable published versions of a quiz owned by the authenticated Quizopia USER with the explicit TEACHER role. Cursor values are opaque.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Published version history page",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizVersionHistoryResponse.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Invalid limit or cursor",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Authentication is required",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Teacher authoring access or quiz ownership is denied",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Quiz was not found",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class)))
+    })
+    public QuizVersionHistoryResponse listOwnedVersions(
+            Authentication authentication,
+            @PathVariable("quizId") UUID quizId,
+            @Parameter(description = "Page size from 1 to 100", example = "20")
+                    @RequestParam(name = "limit", defaultValue = "20")
+                    int limit,
+            @Parameter(description = "Opaque cursor returned by a previous page")
+                    @RequestParam(name = "cursor", required = false)
+                    String cursor) {
+        UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
+        return QuizVersionHistoryResponse.from(quizVersionQueryService.listOwned(callerUserId, quizId, limit, cursor));
+    }
+
+    @GetMapping("/{quizId}/versions/{versionNumber}")
+    @Operation(
+            description =
+                    "Reads one immutable published snapshot of a quiz owned by the authenticated Quizopia USER with the explicit TEACHER role.")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Immutable published quiz snapshot",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizVersionDetailResponse.class))),
+        @ApiResponse(
+                responseCode = "400",
+                description = "Invalid quiz ID or version number",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "401",
+                description = "Authentication is required",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Teacher authoring access or quiz ownership is denied",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class))),
+        @ApiResponse(
+                responseCode = "404",
+                description = "Quiz or published version was not found",
+                content =
+                        @Content(
+                                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                schema = @Schema(implementation = QuizApiError.class)))
+    })
+    public QuizVersionDetailResponse getOwnedVersion(
+            Authentication authentication,
+            @PathVariable("quizId") UUID quizId,
+            @PathVariable("versionNumber") int versionNumber) {
+        UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
+        return QuizVersionDetailResponse.from(quizVersionQueryService.getOwned(callerUserId, quizId, versionNumber));
     }
 
     private static QuizDraftInput input(QuizDraftRequest request) {

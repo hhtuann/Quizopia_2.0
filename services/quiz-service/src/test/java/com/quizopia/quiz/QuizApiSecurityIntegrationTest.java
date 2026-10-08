@@ -24,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.quizopia.quiz.api.QuizApiExceptionHandler;
 import com.quizopia.quiz.api.QuizController;
 import com.quizopia.quiz.application.InvalidQuizLibraryRequestException;
+import com.quizopia.quiz.application.InvalidQuizVersionRequestException;
 import com.quizopia.quiz.application.QuizApplicationService;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
@@ -35,6 +36,10 @@ import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
 import com.quizopia.quiz.application.QuizOwnershipDeniedException;
 import com.quizopia.quiz.application.QuizPublishResult;
+import com.quizopia.quiz.application.QuizVersionNotFoundException;
+import com.quizopia.quiz.application.QuizVersionPage;
+import com.quizopia.quiz.application.QuizVersionQueryService;
+import com.quizopia.quiz.application.QuizVersionSummary;
 import com.quizopia.quiz.configuration.SecurityConfiguration;
 import com.quizopia.quiz.domain.Quiz;
 import com.quizopia.quiz.domain.QuizDraft;
@@ -93,11 +98,14 @@ class QuizApiSecurityIntegrationTest {
     QuizLibraryService quizLibraryService;
 
     @Autowired
+    QuizVersionQueryService quizVersionQueryService;
+
+    @Autowired
     JwtDecoder jwtDecoder;
 
     @BeforeEach
     void resetMocks() {
-        reset(quizApplicationService, quizLibraryService, jwtDecoder);
+        reset(quizApplicationService, quizLibraryService, quizVersionQueryService, jwtDecoder);
     }
 
     @Test
@@ -364,6 +372,117 @@ class QuizApiSecurityIntegrationTest {
     }
 
     @Test
+    void ownerTeacherListsPublishedVersionMetadataWithoutSnapshotContent() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        configureUserToken("teacher-version-list", ownerUserId, List.of("TEACHER"));
+        when(quizVersionQueryService.listOwned(ownerUserId, quizId, 20, null))
+                .thenReturn(new QuizVersionPage(
+                        List.of(new QuizVersionSummary(versionId, quizId, 2, "Historical title", null, 1, CREATED_AT)),
+                        "opaque-next"));
+
+        String body = mvc.perform(get("/api/quizzes/{quizId}/versions", quizId)
+                        .header("Authorization", "Bearer teacher-version-list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(versionId.toString()))
+                .andExpect(jsonPath("$.items[0].quizId").value(quizId.toString()))
+                .andExpect(jsonPath("$.items[0].versionNumber").value(2))
+                .andExpect(jsonPath("$.items[0].titleSnapshot").value("Historical title"))
+                .andExpect(jsonPath("$.items[0].descriptionSnapshot").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.items[0].contentSchemaVersion").value(1))
+                .andExpect(jsonPath("$.items[0].createdAt").value(CREATED_AT.toString()))
+                .andExpect(jsonPath("$.items[0].sourceSnapshot").doesNotExist())
+                .andExpect(jsonPath("$.items[0].structuredContent").doesNotExist())
+                .andExpect(jsonPath("$.nextCursor").value("opaque-next"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertEquals(Set.of("items", "nextCursor"), fieldNames(objectMapper.readTree(body)));
+        verify(quizVersionQueryService).listOwned(ownerUserId, quizId, 20, null);
+    }
+
+    @Test
+    void ownerTeacherReadsExactImmutablePublishedSnapshot() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        QuizVersion version = publishedVersion(UUID.randomUUID(), quizId, 1);
+        configureUserToken("teacher-version-detail", ownerUserId, List.of("TEACHER"));
+        when(quizVersionQueryService.getOwned(ownerUserId, quizId, 1)).thenReturn(version);
+
+        mvc.perform(get("/api/quizzes/{quizId}/versions/{versionNumber}", quizId, 1)
+                        .header("Authorization", "Bearer teacher-version-detail"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(version.id().toString()))
+                .andExpect(jsonPath("$.quizId").value(quizId.toString()))
+                .andExpect(jsonPath("$.versionNumber").value(1))
+                .andExpect(jsonPath("$.titleSnapshot").value(version.titleSnapshot()))
+                .andExpect(jsonPath("$.descriptionSnapshot").value(version.descriptionSnapshot()))
+                .andExpect(jsonPath("$.sourceSnapshot").value(version.sourceSnapshot()))
+                .andExpect(jsonPath("$.structuredContent.questions.length()").value(1))
+                .andExpect(jsonPath("$.contentSchemaVersion").value(1))
+                .andExpect(jsonPath("$.createdAt").value(CREATED_AT.toString()));
+
+        verify(quizVersionQueryService).getOwned(ownerUserId, quizId, 1);
+    }
+
+    @Test
+    void versionReadsMapOwnershipNotFoundAndInvalidRequestsToExistingConventions() throws Exception {
+        UUID callerUserId = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        UUID deniedQuizId = UUID.randomUUID();
+        configureUserToken("teacher-version-errors", callerUserId, List.of("TEACHER"));
+        when(quizVersionQueryService.listOwned(callerUserId, quizId, 0, null))
+                .thenThrow(new InvalidQuizVersionRequestException("invalid"));
+        when(quizVersionQueryService.listOwned(callerUserId, quizId, 20, "malformed"))
+                .thenThrow(new InvalidQuizVersionRequestException("invalid"));
+        when(quizVersionQueryService.listOwned(callerUserId, deniedQuizId, 20, null))
+                .thenThrow(new QuizOwnershipDeniedException(deniedQuizId, callerUserId));
+        when(quizVersionQueryService.getOwned(callerUserId, quizId, 99))
+                .thenThrow(new QuizVersionNotFoundException(quizId, 99));
+
+        mvc.perform(get("/api/quizzes/{quizId}/versions", quizId)
+                        .queryParam("limit", "0")
+                        .header("Authorization", "Bearer teacher-version-errors"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(get("/api/quizzes/{quizId}/versions", quizId)
+                        .queryParam("cursor", "malformed")
+                        .header("Authorization", "Bearer teacher-version-errors"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(get("/api/quizzes/{quizId}/versions", deniedQuizId)
+                        .header("Authorization", "Bearer teacher-version-errors"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        mvc.perform(get("/api/quizzes/{quizId}/versions/{versionNumber}", quizId, 99)
+                        .header("Authorization", "Bearer teacher-version-errors"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUIZ_VERSION_NOT_FOUND"));
+    }
+
+    @Test
+    void studentAndServiceCannotReadPublishedVersions() throws Exception {
+        UUID quizId = UUID.randomUUID();
+        configureUserToken("student-version-read", UUID.randomUUID(), List.of("STUDENT"));
+        configureServiceToken("service-version-read");
+
+        for (String token : List.of("student-version-read", "service-version-read")) {
+            mvc.perform(get("/api/quizzes/{quizId}/versions", quizId).header("Authorization", "Bearer " + token))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+            mvc.perform(get("/api/quizzes/{quizId}/versions/{versionNumber}", quizId, 1)
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        }
+        verify(quizVersionQueryService, never()).listOwned(any(), any(), org.mockito.ArgumentMatchers.anyInt(), any());
+        verify(quizVersionQueryService, never()).getOwned(any(), any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
     void invalidQuizMarkdownReturnsStructured400WithTraceIdAndAllErrors() throws Exception {
         UUID ownerUserId = UUID.randomUUID();
         UUID quizId = UUID.randomUUID();
@@ -540,13 +659,20 @@ class QuizApiSecurityIntegrationTest {
         JsonNode paths = document.path("paths");
 
         assertEquals(
-                Set.of("/api/quizzes", "/api/quizzes/{quizId}/draft", "/api/quizzes/{quizId}/versions"),
+                Set.of(
+                        "/api/quizzes",
+                        "/api/quizzes/{quizId}/draft",
+                        "/api/quizzes/{quizId}/versions",
+                        "/api/quizzes/{quizId}/versions/{versionNumber}"),
                 fieldNames(paths));
         JsonNode list = paths.path("/api/quizzes").path("get");
         JsonNode create = paths.path("/api/quizzes").path("post");
         JsonNode read = paths.path("/api/quizzes/{quizId}/draft").path("get");
         JsonNode update = paths.path("/api/quizzes/{quizId}/draft").path("put");
         JsonNode publish = paths.path("/api/quizzes/{quizId}/versions").path("post");
+        JsonNode versionHistory = paths.path("/api/quizzes/{quizId}/versions").path("get");
+        JsonNode versionDetail =
+                paths.path("/api/quizzes/{quizId}/versions/{versionNumber}").path("get");
 
         assertFalse(document.has("security"));
         JsonNode securitySchemes = document.path("components").path("securitySchemes");
@@ -560,12 +686,16 @@ class QuizApiSecurityIntegrationTest {
         assertOperationRequiresBearer(read);
         assertOperationRequiresBearer(update);
         assertOperationRequiresBearer(publish);
+        assertOperationRequiresBearer(versionHistory);
+        assertOperationRequiresBearer(versionDetail);
 
         assertFalse(create.isMissingNode());
         assertFalse(list.isMissingNode());
         assertFalse(read.isMissingNode());
         assertFalse(update.isMissingNode());
         assertFalse(publish.isMissingNode());
+        assertFalse(versionHistory.isMissingNode());
+        assertFalse(versionDetail.isMissingNode());
         assertFalse(paths.path("/api/quizzes/{quizId}/draft").has("delete"));
         assertResponses(list, Set.of("200", "400", "401", "403"), "200", "QuizLibraryResponse");
         assertResponses(create, Set.of("201", "400", "401", "403"), "201");
@@ -577,6 +707,8 @@ class QuizApiSecurityIntegrationTest {
         assertResponseSchema(publish.path("responses").path("401"), "QuizApiError");
         assertResponseSchema(publish.path("responses").path("403"), "QuizApiError");
         assertResponseSchema(publish.path("responses").path("404"), "QuizApiError");
+        assertResponses(versionHistory, Set.of("200", "400", "401", "403", "404"), "200", "QuizVersionHistoryResponse");
+        assertResponses(versionDetail, Set.of("200", "400", "401", "403", "404"), "200", "QuizVersionDetailResponse");
 
         JsonNode schemas = document.path("components").path("schemas");
         assertEquals(
@@ -588,6 +720,12 @@ class QuizApiSecurityIntegrationTest {
                         "QuizLibraryResponse",
                         "QuizMarkdownErrorResponse",
                         "QuizMarkdownValidationErrorResponse",
+                        "QuizContent",
+                        "QuizOption",
+                        "QuizQuestion",
+                        "QuizVersionDetailResponse",
+                        "QuizVersionHistoryResponse",
+                        "QuizVersionSummaryResponse",
                         "QuizVersionResponse"),
                 fieldNames(schemas));
         assertEquals(
@@ -622,6 +760,31 @@ class QuizApiSecurityIntegrationTest {
         assertEquals(
                 Set.of("id", "quizId", "versionNumber", "createdAt"),
                 fieldNames(schemas.path("QuizVersionResponse").path("properties")));
+        assertEquals(
+                Set.of("items", "nextCursor"),
+                fieldNames(schemas.path("QuizVersionHistoryResponse").path("properties")));
+        assertEquals(
+                Set.of(
+                        "id",
+                        "quizId",
+                        "versionNumber",
+                        "titleSnapshot",
+                        "descriptionSnapshot",
+                        "contentSchemaVersion",
+                        "createdAt"),
+                fieldNames(schemas.path("QuizVersionSummaryResponse").path("properties")));
+        assertEquals(
+                Set.of(
+                        "id",
+                        "quizId",
+                        "versionNumber",
+                        "titleSnapshot",
+                        "descriptionSnapshot",
+                        "sourceSnapshot",
+                        "structuredContent",
+                        "contentSchemaVersion",
+                        "createdAt"),
+                fieldNames(schemas.path("QuizVersionDetailResponse").path("properties")));
         assertEquals(
                 Set.of("code", "message", "status", "path", "traceId", "errors"),
                 fieldNames(schemas.path("QuizMarkdownValidationErrorResponse").path("properties")));
@@ -770,6 +933,11 @@ class QuizApiSecurityIntegrationTest {
         @Bean
         QuizLibraryService quizLibraryService() {
             return mock(QuizLibraryService.class);
+        }
+
+        @Bean
+        QuizVersionQueryService quizVersionQueryService() {
+            return mock(QuizVersionQueryService.class);
         }
 
         @Bean
