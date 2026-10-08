@@ -1,7 +1,7 @@
 # Quizopia 2.0 — DESIGN.md
 
 > **Status:** UI/UX source of truth for Quizopia 2.0  
-> **Design direction:** Corporate Trust  
+> **Design direction:** Corporate Trust — Enterprise Template fidelity with Quizopia product adaptations  
 > **Primary stack target:** Next.js + React + Tailwind CSS 4  
 > **Theme baseline:** Light mode only for the current baseline
 
@@ -44,16 +44,16 @@ The experience should feel trustworthy enough for education and assessment workf
 ### Core Principles
 
 - **Trustworthy Yet Vibrant**  
-  Clean structure and strong readability establish credibility, while restrained brand gradients and accents keep the UI energetic.
+  Clean structure and strong readability establish credibility, while signature Indigo-to-Violet gradients, colored shadows, and lively accents keep the UI energetic.
 
 - **Refined Elegance**  
   Surfaces, typography, spacing, interactions, and transitions should feel polished without becoming decorative noise.
 
 - **Dimensional Depth**  
-  Soft colored shadows and selective elevation add depth. Decorative 3D/isometric treatments are allowed only where they do not reduce usability.
+  Soft Indigo/Violet-tinted shadows, raised surfaces, and deliberate dimensional composition create depth. Decorative 3D/isometric treatments are reserved for suitable showcase visuals and must not impair usability.
 
 - **Purposeful Gradients**  
-  Indigo-to-violet gradients are a brand signature, but they are accents rather than the default treatment for every control or surface.
+  Indigo-to-Violet gradients are a defining brand treatment for primary CTAs, selected headline emphasis, and high-value accent moments. Use them consistently rather than reverting primary actions to generic solid buttons.
 
 - **Professional Polish**  
   Generous spacing, strong hierarchy, consistent alignment, and predictable interaction patterns are more important than visual novelty.
@@ -77,7 +77,7 @@ Examples:
 - about/product pages
 - selected promotional sections
 
-These pages may use the full Corporate Trust visual language:
+These pages should visibly embody the full Corporate Trust visual language:
 
 - gradient headlines
 - atmospheric blobs
@@ -112,12 +112,13 @@ Application UI must prioritize:
 
 For product UI:
 
-- use gradients sparingly;
-- avoid decorative blobs behind dense content;
-- do not use 3D transforms on functional controls;
-- do not apply hover lift to every card;
-- prefer visually stable layouts;
-- use brand identity mainly through typography, primary color, active states, focus rings, icons, and selective accents.
+- use the canonical Indigo-to-Violet gradient on high-emphasis primary actions (including Save/Publish where primary by context), with hierarchy preventing competing CTAs;
+- allow gradient emphasis in prominent page headings, while keeping routine labels, forms, and data plain for readability;
+- retain tinted shadows, friendly rounding, and expressive brand accents on interactive surfaces;
+- keep atmospheric blobs subtle and outside dense editing/reading areas;
+- do not apply 3D transforms to functional controls or content requiring precise interaction;
+- apply restrained hover lift only to interactive cards; do not move information-only panels;
+- prioritize stable layouts, keyboard access, contrast, and information clarity.
 
 ---
 
@@ -202,30 +203,29 @@ Use semantic naming in the styling layer rather than scattering raw colors:
 
 ## 5.1 Font roles
 
-Quizopia uses three locally managed `next/font` roles:
+Quizopia uses a Corporate Trust UI font plus two intentional product-specific roles, all managed via `next/font`:
 
-- **Calistoga — headings and brand:** the Quizopia wordmark, key page titles,
-  major section headings, and selected prominent brand-facing headings;
-- **Inter — body and UI:** paragraphs, navigation, forms, buttons, helper text,
-  and normal application copy;
+- **Plus Jakarta Sans — primary Corporate Trust font:** page headings, section headings, cards, paragraphs, navigation, forms, buttons, and normal application copy. Use 700–800 for display emphasis and 400–600 for UI, mirroring the source template;
+- **Calistoga — Quizopia brand exception:** existing wordmark and intentionally branded display lockups only; do not extend it into routine page and pane headings;
 - **JetBrains Mono — source and technical labels:** the editable Quiz Markdown
   source text, code, line numbers, question-type chips, badges, compact status
   tokens, and technical identifiers where fixed-width clarity adds value.
 
 `Quiz Markdown source` and `Live preview` are pane headings, so they use
-Calistoga. The source characters edited beneath the heading use JetBrains Mono.
+Plus Jakarta Sans with matching 700 weights. The source characters edited beneath the heading use JetBrains Mono.
 
-Do not apply Calistoga to every small heading or dense label. Small card titles
-and routine control labels may remain Inter when that improves scanning. Use
-JetBrains Mono selectively; ordinary prose and controls remain Inter.
+Reserve Calistoga for the established wordmark and rare approved brand lockups. Use
+Plus Jakarta Sans consistently for visual hierarchy, cards, forms, and controls.
+Use JetBrains Mono selectively; ordinary prose and controls use Plus Jakarta Sans.
 
 Fonts are loaded through `next/font` with appropriate fallback stacks. Do not
 add a second web-font loader or runtime stylesheet request.
 
 ## 5.2 Weights
 
-- Calistoga display/page headings: Regular `400`
-- Inter section headings: SemiBold/Bold `600–700`
+- Plus Jakarta Sans display/hero headings: ExtraBold `800`
+- Plus Jakarta Sans section/page headings: Bold `700`
+- Calistoga wordmark: Regular `400`
 - Subheadings/Card Titles: SemiBold `600`
 - Navigation/Labels: Medium `500`
 - Body: Regular `400`
@@ -267,10 +267,10 @@ The reusable Quizopia logo consists of:
 2. a two-line wordmark to its right;
 3. `Quizopia` on line one, with `Quiz` in Text Primary and `opia` using the
    restrained Primary-to-Secondary gradient;
-4. understated Inter text `version 2.0` on line two, tucked closely beneath the
+4. understated Plus Jakarta Sans text `version 2.0` on line two, tucked closely beneath the
    product name so both lines read as one compact lockup.
 
-`Quizopia` uses Calistoga. The version line uses Inter. One canonical bolt path
+`Quizopia` uses Calistoga as an explicit brand exception. The version line uses Plus Jakarta Sans. One canonical bolt path
 defines the silhouette for navigation, authentication, focused authoring
 chrome, and favicon/app-icon assets. The favicon may use its own favicon-safe
 rounded block, but must not redraw or substitute the bolt geometry. Do not
@@ -321,21 +321,15 @@ the visual hierarchy and compact brand proportions at supported viewports.
 
 ## 6.1 Radius
 
-- Cards / panels: `12px` (`rounded-xl`)
-- Inputs / selects / product buttons: `8px` (`rounded-lg`)
-- Compact controls: `6–8px` where appropriate
+- Cards / panels: `12px` (`rounded-xl`), optionally `16px` for large elevated showcases
+- Inputs / selects: `8px` (`rounded-lg`)
+- Primary/secondary buttons: `rounded-full` for prominent CTAs and `rounded-xl` (12px) for compact application toolbars; both are first-class, shared variants
+- Compact icon-only controls: `rounded-lg` or circular as appropriate
 - Avatars/status dots: circular
-- Marketing CTA buttons may use `rounded-full`
 
 ### Default Rule
 
-**Product UI buttons use `rounded-lg` by default.**
-
-`rounded-full` is a deliberate exception, mainly for:
-
-- marketing hero CTAs
-- pill filters/tags
-- circular icon/avatar controls
+**Choose generously rounded, visually soft controls, as in the Enterprise template.** Avoid a square/boxy button appearance and do not use `rounded-lg` plus excessive vertical padding as the universal product-button recipe. Shared button sizes must be content-appropriate: compact 32–36px where appropriate, standard 36–40px, and 44px or greater when touch targets require it. If a visually compact control has a hit area smaller than 44px, enlarge its interactive target without distorting visual proportions. Keep consistent heights within a toolbar.
 
 ## 6.2 Borders
 
@@ -351,7 +345,7 @@ the visual hierarchy and compact brand proportions at supported viewports.
 
 - **Card:** `0 4px 20px -2px rgba(79, 70, 229, 0.10)`
 - **Card Hover:** `0 10px 25px -5px rgba(79, 70, 229, 0.15), 0 8px 10px -6px rgba(79, 70, 229, 0.10)`
-- **Primary Button:** `0 4px 14px 0 rgba(79, 70, 229, 0.25)`
+- **Primary Button:** `0 4px 14px 0 rgba(79, 70, 229, 0.30)`
 
 Use elevation selectively in application UI.
 
@@ -368,24 +362,20 @@ Flat or lightly bordered surfaces are preferred for:
 
 Indigo 600 → Violet 600.
 
-### Allowed Uses
+### Required / Recommended Uses
 
-- selected marketing CTAs
-- selected high-emphasis brand moments
-- marketing illustrations
-- controlled active/brand accents
-- occasional hero text emphasis
+- default high-emphasis primary CTA and page-level primary action (including Create quiz and Publish);
+- prominent heading emphasis: split a headline between Slate 900 and gradient text where meaningful;
+- selected navigation/active-brand treatments, key visual accents, and hero illustrations;
+- atmospheric illustrations and promotional sections as appropriate.
 
-### Gradient Restraint
+### Discipline, Not Suppression
 
-Gradients are brand accents, not default surface treatments.
-
-For product screens:
-
-- normally use at most one dominant gradient treatment per visual region;
-- do not use gradient text for ordinary page headings, labels, table content, form text, or metadata;
-- prefer solid Primary for routine application actions;
-- do not stack gradient text + gradient buttons + gradient borders + gradient backgrounds in the same functional area.
+- gradients communicate priority; do not make every button primary;
+- data tables, ordinary field labels, captions, body copy, and rich-text answers stay solid/readable;
+- accessible contrast must be verified across the entire gradient, including disabled/hover states;
+- gradient decoration must not obscure editor text or interfere with functional content;
+- secondary and tertiary actions remain visually subordinate. A heading emphasis and primary gradient CTA can coexist when hierarchy is clear.
 
 ## 7.3 Decorative 3D / Isometric Treatments
 
@@ -517,7 +507,7 @@ the permanent editor workspace. QuizVersion publication must not be presented
 as Assessment timing, audience, or classroom configuration.
 
 The editor and preview panes use one shared header hierarchy: matching
-Calistoga titles plus matching Inter helper size, color, line height, and
+Plus Jakarta Sans bold titles plus matching Plus Jakarta Sans helper size, color, line height, and
 spacing. Pane headers should align visually even when helper copy lengths
 differ.
 
@@ -565,18 +555,19 @@ bottom while preserving its keyboard and screen-reader semantics.
 
 ## 10.1 Primary Product Button
 
-Default product button:
+Default high-emphasis primary product button:
 
-- solid Primary background
-- white text
-- rounded-lg
-- subtle brand shadow
-- clear focus-visible ring
+- `linear-gradient(90deg, #4F46E5, #7C3AED)` (Indigo 600 → Violet 600), using centralized design tokens;
+- white text (verify contrast across both stops);
+- `rounded-full` for prominent CTAs, or shared `rounded-xl` compact toolbar variant;
+- appropriately compact height/padding, not oversized square controls;
+- soft brand shadow `0 4px 14px 0 rgba(79, 70, 229, 0.30)`;
+- visible focus ring without obscuring the gradient.
 
 Hover:
 
-- Primary Hover
-- optional subtle `-translate-y-0.5` only for non-dense contexts
+- gentle `-translate-y-0.5`, stronger tinted shadow, and subtle gradient evolution when appropriate;
+- no movement when `prefers-reduced-motion` is active.
 
 Active:
 
@@ -585,18 +576,17 @@ Active:
 
 ## 10.2 Marketing Primary CTA
 
-May use:
-
-- Indigo → Violet gradient
-- stronger shadow
-- rounded-full or rounded-lg
+Uses the same canonical Indigo → Violet gradient as product primary CTAs, with room for stronger shadow, pill silhouette, and refined lift. Marketing is not the only context permitted to use the signature gradient.
 
 ## 10.3 Secondary Button
 
-- white/surface background
-- Border
-- Text Primary or Text Secondary
-- hover to Surface Muted / stronger border
+- white/surface background;
+- brand-tinted border and Indigo 600 text for brand-adjacent actions (such as Published versions beside Publish), with readable contrast;
+- neutral Border and Slate 700 text remain valid for low-emphasis utility actions;
+- rounded silhouette aligned to adjacent primary controls;
+- hover to subtle Indigo 50/Slate 50 and stronger border; visible focus ring.
+
+Use explicit `brand-outline` and `neutral-outline` shared variants; do not make all white buttons indistinguishable gray.
 
 ## 10.4 Destructive Button
 
@@ -697,16 +687,14 @@ The toggle must:
 
 ## 12.1 Base Product Card
 
-- Surface
-- rounded-xl
-- subtle border
-- subtle or no shadow depending on density
+- Surface/white background
+- rounded-xl (12px)
+- subtle Slate 100 border
+- soft colored shadow (`0 4px 20px -2px rgba(79, 70, 229, 0.10)`), reducing elevation only when density or nested-panel clarity requires it
 
 ## 12.2 Hover
 
-Only cards that are actually interactive should receive hover affordances.
-
-Do not make every informational panel lift on hover.
+Interactive cards use `hover:-translate-y-1` with the canonical layered Indigo-tinted hover shadow and a smooth 200ms transition. Static informational panels do not lift. Preserve content positions and interaction accuracy.
 
 ## 12.3 Feature / Marketing Cards
 
@@ -866,7 +854,7 @@ Rules:
 
 ## 17.1 Library
 
-Use `lucide-react` if already accepted by the repository.
+Use `lucide-react` as the Corporate Trust icon language where available in the repository.
 
 Do not add another icon library for isolated features without justification.
 
@@ -915,7 +903,7 @@ Motion should:
 
 ## 18.3 Transition Properties
 
-Prefer explicit transitions:
+The original template uses `transition-all duration-200`. In production, prefer targeted transitions for predictability while matching the same 200ms perceived polish:
 
 ```text
 transition-colors
@@ -1146,6 +1134,8 @@ Dense roster content should favor stable tables/lists over decorative card grids
 
 ## 25.4 Quiz Editor
 
+The editor uses the full available application width instead of forcing the marketing `max-w-7xl` container. Preserve equal-weight source/preview panes and their synchronized behavioral contracts. Its header, Save/Publish toolbar, focus treatments, surface details, and typography **must still look like Corporate Trust**; product density is not an excuse for generic gray rectangular controls.
+
 Editor UI prioritizes:
 
 - authoring speed
@@ -1160,7 +1150,7 @@ Editor UI prioritizes:
 - progressive full-marker completion and exact existing-marker replacement
 - caret-anchored completion that remains inside the editor viewport
 
-Decorative gradients/3D treatments should not appear inside the editing workspace.
+Decorative blobs and 3D transforms must not appear behind text editing or within answer controls. The prominent Publish CTA, selected pane/header brand accents, and surrounding chrome may use the canonical Indigo-to-Violet gradient.
 
 ## 25.5 Assessment
 
@@ -1183,11 +1173,11 @@ Quizopia Corporate Trust identity is expressed through:
 1. Indigo primary brand
 2. Violet secondary accent
 3. geometric lightning-bolt mark and two-line Quizopia wordmark
-4. Calistoga headings, Inter UI/body, and selective JetBrains Mono labels
+4. Plus Jakarta Sans headings/UI/body, Calistoga brand wordmark only, and selective JetBrains Mono source/labels
 5. clean cool-neutral surfaces
 6. subtle colored shadows
-7. restrained gradients
-8. rounded but professional geometry
+7. signature Indigo-to-Violet gradient on primary actions and selected headline emphasis
+8. generously rounded, premium button/card geometry
 9. strong accessibility/focus treatment
 10. calm refined motion
 11. selective decorative depth on public/marketing surfaces only
@@ -1200,7 +1190,7 @@ The product should feel branded without sacrificing clarity.
 
 Do not:
 
-- use gradients everywhere;
+- apply gradients indiscriminately to all controls, content, or data;
 - use `text-6xl` application page headings;
 - place blur blobs behind dense forms/tables/editors;
 - apply 3D transforms to functional UI;
@@ -1245,9 +1235,10 @@ For the current Quizopia 2.0 frontend baseline:
 - Theme: Light only
 - Primary: Indigo 600
 - Secondary: Violet 600
-- Typography: Calistoga for key headings and the product wordmark, Inter for body and general UI, and JetBrains Mono for editable source/code plus compact technical labels
-- Product button default: solid Indigo, rounded-lg
-- Marketing CTA: gradient allowed
+- Typography: Plus Jakarta Sans for headings and general UI; Calistoga only for the existing Quizopia brand wordmark; JetBrains Mono for source/code and compact technical labels
+- Primary CTA/product page action: Indigo-to-Violet gradient, premium rounded silhouette, and colored shadow
+- Secondary brand-adjacent CTA: white with Indigo text and brand-tinted border; neutral outline for low-emphasis controls
+- Button sizes: compact where appropriate, with 44px touch targets where needed
 - Product cards: restrained elevation
 - Application shell: role-aware UX, not authorization
 - Workspace personas: `LEARNING` / `TEACHING`
@@ -1256,3 +1247,59 @@ For the current Quizopia 2.0 frontend baseline:
 - Brand icon: the reusable Quizopia lightning-bolt mark; do not reintroduce the legacy `Q` badge or unrelated blue favicon treatment
 - General UI icons: use the existing project strategy; `lucide-react` only if already accepted
 - New UI libraries: explicit justification required
+
+---
+
+# 30. Enterprise Template Fidelity & Product Adaptation Contract
+
+Reference: https://www.designprompts.dev/enterprise — Corporate Trust design language (source reference as provided by the project owner).
+
+## 30.1 Canonical visual signature
+
+Corporate Trust is not merely an Indigo color scheme. Together, the following establish its recognizable identity across marketing **and** authenticated application screens:
+
+1. Indigo 600 (`#4F46E5`) → Violet 600 (`#7C3AED`) gradient on the primary action in a given visual region.
+2. Rounded-full/rounded-xl buttons with compact, deliberate padding rather than tall box-like controls.
+3. White secondary actions with brand-colored text/border when related to a primary CTA; neutral outlines only for low-emphasis utility controls.
+4. Plus Jakarta Sans hierarchy: heavyweight 800 display, 700 section headings, 600 card titles, readable 400–500 body/navigation.
+5. Slate 900 text on Slate 50 backgrounds, white elevated cards, Violet/Indigo-tinted shadows.
+6. Strategic split-color gradient headline emphasis on key headers, not blanket gradient body text.
+7. Interactive cards with 200ms lift and stronger colored shadow; non-interactive reading surfaces remain stable.
+8. Atmospheric soft orbs, subtle isometric illustrations, and decorative dimension in suitable marketing/onboarding/showcase regions, never on text entry, tables, assessment answers, or dialog controls.
+9. Lucide-style icons, clear focus rings, reduced-motion alternatives, and verified WCAG AA contrast.
+10. Shared variant-based implementation: gradient-primary, brand-outline, neutral-outline, ghost, destructive; compact/default/touch sizes; shared card/elevation tokens.
+
+A user should recognize the Corporate Trust template from buttons, typography, depth, and accent behavior even when the page has no hero image.
+
+## 30.2 Explicit Quizopia adaptations (must preserve)
+
+- **Full-width application content:** Do not impose `max-w-7xl` on the quiz library, editor, data tables, or other task-oriented screens; use task-sensitive responsive gutters and actual available viewport width. Marketing pages may keep `max-w-7xl`.
+- **Quiz Editor:** Desktop split Markdown source/live preview fills the available height/width; narrow viewports use the established accessible mode switch. Source text remains JetBrains Mono. Existing editor caret/scroll/autocomplete/exact-source behavior is out of scope for visual changes.
+- **Brand:** Retain the canonical geometric lightning-bolt logo, two-line wordmark and `version 2.0` lockup. Calistoga is the approved wordmark exception, not the global heading font.
+- **Learning/Teaching:** Workspace switch is presentation only, not a permission grant. Preserve backend/Gateway authority and authenticated-user menu logic.
+- **Light mode:** Maintain current light-mode-only baseline unless separately approved.
+- **Functional safety:** Preserve all current routes, actions, API contracts, validation, draft/publish behavior, accessibility, and keyboard semantics.
+
+## 30.3 Visual acceptance matrix
+
+| UI surface | Expected Corporate Trust treatment | Non-negotiable constraint |
+| --- | --- | --- |
+| Quiz library heading | Plus Jakarta Sans bold, optional strategic gradient emphasis | Keep real dynamic quiz data and full-width layout |
+| Create quiz | Gradient primary, soft Indigo shadow, generously rounded | Do not change create flow |
+| Quiz cards | White, 12px radius, tinted shadow, hover lift only if clickable | Keep metadata accurate and accessible |
+| Quiz Editor header | Compact aligned shared chrome; refined brand outline secondary actions | Preserve return navigation, Save/Publish semantics |
+| Publish | Canonical gradient primary, readable white label | Preserve publish validation and error states |
+| Published versions | White brand-outline when paired with Publish | Keep version history behavior |
+| Save | Explicit secondary/utility hierarchy unless it is the current page's single primary action | Preserve save/dirty/disabled/loading semantics |
+| Forms/auth | Plus Jakarta Sans, Indigo focus, rounded inputs, gradient main CTA | Preserve accessible labels and auth/session behavior |
+| Tables/assessment | Restrained surfaces, clear hierarchy, coherent brand accents | No isometric rotation or decorative distractions |
+
+## 30.4 Implementation/verification rules
+
+- Inspect existing components, Tailwind 4 tokens and current routing before introducing new variants; migrate shared components rather than patching each page with different ad hoc styles.
+- Implement style through semantic tokens and shared button/card/heading variants; do not hard-code hex in feature components.
+- Compare at 375px, 768px, 1280px, and wide desktop viewports. Validate no viewport-level horizontal overflow, functional keyboard controls, discernible focus, reduced-motion behavior, and touch targets.
+- Verify contrast **at both ends and middle of gradients** and in hover/disabled states; do not assume white on Violet 600 always satisfies every text-size threshold.
+- Use real app states in screenshots, including library, editor, auth, empty/error/loading, and any implemented Learning/Teaching screens. Prefer visual regression coverage for shared primitives and page chrome.
+- Distinguish documented exceptions from accidental design drift. Any further deviation from this signature needs an explicit reason, documented here rather than silently normalized.
+
