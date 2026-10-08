@@ -278,6 +278,43 @@ reintroduce the legacy letter `Q` badge or an unrelated blue favicon. Reuse the
 centralized brand components rather than duplicating SVG paths or wordmark
 markup.
 
+### Consistency across application workspaces
+
+The focused Quiz Editor header is the reference for compact application chrome:
+use the shared Quizopia mark (`size-9`), consistent wordmark and `version 2.0`
+placement, vertical alignment, and restrained `py-2` header spacing. Keep
+responsive wordmark visibility consistent between the main app and editor.
+Prefer shared brand components and tokens over page-specific logo sizes.
+
+Application navigation and focused editor headers share one chrome geometry:
+horizontal header padding, minimum row height, flexible gaps, and centered
+brand alignment. Match the rendered brand left/top position and desktop header
+height across `/app`, `/app/quizzes`, and the Quiz Editor, while allowing
+additional header rows on narrow screens when controls require them. Keep the
+wordmark typography and version subtitle identical at the same breakpoint.
+Reuse the shared header geometry rules without changing content-container
+padding. Playwright regression tests must compare rendered header and brand
+rectangles across routes at desktop and mobile viewport widths, including
+horizontal overflow and touch-control visibility.
+
+Full-page workspaces such as Quiz Editor must offer an explicit, keyboard-
+accessible way back to the parent application (`Back to app`); the logo alone
+is not sufficient. When an editor has unsaved changes, confirm before leaving
+and keep editing state intact if the user cancels. Never silently save or
+discard the draft.
+
+Editable metadata, including Quiz title, must have a visible associated label,
+an input border and distinct surface at rest, usable padding, and an obvious
+keyboard focus ring. Do not disguise an editable input as static heading text.
+
+Dialogs should have one dismiss action when multiple controls do the same
+thing. An icon-only X must have a meaningful accessible name, a touch target
+of at least 44px, visible keyboard focus, Escape dismissal and focus restoration.
+
+Keep navigation and editor header controls available on narrow/mobile screens
+using wrapping or stacking rather than forcing horizontal scrolling. Preserve
+the visual hierarchy and compact brand proportions at supported viewports.
+
 ---
 
 # 6. Radius & Borders

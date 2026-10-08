@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { QuizopiaLogo } from "../../../components/brand/quizopia-logo";
+import { APPLICATION_HEADER_GEOMETRY } from "../../../components/ui/application-header-geometry";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
@@ -477,6 +478,7 @@ export interface QuizEditorPageProps {
 }
 
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
+  const router = useRouter();
   const client = useQuizApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
@@ -510,6 +512,17 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   );
   const dirty =
     savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
+
+  function backToApp() {
+    if (
+      !dirty ||
+      window.confirm(
+        "You have unsaved changes. Leave the editor and discard them?",
+      )
+    ) {
+      router.push("/app");
+    }
+  }
 
   useLayoutEffect(() => {
     const pendingEditorFocus = pendingEditorFocusRef.current;
@@ -714,7 +727,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <header
         aria-hidden={historyOpen || undefined}
-        className="z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:gap-3 sm:px-5"
+        className={APPLICATION_HEADER_GEOMETRY}
         inert={historyOpen ? true : undefined}
       >
         <Link
@@ -727,16 +740,40 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             wordmarkClassName="hidden xl:flex"
           />
         </Link>
+        <Button
+          aria-label="Back to app"
+          className="size-11 shrink-0 p-0"
+          disabled={isSaving || isPublishing}
+          onClick={backToApp}
+          variant="secondary"
+        >
+          <svg
+            aria-hidden="true"
+            className="size-5"
+            fill="none"
+            focusable="false"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+          >
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+        </Button>
         <span
           aria-hidden="true"
           className="hidden h-7 w-px bg-border sm:block"
         />
-        <div className="min-w-[10rem] flex-1 sm:max-w-xl">
-          <label className="sr-only" htmlFor="editor-title">
+        <div className="order-3 flex w-full min-w-0 items-center gap-3 sm:order-none sm:w-auto sm:min-w-[16rem] sm:flex-1 sm:max-w-xl">
+          <label
+            className="shrink-0 text-xs font-semibold text-foreground-secondary"
+            htmlFor="editor-title"
+          >
             Quiz title
           </label>
           <input
-            className="min-h-11 w-full rounded-lg border border-transparent bg-transparent px-3 py-2 text-base font-semibold text-foreground outline-none hover:bg-surface-muted focus:border-primary focus:bg-surface focus:ring-2 focus:ring-focus/30"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
             disabled={isSaving || isPublishing}
             id="editor-title"
             onChange={(event) => setTitle(event.target.value)}
@@ -744,7 +781,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             value={title}
           />
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="order-4 ml-auto flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto">
           <span
             aria-live="polite"
             className="hidden font-mono text-xs font-semibold text-foreground-muted sm:inline"

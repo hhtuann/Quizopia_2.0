@@ -357,8 +357,15 @@ describe("application shell session behavior and semantics", () => {
     ).toBeInTheDocument();
     const brandLink = screen.getByRole("link", { name: "Quizopia home" });
     expect(
-      within(brandLink).getByTestId("quizopia-brand-mark"),
-    ).toBeInTheDocument();
+      within(brandLink).getByTestId("quizopia-brand-mark").parentElement,
+    ).toHaveClass("size-9", "rounded-lg");
+    expect(brandLink.querySelector(".xl\\:flex")).toHaveClass("hidden");
+    expect(screen.getByRole("banner")).toHaveClass(
+      "flex-wrap",
+      "items-center",
+      "py-2",
+      "sm:px-5",
+    );
     expect(within(brandLink).getByText("Quiz")).toBeInTheDocument();
     expect(within(brandLink).getByText("opia")).toBeInTheDocument();
     expect(within(brandLink).getByText("version 2.0")).toBeInTheDocument();

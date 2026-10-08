@@ -514,7 +514,9 @@ test("real teacher preserves published A/B history while current draft advances 
     historyDialog.getByText(/CHARLIE unpublished draft/),
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Current draft" }).click();
+  await historyDialog
+    .getByRole("button", { name: "Close published versions" })
+    .click();
   await expect(editor).toHaveValue(sourceC);
 
   await page.getByRole("button", { name: "Published versions" }).click();

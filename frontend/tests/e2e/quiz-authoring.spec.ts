@@ -44,6 +44,243 @@ async function switchToTeaching(page: Page) {
   await page.getByRole("button", { name: "Switch to Teaching" }).click();
 }
 
+type HeaderRect = { x: number; y: number; width: number; height: number };
+
+type HeaderGeometry = {
+  header: HeaderRect;
+  mark: HeaderRect;
+  wordmark: HeaderRect | null;
+  brandGap: string;
+  wordmarkFont: string | null;
+  subtitleFont: string | null;
+  subtitleTracking: string | null;
+  overflow: boolean;
+};
+
+async function measureHeader(page: Page): Promise<HeaderGeometry> {
+  return page
+    .locator("header")
+    .first()
+    .evaluate((header) => {
+      const mark = header.querySelector(
+        '[data-testid="quizopia-brand-mark"]',
+      )?.parentElement;
+      const version = Array.from(header.querySelectorAll("span")).find(
+        (element) => element.textContent?.trim() === "version 2.0",
+      );
+      const wordmark = version?.parentElement;
+      const brand = mark?.parentElement;
+      if (!mark || !wordmark || !brand || !version) {
+        throw new Error("Missing shared header branding");
+      }
+      const rect = (element: Element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      };
+      const visible = getComputedStyle(wordmark).display !== "none";
+      return {
+        header: rect(header),
+        mark: rect(mark),
+        wordmark: visible ? rect(wordmark) : null,
+        brandGap: getComputedStyle(brand).gap,
+        wordmarkFont: visible
+          ? getComputedStyle(wordmark.firstElementChild!).fontSize
+          : null,
+        subtitleFont: visible ? getComputedStyle(version).fontSize : null,
+        subtitleTracking: visible
+          ? getComputedStyle(version).letterSpacing
+          : null,
+        overflow:
+          header.scrollWidth > header.clientWidth ||
+          document.documentElement.scrollWidth > window.innerWidth,
+      };
+    });
+}
+
+function checkBrandAlignment(
+  expected: HeaderGeometry,
+  actual: HeaderGeometry,
+  desktop: boolean,
+) {
+  expect(expected.mark.width).toBe(36);
+  expect(expected.mark.height).toBe(36);
+  expect(actual.mark.width).toBe(36);
+  expect(actual.mark.height).toBe(36);
+  expect(Math.abs(actual.mark.x - expected.mark.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(actual.mark.y - expected.mark.y)).toBeLessThanOrEqual(2);
+  expect(Boolean(actual.wordmark)).toBe(Boolean(expected.wordmark));
+  if (actual.wordmark && expected.wordmark) {
+    for (const key of ["x", "y", "width", "height"] as const) {
+      expect(
+        Math.abs(actual.wordmark[key] - expected.wordmark[key]),
+      ).toBeLessThanOrEqual(2);
+    }
+  }
+  expect(actual.brandGap).toBe(expected.brandGap);
+  expect(actual.wordmarkFont).toBe(expected.wordmarkFont);
+  expect(actual.subtitleFont).toBe(expected.subtitleFont);
+  expect(actual.subtitleTracking).toBe(expected.subtitleTracking);
+  if (desktop) {
+    expect(
+      Math.abs(actual.header.height - expected.header.height),
+    ).toBeLessThanOrEqual(2);
+    for (const geometry of [expected, actual]) {
+      expect(
+        Math.abs(
+          geometry.mark.y +
+            geometry.mark.height / 2 -
+            (geometry.header.y + geometry.header.height / 2),
+        ),
+      ).toBeLessThanOrEqual(2);
+    }
+  }
+  expect(actual.overflow).toBe(false);
+}
+
+test("application and editor headers keep compact branding and usable navigation", async ({
+  page,
+}, testInfo) => {
+  await mockTeacherBootstrap(page);
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Navigation check",
+        description: "",
+        authoringSource: "Câu 1 [NUMERIC_FILL]: 2 + 2?\nĐáp án: 4",
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  await page.route("**/api/quizzes", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    });
+  });
+
+  for (const width of [1440, 1650, 375]) {
+    await page.setViewportSize({ width, height: 812 });
+    await page.goto("/app");
+    const appHeader = page.getByRole("banner");
+    await expect(
+      appHeader.getByRole("link", { name: "Quizopia home" }),
+    ).toBeVisible();
+    await expect(
+      appHeader.getByRole("navigation", { name: "Primary navigation" }),
+    ).toBeVisible();
+    await expect(
+      appHeader.getByRole("button", { name: /Open user menu/ }),
+    ).toBeVisible();
+    const appMark = appHeader.getByTestId("quizopia-brand-mark").locator("..");
+    await expect(appMark).toHaveCSS("width", "36px");
+    await expect(appMark).toHaveCSS("height", "36px");
+    expect(
+      await appHeader.evaluate(
+        (header) => header.scrollWidth <= header.clientWidth,
+      ),
+    ).toBe(true);
+
+    const appGeometry = await measureHeader(page);
+    await page.screenshot({ path: testInfo.outputPath(`app-${width}.png`) });
+
+    await page.goto("/app/quizzes");
+    await switchToTeaching(page);
+    await expect(
+      page.getByRole("heading", { name: "Quiz authoring" }),
+    ).toBeVisible();
+    const libraryGeometry = await measureHeader(page);
+    checkBrandAlignment(appGeometry, libraryGeometry, width !== 375);
+    await page.screenshot({
+      path: testInfo.outputPath(`library-${width}.png`),
+    });
+
+    await page.goto(`/app/quizzes/${quizId}`);
+    await switchToTeaching(page);
+    const editorHeader = page.locator("header").first();
+    const back = page.getByRole("button", { name: "Back to app" });
+    const titleInput = page.getByRole("textbox", { name: "Quiz title" });
+    const titleLabel = editorHeader.locator('label[for="editor-title"]');
+    const editorMark = editorHeader
+      .getByTestId("quizopia-brand-mark")
+      .locator("..");
+    await expect(back).toBeVisible();
+    await expect(back).toHaveText("");
+    await expect(back.locator("svg")).toBeVisible();
+    await expect(titleLabel).toBeVisible();
+    await expect(titleInput).toHaveValue("Navigation check");
+    await expect(
+      page.getByRole("button", { name: "Published versions" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Publish", exact: true }),
+    ).toBeVisible();
+    await expect(editorMark).toHaveCSS("width", "36px");
+    expect(
+      await editorHeader.evaluate(
+        (header) => header.scrollWidth <= header.clientWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+
+    const editorGeometry = await measureHeader(page);
+    console.log(
+      `Navbar geometry ${width}px: ${JSON.stringify({ app: appGeometry, library: libraryGeometry, editor: editorGeometry })}`,
+    );
+    checkBrandAlignment(appGeometry, editorGeometry, width !== 375);
+
+    const [backBox, brandBox, labelBox, inputBox, headerBox] =
+      await Promise.all([
+        back.boundingBox(),
+        editorMark.boundingBox(),
+        titleLabel.boundingBox(),
+        titleInput.boundingBox(),
+        editorHeader.boundingBox(),
+      ]);
+    expect(backBox).not.toBeNull();
+    expect(brandBox).not.toBeNull();
+    expect(labelBox).not.toBeNull();
+    expect(inputBox).not.toBeNull();
+    expect(headerBox).not.toBeNull();
+    expect(backBox!.width).toBeGreaterThanOrEqual(40);
+    expect(backBox!.width).toBeLessThanOrEqual(48);
+    expect(Math.abs(backBox!.height - backBox!.width)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        backBox!.y + backBox!.height / 2 - (brandBox!.y + brandBox!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(4);
+    expect(labelBox!.x + labelBox!.width).toBeLessThan(inputBox!.x);
+    expect(
+      Math.abs(
+        labelBox!.y +
+          labelBox!.height / 2 -
+          (inputBox!.y + inputBox!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(2);
+    expect(inputBox!.width).toBeGreaterThanOrEqual(160);
+    console.log(
+      `Editor header ${width}px: height=${headerBox!.height}px, back=${backBox!.width}x${backBox!.height}px, titleInput=${inputBox!.width}px`,
+    );
+    await page.screenshot({ path: testInfo.outputPath(`editor-${width}.png`) });
+    await titleInput.fill("Edited navigation title");
+    await expect(titleInput).toHaveValue("Edited navigation title");
+    await titleInput.fill("Navigation check");
+    await back.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/app$/);
+  }
+});
+
 async function visibleEditorTextEndPoint(page: Page, needle: string) {
   return page
     .getByTestId("quiz-markdown-highlight-layer")
@@ -865,6 +1102,6 @@ test("teacher previews published snapshots without replacing the current draft",
     ),
   ).toBe(true);
 
-  await page.getByRole("button", { name: "Current draft" }).click();
+  await page.getByRole("button", { name: "Close published versions" }).click();
   await expect(editor).toHaveValue(sourceC);
 });

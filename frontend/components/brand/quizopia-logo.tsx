@@ -9,7 +9,7 @@ export interface QuizopiaLogoProps extends ComponentPropsWithoutRef<"span"> {
 
 export function QuizopiaLogo({
   className = "",
-  markClassName = "",
+  markClassName = "size-10",
   wordmarkClassName = "",
   ...props
 }: QuizopiaLogoProps) {
