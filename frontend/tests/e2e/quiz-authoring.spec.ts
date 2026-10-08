@@ -280,7 +280,7 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
     page.getByRole("textbox", { name: "Quiz Markdown source" }),
   ).toHaveValue(previewEditedSource);
 
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   description = "Created from Playwright";
   await page.getByLabel("Description").fill(description);
   await page.getByRole("button", { name: "Publish QuizVersion" }).click();
@@ -738,4 +738,133 @@ test("quiz authoring remains usable without horizontal overflow at 375px", async
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("teacher previews published snapshots without replacing the current draft", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const sourceA =
+    "Câu 1 [SINGLE_CHOICE]: ALPHA published snapshot\n*A. alpha answer\nB. b\nC. c\nD. d";
+  const sourceB =
+    "Câu 1 [SINGLE_CHOICE]: BRAVO published snapshot\n*A. bravo answer\nB. b\nC. c\nD. d";
+  const sourceC =
+    "Câu 1 [SINGLE_CHOICE]: CHARLIE current draft\n*A. charlie answer\nB. b\nC. c\nD. d";
+  const summaries = [2, 1].map((versionNumber) => ({
+    id:
+      versionNumber === 1 ? versionId : "f87b6d86-c26d-47fe-83db-cce701112233",
+    quizId,
+    versionNumber,
+    titleSnapshot: `Published ${versionNumber}`,
+    descriptionSnapshot: `Description ${versionNumber}`,
+    contentSchemaVersion: 1,
+    createdAt: `2026-10-08T0${versionNumber}:30:00Z`,
+  }));
+
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Current draft C",
+        description: "Unpublished current draft",
+        authoringSource: sourceC,
+        createdAt: "2026-10-08T01:00:00Z",
+        updatedAt: "2026-10-08T04:00:00Z",
+      }),
+    });
+  });
+  await page.route(`**/api/quizzes/${quizId}/versions**`, async (route) => {
+    expect(route.request().method()).toBe("GET");
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/versions")) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ items: summaries, nextCursor: null }),
+      });
+      return;
+    }
+    const versionNumber = Number(url.pathname.split("/").at(-1));
+    const snapshot = versionNumber === 1 ? sourceA : sourceB;
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        ...summaries.find((item) => item.versionNumber === versionNumber),
+        sourceSnapshot: snapshot,
+        structuredContent: {
+          questions: [
+            {
+              number: 1,
+              type: "SINGLE_CHOICE",
+              stemMarkdown:
+                versionNumber === 1
+                  ? "ALPHA published snapshot"
+                  : "BRAVO published snapshot",
+              options: [
+                { label: "A", markdown: "answer", correct: true },
+                { label: "B", markdown: "b", correct: false },
+                { label: "C", markdown: "c", correct: false },
+                { label: "D", markdown: "d", correct: false },
+              ],
+              numericAnswer: null,
+              explanationMarkdown: null,
+            },
+          ],
+        },
+      }),
+    });
+  });
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`/app/quizzes/${quizId}`);
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  await expect(editor).toHaveValue(sourceC);
+
+  await page.getByRole("button", { name: "Published versions" }).click();
+  const historyDialog = page.getByRole("dialog", {
+    name: "Published versions",
+  });
+  const history = page.getByRole("list", { name: "Published version history" });
+  await expect(history.getByRole("button")).toHaveCount(2);
+  const historyLabels = await history.getByRole("button").allTextContents();
+  expect(historyLabels[0]).toContain("Version 2");
+  expect(historyLabels[1]).toContain("Version 1");
+
+  await history.getByRole("button", { name: /Version 1/ }).click();
+  await expect(
+    historyDialog.getByText("ALPHA published snapshot"),
+  ).toBeVisible();
+  await expect(historyDialog.getByText("BRAVO published snapshot")).toHaveCount(
+    0,
+  );
+  await expect(historyDialog.getByText("CHARLIE current draft")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Publish", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "A. Marked correct" }),
+  ).toHaveCount(0);
+
+  await history.getByRole("button", { name: /Version 2/ }).click();
+  await expect(
+    historyDialog.getByText("BRAVO published snapshot"),
+  ).toBeVisible();
+  await expect(historyDialog.getByText("ALPHA published snapshot")).toHaveCount(
+    0,
+  );
+  await expect(historyDialog.getByText("CHARLIE current draft")).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  await page.getByRole("button", { name: "Current draft" }).click();
+  await expect(editor).toHaveValue(sourceC);
 });

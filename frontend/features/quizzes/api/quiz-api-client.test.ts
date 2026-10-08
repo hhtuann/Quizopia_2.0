@@ -59,7 +59,144 @@ function libraryPage(nextCursor: string | null = "opaque-next") {
   };
 }
 
+function versionSummary(versionNumber = 3) {
+  return {
+    id: "e7b14962-3a2e-4d2d-926a-3b36ea90c199",
+    quizId,
+    versionNumber,
+    titleSnapshot: `Quiz version ${versionNumber}`,
+    descriptionSnapshot: "Published description",
+    contentSchemaVersion: 1,
+    createdAt: "2026-10-08T08:30:00Z",
+  };
+}
+
+function versionDetail(versionNumber = 3) {
+  return {
+    ...versionSummary(versionNumber),
+    sourceSnapshot: "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50",
+    structuredContent: {
+      questions: [
+        {
+          number: 1,
+          type: "NUMERIC_FILL",
+          stemMarkdown: "value?",
+          options: [],
+          numericAnswer: "2.50",
+          explanationMarkdown: null,
+        },
+      ],
+    },
+  };
+}
+
 describe("Quiz API client", () => {
+  it("lists published version metadata through the exact opaque-cursor route", async () => {
+    const observed: string[] = [];
+    const { executor } = executorWith(async (request) => {
+      const built = request.createRequest();
+      observed.push(String(built.target));
+      expect(built.method).toBe("GET");
+      return jsonResponse(200, {
+        items: [versionSummary()],
+        nextCursor: "opaque-version-cursor",
+      });
+    });
+    const client = createQuizApiClient({ authenticatedRequests: executor });
+
+    await expect(
+      client.listPublishedVersions(quizId, {
+        limit: 7,
+        cursor: "opaque cursor/+",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        items: [{ quizId, versionNumber: 3 }],
+        nextCursor: "opaque-version-cursor",
+      },
+    });
+    expect(observed).toEqual([
+      `/api/quizzes/${quizId}/versions?limit=7&cursor=opaque+cursor%2F%2B`,
+    ]);
+  });
+
+  it("loads one complete immutable snapshot only from the version-detail route", async () => {
+    const controller = new AbortController();
+    const { execute, executor } = executorWith(async (request) => {
+      const built = request.createRequest();
+      expect(built.method).toBe("GET");
+      expect(String(built.target)).toBe(`/api/quizzes/${quizId}/versions/3`);
+      return jsonResponse(200, versionDetail());
+    });
+    const client = createQuizApiClient({ authenticatedRequests: executor });
+
+    await expect(
+      client.getPublishedVersion(quizId, 3, controller.signal),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        quizId,
+        versionNumber: 3,
+        sourceSnapshot: expect.stringContaining("2.50"),
+        structuredContent: { questions: [{ type: "NUMERIC_FILL" }] },
+      },
+    });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
+
+  it.each([400, 401, 403, 404, 500])(
+    "preserves backend %s errors for version history and detail",
+    async (status) => {
+      const { executor } = executorWith(async (request) =>
+        jsonResponse(status, {
+          code: status === 404 ? "QUIZ_VERSION_NOT_FOUND" : "ACCESS_DENIED",
+          message: `Version request failed with ${status}`,
+          status,
+          path: String(request.createRequest().target),
+        }),
+      );
+      const client = createQuizApiClient({ authenticatedRequests: executor });
+
+      await expect(client.listPublishedVersions(quizId)).resolves.toMatchObject(
+        {
+          ok: false,
+          error: { kind: "api-error", error: { status } },
+        },
+      );
+      await expect(
+        client.getPublishedVersion(quizId, 3),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { kind: "api-error", error: { status } },
+      });
+    },
+  );
+
+  it("rejects malformed successful version payloads", async () => {
+    const { executor } = executorWith(async (request) => {
+      const target = String(request.createRequest().target);
+      return target.endsWith("/3")
+        ? jsonResponse(200, { ...versionDetail(), sourceSnapshot: undefined })
+        : jsonResponse(200, {
+            items: [{ ...versionSummary(), sourceSnapshot: "must not leak" }],
+            nextCursor: null,
+          });
+    });
+    const client = createQuizApiClient({ authenticatedRequests: executor });
+
+    await expect(client.listPublishedVersions(quizId)).resolves.toEqual({
+      ok: false,
+      error: { kind: "unexpected-response", status: 200 },
+    });
+    await expect(client.getPublishedVersion(quizId, 3)).resolves.toEqual({
+      ok: false,
+      error: { kind: "unexpected-response", status: 200 },
+    });
+  });
+
   it("lists the owned quiz library through the exact cursor contract", async () => {
     const observed: string[] = [];
     const { executor } = executorWith(async (request) => {

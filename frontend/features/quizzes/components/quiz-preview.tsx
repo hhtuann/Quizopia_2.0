@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useId } from "react";
 import type { QuizMarkdownServerError } from "../api/quiz-api-client";
 import {
   analyzeQuizMarkdown,
@@ -11,14 +11,17 @@ import {
 import { EditorPaneHeader } from "./editor-pane-header";
 
 interface QuizPreviewProps {
+  readonly description?: string;
   readonly onDiagnosticSelect?: (line: number, column: number) => void;
   readonly onOptionToggle?: (
     question: QuizPreviewQuestion,
     option: QuizPreviewOption,
   ) => void;
   readonly onQuestionSelect?: (question: QuizPreviewQuestion) => void;
+  readonly readOnly?: boolean;
   readonly serverDiagnostics?: readonly QuizMarkdownServerError[];
   readonly source: string;
+  readonly title?: string;
 }
 
 function renderInline(text: string): ReactNode[] {
@@ -134,6 +137,7 @@ function PreviewQuestion({
   onOptionToggle,
   onQuestionSelect,
   question,
+  readOnly,
 }: {
   readonly onOptionToggle?: (
     question: QuizPreviewQuestion,
@@ -141,29 +145,38 @@ function PreviewQuestion({
   ) => void;
   readonly onQuestionSelect?: (question: QuizPreviewQuestion) => void;
   readonly question: QuizPreviewQuestion;
+  readonly readOnly: boolean;
 }) {
+  const canSelectQuestion = !readOnly && onQuestionSelect !== undefined;
+
   return (
     <article
-      className="cursor-pointer rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary/40 focus-within:border-primary/50 motion-reduce:transition-none"
+      className={`rounded-xl border border-border bg-surface p-5 ${
+        canSelectQuestion
+          ? "cursor-pointer transition-colors hover:border-primary/40 focus-within:border-primary/50 motion-reduce:transition-none"
+          : ""
+      }`}
       data-source-line={question.source.line}
-      onClick={() => onQuestionSelect?.(question)}
+      onClick={canSelectQuestion ? () => onQuestionSelect(question) : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-foreground">
           Câu {question.number}
         </h3>
         <div className="flex items-center gap-2">
-          <button
-            aria-label={`Jump to source for question ${question.number}, line ${question.source.line}`}
-            className="min-h-9 rounded-md px-2 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-focus"
-            onClick={(event) => {
-              event.stopPropagation();
-              onQuestionSelect?.(question);
-            }}
-            type="button"
-          >
-            Source
-          </button>
+          {canSelectQuestion ? (
+            <button
+              aria-label={`Jump to source for question ${question.number}, line ${question.source.line}`}
+              className="min-h-9 rounded-md px-2 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-focus"
+              onClick={(event) => {
+                event.stopPropagation();
+                onQuestionSelect(question);
+              }}
+              type="button"
+            >
+              Source
+            </button>
+          ) : null}
           <span className="rounded-md bg-surface-muted px-2 py-1 font-mono text-xs font-semibold text-foreground-secondary">
             {question.type}
           </span>
@@ -179,45 +192,82 @@ function PreviewQuestion({
         >
           {question.options.map((option) => (
             <li key={`${question.number}-${option.label}`}>
-              <button
-                aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
-                aria-pressed={option.correct}
-                className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
-                  option.correct
-                    ? "border-primary/50 bg-primary/10 hover:bg-primary/15"
-                    : "border-border bg-surface-muted hover:border-primary/30 hover:bg-primary/5"
-                }`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOptionToggle?.(question, option);
-                }}
-                type="button"
-              >
-                <span className="flex gap-3">
-                  <span className="font-semibold text-foreground">
-                    {option.label}.
+              {readOnly || onOptionToggle === undefined ? (
+                <div
+                  aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
+                  className={`w-full rounded-lg border p-3 text-left ${
+                    option.correct
+                      ? "border-primary/50 bg-primary/10"
+                      : "border-border bg-surface-muted"
+                  }`}
+                  role="group"
+                >
+                  <span className="flex gap-3">
+                    <span className="font-semibold text-foreground">
+                      {option.label}.
+                    </span>
+                    <div className="min-w-0 flex-1 text-sm text-foreground-secondary">
+                      <MarkdownContent value={option.content} />
+                    </div>
+                    {option.correct ? (
+                      <svg
+                        aria-hidden="true"
+                        className="mt-0.5 size-5 shrink-0 text-primary"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m5 12 4 4L19 6"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2.5"
+                        />
+                      </svg>
+                    ) : null}
                   </span>
-                  <div className="min-w-0 flex-1 text-sm text-foreground-secondary">
-                    <MarkdownContent value={option.content} />
-                  </div>
-                  {option.correct ? (
-                    <svg
-                      aria-hidden="true"
-                      className="mt-0.5 size-5 shrink-0 text-primary"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="m5 12 4 4L19 6"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2.5"
-                      />
-                    </svg>
-                  ) : null}
-                </span>
-              </button>
+                </div>
+              ) : (
+                <button
+                  aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
+                  aria-pressed={option.correct}
+                  className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
+                    option.correct
+                      ? "border-primary/50 bg-primary/10 hover:bg-primary/15"
+                      : "border-border bg-surface-muted hover:border-primary/30 hover:bg-primary/5"
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOptionToggle(question, option);
+                  }}
+                  type="button"
+                >
+                  <span className="flex gap-3">
+                    <span className="font-semibold text-foreground">
+                      {option.label}.
+                    </span>
+                    <div className="min-w-0 flex-1 text-sm text-foreground-secondary">
+                      <MarkdownContent value={option.content} />
+                    </div>
+                    {option.correct ? (
+                      <svg
+                        aria-hidden="true"
+                        className="mt-0.5 size-5 shrink-0 text-primary"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="m5 12 4 4L19 6"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2.5"
+                        />
+                      </svg>
+                    ) : null}
+                  </span>
+                </button>
+              )}
             </li>
           ))}
         </ol>
@@ -250,6 +300,18 @@ function DiagnosticButton({
   >;
   readonly onSelect?: (line: number, column: number) => void;
 }) {
+  if (onSelect === undefined) {
+    return (
+      <li className="rounded-lg border border-danger/20 bg-danger/5 px-3 py-2 text-sm text-foreground-secondary">
+        <span className="font-semibold text-danger">{diagnostic.code}</span>{" "}
+        <span className="text-foreground-muted">
+          L{diagnostic.line}:C{diagnostic.column}
+        </span>
+        <span className="mt-1 block">{diagnostic.message}</span>
+      </li>
+    );
+  }
+
   return (
     <li>
       <button
@@ -268,21 +330,25 @@ function DiagnosticButton({
 }
 
 export function QuizPreview({
+  description = "Safe preview of the accepted Markdown subset. Frontend diagnostics are authoring guidance; publish validation is authoritative.",
   onDiagnosticSelect,
   onOptionToggle,
   onQuestionSelect,
+  readOnly = false,
   serverDiagnostics = [],
   source,
+  title = "Live preview",
 }: QuizPreviewProps) {
   const analysis = analyzeQuizMarkdown(source);
+  const generatedId = useId();
 
   return (
     <div className="space-y-5">
       <EditorPaneHeader
-        description="Safe preview of the accepted Markdown subset. Frontend diagnostics are authoring guidance; publish validation is authoritative."
-        descriptionId="quiz-preview-help"
-        title="Live preview"
-        titleId="quiz-preview-title"
+        description={description}
+        descriptionId={`${generatedId}-help`}
+        title={title}
+        titleId={`${generatedId}-title`}
       />
 
       {serverDiagnostics.length > 0 ? (
@@ -343,6 +409,7 @@ export function QuizPreview({
               onOptionToggle={onOptionToggle}
               onQuestionSelect={onQuestionSelect}
               question={question}
+              readOnly={readOnly}
             />
           ))}
         </div>
