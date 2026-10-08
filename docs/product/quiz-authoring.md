@@ -314,6 +314,25 @@ Publishing parses and validates the draft, then creates an immutable
 Published versions preserve immutable structured content and a source snapshot.
 Later draft edits never mutate an existing published version.
 
+### Published version history and preview
+
+As a post-Wave-2 Quiz Authoring follow-up, an authenticated teacher may list the
+published versions of a Quiz they own and read one specific immutable published
+snapshot. The history is ordered by version number from newest to oldest and is
+cursor-paginated. History rows contain snapshot metadata only; the full source
+and structured content are loaded only when the teacher opens a version.
+
+The Quiz Service exposes the owner-authorized read contract:
+
+- `GET /api/quizzes/{quizId}/versions?limit=<n>&cursor=<opaque?>`;
+- `GET /api/quizzes/{quizId}/versions/{versionNumber}`.
+
+The selected historical preview is read-only and must use the requested
+`QuizVersion` snapshot, never the current `QuizDraft`. Returning to Current Draft
+must show the current mutable draft unchanged. This history does not provide
+restore, rollback, comparison, deletion, renaming, cloning, or republishing
+behavior, and it does not introduce Assessment publication or delivery.
+
 ## Offline export
 
 A published quiz version may later be rendered to DOCX for offline printing.

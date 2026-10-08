@@ -416,5 +416,16 @@ class QuizApplicationServiceTest {
                     .filter(version -> version.quizId().equals(quizId))
                     .max(java.util.Comparator.comparingInt(QuizVersion::versionNumber));
         }
+
+        @Override
+        public java.util.List<com.quizopia.quiz.application.QuizVersionSummary> findByQuizIdBeforeVersionNumber(
+                UUID quizId, Integer beforeVersionNumber, int fetchLimit) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<QuizVersion> findByQuizIdAndVersionNumber(UUID quizId, int versionNumber) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

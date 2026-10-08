@@ -21,6 +21,7 @@ import com.quizopia.quiz.application.QuizLibraryService;
 import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizPublishResult;
 import com.quizopia.quiz.application.QuizRepository;
+import com.quizopia.quiz.application.QuizVersionQueryService;
 import com.quizopia.quiz.application.QuizVersionRepository;
 import com.quizopia.quiz.domain.Quiz;
 import com.quizopia.quiz.domain.QuizDraft;
@@ -45,6 +46,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -102,6 +104,9 @@ class QuizServiceApplicationTests {
 
     @Autowired
     QuizLibraryService quizLibraryService;
+
+    @Autowired
+    QuizVersionQueryService quizVersionQueryService;
 
     @Autowired
     Flyway flyway;
@@ -556,6 +561,97 @@ class QuizServiceApplicationTests {
     }
 
     @Test
+    void publishedVersionReadApisPreserveABSnapshotsWhileDraftAdvancesToC() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        String token = "postgres-version-history-teacher";
+        String sourceA = "Câu 1 [NUMERIC_FILL]: Snapshot A?\r\nĐáp án: 1111\r\n";
+        String sourceB = "Câu 1 [NUMERIC_FILL]: Snapshot B?\r\nĐáp án: 2222\r\n";
+        String sourceC = "Câu 1 [NUMERIC_FILL]: Current draft C?\r\nĐáp án: 3333\r\n";
+        when(jwtDecoder.decode(token)).thenReturn(jwt(ownerUserId, List.of("TEACHER")));
+
+        QuizDraftDetails created =
+                quizApplicationService.create(ownerUserId, new QuizDraftInput("Title A", "Description A", sourceA));
+        UUID quizId = created.quiz().id();
+        quizApplicationService.publishOwnedDraft(ownerUserId, quizId);
+        quizApplicationService.updateOwnedDraft(
+                ownerUserId, quizId, new QuizDraftInput("Title B", "Description B", sourceB));
+        quizApplicationService.publishOwnedDraft(ownerUserId, quizId);
+        quizApplicationService.updateOwnedDraft(
+                ownerUserId, quizId, new QuizDraftInput("Title C", "Description C", sourceC));
+
+        String historyPath = "/api/quizzes/" + quizId + "/versions";
+        String firstPageBody = mvc.perform(
+                        get(historyPath).queryParam("limit", "1").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].versionNumber").value(2))
+                .andExpect(jsonPath("$.items[0].titleSnapshot").value("Title B"))
+                .andExpect(jsonPath("$.items[0].sourceSnapshot").doesNotExist())
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String nextCursor =
+                objectMapper.readTree(firstPageBody).path("nextCursor").asString();
+
+        mvc.perform(get(historyPath)
+                        .queryParam("limit", "1")
+                        .queryParam("cursor", nextCursor)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].versionNumber").value(1))
+                .andExpect(jsonPath("$.items[0].titleSnapshot").value("Title A"))
+                .andExpect(jsonPath("$.nextCursor").value(org.hamcrest.Matchers.nullValue()));
+
+        for (int versionNumber : List.of(1, 2, 1, 2)) {
+            String expectedSource = versionNumber == 1 ? sourceA : sourceB;
+            String expectedTitle = versionNumber == 1 ? "Title A" : "Title B";
+            mvc.perform(get(historyPath + "/" + versionNumber).header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.versionNumber").value(versionNumber))
+                    .andExpect(jsonPath("$.titleSnapshot").value(expectedTitle))
+                    .andExpect(jsonPath("$.sourceSnapshot").value(expectedSource))
+                    .andExpect(
+                            jsonPath("$.structuredContent.questions.length()").value(1));
+        }
+
+        mvc.perform(get("/api/quizzes/{quizId}/draft", quizId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Title C"))
+                .andExpect(jsonPath("$.authoringSource").value(sourceC));
+        assertEquals(
+                List.of(sourceA, sourceB),
+                jdbc.queryForList(
+                        "select source_snapshot from quiz_versions where quiz_id = ? order by version_number",
+                        String.class,
+                        quizId));
+        assertEquals(
+                sourceC,
+                jdbc.queryForObject(
+                        "select authoring_source from quiz_drafts where quiz_id = ?", String.class, quizId));
+    }
+
+    @Test
+    void unrelatedTeacherCannotReadAnotherTeachersVersionHistoryOrDetail() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID unrelatedTeacherId = UUID.randomUUID();
+        String token = "postgres-unrelated-version-teacher";
+        QuizDraftDetails created = quizApplicationService.create(
+                ownerUserId, new QuizDraftInput("Private", null, "Câu 1 [NUMERIC_FILL]: Private?\nĐáp án: 1234\n"));
+        quizApplicationService.publishOwnedDraft(ownerUserId, created.quiz().id());
+        when(jwtDecoder.decode(token)).thenReturn(jwt(unrelatedTeacherId, List.of("TEACHER")));
+
+        String historyPath = "/api/quizzes/" + created.quiz().id() + "/versions";
+        mvc.perform(get(historyPath).header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+        mvc.perform(get(historyPath + "/1").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
     void quizLibraryPostgresQueryFiltersOwnerOrdersDeterministicallyPaginatesAndAggregatesLatestVersion()
             throws Exception {
         UUID ownerUserId = UUID.randomUUID();
@@ -608,6 +704,39 @@ class QuizServiceApplicationTests {
         QuizLibraryPage empty = quizLibraryService.listOwned(UUID.randomUUID(), 20, null);
         assertEquals(List.of(), empty.items());
         assertEquals(null, empty.nextCursor());
+    }
+
+    @Test
+    void versionHistoryUsesOneBoundedProjectionQueryWithoutLoadingVersionEntities() {
+        UUID ownerUserId = UUID.randomUUID();
+        UUID quizId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-10-08T00:00:00Z");
+        quizzes.insert(new Quiz(quizId, ownerUserId, createdAt));
+        drafts.save(new QuizDraft(quizId, "Current draft", null, "private source", createdAt));
+        QuizContent content = new QuizMarkdownParser()
+                .parse("Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 1234\n")
+                .content()
+                .orElseThrow();
+        for (int versionNumber = 1; versionNumber <= 5; versionNumber++) {
+            versions.insert(version(UUID.randomUUID(), quizId, versionNumber, "v" + versionNumber, content));
+        }
+
+        var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+        try {
+            var page = quizVersionQueryService.listOwned(ownerUserId, quizId, 3, null);
+
+            assertEquals(
+                    List.of(5, 4, 3),
+                    page.items().stream().map(item -> item.versionNumber()).toList());
+            assertNotNull(page.nextCursor());
+            assertEquals(2, statistics.getPrepareStatementCount());
+            assertEquals(1, statistics.getEntityLoadCount());
+        } finally {
+            statistics.setStatisticsEnabled(false);
+            statistics.clear();
+        }
     }
 
     @Test
