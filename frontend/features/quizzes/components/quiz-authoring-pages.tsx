@@ -150,7 +150,7 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
   const title = item.title?.trim() || "Untitled quiz";
   const description = item.description?.trim();
   return (
-    <li className="quiz-interactive-card group rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
+    <li className="rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Link
@@ -824,7 +824,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             disabled={isSaving || isPublishing}
             onClick={() => setHistoryOpen(true)}
             ref={historyTriggerRef}
-            variant="ghost"
+            variant="brand-outline"
           >
             Published versions
           </Button>
@@ -834,7 +834,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             isLoading={isSaving}
             loadingLabel="Saving draft"
             onClick={() => void saveDraft()}
-            variant="brand-outline"
+            variant="neutral-outline"
           >
             Save
           </Button>

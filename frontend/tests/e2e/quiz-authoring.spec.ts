@@ -1105,3 +1105,142 @@ test("teacher previews published snapshots without replacing the current draft",
   await page.getByRole("button", { name: "Close published versions" }).click();
   await expect(editor).toHaveValue(sourceC);
 });
+
+for (const width of [375, 768, 1280, 1600]) {
+  test(`teacher workspace, library, editor and history visual QA at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await mockTeacherBootstrap(page);
+    const source =
+      "Câu 1 [SINGLE_CHOICE]: What is Quizopia?\n*A. Learning platform\nB. Calendar\nC. Spreadsheet\nD. Browser";
+    const summary = {
+      id: versionId,
+      quizId,
+      versionNumber: 1,
+      titleSnapshot: "Corporate readiness",
+      descriptionSnapshot: "Review fixture",
+      contentSchemaVersion: 1,
+      createdAt: "2026-10-08T01:30:00Z",
+    };
+    await page.route("**/api/quizzes", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          items: [
+            {
+              quizId,
+              title: "Corporate readiness",
+              description: "A quiz for responsive verification",
+              createdAt: "2026-09-30T12:00:00Z",
+              updatedAt: "2026-10-08T01:00:00Z",
+              latestVersionNumber: 1,
+            },
+          ],
+          nextCursor: null,
+        }),
+      });
+    });
+    await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          quizId,
+          title: "Corporate readiness",
+          description: "A quiz for responsive verification",
+          authoringSource: source,
+          createdAt: "2026-09-30T12:00:00Z",
+          updatedAt: "2026-10-08T01:00:00Z",
+        }),
+      });
+    });
+    await page.route(`**/api/quizzes/${quizId}/versions**`, async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ items: [summary], nextCursor: null }),
+      });
+    });
+
+    async function screenshot(name: string) {
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+        `${name} overflows at ${width}px`,
+      ).toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath(`${name}-${width}.png`),
+      });
+    }
+
+    await page.goto("/app");
+    await expect(page.getByRole("main")).toBeVisible();
+    await screenshot("application-home");
+    await page.goto("/app/quizzes");
+    await switchToTeaching(page);
+    const quizLink = page.getByRole("link", { name: "Corporate readiness" });
+    await expect(quizLink).toHaveAttribute("href", `/app/quizzes/${quizId}`);
+    await expect(quizLink).toBeVisible();
+    expect(
+      await quizLink.locator("xpath=ancestor::li").getAttribute("class"),
+    ).not.toContain("quiz-interactive-card");
+    await screenshot("quiz-library");
+    if (width === 1600) {
+      expect(
+        await page
+          .locator("main > div")
+          .first()
+          .evaluate((element) =>
+            Math.round(element.getBoundingClientRect().width),
+          ),
+      ).toBeGreaterThan(1280);
+    }
+
+    await quizLink.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
+    await expect(
+      page.getByRole("textbox", { name: "Quiz Markdown source" }),
+    ).toHaveValue(source);
+    const publish = page.getByRole("button", { name: "Publish", exact: true });
+    const historyButton = page.getByRole("button", {
+      name: "Published versions",
+    });
+    const save = page.getByRole("button", { name: "Save" });
+    await expect(publish).toHaveClass(/quiz-button-primary/);
+    await expect(historyButton).toHaveClass(/quiz-button-brand-outline/);
+    await expect(save).toHaveClass(/quiz-button-neutral-outline/);
+    await screenshot("quiz-editor");
+
+    if (width < 1024) {
+      await page.getByRole("button", { name: "Preview", exact: true }).click();
+    }
+    await expect(
+      page.getByRole("region", { name: "Live quiz preview" }),
+    ).toBeVisible();
+    await screenshot("quiz-editor-preview");
+
+    await historyButton.click();
+    await expect(
+      page.getByRole("dialog", { name: "Published versions" }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("list", { name: "Published version history" })
+        .getByRole("button"),
+    ).toHaveCount(1);
+    await screenshot("published-versions");
+    await page
+      .getByRole("button", { name: "Close published versions" })
+      .click();
+    if (width < 1024) {
+      await page.getByRole("button", { name: "Editor", exact: true }).click();
+    }
+    await expect(
+      page.getByRole("textbox", { name: "Quiz Markdown source" }),
+    ).toHaveValue(source);
+  });
+}

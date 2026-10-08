@@ -1,11 +1,86 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { Alert } from "./alert";
 import { Button } from "./button";
+import { PageContainer } from "./page-container";
 import { SkipLink } from "./skip-link";
 import { TextField } from "./text-field";
 
 describe("product UI primitives", () => {
+  it("applies gradient primary, branded outline and lower-priority button variants", () => {
+    render(
+      <>
+        <Button variant="primary" size="compact">
+          Publish
+        </Button>
+        <Button variant="brand-outline" size="compact">
+          Published versions
+        </Button>
+        <Button variant="neutral-outline" size="compact">
+          Save
+        </Button>
+        <Button variant="ghost">Cancel</Button>
+      </>,
+    );
+
+    expect(screen.getByRole("button", { name: "Publish" })).toHaveClass(
+      "quiz-button-primary",
+      "min-h-9",
+    );
+    expect(
+      screen.getByRole("button", { name: "Published versions" }),
+    ).toHaveClass("quiz-button-brand-outline");
+    expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
+      "quiz-button-neutral-outline",
+    );
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveClass(
+      "quiz-button-ghost",
+    );
+  });
+
+  it("blocks disabled and loading actions but dispatches clicks for active buttons", () => {
+    const onClick = vi.fn();
+    const { rerender } = render(<Button onClick={onClick}>Save</Button>);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <Button disabled onClick={onClick}>
+        Save
+      </Button>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Save" })).not.toHaveAttribute(
+      "aria-busy",
+    );
+
+    rerender(
+      <Button isLoading loadingLabel="Saving changes" onClick={onClick}>
+        Save
+      </Button>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Saving changes" }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Saving changes" }),
+    ).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("constrains marketing layouts but leaves application containers full width", () => {
+    render(
+      <>
+        <PageContainer data-testid="marketing" width="marketing">
+          Landing
+        </PageContainer>
+        <PageContainer data-testid="application">Quiz library</PageContainer>
+      </>,
+    );
+    expect(screen.getByTestId("marketing")).toHaveClass("max-w-7xl", "w-full");
+    expect(screen.getByTestId("application")).toHaveClass("w-full");
+    expect(screen.getByTestId("application")).not.toHaveClass("max-w-7xl");
+  });
+
   it("uses safe button defaults and prevents interaction while loading", () => {
     const { rerender } = render(<Button>Continue</Button>);
     const button = screen.getByRole("button", { name: "Continue" });

@@ -15,7 +15,10 @@ export default function HomePage() {
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(ellipse_at_75%_15%,rgba(124,58,237,0.12),transparent_50%),radial-gradient(ellipse_at_5%_55%,rgba(79,70,229,0.12),transparent_55%)]"
         />
         <header className="border-b border-border/80 bg-surface/80 backdrop-blur-xl">
-          <PageContainer className="flex min-h-20 flex-wrap items-center justify-between gap-4 py-3">
+          <PageContainer
+            width="marketing"
+            className="flex min-h-20 flex-wrap items-center justify-between gap-4 py-3"
+          >
             <Link
               aria-label="Quizopia home"
               className="inline-flex min-h-11 items-center rounded-lg focus-visible:ring-2 focus-visible:ring-focus"
@@ -36,7 +39,10 @@ export default function HomePage() {
             </nav>
           </PageContainer>
         </header>
-        <PageContainer className="grid min-h-[min(44rem,85vh)] items-center gap-14 py-16 lg:grid-cols-[1.15fr_0.85fr] lg:py-24">
+        <PageContainer
+          width="marketing"
+          className="grid min-h-[min(44rem,85vh)] items-center gap-14 py-16 lg:grid-cols-[1.15fr_0.85fr] lg:py-24"
+        >
           <div className="max-w-3xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold tracking-wide text-primary">
               <span
@@ -152,7 +158,7 @@ export default function HomePage() {
         aria-labelledby="why-quizopia"
         className="border-t border-border bg-surface py-16 sm:py-20"
       >
-        <PageContainer>
+        <PageContainer width="marketing">
           <div className="max-w-2xl">
             <p className="text-sm font-bold tracking-wide text-primary">
               MADE FOR THE WAY YOU GROW
@@ -204,7 +210,10 @@ export default function HomePage() {
         </PageContainer>
       </section>
       <footer className="border-t border-border bg-background py-7">
-        <PageContainer className="flex flex-wrap items-center justify-between gap-3 text-sm text-foreground-muted">
+        <PageContainer
+          width="marketing"
+          className="flex flex-wrap items-center justify-between gap-3 text-sm text-foreground-muted"
+        >
           <span>© Quizopia 2.0</span>
           <span>A place to learn, create, and grow.</span>
         </PageContainer>

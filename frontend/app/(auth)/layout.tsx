@@ -15,7 +15,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_10%_20%,rgba(79,70,229,0.12),transparent_52%),radial-gradient(ellipse_at_90%_80%,rgba(124,58,237,0.12),transparent_48%)]"
       />
-      <PageContainer className="grid min-h-screen items-center gap-12 py-8 lg:grid-cols-2 lg:gap-16 lg:py-12">
+      <PageContainer
+        width="marketing"
+        className="grid min-h-screen items-center gap-12 py-8 lg:grid-cols-2 lg:gap-16 lg:py-12"
+      >
         <aside className="hidden max-w-xl justify-self-center lg:block">
           <span className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold tracking-wide text-primary">
             WELCOME TO QUIZOPIA 2.0

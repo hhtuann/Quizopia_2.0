@@ -95,6 +95,30 @@ function hasBearer(request: Request): boolean {
   return request.headers().authorization?.startsWith("Bearer ") === true;
 }
 
+function jwtTiming(token: unknown): { issuedAt: number; expiresAt: number } {
+  if (typeof token !== "string") {
+    throw new Error(
+      "Identity login response does not contain a JWT access token.",
+    );
+  }
+  const payload = token.split(".")[1];
+  if (!payload) {
+    throw new Error("Identity access token does not have a JWT payload.");
+  }
+
+  // Decode only in the test process. Never persist or print token bytes.
+  const claims = JSON.parse(
+    Buffer.from(payload, "base64url").toString("utf8"),
+  ) as {
+    iat?: unknown;
+    exp?: unknown;
+  };
+  if (!Number.isSafeInteger(claims.iat) || !Number.isSafeInteger(claims.exp)) {
+    throw new Error("Identity JWT lacks valid integer iat/exp claims.");
+  }
+  return { issuedAt: claims.iat as number, expiresAt: claims.exp as number };
+}
+
 test("production authenticated request executor refreshes an expired real token and retries once", async ({
   context,
   page,
@@ -109,8 +133,26 @@ test("production authenticated request executor refreshes an expired real token 
   await page.goto("/");
   await page.getByLabel("Username or email").fill(username);
   await page.getByLabel("Password").fill(password);
+  const loginResponse = page.waitForResponse(
+    (response) =>
+      response.url() === `${gatewayOrigin}/api/auth/login` &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.locator("#status")).toHaveText("login-ready");
+  const login = (await (await loginResponse).json()) as {
+    accessToken?: unknown;
+  };
+  const { issuedAt, expiresAt } = jwtTiming(login.accessToken);
+  const actualTtlSeconds = expiresAt - issuedAt;
+  console.info(
+    `Identity JWT timing: iat=${issuedAt}, exp=${expiresAt}, TTL=${actualTtlSeconds}s (no token contents logged).`,
+  );
+  expect(actualTtlSeconds).toBeGreaterThanOrEqual(4);
+  expect(
+    actualTtlSeconds,
+    "Real Executor expiry E2E requires isolated Identity with IDENTITY_AUTHORIZATION_SERVER_USER_ACCESS_TOKEN_TTL=PT5S. Restart Identity and verify its issued JWT iat/exp.",
+  ).toBeLessThanOrEqual(10);
 
   const loginCookies = await context.cookies(refreshUrl);
   const loginRefreshCookie = loginCookies.find(
@@ -125,10 +167,12 @@ test("production authenticated request executor refreshes an expired real token 
   expect(beforeExpiryStorage.localStorageKeys).toEqual([]);
   expect(beforeExpiryStorage.sessionStorageKeys).toEqual([]);
 
-  // Local Identity runs with a 5-second access-token TTL for this evidence
-  // test. Spring's normal JWT timestamp validation may allow clock skew, so
-  // wait long enough for the real token to be rejected without mutating it.
-  await page.waitForTimeout(70_000);
+  // Wait from the actual exp claim. Spring JWT timestamp validation can
+  // tolerate up to 60 seconds of clock skew; include a small safety margin.
+  const waitUntil = expiresAt * 1000 + 65_000;
+  const remainingMs = Math.max(0, waitUntil - Date.now());
+  expect(remainingMs).toBeLessThan(90_000);
+  await page.waitForTimeout(remainingMs);
 
   const protectedRequests: Request[] = [];
   const protectedResponses: Response[] = [];

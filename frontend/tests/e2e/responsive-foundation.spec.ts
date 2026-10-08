@@ -19,7 +19,7 @@ const viewports = [
 for (const viewport of viewports) {
   test(`${viewport.name} routes remain readable without viewport overflow`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.route("**/api/auth/refresh", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -49,6 +49,19 @@ for (const viewport of viewports) {
         ),
         `${route.path} should not overflow at ${viewport.width}px`,
       ).toBe(true);
+      if (route.path === "/") {
+        expect(
+          await page
+            .locator("header > div")
+            .first()
+            .evaluate((element) => getComputedStyle(element).maxWidth),
+        ).toBe("1280px");
+      }
+      await page.screenshot({
+        path: testInfo.outputPath(
+          `public-${viewport.width}-${route.path.replaceAll("/", "-") || "landing"}.png`,
+        ),
+      });
     }
   });
 }
