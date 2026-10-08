@@ -286,6 +286,17 @@ placement, vertical alignment, and restrained `py-2` header spacing. Keep
 responsive wordmark visibility consistent between the main app and editor.
 Prefer shared brand components and tokens over page-specific logo sizes.
 
+Application navigation and focused editor headers share one chrome geometry:
+horizontal header padding, minimum row height, flexible gaps, and centered
+brand alignment. Match the rendered brand left/top position and desktop header
+height across `/app`, `/app/quizzes`, and the Quiz Editor, while allowing
+additional header rows on narrow screens when controls require them. Keep the
+wordmark typography and version subtitle identical at the same breakpoint.
+Reuse the shared header geometry rules without changing content-container
+padding. Playwright regression tests must compare rendered header and brand
+rectangles across routes at desktop and mobile viewport widths, including
+horizontal overflow and touch-control visibility.
+
 Full-page workspaces such as Quiz Editor must offer an explicit, keyboard-
 accessible way back to the parent application (`Back to app`); the logo alone
 is not sufficient. When an editor has unsaved changes, confirm before leaving

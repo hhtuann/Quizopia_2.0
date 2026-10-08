@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
 import { QuizopiaLogo } from "../brand/quizopia-logo";
+import { APPLICATION_HEADER_GEOMETRY } from "../ui/application-header-geometry";
 import { PageContainer } from "../ui/page-container";
 import { AuthenticatedUserMenu } from "./authenticated-user-menu";
 
@@ -26,48 +27,46 @@ export function ApplicationShell({
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-surface">
-        <PageContainer className="flex max-w-none flex-wrap items-center gap-x-3 gap-y-1 py-2">
-          <Link
-            aria-label="Quizopia home"
-            className="inline-flex min-h-11 items-center rounded-lg pr-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
-            href="/"
-          >
-            <QuizopiaLogo
-              markClassName="size-9 rounded-lg"
-              wordmarkClassName="hidden xl:flex"
-            />
-          </Link>
+      <header className={APPLICATION_HEADER_GEOMETRY}>
+        <Link
+          aria-label="Quizopia home"
+          className="inline-flex min-h-11 items-center rounded-lg pr-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+          href="/"
+        >
+          <QuizopiaLogo
+            markClassName="size-9 rounded-lg"
+            wordmarkClassName="hidden xl:flex"
+          />
+        </Link>
 
-          <nav aria-label="Primary navigation" className="flex flex-wrap gap-1">
+        <nav aria-label="Primary navigation" className="flex flex-wrap gap-1">
+          <Link
+            aria-current={isApplicationHome ? "page" : undefined}
+            className={`${navLinkClasses} ${
+              isApplicationHome
+                ? "bg-surface-muted text-primary"
+                : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
+            }`}
+            href="/app"
+          >
+            Application home
+          </Link>
+          {showQuizAuthoring ? (
             <Link
-              aria-current={isApplicationHome ? "page" : undefined}
+              aria-current={isQuizAuthoring ? "page" : undefined}
               className={`${navLinkClasses} ${
-                isApplicationHome
+                isQuizAuthoring
                   ? "bg-surface-muted text-primary"
                   : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
               }`}
-              href="/app"
+              href="/app/quizzes"
             >
-              Application home
+              Quiz authoring
             </Link>
-            {showQuizAuthoring ? (
-              <Link
-                aria-current={isQuizAuthoring ? "page" : undefined}
-                className={`${navLinkClasses} ${
-                  isQuizAuthoring
-                    ? "bg-surface-muted text-primary"
-                    : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
-                }`}
-                href="/app/quizzes"
-              >
-                Quiz authoring
-              </Link>
-            ) : null}
-          </nav>
+          ) : null}
+        </nav>
 
-          <AuthenticatedUserMenu />
-        </PageContainer>
+        <AuthenticatedUserMenu />
       </header>
 
       {session.status === "refreshing" ? (

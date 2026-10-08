@@ -360,10 +360,11 @@ describe("application shell session behavior and semantics", () => {
       within(brandLink).getByTestId("quizopia-brand-mark").parentElement,
     ).toHaveClass("size-9", "rounded-lg");
     expect(brandLink.querySelector(".xl\\:flex")).toHaveClass("hidden");
-    expect(screen.getByRole("banner").firstElementChild).toHaveClass(
+    expect(screen.getByRole("banner")).toHaveClass(
       "flex-wrap",
       "items-center",
       "py-2",
+      "sm:px-5",
     );
     expect(within(brandLink).getByText("Quiz")).toBeInTheDocument();
     expect(within(brandLink).getByText("opia")).toBeInTheDocument();

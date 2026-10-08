@@ -44,6 +44,99 @@ async function switchToTeaching(page: Page) {
   await page.getByRole("button", { name: "Switch to Teaching" }).click();
 }
 
+type HeaderRect = { x: number; y: number; width: number; height: number };
+
+type HeaderGeometry = {
+  header: HeaderRect;
+  mark: HeaderRect;
+  wordmark: HeaderRect | null;
+  brandGap: string;
+  wordmarkFont: string | null;
+  subtitleFont: string | null;
+  subtitleTracking: string | null;
+  overflow: boolean;
+};
+
+async function measureHeader(page: Page): Promise<HeaderGeometry> {
+  return page
+    .locator("header")
+    .first()
+    .evaluate((header) => {
+      const mark = header.querySelector(
+        '[data-testid="quizopia-brand-mark"]',
+      )?.parentElement;
+      const version = Array.from(header.querySelectorAll("span")).find(
+        (element) => element.textContent?.trim() === "version 2.0",
+      );
+      const wordmark = version?.parentElement;
+      const brand = mark?.parentElement;
+      if (!mark || !wordmark || !brand || !version) {
+        throw new Error("Missing shared header branding");
+      }
+      const rect = (element: Element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      };
+      const visible = getComputedStyle(wordmark).display !== "none";
+      return {
+        header: rect(header),
+        mark: rect(mark),
+        wordmark: visible ? rect(wordmark) : null,
+        brandGap: getComputedStyle(brand).gap,
+        wordmarkFont: visible
+          ? getComputedStyle(wordmark.firstElementChild!).fontSize
+          : null,
+        subtitleFont: visible ? getComputedStyle(version).fontSize : null,
+        subtitleTracking: visible
+          ? getComputedStyle(version).letterSpacing
+          : null,
+        overflow:
+          header.scrollWidth > header.clientWidth ||
+          document.documentElement.scrollWidth > window.innerWidth,
+      };
+    });
+}
+
+function checkBrandAlignment(
+  expected: HeaderGeometry,
+  actual: HeaderGeometry,
+  desktop: boolean,
+) {
+  expect(expected.mark.width).toBe(36);
+  expect(expected.mark.height).toBe(36);
+  expect(actual.mark.width).toBe(36);
+  expect(actual.mark.height).toBe(36);
+  expect(Math.abs(actual.mark.x - expected.mark.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(actual.mark.y - expected.mark.y)).toBeLessThanOrEqual(2);
+  expect(Boolean(actual.wordmark)).toBe(Boolean(expected.wordmark));
+  if (actual.wordmark && expected.wordmark) {
+    for (const key of ["x", "y", "width", "height"] as const) {
+      expect(
+        Math.abs(actual.wordmark[key] - expected.wordmark[key]),
+      ).toBeLessThanOrEqual(2);
+    }
+  }
+  expect(actual.brandGap).toBe(expected.brandGap);
+  expect(actual.wordmarkFont).toBe(expected.wordmarkFont);
+  expect(actual.subtitleFont).toBe(expected.subtitleFont);
+  expect(actual.subtitleTracking).toBe(expected.subtitleTracking);
+  if (desktop) {
+    expect(
+      Math.abs(actual.header.height - expected.header.height),
+    ).toBeLessThanOrEqual(2);
+    for (const geometry of [expected, actual]) {
+      expect(
+        Math.abs(
+          geometry.mark.y +
+            geometry.mark.height / 2 -
+            (geometry.header.y + geometry.header.height / 2),
+        ),
+      ).toBeLessThanOrEqual(2);
+    }
+  }
+  expect(actual.overflow).toBe(false);
+}
+
 test("application and editor headers keep compact branding and usable navigation", async ({
   page,
 }, testInfo) => {
@@ -63,7 +156,15 @@ test("application and editor headers keep compact branding and usable navigation
     });
   });
 
-  for (const width of [1440, 375]) {
+  await page.route("**/api/quizzes", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    });
+  });
+
+  for (const width of [1440, 1650, 375]) {
     await page.setViewportSize({ width, height: 812 });
     await page.goto("/app");
     const appHeader = page.getByRole("banner");
@@ -84,6 +185,20 @@ test("application and editor headers keep compact branding and usable navigation
         (header) => header.scrollWidth <= header.clientWidth,
       ),
     ).toBe(true);
+
+    const appGeometry = await measureHeader(page);
+    await page.screenshot({ path: testInfo.outputPath(`app-${width}.png`) });
+
+    await page.goto("/app/quizzes");
+    await switchToTeaching(page);
+    await expect(
+      page.getByRole("heading", { name: "Quiz authoring" }),
+    ).toBeVisible();
+    const libraryGeometry = await measureHeader(page);
+    checkBrandAlignment(appGeometry, libraryGeometry, width !== 375);
+    await page.screenshot({
+      path: testInfo.outputPath(`library-${width}.png`),
+    });
 
     await page.goto(`/app/quizzes/${quizId}`);
     await switchToTeaching(page);
@@ -116,6 +231,12 @@ test("application and editor headers keep compact branding and usable navigation
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+
+    const editorGeometry = await measureHeader(page);
+    console.log(
+      `Navbar geometry ${width}px: ${JSON.stringify({ app: appGeometry, library: libraryGeometry, editor: editorGeometry })}`,
+    );
+    checkBrandAlignment(appGeometry, editorGeometry, width !== 375);
 
     const [backBox, brandBox, labelBox, inputBox, headerBox] =
       await Promise.all([

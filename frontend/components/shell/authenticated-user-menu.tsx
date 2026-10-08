@@ -119,7 +119,7 @@ export function AuthenticatedUserMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Open user menu for ${user.username}, ${workspace} workspace`}
-        className="flex min-h-11 max-w-full items-center gap-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+        className="flex min-h-11 max-w-full items-center gap-3 rounded-lg border border-border bg-surface px-2.5 py-0.5 text-left transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
         onClick={() => {
           setMessage(null);
           clearNotice();
