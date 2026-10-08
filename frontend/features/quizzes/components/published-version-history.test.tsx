@@ -140,18 +140,19 @@ describe("PublishedVersionHistory", () => {
     const closeButton = screen.getByRole("button", {
       name: "Close published versions",
     });
-    const currentDraftButton = screen.getByRole("button", {
-      name: "Current draft",
-    });
+    expect(
+      screen.queryByRole("button", { name: "Current draft" }),
+    ).not.toBeInTheDocument();
+    expect(closeButton).toHaveClass("h-11", "w-11", "p-0");
+    expect(closeButton.querySelector("svg")).toBeInTheDocument();
     await waitFor(() => expect(closeButton).toHaveFocus());
-    currentDraftButton.focus();
     fireEvent.keyDown(screen.getByRole("dialog"), {
       key: "Tab",
       shiftKey: true,
     });
     expect(screen.getByRole("button", { name: /Version 1/ })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Tab" });
-    expect(currentDraftButton).toHaveFocus();
+    expect(closeButton).toHaveFocus();
     expect(screen.getByRole("button", { name: /Version 2/ })).toHaveTextContent(
       "2026",
     );
@@ -188,7 +189,7 @@ describe("PublishedVersionHistory", () => {
       screen.queryByRole("button", { name: /Jump to source/ }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Current draft" }));
+    fireEvent.click(closeButton);
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 

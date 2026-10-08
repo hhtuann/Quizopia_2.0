@@ -433,17 +433,24 @@ export function PublishedVersionHistory({
               current draft.
             </p>
           </div>
-          <Button onClick={onClose} variant="secondary">
-            Current draft
-          </Button>
           <Button
             aria-label="Close published versions"
-            className="px-3"
+            className="h-11 w-11 shrink-0 p-0"
             onClick={onClose}
             ref={closeButtonRef}
             variant="secondary"
           >
-            Close
+            <svg
+              aria-hidden="true"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </Button>
         </header>
 

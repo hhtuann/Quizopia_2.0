@@ -44,6 +44,76 @@ async function switchToTeaching(page: Page) {
   await page.getByRole("button", { name: "Switch to Teaching" }).click();
 }
 
+test("application and editor headers keep compact branding and usable navigation", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Navigation check",
+        description: "",
+        authoringSource: "Câu 1 [NUMERIC_FILL]: 2 + 2?\nĐáp án: 4",
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 812 });
+    await page.goto("/app");
+    const appHeader = page.getByRole("banner");
+    await expect(
+      appHeader.getByRole("link", { name: "Quizopia home" }),
+    ).toBeVisible();
+    await expect(
+      appHeader.getByRole("navigation", { name: "Primary navigation" }),
+    ).toBeVisible();
+    await expect(
+      appHeader.getByRole("button", { name: /Open user menu/ }),
+    ).toBeVisible();
+    const appMark = appHeader.getByTestId("quizopia-brand-mark").locator("..");
+    await expect(appMark).toHaveCSS("width", "36px");
+    await expect(appMark).toHaveCSS("height", "36px");
+    expect(
+      await appHeader.evaluate(
+        (header) => header.scrollWidth <= header.clientWidth,
+      ),
+    ).toBe(true);
+
+    await page.goto(`/app/quizzes/${quizId}`);
+    await switchToTeaching(page);
+    const editorHeader = page.locator("header").first();
+    await expect(
+      page.getByRole("button", { name: "Back to app" }),
+    ).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+      "Navigation check",
+    );
+    await expect(
+      page.getByRole("button", { name: "Published versions" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Publish", exact: true }),
+    ).toBeVisible();
+    await expect(
+      editorHeader.getByTestId("quizopia-brand-mark").locator(".."),
+    ).toHaveCSS("width", "36px");
+    expect(
+      await editorHeader.evaluate(
+        (header) => header.scrollWidth <= header.clientWidth,
+      ),
+    ).toBe(true);
+    await page.getByRole("button", { name: "Back to app" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/app$/);
+  }
+});
+
 async function visibleEditorTextEndPoint(page: Page, needle: string) {
   return page
     .getByTestId("quiz-markdown-highlight-layer")
@@ -865,6 +935,6 @@ test("teacher previews published snapshots without replacing the current draft",
     ),
   ).toBe(true);
 
-  await page.getByRole("button", { name: "Current draft" }).click();
+  await page.getByRole("button", { name: "Close published versions" }).click();
   await expect(editor).toHaveValue(sourceC);
 });

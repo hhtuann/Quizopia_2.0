@@ -20,6 +20,7 @@ import {
 
 const navigation = vi.hoisted(() => ({
   pathname: "/app/quizzes",
+  push: vi.fn(),
   replace: vi.fn(),
 }));
 
@@ -34,6 +35,7 @@ const userId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 
 beforeEach(() => {
   navigation.pathname = "/app/quizzes";
+  navigation.push.mockClear();
 });
 
 function response(status: number, value: unknown): HttpResponse {
@@ -520,6 +522,69 @@ describe("CreateQuizPage direct editor flow", () => {
 });
 
 describe("QuizEditorPage real-contract behavior", () => {
+  it("shows a labeled, editable title and navigates back from a saved draft", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "response" as const,
+        response: response(
+          200,
+          draft("Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50"),
+        ),
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+    const title = await screen.findByRole("textbox", { name: "Quiz title" });
+    expect(screen.getByText("Quiz title", { selector: "label" })).toBeVisible();
+    expect(title).toHaveClass(
+      "border-border-strong",
+      "bg-surface",
+      "focus-visible:ring-2",
+    );
+    title.focus();
+    expect(title).toHaveFocus();
+    const back = screen.getByRole("button", { name: "Back to app" });
+    expect(back).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
+    fireEvent.click(back);
+    expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app");
+  });
+
+  it("confirms before discarding a dirty title, preserving changes when canceled", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      const executor: AuthenticatedRequestExecutor = {
+        execute: vi.fn(async () => ({
+          kind: "response" as const,
+          response: response(
+            200,
+            draft("Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50"),
+          ),
+        })),
+        executeOnce: vi.fn(),
+        executeOnceWithAccessToken: vi.fn(),
+      };
+      renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+      const title = await screen.findByRole("textbox", { name: "Quiz title" });
+      fireEvent.change(title, {
+        target: { value: "A long changed quiz title" },
+      });
+      expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+      const back = screen.getByRole("button", { name: "Back to app" });
+      fireEvent.click(back);
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(navigation.push).not.toHaveBeenCalled();
+      expect(title).toHaveValue("A long changed quiz title");
+      confirm.mockReturnValue(true);
+      fireEvent.click(back);
+      expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app");
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
   it("loads and saves through the authenticated executor without rewriting source", async () => {
     let savedBody: unknown = null;
     const initialSource = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50";
@@ -758,7 +823,9 @@ describe("QuizEditorPage real-contract behavior", () => {
       await screen.findByRole("heading", { name: "Published title" }),
     ).toBeInTheDocument();
     expect(screen.getByText("historical?")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Current draft" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close published versions" }),
+    );
 
     expect(editor).toHaveValue(unsavedSource);
     expect(titleInput).toHaveValue("Unsaved current title");

@@ -27,19 +27,19 @@ export function ApplicationShell({
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-surface">
-        <PageContainer className="flex max-w-none flex-col items-start gap-3 py-3 sm:flex-row sm:items-center">
+        <PageContainer className="flex max-w-none flex-wrap items-center gap-x-3 gap-y-1 py-2">
           <Link
             aria-label="Quizopia home"
             className="inline-flex min-h-11 items-center rounded-lg pr-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
             href="/"
           >
-            <QuizopiaLogo markClassName="size-9 rounded-lg" />
+            <QuizopiaLogo
+              markClassName="size-9 rounded-lg"
+              wordmarkClassName="hidden xl:flex"
+            />
           </Link>
 
-          <nav
-            aria-label="Primary navigation"
-            className="flex flex-wrap gap-1 sm:ml-3"
-          >
+          <nav aria-label="Primary navigation" className="flex flex-wrap gap-1">
             <Link
               aria-current={isApplicationHome ? "page" : undefined}
               className={`${navLinkClasses} ${

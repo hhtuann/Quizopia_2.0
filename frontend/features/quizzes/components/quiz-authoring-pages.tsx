@@ -477,6 +477,7 @@ export interface QuizEditorPageProps {
 }
 
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
+  const router = useRouter();
   const client = useQuizApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
@@ -510,6 +511,17 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   );
   const dirty =
     savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
+
+  function backToApp() {
+    if (
+      !dirty ||
+      window.confirm(
+        "You have unsaved changes. Leave the editor and discard them?",
+      )
+    ) {
+      router.push("/app");
+    }
+  }
 
   useLayoutEffect(() => {
     const pendingEditorFocus = pendingEditorFocusRef.current;
@@ -727,16 +739,27 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             wordmarkClassName="hidden xl:flex"
           />
         </Link>
+        <Button
+          className="shrink-0 px-3"
+          disabled={isSaving || isPublishing}
+          onClick={backToApp}
+          variant="secondary"
+        >
+          <span aria-hidden="true">←</span> Back to app
+        </Button>
         <span
           aria-hidden="true"
           className="hidden h-7 w-px bg-border sm:block"
         />
-        <div className="min-w-[10rem] flex-1 sm:max-w-xl">
-          <label className="sr-only" htmlFor="editor-title">
+        <div className="order-3 w-full min-w-0 sm:order-none sm:w-auto sm:min-w-[12rem] sm:flex-1 sm:max-w-xl">
+          <label
+            className="mb-1 block text-xs font-semibold text-foreground-secondary"
+            htmlFor="editor-title"
+          >
             Quiz title
           </label>
           <input
-            className="min-h-11 w-full rounded-lg border border-transparent bg-transparent px-3 py-2 text-base font-semibold text-foreground outline-none hover:bg-surface-muted focus:border-primary focus:bg-surface focus:ring-2 focus:ring-focus/30"
+            className="min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
             disabled={isSaving || isPublishing}
             id="editor-title"
             onChange={(event) => setTitle(event.target.value)}
@@ -744,7 +767,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             value={title}
           />
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="order-4 ml-auto flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto">
           <span
             aria-live="polite"
             className="hidden font-mono text-xs font-semibold text-foreground-muted sm:inline"
