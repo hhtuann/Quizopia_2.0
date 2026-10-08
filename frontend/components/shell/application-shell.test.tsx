@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "../../features/auth/auth-provider";
 import { AuthenticatedBoundary } from "../../features/auth/components/authenticated-boundary";
@@ -38,6 +45,13 @@ function renderAuthenticatedShell(roles: readonly AuthRole[]) {
     },
     bootstrap: vi.fn(async () => ({ status: "no-session" as const })),
     confirmVerification: vi.fn(),
+    enableTeacher: vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        kind: "transport-error" as const,
+        error: { kind: "network" as const },
+      },
+    })),
     login: vi.fn(),
     logout: vi.fn(async () => {
       runtime.clearLocalSession();
@@ -136,7 +150,7 @@ describe("application shell workspace presentation", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("shows username, fallback avatar, truthful teacher registration, and closes with Escape", () => {
+  it("shows username, fallback avatar, teacher registration, and closes with Escape", () => {
     renderAuthenticatedShell(["STUDENT"]);
 
     const trigger = screen.getByRole("button", {
@@ -165,14 +179,171 @@ describe("application shell workspace presentation", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
     );
-    fireEvent.click(teacherRegistration);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Teacher registration is not available until Identity exposes the accepted self-enablement API.",
-    );
 
     fireEvent.keyDown(teacherRegistration, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("does not show redundant teacher enablement for an existing teacher", () => {
+    renderAuthenticatedShell(["STUDENT", "TEACHER"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Register as teacher" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Switch to Teaching" }),
+    ).toBeEnabled();
+  });
+
+  it("prevents duplicate teacher-enablement submission while pending", () => {
+    const { service } = renderAuthenticatedShell(["STUDENT"]);
+    vi.mocked(service.enableTeacher).mockReturnValueOnce(new Promise(() => {}));
+
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    const action = screen.getByRole("menuitem", {
+      name: "Register as teacher",
+    });
+    fireEvent.click(action);
+    fireEvent.click(action);
+
+    expect(service.enableTeacher).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("menuitem", { name: "Registering as teacher..." }),
+    ).toBeDisabled();
+  });
+
+  it("unlocks Teaching only after the session service publishes authoritative roles", async () => {
+    const { runtime, service } = renderAuthenticatedShell(["STUDENT"]);
+    vi.mocked(service.enableTeacher).mockImplementationOnce(async () => {
+      const authoritativeUser = createAuthenticatedUser({
+        email: "learner01@gmail.com",
+        id: userId,
+        roles: ["STUDENT", "TEACHER"],
+        username: "learner01",
+      });
+      runtime.beginRefreshing();
+      runtime.completeRefreshing({
+        accessToken: "authoritative-teacher-access",
+        user: authoritativeUser,
+      });
+      return { ok: true, value: authoritativeUser };
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Register as teacher" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Teacher access is ready",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Switch to Teaching" }),
+    ).toBeEnabled();
+    expect(runtime.getSnapshot()).toMatchObject({
+      activeWorkspace: "LEARNING",
+      user: { roles: ["STUDENT", "TEACHER"] },
+    });
+    expect(
+      screen.queryByRole("link", { name: "Quiz authoring" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Switch to Teaching" }),
+    );
+    expect(runtime.getSnapshot()).toMatchObject({
+      activeWorkspace: "TEACHING",
+      user: { roles: ["STUDENT", "TEACHER"] },
+    });
+    expect(
+      screen.getByRole("link", { name: "Quiz authoring" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps current roles and explains a forbidden teacher-enablement response", async () => {
+    const { runtime, service } = renderAuthenticatedShell(["STUDENT"]);
+    vi.mocked(service.enableTeacher).mockResolvedValueOnce({
+      ok: false,
+      error: {
+        kind: "api-error",
+        error: {
+          code: "ACCESS_DENIED",
+          message: "Access denied.",
+          path: "/api/auth/teacher-enablement",
+          status: 403,
+          traceId: null,
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Register as teacher" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Teacher registration is not available for this account.",
+    );
+    expect(runtime.getSnapshot()).toMatchObject({
+      user: { roles: ["STUDENT"] },
+    });
+    expect(
+      screen.getByRole("menuitem", { name: "Register as teacher" }),
+    ).toBeEnabled();
+  });
+
+  it("offers a safe retry after a post-grant session update failure", async () => {
+    const { runtime, service } = renderAuthenticatedShell(["STUDENT"]);
+    vi.mocked(service.enableTeacher)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: {
+          kind: "session-update-failure",
+          reason: "refresh-failed",
+        },
+      })
+      .mockImplementationOnce(async () => {
+        const authoritativeUser = createAuthenticatedUser({
+          email: "learner01@gmail.com",
+          id: userId,
+          roles: ["STUDENT", "TEACHER"],
+          username: "learner01",
+        });
+        runtime.beginRefreshing();
+        runtime.completeRefreshing({
+          accessToken: "recovered-teacher-access",
+          user: authoritativeUser,
+        });
+        return { ok: true, value: authoritativeUser };
+      });
+
+    fireEvent.click(screen.getByRole("button", { name: /Open user menu/ }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Register as teacher" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Teacher access may have been enabled",
+    );
+    expect(runtime.getSnapshot()).toMatchObject({
+      user: { roles: ["STUDENT"] },
+    });
+
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Register as teacher" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("menuitem", { name: "Switch to Teaching" }),
+      ).toBeEnabled(),
+    );
+    expect(service.enableTeacher).toHaveBeenCalledTimes(2);
+    expect(runtime.getSnapshot()).toMatchObject({
+      user: { roles: ["STUDENT", "TEACHER"] },
+    });
   });
 });
 

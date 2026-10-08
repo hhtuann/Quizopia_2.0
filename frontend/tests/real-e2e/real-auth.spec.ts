@@ -246,7 +246,10 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
       response.url() === `${gatewayOrigin}/api/auth/logout` &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page
+    .getByRole("button", { name: new RegExp(`Open user menu for ${username}`) })
+    .click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   expect((await logoutResponse).ok()).toBe(true);
   await expect(
     page.getByRole("heading", { name: "Sign in to continue" }),
@@ -273,4 +276,129 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
   expect(authRequestUrls.some((url) => url.includes("localhost:8081"))).toBe(
     false,
   );
+});
+
+test("real verified student enables teacher and publishes a persisted quiz", async ({
+  page,
+  request,
+}) => {
+  const runId = Date.now();
+  const username = `teacher${runId}`;
+  const email = `${username}@gmail.com`;
+  const password = `Local-teacher-${runId}-A1!`;
+  const title = `Wave 2 quiz ${runId}`;
+  const source = [
+    "Câu 1 [SINGLE_CHOICE]: Which protocol serves web pages?",
+    "*A. HTTP",
+    "B. FTP",
+    "C. SSH",
+    "D. SMTP",
+    "",
+    "Lời giải: HTTP is the web transfer protocol.",
+  ].join("\n");
+
+  await page.goto("/register");
+  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Email address").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Confirm password").fill(password);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/verify-email\\?username=${username}$`),
+  );
+
+  await page.getByRole("button", { name: "Resend code" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "verification code can be issued",
+  );
+
+  const otp = await waitForVerificationCode(request, email);
+  await page.getByLabel("Verification code").fill(otp);
+  await page.getByRole("button", { name: "Verify email" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  const initialMe = page.waitForResponse(
+    (response) =>
+      response.url() === `${gatewayOrigin}/api/auth/me` &&
+      response.status() === 200,
+  );
+  await page.getByLabel("Username or email").fill(username);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  expect(await (await initialMe).json()).toMatchObject({
+    roles: ["STUDENT"],
+    username,
+  });
+  await expect(page).toHaveURL(/\/app$/);
+
+  await page
+    .getByRole("button", { name: new RegExp(`Open user menu for ${username}`) })
+    .click();
+  const enablementResponse = page.waitForResponse(
+    (response) =>
+      response.url() === `${gatewayOrigin}/api/auth/teacher-enablement` &&
+      response.request().method() === "POST",
+  );
+  const authoritativeTeacherMe = page.waitForResponse(async (response) => {
+    if (
+      response.url() !== `${gatewayOrigin}/api/auth/me` ||
+      response.status() !== 200
+    ) {
+      return false;
+    }
+    const payload = (await response.json()) as { roles?: string[] };
+    return (
+      payload.roles?.includes("STUDENT") === true &&
+      payload.roles.includes("TEACHER")
+    );
+  });
+  await page.getByRole("menuitem", { name: "Register as teacher" }).click();
+  expect((await enablementResponse).status()).toBe(204);
+  const teacherMePayload = await (await authoritativeTeacherMe).json();
+  expect(teacherMePayload).toMatchObject({
+    roles: ["STUDENT", "TEACHER"],
+    username,
+  });
+  await expect(page.getByRole("status")).toContainText(
+    "Teacher access is ready",
+  );
+  await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+  await page.getByRole("link", { name: "Quiz authoring" }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes$/);
+
+  await page.getByRole("link", { name: "Create quiz" }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
+  const quizUrl = page.url();
+  await page.getByRole("textbox", { name: "Quiz title" }).fill(title);
+  await page
+    .getByRole("textbox", { name: "Quiz Markdown source" })
+    .fill(source);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved")).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Open the Teaching workspace" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  await expect(page).toHaveURL(quizUrl);
+  await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+    title,
+  );
+  await expect(
+    page.getByRole("textbox", { name: "Quiz Markdown source" }),
+  ).toHaveValue(source);
+
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByLabel("Description").fill("Real Wave 2 journey");
+  await page.getByRole("button", { name: "Publish QuizVersion" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Publish complete" }),
+  ).toContainText("Published immutable version 1");
+
+  expect(await browserStorageSnapshot(page)).toMatchObject({
+    indexedDbNames: [],
+    localStorage: [],
+    sessionStorage: [],
+  });
 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
+import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
 
 const workspaceLabels = {
   LEARNING: "Learning",
@@ -10,6 +11,12 @@ const workspaceLabels = {
 
 export function AuthenticatedUserMenu() {
   const { activeWorkspace, logout, switchWorkspace, user } = useAuth();
+  const {
+    clearNotice,
+    isPending: isEnablingTeacher,
+    notice,
+    requestTeacherEnablement,
+  } = useTeacherEnablement();
   const [open, setOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -82,6 +89,7 @@ export function AuthenticatedUserMenu() {
   function switchTo(workspaceToOpen: "LEARNING" | "TEACHING") {
     if (switchWorkspace(workspaceToOpen)) {
       setMessage(null);
+      clearNotice();
       closeAndRestoreFocus();
     }
   }
@@ -91,6 +99,7 @@ export function AuthenticatedUserMenu() {
       return;
     }
     setMessage(null);
+    clearNotice();
     setIsSigningOut(true);
     const result = await logout();
     if (!result.ok) {
@@ -113,6 +122,7 @@ export function AuthenticatedUserMenu() {
         className="flex min-h-11 max-w-full items-center gap-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
         onClick={() => {
           setMessage(null);
+          clearNotice();
           setOpen((current) => !current);
         }}
         ref={triggerRef}
@@ -168,11 +178,12 @@ export function AuthenticatedUserMenu() {
 
           <button
             className={menuItemClasses}
-            onClick={() =>
+            onClick={() => {
+              clearNotice();
               setMessage(
                 "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
-              )
-            }
+              );
+            }}
             role="menuitem"
             type="button"
           >
@@ -192,31 +203,24 @@ export function AuthenticatedUserMenu() {
               Switch to Learning
             </button>
           ) : null}
-          {canSwitchToTeaching ? (
+          {canSwitchToTeaching || needsTeacherRegistration ? (
             <button
+              aria-busy={isEnablingTeacher || undefined}
               className={menuItemClasses}
-              onClick={() => switchTo("TEACHING")}
-              role="menuitem"
-              type="button"
-            >
-              Switch to Teaching
-            </button>
-          ) : null}
-          {needsTeacherRegistration ? (
-            <button
-              className={menuItemClasses}
+              disabled={isEnablingTeacher}
               onClick={() =>
-                setMessage(
-                  "Teacher registration is not available until Identity exposes the accepted self-enablement API.",
-                )
+                canSwitchToTeaching
+                  ? switchTo("TEACHING")
+                  : void requestTeacherEnablement()
               }
               role="menuitem"
               type="button"
             >
-              Register as teacher
-              <span className="ml-auto text-xs text-foreground-muted">
-                Unavailable
-              </span>
+              {canSwitchToTeaching
+                ? "Switch to Teaching"
+                : isEnablingTeacher
+                  ? "Registering as teacher..."
+                  : "Register as teacher"}
             </button>
           ) : null}
 
@@ -232,12 +236,12 @@ export function AuthenticatedUserMenu() {
             </button>
           </div>
 
-          {message ? (
+          {message || notice ? (
             <p
               className="mx-2 mt-1 rounded-lg bg-surface-muted px-3 py-2 text-xs leading-5 text-foreground-secondary"
-              role="status"
+              role={notice?.kind === "error" ? "alert" : "status"}
             >
-              {message}
+              {message ?? notice?.message}
             </p>
           ) : null}
         </div>

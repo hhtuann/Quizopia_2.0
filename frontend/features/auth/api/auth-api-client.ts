@@ -93,6 +93,9 @@ export interface AuthApiClient {
     readonly identifier: string;
     readonly password: string;
   }): Promise<AuthApiResult<LoginResponse>>;
+  enableTeacher(
+    authenticatedRequests: AuthenticatedRequestExecutor,
+  ): Promise<AuthApiResult<void>>;
   logout(): Promise<AuthApiResult<void>>;
   me(
     authenticatedRequests: AuthenticatedRequestExecutor,
@@ -261,6 +264,19 @@ export function createAuthApiClient(options: {
         loginResponseSchema,
         "include",
       );
+    },
+
+    async enableTeacher(authenticatedRequests) {
+      const result = normalizeAuthenticatedResult(
+        await authenticatedRequests.execute({
+          createRequest: () => ({
+            headers: { accept: "application/json" },
+            method: "POST",
+            target: target("/api/auth/teacher-enablement"),
+          }),
+        }),
+      );
+      return result.ok ? expectEmpty(result.value, 204) : result;
     },
 
     async logout() {

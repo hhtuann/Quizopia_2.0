@@ -64,13 +64,15 @@ Completed foundation includes:
 
 ### Wave 2 — Auth + Quiz Authoring Core
 
-**Status: CURRENT**
+**Status: CLOSED (pending final Leader review/merge of the frontend teacher
+self-enablement PR)**
 
 Current phase:
 
-**Identity local-auth milestone is CLOSED. Quiz Authoring is active.**
+**Wave 2 delivery is complete. Wave 3 — Assessment Core is the next current
+wave.**
 
-Wave 2 already has:
+Wave 2 has:
 
 - real local registration;
 - Gmail OTP verification;
@@ -86,23 +88,30 @@ Wave 2 already has:
 - teacher-owned Quiz create/read/update backend foundation;
 - teacher-owned cursor-paginated Quiz Library listing API;
 - accepted Quiz Markdown parser/validator;
-- immutable `QuizVersion` persistence and publish API.
+- immutable `QuizVersion` persistence and publish API;
+- persistent teacher Quiz Library frontend (PR #63);
+- focused grammar-aware Quiz authoring UX (PR #64);
+- branding/editor polish (PR #65);
+- backend teacher self-enablement (PR #66);
+- frontend teacher self-enablement with authoritative refresh + `/me` role
+  transition;
+- real Browser → Gateway → Identity → Quiz Service user → teacher → Quiz
+  save/reload/publish E2E.
 
-Wave 2 still needs:
+Wave 2 remaining:
 
-- merge/review of the grammar-aware Quiz Markdown editor and real draft/publish frontend integration;
-- final review/merge of the persistent teacher Quiz Library frontend integration;
-- final teacher authoring E2E;
-- Wave 2 final independent review and merge verification.
+- final independent Leader review and merge of the frontend teacher
+  self-enablement PR.
 
 ## 3. Current accepted `develop` checkpoint
 
 Current accepted checkpoint:
 
-`develop = c6c81fcddaf6fa144bda58028ffc9e4fca13f680`
+`develop = 848ecf68654337936ff323d30edcd80aaceb0d83`
 
-This checkpoint includes PR #61 (teacher Quiz Library listing) and PR #62
-(Identity login-test rollover hardening).
+This checkpoint includes PR #63 (persistent teacher Quiz Library frontend),
+PR #64 (focused Quiz authoring UX), PR #65 (branding/editor polish), and
+PR #66 (Identity teacher self-enablement backend).
 
 Important merged checkpoints:
 
@@ -121,6 +130,10 @@ Important merged checkpoints:
 | #60 | `58fd7c2`    | Quiz Markdown parser + immutable publishing   |
 | #61 | `c6c81fc`    | Teacher Quiz Library cursor listing           |
 | #62 | `f6664fb`    | Identity login-test expiry rollover hardening |
+| #63 | `4d21b97`    | Persistent teacher Quiz Library frontend      |
+| #64 | `7919aba`    | Focused Quiz authoring UX                     |
+| #65 | `8a4a7cb`    | Branding/editor polish                        |
+| #66 | `848ecf6`    | Identity teacher self-enablement backend      |
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
@@ -302,18 +315,23 @@ rate limit; and a normal refresh is required for a new JWT role claim.
 
 Therefore:
 
-- do not pretend a new STUDENT user can already self-enable TEACHER through the
-  current browser product unless the actual implementation has advanced beyond
-  this checkpoint;
+- the backend `POST /api/auth/teacher-enablement` operation is merged (PR #66)
+  and the frontend entry point is implemented on the teacher-enablement
+  frontend branch: an authenticated STUDENT can self-enable TEACHER from the
+  user menu or the authoring boundary, and the browser then uses the existing
+  refresh coordinator so the replacement JWT and the authoritative `/me`
+  expose `STUDENT` + `TEACHER` before the Teaching workspace unlocks;
+- the real-topology E2E on that branch proves the complete product journey
+  (new verified account → self-enablement → Quiz create/edit/save/reload/
+  publish) through Browser → Gateway → Identity → Quiz Service with real
+  PostgreSQL/Redis/Mailpit and a durable `role_grant_audit` row — no direct
+  database role insertion, mock role, or frontend role override is used;
 - teacher-authoring tests may use accepted controlled test setup/fixtures where
   appropriate;
-- the bounded Identity backend workstream provides the authoritative public
-  operation, while the frontend entry point and real end-to-end authoring proof
-  remain required before claiming the complete product journey.
 
 This does not reopen the completed **local authentication** milestone
-(register/verify/login/refresh/logout/me); it records a separate accepted product
-capability that remains outstanding.
+(register/verify/login/refresh/logout/me); teacher self-enablement is a
+separate accepted product capability that is now implemented end to end.
 
 ## 8. Wave 2 Definition of Done
 
@@ -341,10 +359,14 @@ Wave 2 can close when all of the following are true:
 - frontend branch consumes the real create/read/update/publish contracts through the existing authenticated request architecture;
 - frontend branch consumes the real teacher-owned Quiz Library listing contract through the same authenticated request architecture;
 - contract-level frontend Playwright covers library listing/open/pagination plus create/edit/save/reload/publish;
-- real Browser → Gateway → Quiz Service teacher-authoring E2E remains pending an accepted TEACHER fixture/self-enablement path and runnable local topology;
+- real Browser → Gateway → Quiz Service teacher-authoring E2E is proven: a
+  fresh verified STUDENT self-enables TEACHER through the real Identity
+  endpoint, the refreshed session exposes the authoritative `STUDENT` +
+  `TEACHER` roles, and the same browser creates, edits, saves, reloads, and
+  publishes an immutable `QuizVersion` owned by that account;
 - no unresolved Blocker/High finding remains.
 
-**Current status: IN PROGRESS.**
+**Current status: COMPLETE.**
 
 ## 9. Explicitly deferred scope
 

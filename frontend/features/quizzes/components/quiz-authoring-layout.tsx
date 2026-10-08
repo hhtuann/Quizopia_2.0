@@ -8,6 +8,7 @@ import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
+import { useTeacherEnablement } from "../../auth/hooks/use-teacher-enablement";
 
 function TeacherAuthoringBoundary({
   children,
@@ -15,6 +16,8 @@ function TeacherAuthoringBoundary({
   readonly children: ReactNode;
 }) {
   const { activeWorkspace, switchWorkspace, user } = useAuth();
+  const { isPending, notice, requestTeacherEnablement } =
+    useTeacherEnablement();
 
   if (user === null) {
     return null;
@@ -27,13 +30,20 @@ function TeacherAuthoringBoundary({
         </h1>
         <Alert
           className="mt-5"
-          title="Quiz authoring is not available for this account"
-          variant="warning"
+          title="Register as teacher to author quizzes"
+          variant={notice?.kind === "error" ? "danger" : "warning"}
         >
-          Your account does not currently have the Teacher role. Teacher
-          self-enablement is a separate product flow and is not available in
-          this authoring workstream.
+          {notice?.message ??
+            "Your verified account can add Teacher access while retaining its Student role."}
         </Alert>
+        <Button
+          className="mt-6"
+          isLoading={isPending}
+          loadingLabel="Registering as teacher"
+          onClick={() => void requestTeacherEnablement()}
+        >
+          Register as teacher
+        </Button>
       </Surface>
     );
   }
@@ -43,10 +53,22 @@ function TeacherAuthoringBoundary({
         <h1 className="font-heading text-2xl font-normal text-foreground">
           Open the Teaching workspace
         </h1>
-        <p className="mt-3 text-base leading-7 text-foreground-secondary">
-          Quiz authoring belongs to your Teaching workspace. Switching workspace
-          changes presentation only; your account roles remain unchanged.
-        </p>
+        {notice?.kind === "success" ? (
+          <Alert
+            className="mt-5"
+            title="Teacher access is ready"
+            variant="success"
+          >
+            Your authoritative account now includes Student and Teacher access.
+            Open the Teaching workspace to continue.
+          </Alert>
+        ) : (
+          <p className="mt-3 text-base leading-7 text-foreground-secondary">
+            Quiz authoring belongs to your Teaching workspace. Switching
+            workspace changes presentation only; your account roles remain
+            unchanged.
+          </p>
+        )}
         <Button className="mt-6" onClick={() => switchWorkspace("TEACHING")}>
           Switch to Teaching
         </Button>
