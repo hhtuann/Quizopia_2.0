@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const routes = [
-  { heading: "Product interface foundation", path: "/" },
+  { heading: "A smarter space to learn and teach.", path: "/" },
   { heading: "Sign in", path: "/login" },
   { heading: "Create your account", path: "/register" },
   { heading: "Verify your email", path: "/verify-email" },
@@ -11,7 +11,9 @@ const routes = [
 const viewports = [
   { height: 812, name: "mobile", width: 375 },
   { height: 1024, name: "tablet", width: 768 },
+  { height: 900, name: "laptop", width: 1280 },
   { height: 900, name: "desktop", width: 1440 },
+  { height: 900, name: "wide desktop", width: 1600 },
 ] as const;
 
 for (const viewport of viewports) {

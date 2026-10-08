@@ -9,7 +9,7 @@ export function PageContainer({
   return (
     <div
       {...props}
-      className={`mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 ${className}`}
+      className={`mx-auto w-full px-4 sm:px-6 lg:px-8 ${className}`}
     />
   );
 }

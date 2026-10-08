@@ -255,7 +255,9 @@ describe("QuizLibraryPage real listing contract", () => {
       `/app/quizzes/${secondQuizId}`,
     );
     expect(screen.getByText("Draft only")).toBeInTheDocument();
-    expect(screen.getAllByText("2026-10-01T03:00:00Z")).toHaveLength(2);
+    expect(
+      document.querySelectorAll('time[datetime="2026-10-01T03:00:00Z"]'),
+    ).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: "Load more" }),
     ).not.toBeInTheDocument();

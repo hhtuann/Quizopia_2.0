@@ -24,13 +24,13 @@ export function WorkspaceSwitcher({
 
   return (
     <div className="border-t border-border bg-surface-muted/60">
-      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <span className="text-sm font-semibold text-foreground-secondary">
           Workspace
         </span>
         <div
           aria-label="Choose workspace"
-          className="inline-flex rounded-lg border border-border-strong bg-surface p-1"
+          className="inline-flex rounded-full border border-border-strong bg-surface p-1 shadow-sm"
           role="group"
         >
           {availableWorkspaces.map((workspace) => {
@@ -39,9 +39,9 @@ export function WorkspaceSwitcher({
             return (
               <button
                 aria-pressed={isActive}
-                className={`min-h-11 rounded-lg px-3 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none ${
+                className={`min-h-11 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none ${
                   isActive
-                    ? "bg-primary text-foreground-inverse"
+                    ? "brand-gradient text-foreground-inverse shadow-primary"
                     : "bg-surface text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
                 }`}
                 key={workspace}

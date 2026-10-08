@@ -13,7 +13,11 @@ import {
 import { QuizopiaLogo } from "../../../components/brand/quizopia-logo";
 import { APPLICATION_HEADER_GEOMETRY } from "../../../components/ui/application-header-geometry";
 import { Alert } from "../../../components/ui/alert";
-import { Button } from "../../../components/ui/button";
+import {
+  Button,
+  OUTLINE_LINK_CLASSES,
+  PRIMARY_LINK_CLASSES,
+} from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { Surface } from "../../../components/ui/surface";
 import { useAuth } from "../../auth/auth-provider";
@@ -39,8 +43,19 @@ import {
 import { PublishedVersionHistory } from "./published-version-history";
 import { QuizPreview } from "./quiz-preview";
 
-const linkButtonClasses =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 py-2.5 text-sm font-semibold text-foreground-inverse shadow-primary transition-colors duration-200 hover:border-primary-hover hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none";
+const linkButtonClasses = PRIMARY_LINK_CLASSES;
+
+function formatLibraryDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(date);
+}
 
 function useQuizApiClient(): QuizApiClient | null {
   const { authenticatedRequests } = useAuth();
@@ -135,11 +150,11 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
   const title = item.title?.trim() || "Untitled quiz";
   const description = item.description?.trim();
   return (
-    <li className="rounded-xl border border-border bg-surface p-5 shadow-card">
+    <li className="quiz-interactive-card group rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <Link
-            className="break-words text-lg font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+            className="break-words text-lg font-bold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
             href={`/app/quizzes/${item.quizId}`}
           >
             {title}
@@ -149,27 +164,31 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
               {description}
             </p>
           ) : null}
-          <p className="mt-3 break-all text-xs font-medium text-foreground-muted">
+          <p className="mt-3 break-all font-mono text-[0.7rem] text-foreground-muted">
             Quiz ID: {item.quizId}
           </p>
         </div>
-        <span className="shrink-0 rounded-md bg-surface-muted px-2.5 py-1.5 font-mono text-xs font-semibold text-foreground-secondary">
+        <span className="shrink-0 self-start rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
           {item.latestVersionNumber === null
             ? "Draft only"
             : `Latest version ${item.latestVersionNumber}`}
         </span>
       </div>
-      <dl className="mt-4 grid gap-2 border-t border-border pt-4 text-xs text-foreground-muted sm:grid-cols-2">
+      <dl className="mt-5 grid gap-3 border-t border-border pt-4 text-xs text-foreground-muted sm:grid-cols-2">
         <div>
           <dt className="font-semibold text-foreground-secondary">Created</dt>
           <dd>
-            <time dateTime={item.createdAt}>{item.createdAt}</time>
+            <time dateTime={item.createdAt} title={item.createdAt}>
+              {formatLibraryDate(item.createdAt)}
+            </time>
           </dd>
         </div>
         <div>
           <dt className="font-semibold text-foreground-secondary">Updated</dt>
           <dd>
-            <time dateTime={item.updatedAt}>{item.updatedAt}</time>
+            <time dateTime={item.updatedAt} title={item.updatedAt}>
+              {formatLibraryDate(item.updatedAt)}
+            </time>
           </dd>
         </div>
       </dl>
@@ -259,12 +278,16 @@ export function QuizLibraryPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-primary/10 bg-surface p-6 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-10 -top-20 size-72 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 blur-3xl"
+        />
         <div className="max-w-2xl">
-          <p className="text-sm font-semibold text-primary">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
             Teaching workspace
           </p>
-          <h1 className="mt-2 font-heading text-3xl font-normal tracking-[-0.02em] text-foreground">
+          <h1 className="mt-3 font-heading text-3xl font-extrabold tracking-[-0.035em] text-foreground sm:text-4xl">
             Quiz authoring
           </h1>
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
@@ -272,8 +295,11 @@ export function QuizLibraryPage() {
             publish its Quiz Markdown.
           </p>
         </div>
-        <Link className={linkButtonClasses} href="/app/quizzes/new">
-          Create quiz
+        <Link
+          className={`${linkButtonClasses} relative shrink-0`}
+          href="/app/quizzes/new"
+        >
+          <span aria-hidden="true">+</span> Create quiz
         </Link>
       </div>
 
@@ -305,7 +331,13 @@ export function QuizLibraryPage() {
             {libraryFailureMessage(initialFailure)}
           </Alert>
         ) : items.length === 0 ? (
-          <Surface className="mt-5 p-6 sm:p-8">
+          <Surface className="mt-5 flex flex-col items-start bg-[radial-gradient(ellipse_at_top_right,rgba(79,70,229,0.06),transparent_65%)] p-8 sm:p-12">
+            <div
+              aria-hidden="true"
+              className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-bold text-primary"
+            >
+              +
+            </div>
             <h3 className="text-lg font-semibold text-foreground">
               No quizzes yet
             </h3>
@@ -441,10 +473,7 @@ export function CreateQuizPage() {
                 >
                   Try again
                 </Button>
-                <Link
-                  className="inline-flex min-h-11 items-center rounded-lg border border-border-strong px-4 text-sm font-semibold text-foreground-secondary"
-                  href="/app/quizzes"
-                >
+                <Link className={OUTLINE_LINK_CLASSES} href="/app/quizzes">
                   Back to library
                 </Link>
               </div>
@@ -795,7 +824,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             disabled={isSaving || isPublishing}
             onClick={() => setHistoryOpen(true)}
             ref={historyTriggerRef}
-            variant="secondary"
+            variant="ghost"
           >
             Published versions
           </Button>
@@ -805,12 +834,12 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             isLoading={isSaving}
             loadingLabel="Saving draft"
             onClick={() => void saveDraft()}
-            variant="secondary"
+            variant="brand-outline"
           >
             Save
           </Button>
           <Button
-            className="px-3 sm:px-4"
+            className="px-3 sm:px-5"
             disabled={isSaving}
             onClick={() => setPublishDialogOpen(true)}
           >
@@ -854,7 +883,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
               aria-pressed={mobilePane === pane}
               className={`min-h-11 flex-1 rounded-md px-3 py-2 text-sm font-semibold ${
                 mobilePane === pane
-                  ? "bg-primary text-foreground-inverse"
+                  ? "brand-gradient text-foreground-inverse shadow-primary"
                   : "text-foreground-secondary hover:bg-surface-muted"
               }`}
               key={pane}
@@ -869,7 +898,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-2">
           <section
             aria-label="Quiz Markdown editor"
-            className={`${mobilePane === "source" ? "block" : "hidden"} min-h-0 min-w-0 overflow-hidden rounded-xl border border-border bg-surface p-3 sm:p-4 lg:block`}
+            className={`${mobilePane === "source" ? "block" : "hidden"} min-h-0 min-w-0 overflow-hidden rounded-xl border border-primary/10 bg-surface p-3 shadow-card sm:p-4 lg:block`}
           >
             <QuizMarkdownCodeEditor
               disabled={isSaving || isPublishing}
@@ -880,7 +909,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           </section>
           <section
             aria-label="Live quiz preview"
-            className={`${mobilePane === "preview" ? "block" : "hidden"} min-h-0 min-w-0 overflow-y-auto rounded-xl border border-border bg-surface-muted/50 p-3 sm:p-4 lg:block`}
+            className={`${mobilePane === "preview" ? "block" : "hidden"} min-h-0 min-w-0 overflow-y-auto rounded-xl border border-primary/10 bg-surface-muted/50 p-3 shadow-card sm:p-4 lg:block`}
           >
             <QuizPreview
               onDiagnosticSelect={(line, column) => {

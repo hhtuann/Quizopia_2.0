@@ -14,12 +14,8 @@ describe("QuizopiaLogo", () => {
       "d",
       QUIZOPIA_BOLT_PATH,
     );
-    expect(screen.getByText("Quiz").parentElement).toHaveClass("font-heading");
-    expect(screen.getByText("opia")).toHaveClass(
-      "bg-gradient-to-r",
-      "from-primary",
-      "to-secondary",
-    );
+    expect(screen.getByText("Quiz").parentElement).toHaveClass("font-brand");
+    expect(screen.getByText("opia")).toHaveClass("brand-gradient-text");
     expect(screen.getByText("version 2.0")).toHaveClass(
       "font-sans",
       "mt-0.5",

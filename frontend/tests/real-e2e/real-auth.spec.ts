@@ -381,7 +381,7 @@ test("real teacher preserves published A/B history while current draft advances 
     "Teacher access is ready",
   );
   await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
-  await page.getByRole("link", { name: "Quiz authoring" }).click();
+  await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/quizzes$/);
 
   await page.getByRole("link", { name: "Create quiz" }).click();

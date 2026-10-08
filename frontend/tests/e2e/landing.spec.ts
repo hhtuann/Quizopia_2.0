@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("product foundation page renders and supports skip navigation", async ({
+test("Quizopia landing page renders and supports skip navigation", async ({
   page,
 }) => {
   await page.goto("/");
 
   await expect(
-    page.getByRole("heading", { name: "Product interface foundation" }),
+    page.getByRole("heading", { name: "A smarter space to learn and teach." }),
   ).toBeVisible();
 
   await page.keyboard.press("Tab");

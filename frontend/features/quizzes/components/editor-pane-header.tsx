@@ -16,7 +16,7 @@ export function EditorPaneHeader({
   titleId,
 }: EditorPaneHeaderProps) {
   const titleClasses =
-    "block font-heading text-base font-normal leading-6 text-foreground";
+    "block font-heading text-base font-bold leading-6 text-foreground";
 
   return (
     <div className={`min-h-[4.5rem] shrink-0 ${className}`}>

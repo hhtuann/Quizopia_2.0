@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Calistoga, Inter, JetBrains_Mono } from "next/font/google";
+import { Calistoga, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import { SkipLink } from "../components/ui/skip-link";
 import { AppProviders } from "../lib/providers/app-providers";
 import "./globals.css";
 
-const inter = Inter({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin", "latin-ext", "vietnamese"],
   display: "swap",
   fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
-  variable: "--font-inter",
+  variable: "--font-plus-jakarta-sans",
 });
 
 const calistoga = Calistoga({
@@ -39,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${calistoga.variable} ${jetBrainsMono.variable}`}
+        className={`${jakarta.variable} ${calistoga.variable} ${jetBrainsMono.variable}`}
       >
         <SkipLink href="#main-content">Skip to main content</SkipLink>
         <AppProviders>{children}</AppProviders>
