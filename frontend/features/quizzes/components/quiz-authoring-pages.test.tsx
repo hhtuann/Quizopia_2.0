@@ -536,7 +536,13 @@ describe("QuizEditorPage real-contract behavior", () => {
     };
     renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
     const title = await screen.findByRole("textbox", { name: "Quiz title" });
-    expect(screen.getByText("Quiz title", { selector: "label" })).toBeVisible();
+    const titleLabel = screen.getByText("Quiz title", { selector: "label" });
+    expect(titleLabel).toBeVisible();
+    expect(titleLabel).toHaveAttribute("for", "editor-title");
+    expect(title).toHaveAttribute("id", "editor-title");
+    expect(titleLabel.parentElement).toBe(title.parentElement);
+    expect(title.parentElement).toHaveClass("flex", "items-center", "gap-3");
+    expect(titleLabel.nextElementSibling).toBe(title);
     expect(title).toHaveClass(
       "border-border-strong",
       "bg-surface",
@@ -546,6 +552,9 @@ describe("QuizEditorPage real-contract behavior", () => {
     expect(title).toHaveFocus();
     const back = screen.getByRole("button", { name: "Back to app" });
     expect(back).toBeEnabled();
+    expect(back).toHaveAttribute("aria-label", "Back to app");
+    expect(back).toHaveTextContent(/^\s*$/);
+    expect(back.querySelector('svg[aria-hidden="true"] path')).not.toBeNull();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
     fireEvent.click(back);

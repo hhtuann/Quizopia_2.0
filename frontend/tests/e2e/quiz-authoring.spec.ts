@@ -46,7 +46,7 @@ async function switchToTeaching(page: Page) {
 
 test("application and editor headers keep compact branding and usable navigation", async ({
   page,
-}) => {
+}, testInfo) => {
   await mockTeacherBootstrap(page);
   await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
     await route.fulfill({
@@ -88,27 +88,73 @@ test("application and editor headers keep compact branding and usable navigation
     await page.goto(`/app/quizzes/${quizId}`);
     await switchToTeaching(page);
     const editorHeader = page.locator("header").first();
-    await expect(
-      page.getByRole("button", { name: "Back to app" }),
-    ).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
-      "Navigation check",
-    );
+    const back = page.getByRole("button", { name: "Back to app" });
+    const titleInput = page.getByRole("textbox", { name: "Quiz title" });
+    const titleLabel = editorHeader.locator('label[for="editor-title"]');
+    const editorMark = editorHeader
+      .getByTestId("quizopia-brand-mark")
+      .locator("..");
+    await expect(back).toBeVisible();
+    await expect(back).toHaveText("");
+    await expect(back.locator("svg")).toBeVisible();
+    await expect(titleLabel).toBeVisible();
+    await expect(titleInput).toHaveValue("Navigation check");
     await expect(
       page.getByRole("button", { name: "Published versions" }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Publish", exact: true }),
     ).toBeVisible();
-    await expect(
-      editorHeader.getByTestId("quizopia-brand-mark").locator(".."),
-    ).toHaveCSS("width", "36px");
+    await expect(editorMark).toHaveCSS("width", "36px");
     expect(
       await editorHeader.evaluate(
         (header) => header.scrollWidth <= header.clientWidth,
       ),
     ).toBe(true);
-    await page.getByRole("button", { name: "Back to app" }).focus();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+
+    const [backBox, brandBox, labelBox, inputBox, headerBox] =
+      await Promise.all([
+        back.boundingBox(),
+        editorMark.boundingBox(),
+        titleLabel.boundingBox(),
+        titleInput.boundingBox(),
+        editorHeader.boundingBox(),
+      ]);
+    expect(backBox).not.toBeNull();
+    expect(brandBox).not.toBeNull();
+    expect(labelBox).not.toBeNull();
+    expect(inputBox).not.toBeNull();
+    expect(headerBox).not.toBeNull();
+    expect(backBox!.width).toBeGreaterThanOrEqual(40);
+    expect(backBox!.width).toBeLessThanOrEqual(48);
+    expect(Math.abs(backBox!.height - backBox!.width)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        backBox!.y + backBox!.height / 2 - (brandBox!.y + brandBox!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(4);
+    expect(labelBox!.x + labelBox!.width).toBeLessThan(inputBox!.x);
+    expect(
+      Math.abs(
+        labelBox!.y +
+          labelBox!.height / 2 -
+          (inputBox!.y + inputBox!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(2);
+    expect(inputBox!.width).toBeGreaterThanOrEqual(160);
+    console.log(
+      `Editor header ${width}px: height=${headerBox!.height}px, back=${backBox!.width}x${backBox!.height}px, titleInput=${inputBox!.width}px`,
+    );
+    await page.screenshot({ path: testInfo.outputPath(`editor-${width}.png`) });
+    await titleInput.fill("Edited navigation title");
+    await expect(titleInput).toHaveValue("Edited navigation title");
+    await titleInput.fill("Navigation check");
+    await back.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/app$/);
   }

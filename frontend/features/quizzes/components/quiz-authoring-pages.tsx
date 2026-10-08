@@ -740,26 +740,39 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           />
         </Link>
         <Button
-          className="shrink-0 px-3"
+          aria-label="Back to app"
+          className="size-11 shrink-0 p-0"
           disabled={isSaving || isPublishing}
           onClick={backToApp}
           variant="secondary"
         >
-          <span aria-hidden="true">←</span> Back to app
+          <svg
+            aria-hidden="true"
+            className="size-5"
+            fill="none"
+            focusable="false"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+          >
+            <path d="m15 18-6-6 6-6" />
+          </svg>
         </Button>
         <span
           aria-hidden="true"
           className="hidden h-7 w-px bg-border sm:block"
         />
-        <div className="order-3 w-full min-w-0 sm:order-none sm:w-auto sm:min-w-[12rem] sm:flex-1 sm:max-w-xl">
+        <div className="order-3 flex w-full min-w-0 items-center gap-3 sm:order-none sm:w-auto sm:min-w-[16rem] sm:flex-1 sm:max-w-xl">
           <label
-            className="mb-1 block text-xs font-semibold text-foreground-secondary"
+            className="shrink-0 text-xs font-semibold text-foreground-secondary"
             htmlFor="editor-title"
           >
             Quiz title
           </label>
           <input
-            className="min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
             disabled={isSaving || isPublishing}
             id="editor-title"
             onChange={(event) => setTitle(event.target.value)}
