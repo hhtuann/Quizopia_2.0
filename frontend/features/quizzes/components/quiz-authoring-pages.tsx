@@ -35,6 +35,7 @@ import {
   QuizMarkdownCodeEditor,
   type QuizMarkdownCodeEditorHandle,
 } from "./quiz-markdown-code-editor";
+import { PublishedVersionHistory } from "./published-version-history";
 import { QuizPreview } from "./quiz-preview";
 
 const linkButtonClasses =
@@ -478,6 +479,7 @@ export interface QuizEditorPageProps {
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const client = useQuizApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
   const pendingEditorFocusRef = useRef<PendingEditorFocus | null>(null);
   const [focusRequestVersion, requestEditorFocus] = useReducer(
     (version: number) => version + 1,
@@ -499,6 +501,8 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   >([]);
   const [mobilePane, setMobilePane] = useState<"source" | "preview">("source");
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRefreshVersion, setHistoryRefreshVersion] = useState(0);
 
   const currentInput = useMemo<QuizDraftInput>(
     () => ({ authoringSource: source, description, title }),
@@ -613,6 +617,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         ? `Published immutable version ${result.value.version.versionNumber}.`
         : `Version ${result.value.version.versionNumber} already matches this unchanged draft.`,
     );
+    setHistoryRefreshVersion((current) => current + 1);
     setPublishDialogOpen(false);
   }
 
@@ -707,7 +712,11 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <header className="z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:gap-3 sm:px-5">
+      <header
+        aria-hidden={historyOpen || undefined}
+        className="z-30 flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:gap-3 sm:px-5"
+        inert={historyOpen ? true : undefined}
+      >
         <Link
           aria-label="Back to Quiz Library"
           className="flex min-h-11 shrink-0 items-center rounded-lg text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
@@ -743,6 +752,17 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             {isSaving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
           </span>
           <Button
+            aria-expanded={historyOpen}
+            aria-haspopup="dialog"
+            className="px-3 sm:px-4"
+            disabled={isSaving || isPublishing}
+            onClick={() => setHistoryOpen(true)}
+            ref={historyTriggerRef}
+            variant="secondary"
+          >
+            Published versions
+          </Button>
+          <Button
             className="px-3 sm:px-4"
             disabled={!dirty || isPublishing}
             isLoading={isSaving}
@@ -762,7 +782,11 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3">
+      <div
+        aria-hidden={historyOpen || undefined}
+        className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3"
+        inert={historyOpen ? true : undefined}
+      >
         {saveError || publishError || publishMessage ? (
           <div className="shrink-0">
             {saveError ? (
@@ -845,6 +869,15 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           </section>
         </div>
       </div>
+
+      <PublishedVersionHistory
+        client={client}
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        quizId={quizId}
+        refreshVersion={historyRefreshVersion}
+        triggerRef={historyTriggerRef}
+      />
 
       {publishDialogOpen ? (
         <div

@@ -278,7 +278,7 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
   );
 });
 
-test("real verified student enables teacher and publishes a persisted quiz", async ({
+test("real teacher preserves published A/B history while current draft advances to C", async ({
   page,
   request,
 }) => {
@@ -286,15 +286,33 @@ test("real verified student enables teacher and publishes a persisted quiz", asy
   const username = `teacher${runId}`;
   const email = `${username}@gmail.com`;
   const password = `Local-teacher-${runId}-A1!`;
-  const title = `Wave 2 quiz ${runId}`;
-  const source = [
-    "Câu 1 [SINGLE_CHOICE]: Which protocol serves web pages?",
-    "*A. HTTP",
-    "B. FTP",
-    "C. SSH",
-    "D. SMTP",
+  const title = `Version history quiz ${runId}`;
+  const sourceA = [
+    "Câu 1 [SINGLE_CHOICE]: ALPHA published snapshot asks about HTTP?",
+    "*A. ALPHA HTTP answer",
+    "B. ALPHA FTP distractor",
+    "C. ALPHA SSH distractor",
+    "D. ALPHA SMTP distractor",
     "",
-    "Lời giải: HTTP is the web transfer protocol.",
+    "Lời giải: ALPHA explanation belongs only to version one.",
+  ].join("\n");
+  const sourceB = [
+    "Câu 1 [SINGLE_CHOICE]: BRAVO published snapshot asks about TLS?",
+    "A. BRAVO FTP distractor",
+    "*B. BRAVO TLS answer",
+    "C. BRAVO SSH distractor",
+    "D. BRAVO SMTP distractor",
+    "",
+    "Lời giải: BRAVO explanation belongs only to version two.",
+  ].join("\n");
+  const sourceC = [
+    "Câu 1 [SINGLE_CHOICE]: CHARLIE unpublished draft asks about DNS?",
+    "A. CHARLIE HTTP distractor",
+    "B. CHARLIE FTP distractor",
+    "*C. CHARLIE DNS answer",
+    "D. CHARLIE SMTP distractor",
+    "",
+    "Lời giải: CHARLIE remains only in the mutable current draft.",
   ].join("\n");
 
   await page.goto("/register");
@@ -372,7 +390,7 @@ test("real verified student enables teacher and publishes a persisted quiz", asy
   await page.getByRole("textbox", { name: "Quiz title" }).fill(title);
   await page
     .getByRole("textbox", { name: "Quiz Markdown source" })
-    .fill(source);
+    .fill(sourceA);
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();
 
@@ -387,14 +405,127 @@ test("real verified student enables teacher and publishes a persisted quiz", asy
   );
   await expect(
     page.getByRole("textbox", { name: "Quiz Markdown source" }),
-  ).toHaveValue(source);
+  ).toHaveValue(sourceA);
 
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page.getByLabel("Description").fill("Real Wave 2 journey");
   await page.getByRole("button", { name: "Publish QuizVersion" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Publish complete" }),
   ).toContainText("Published immutable version 1");
+
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  await editor.fill(sourceB);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved")).toBeVisible();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByLabel("Description").fill("Real immutable version B");
+  await page.getByRole("button", { name: "Publish QuizVersion" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Publish complete" }),
+  ).toContainText("Published immutable version 2");
+
+  await editor.fill(sourceC);
+  const saveCResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/draft") &&
+      response.request().method() === "PUT" &&
+      response.status() === 200,
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+  const savedDraftC = await (await saveCResponsePromise).json();
+  expect(savedDraftC.authoringSource).toBe(sourceC);
+  await expect(editor).toHaveValue(sourceC);
+
+  const historyResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/versions") &&
+      response.request().method() === "GET" &&
+      response.status() === 200,
+  );
+  await page.getByRole("button", { name: "Published versions" }).click();
+  const historyDialog = page.getByRole("dialog", {
+    name: "Published versions",
+  });
+  const historyPayload = await (await historyResponsePromise).json();
+  expect(
+    historyPayload.items.map(
+      (item: { versionNumber: number }) => item.versionNumber,
+    ),
+  ).toEqual([2, 1]);
+  expect(
+    historyPayload.items.every(
+      (item: Record<string, unknown>) => !("sourceSnapshot" in item),
+    ),
+  ).toBe(true);
+
+  const history = page.getByRole("list", { name: "Published version history" });
+  const versionButtons = history.getByRole("button");
+  await expect(versionButtons).toHaveCount(2);
+  expect((await versionButtons.nth(0).textContent()) ?? "").toContain(
+    "Version 2",
+  );
+  expect((await versionButtons.nth(1).textContent()) ?? "").toContain(
+    "Version 1",
+  );
+
+  const versionOneResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/versions/1") &&
+      response.request().method() === "GET" &&
+      response.status() === 200,
+  );
+  await history.getByRole("button", { name: /Version 1/ }).click();
+  const versionOnePayload = await (await versionOneResponsePromise).json();
+  expect(versionOnePayload.sourceSnapshot).toBe(sourceA);
+  await expect(
+    historyDialog.getByText(/ALPHA published snapshot/),
+  ).toBeVisible();
+  await expect(historyDialog.getByText(/BRAVO published snapshot/)).toHaveCount(
+    0,
+  );
+  await expect(
+    historyDialog.getByText(/CHARLIE unpublished draft/),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Publish", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Marked correct/ }),
+  ).toHaveCount(0);
+
+  const versionTwoResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/versions/2") &&
+      response.request().method() === "GET" &&
+      response.status() === 200,
+  );
+  await history.getByRole("button", { name: /Version 2/ }).click();
+  const versionTwoPayload = await (await versionTwoResponsePromise).json();
+  expect(versionTwoPayload.sourceSnapshot).toBe(sourceB);
+  await expect(
+    historyDialog.getByText(/BRAVO published snapshot/),
+  ).toBeVisible();
+  await expect(historyDialog.getByText(/ALPHA published snapshot/)).toHaveCount(
+    0,
+  );
+  await expect(
+    historyDialog.getByText(/CHARLIE unpublished draft/),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Current draft" }).click();
+  await expect(editor).toHaveValue(sourceC);
+
+  await page.getByRole("button", { name: "Published versions" }).click();
+  await history.getByRole("button", { name: /Version 1/ }).click();
+  await expect(
+    historyDialog.getByText(/ALPHA published snapshot/),
+  ).toBeVisible();
+  await history.getByRole("button", { name: /Version 2/ }).click();
+  await expect(
+    historyDialog.getByText(/BRAVO published snapshot/),
+  ).toBeVisible();
 
   expect(await browserStorageSnapshot(page)).toMatchObject({
     indexedDbNames: [],

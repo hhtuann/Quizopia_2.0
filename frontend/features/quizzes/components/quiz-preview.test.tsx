@@ -87,4 +87,31 @@ describe("QuizPreview", () => {
       source: { line: 4 },
     });
   });
+
+  it("renders a historical snapshot without mutation or source-navigation controls", () => {
+    render(
+      <QuizPreview
+        description="Immutable snapshot"
+        readOnly
+        source={
+          "Câu 1 [SINGLE_CHOICE]: historical question\n*A. a\nB. b\nC. c\nD. d"
+        }
+        title="Published preview · Version 1"
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Published preview · Version 1" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Immutable snapshot")).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "A. Marked correct" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Jump to source/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "B. Not marked correct" }),
+    ).not.toBeInTheDocument();
+  });
 });

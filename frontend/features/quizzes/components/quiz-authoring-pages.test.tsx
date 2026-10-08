@@ -668,6 +668,104 @@ describe("QuizEditorPage real-contract behavior", () => {
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
+  it("keeps unsaved draft state isolated while previewing a published version", async () => {
+    const initialSource = "Câu 1 [NUMERIC_FILL]: original?\nĐáp án: 2.50";
+    const unsavedSource = `${initialSource}\nLời giải: unsaved current-draft edit`;
+    let updateCalls = 0;
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async (request) => {
+        const built = request.createRequest();
+        const target = String(built.target);
+        if (target.endsWith("/draft") && built.method === "GET") {
+          return {
+            kind: "response" as const,
+            response: response(200, draft(initialSource)),
+          };
+        }
+        if (target.includes("/versions?")) {
+          return {
+            kind: "response" as const,
+            response: response(200, {
+              items: [
+                {
+                  id: "f87b6d86-c26d-47fe-83db-cce701112233",
+                  quizId,
+                  versionNumber: 1,
+                  titleSnapshot: "Published title",
+                  descriptionSnapshot: "Historical description",
+                  contentSchemaVersion: 1,
+                  createdAt: "2026-10-08T08:30:00Z",
+                },
+              ],
+              nextCursor: null,
+            }),
+          };
+        }
+        if (target.endsWith("/versions/1")) {
+          return {
+            kind: "response" as const,
+            response: response(200, {
+              id: "f87b6d86-c26d-47fe-83db-cce701112233",
+              quizId,
+              versionNumber: 1,
+              titleSnapshot: "Published title",
+              descriptionSnapshot: "Historical description",
+              sourceSnapshot: "Câu 1 [NUMERIC_FILL]: historical?\nĐáp án: 1.00",
+              structuredContent: {
+                questions: [
+                  {
+                    number: 1,
+                    type: "NUMERIC_FILL",
+                    stemMarkdown: "historical?",
+                    options: [],
+                    numericAnswer: "1.00",
+                    explanationMarkdown: null,
+                  },
+                ],
+              },
+              contentSchemaVersion: 1,
+              createdAt: "2026-10-08T08:30:00Z",
+            }),
+          };
+        }
+        if (built.method === "PUT") {
+          updateCalls += 1;
+        }
+        throw new Error(`Unexpected request ${built.method} ${target}`);
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+    const editor = await screen.findByRole("textbox", {
+      name: "Quiz Markdown source",
+    });
+    const titleInput = screen.getByRole("textbox", { name: "Quiz title" });
+    fireEvent.change(editor, { target: { value: unsavedSource } });
+    fireEvent.change(titleInput, {
+      target: { value: "Unsaved current title" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Published versions" }));
+    expect(
+      screen.queryByRole("button", { name: "Save" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Publish" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Version 1/ }));
+    expect(
+      await screen.findByRole("heading", { name: "Published title" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("historical?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Current draft" }));
+
+    expect(editor).toHaveValue(unsavedSource);
+    expect(titleInput).toHaveValue("Unsaved current title");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(updateCalls).toBe(0);
+  });
+
   it("locks authoring while a dirty draft is saved before publish", async () => {
     const initialSource = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50";
     const editedSource = `${initialSource}\nLời giải: publish this snapshot`;

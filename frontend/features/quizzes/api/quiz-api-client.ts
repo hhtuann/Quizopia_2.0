@@ -29,6 +29,58 @@ const versionSchema = z
   })
   .strict();
 
+const versionSummarySchema = z
+  .object({
+    id: z.string().uuid(),
+    quizId: z.string().uuid(),
+    versionNumber: z.number().int().positive(),
+    titleSnapshot: z.string().nullable(),
+    descriptionSnapshot: z.string().nullable(),
+    contentSchemaVersion: z.number().int().positive(),
+    createdAt: z.string(),
+  })
+  .strict();
+
+const versionHistoryPageSchema = z
+  .object({
+    items: z.array(versionSummarySchema),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+
+const structuredOptionSchema = z
+  .object({
+    label: z.enum(["A", "B", "C", "D"]),
+    markdown: z.string(),
+    correct: z.boolean(),
+  })
+  .strict();
+
+const structuredQuestionSchema = z
+  .object({
+    number: z.number().int().positive(),
+    type: z.enum([
+      "SINGLE_CHOICE",
+      "MULTIPLE_CHOICE",
+      "TRUE_FALSE_MATRIX",
+      "NUMERIC_FILL",
+    ]),
+    stemMarkdown: z.string(),
+    options: z.array(structuredOptionSchema),
+    numericAnswer: z.string().nullable(),
+    explanationMarkdown: z.string().nullable(),
+  })
+  .strict();
+
+const versionDetailSchema = versionSummarySchema
+  .extend({
+    sourceSnapshot: z.string(),
+    structuredContent: z
+      .object({ questions: z.array(structuredQuestionSchema) })
+      .strict(),
+  })
+  .strict();
+
 const libraryItemSchema = z
   .object({
     quizId: z.string().uuid(),
@@ -79,6 +131,9 @@ const markdownValidationSchema = z
 
 export type QuizDraft = z.infer<typeof draftSchema>;
 export type QuizVersion = z.infer<typeof versionSchema>;
+export type QuizVersionSummary = z.infer<typeof versionSummarySchema>;
+export type QuizVersionHistoryPage = z.infer<typeof versionHistoryPageSchema>;
+export type QuizVersionDetail = z.infer<typeof versionDetailSchema>;
 export type QuizLibraryItem = z.infer<typeof libraryItemSchema>;
 export type QuizLibraryPage = z.infer<typeof libraryPageSchema>;
 export type QuizMarkdownServerError = z.infer<typeof markdownErrorSchema>;
@@ -116,6 +171,11 @@ export interface QuizLibraryQuery {
   readonly limit?: number;
 }
 
+export interface QuizVersionHistoryQuery {
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
 export interface QuizApiClient {
   createDraft(
     input: QuizDraftInput,
@@ -129,6 +189,16 @@ export interface QuizApiClient {
     query?: QuizLibraryQuery,
     signal?: AbortSignal,
   ): Promise<QuizApiResult<QuizLibraryPage>>;
+  listPublishedVersions(
+    quizId: string,
+    query?: QuizVersionHistoryQuery,
+    signal?: AbortSignal,
+  ): Promise<QuizApiResult<QuizVersionHistoryPage>>;
+  getPublishedVersion(
+    quizId: string,
+    versionNumber: number,
+    signal?: AbortSignal,
+  ): Promise<QuizApiResult<QuizVersionDetail>>;
   publishDraft(
     quizId: string,
     signal?: AbortSignal,
@@ -277,6 +347,36 @@ export function createQuizApiClient(options: {
       );
       return result.ok
         ? expectJson(result.value, [200], libraryPageSchema)
+        : result;
+    },
+    async listPublishedVersions(quizId, query = {}, signal) {
+      const parameters = new URLSearchParams();
+      if (query.limit !== undefined) {
+        parameters.set("limit", String(query.limit));
+      }
+      if (query.cursor !== undefined) {
+        parameters.set("cursor", query.cursor);
+      }
+      const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+      const result = await execute(
+        `/api/quizzes/${encodeURIComponent(quizId)}/versions${suffix}`,
+        "GET",
+        undefined,
+        signal,
+      );
+      return result.ok
+        ? expectJson(result.value, [200], versionHistoryPageSchema)
+        : result;
+    },
+    async getPublishedVersion(quizId, versionNumber, signal) {
+      const result = await execute(
+        `/api/quizzes/${encodeURIComponent(quizId)}/versions/${encodeURIComponent(String(versionNumber))}`,
+        "GET",
+        undefined,
+        signal,
+      );
+      return result.ok
+        ? expectJson(result.value, [200], versionDetailSchema)
         : result;
     },
     async publishDraft(quizId, signal) {
