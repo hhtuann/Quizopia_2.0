@@ -58,12 +58,17 @@ reopening `CLOSED` is in MVP. QuizVersion publication does not automatically ope
 an Assessment Publication. All Attempts use the snapshot pinned on opening.
 
 This resolves ASSESS-01/02 for Assessment Core; it does not define Practice
-publication states or approve scheduling/cutoff behavior. See
-[accepted policy](assessment-core-policy.md).
+publication states or freeze detailed timing/cutoff behavior. W3-A accepts bounded
+scheduling separately from lifecycle. See [accepted policy](assessment-core-policy.md)
+and [W3-A scope](w3-a-publication-scheduling-monitoring-policy.md).
 
 Do not create read-triggered hidden state transitions like the legacy session lifecycle.
 
-If explicit scheduled opening/closing states are used, transitions should be driven by explicit commands/jobs and be idempotent.
+For Wave 3, represent scheduling as separate eligibility conditions, not additional
+Publication states. Opening and participation start are distinct; participation
+window end alone is neither durable closure nor automatic Attempt finalization.
+Explicit lifecycle commands remain retry-safe; expiry/early-close behavior requires
+its own accepted contract.
 
 ## Assessment attempt
 
@@ -95,6 +100,13 @@ Publication and an eligible submitted owner. Backend response authorization must
 enforce both gates without inventing a separate persisted lifecycle prematurely.
 
 ## Proctoring session
+
+Wave 3 includes optional eligible CLASS Activity Evidence and LiveKit camera
+monitoring under the [W3-A Leader decision](w3-a-publication-scheduling-monitoring-policy.md).
+The session below is distinct from Publication lifecycle and new-start scheduling.
+Participation-window end alone is not Attempt end or a review-release transition.
+Detailed expiry/finalization, early closure, token revocation and camera-failure
+behavior remain OPEN; no new mandatory session state is approved by this diagram.
 
 ```mermaid
 stateDiagram-v2

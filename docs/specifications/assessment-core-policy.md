@@ -14,6 +14,14 @@ for this milestone. It does not claim implementation, contract freeze, CI
 success, or Wave 3 completion. Unresolved contract and product choices below
 must be resolved before dependent implementation.
 
+The subsequent [approved W3-A Leader decision](w3-a-publication-scheduling-monitoring-policy.md)
+expands Wave 3 to CLASS/PUBLIC scheduled Publications, positive bounded Attempt
+duration, and optional eligible CLASS Activity Evidence plus LiveKit camera
+monitoring. It supersedes the earlier blanket Proctoring exclusion and
+public-only/unbounded recommendations, while preserving ASSESS/GRADE policy.
+AI behavior analysis remains accepted future design, deferred beyond Wave 3.
+Product approval does not freeze the remaining API, privacy or security contracts.
+
 ## Objective and ownership
 
 The complete journey is:
@@ -23,10 +31,34 @@ The complete journey is:
 Quiz Service owns QuizDraft and immutable QuizVersion. Assessment Service owns
 Publication lifecycle/access, delivery snapshots, Attempts, submitted answers,
 grading, and results. Identity owns identities, roles, and sessions. Classroom
-continues to own membership/assignment concepts for later integration.
+owns class authority, membership and assignment eligibility, required for the
+Wave 3 CLASS journey. Proctoring owns monitoring sessions/evidence and LiveKit
+room/token orchestration; AI owns future monitoring integrations without becoming
+a Wave 3 dependency.
 
 Assessment Core stays separate from Quiz Authoring, Classroom orchestration,
-AI, Community, and Proctoring. No additional grading service is introduced.
+AI, Community, and Proctoring as service boundaries. Required Classroom
+authorization and optional CLASS monitoring integrate through approved service
+contracts, never shared databases. No additional grading service is introduced.
+
+### Accepted W3-A scope and remaining contracts
+
+Wave 3 requires `CLASS` and `PUBLIC` Publication flows, a bounded participation
+window for starting Attempts, and a positive bounded per-Attempt duration.
+Opening and schedule eligibility are distinct; do not add lifecycle states for
+scheduling. Window end alone neither finalizes active Attempts nor enables answer
+review. Start/end boundaries, duration limits, deadline formula, expiry, resumption
+and early closure still require accepted contracts. PUBLIC authentication and
+discovery also remain open; CLASS requires authoritative Teacher authorization
+and Student membership, which a shared URL cannot bypass.
+
+Eligible CLASS Publications may require the disclosed Activity Evidence and
+LiveKit camera bundle. W3-M1 and W3-M2 are required Wave 3 outcomes, separate from
+W3-A Publication implementation. No established A/B enum or monitoring default
+is implied. The W3-A decision defines privacy/security release gates, including
+camera refusal/loss/accommodations, scoped viewer access, retention/deletion and
+deployment review. AI behavior monitoring, media/audio recording, mandatory screen
+sharing, remote device control and automatic facial identification are excluded.
 
 ## Accepted Publication and visibility policy
 
@@ -37,10 +69,14 @@ AI, Community, and Proctoring. No additional grading service is introduced.
 | ASSESS-03 | An authenticated Attempt owner may immediately see their score after successful submission **and completed grading**. Submission alone does not prove grading completion. Teachers may view results for owned Publications under repository authorization conventions. |
 | ASSESS-04 | Correct answers and explanations are available only after the Publication is `CLOSED`, to eligible submitted Students reviewing their own Attempts. Backend enforcement is mandatory.                                                                                  |
 
-`DRAFT` is teacher preparation; `OPEN` admits eligible Students; `CLOSED`
+`DRAFT` is teacher preparation; `OPEN` permits starts only when audience and
+participation-window eligibility also pass; `CLOSED`
 prevents new Attempts. After opening, the QuizVersion reference cannot change
 and the Publication cannot return to `DRAFT`. Reopening is outside MVP.
 Publishing a QuizVersion does not open a Publication automatically.
+
+Participation-window end alone is neither durable `CLOSED` nor evidence that
+existing Attempts have completed; it never releases answer keys/explanations.
 
 The snapshot preserves exact source QuizVersion identity, question definitions
 and delivery order, protected correct-answer data, grading policy version, and
@@ -195,6 +231,10 @@ No intermediate calculation is rounded; final presentation remains GRADE-08.
   coherent; results refer to submitted answers and the pinned grading policy.
 - Active Attempts do not require Quiz Service availability or mutable drafts.
 
+CLASS requires authenticated authoritative membership. W3-A expressly leaves the
+PUBLIC authentication/eligibility contract OPEN; the authenticated-owner
+invariants above do not silently approve guest identity or settle ASSESS-14.
+
 Allowed attempt count, exact autosave revision/conflict semantics, submission
 cutoff, and treatment of in-progress Attempts at Publication closure are **not
 approved**. No dependent behavior may be inferred from `CLOSED` preventing new
@@ -301,18 +341,18 @@ permission for routine class/repository/component/locking choices. The
 [open-question register](../open-questions.md) records dependencies and explicitly
 non-binding recommendations.
 
-| Audit                           | Accepted source truth                                                                                                                                                                                                                                                                                                                                                                                                   | Remaining gap and dependency                                                                                                                                                                                                                                                                      |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A. Student eligibility/access   | [Assessment product: Audience](../product/assessment.md#audience), [MVP plan: Assessment Publication / delivery](../development/mvp-plan.md), and [roles/personas](../product/roles-and-personas.md) accept authenticated public access and class-restricted concepts in the broader MVP. Class access requires membership; roles alone do not establish membership. Wave 3 requires an authenticated eligible Student. | **OPEN — LEADER, ASSESS-14:** choose the bounded Wave 3 eligibility/discovery/access path. W3-A access fields and W3-B start depend on it. Full Classroom orchestration and guests are not silently added.                                                                                        |
-| B. Attempt count                | [Assessment product: Assessment publication](../product/assessment.md#assessment-publication) mentions maximum attempts but specifies no value. The approved Wave 3 guardrails explicitly leave count open.                                                                                                                                                                                                             | **OPEN — LEADER, ASSESS-10:** count/retry entitlement; W3-B start/resume. Concurrent-start locking is an engineering detail after entitlement is chosen.                                                                                                                                          |
-| C. Closure with active Attempts | ASSESS-01 blocks new Attempts once `CLOSED`; ASSESS-04 permits eligible submitted owner review after closure. Neither decides ongoing work.                                                                                                                                                                                                                                                                             | **OPEN — LEADER, ASSESS-13:** continue, finalize, or another explicit treatment. Blocks W3-A close semantics and W3-B save/submit/cutoff; consider review disclosure while other Attempts remain active.                                                                                          |
-| D. Autosave concurrency         | [AGENTS.md](../../AGENTS.md), [business rules 29–32](business-rules.md#attempt-correctness), and [assessment Attempts](../product/assessment.md#attempts) require stable order, stale-write prevention, and immutable submitted answers.                                                                                                                                                                                | **OPEN — ENGINEERING, ASSESS-11:** revision scope, duplicate retries, conflicts, reconciliation; W3-B API/client freeze. The invariant is already accepted.                                                                                                                                       |
-| E. Submit retry/finalization    | [AGENTS.md](../../AGENTS.md) and [business rules 31–32](business-rules.md#attempt-correctness) require idempotency and coherent submit/grading/result persistence. ASSESS-03 requires completed grading for score visibility.                                                                                                                                                                                           | **OPEN — ENGINEERING, ASSESS-16:** request/response replay, concurrent save/submit, persisted finalization identity, validation and retry recovery. W3-B/results depend on this; cutoff and closure are separate Leader choices.                                                                  |
-| F. Student numeric input        | GRADE-05 accepts exact decimal equality. [ADR-013](../decisions/ADR-013-numeric-fill-format.md) and [Quiz Markdown](quiz-markdown-spec.md#four-character-answer) constrain the published correct-answer token.                                                                                                                                                                                                          | **OPEN — LEADER/CONTRACT, GRADE-07:** Student grammar, normalization, unanswered/invalid input behavior. Blocks W3-B numeric submission and grading integration, not preservation of published keys.                                                                                              |
-| G. Score representation         | Equal maximum weights, deterministic totals, and no intermediate rounding are accepted. [Coding standards](../development/coding-standards.md#persistence) require decimal score arithmetic.                                                                                                                                                                                                                            | **OPEN — ENGINEERING, GRADE-08:** exact weights/storage/API and policy identifier. **OPEN — LEADER/CONTRACT:** rounding/display convention if a percentage is shown. Blocks grading/result API freeze; no re-vote on equal weights.                                                               |
-| H. Time limits/deadlines        | [Assessment: Time configuration](../product/assessment.md#time-configuration) permits unbounded ordinary non-proctored availability/duration and forbids retroactive shortening after Attempts begin; [business rules 24–28](business-rules.md#assessment-time-mutation) make server time authoritative.                                                                                                                | **OPEN — LEADER, ASSESS-17/12:** which allowed timing variant ships in Wave 3 and its submission cutoff/timeout rules. W3-A time fields and W3-B finalization depend on it. Baseline timeout diagrams are not approval of specific semantics.                                                     |
-| I. Quiz acquisition/integration | [ADR-003](../decisions/ADR-003-quiz-publication-model.md), [ADR-008](../decisions/ADR-008-service-to-service-authentication.md), and [ADR-014](../decisions/ADR-014-access-token-principal-and-authority-contract.md) accept self-contained snapshots, direct internal REST with Client Credentials, and USER/SERVICE separation. Existing Quiz endpoints are teacher USER only.                                        | **OPEN — ENGINEERING, ASSESS-15:** internal route/scope/schema, service registration/config, trusted source-owner enforcement, errors, and snapshot atomicity. W3-A opening depends on this. Broader source sharing would need a separate product decision.                                       |
-| J. Results/teacher review       | ASSESS-03/04 and [roles/personas](../product/roles-and-personas.md) permit Teachers to view owned Publication results, Students to view only their own results, and post-closure own submitted answer review. [API conventions](api-conventions.md) require backend authorization and explicit DTOs.                                                                                                                    | **OPEN — ENGINEERING:** result/list/review DTOs, errors, pagination, and backend projection tests under ASSESS-15/16. No permission is added for other Teachers, Student cross-owner reads, Admin bypass, or pre-closure learner answer review. Classroom gradebook integration remains separate. |
+| Audit                           | Accepted source truth                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Remaining gap and dependency                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. Student eligibility/access   | [Assessment product: Audience](../product/assessment.md#audience), [MVP plan: Assessment Publication / delivery](../development/mvp-plan.md), and [roles/personas](../product/roles-and-personas.md) accept authenticated public access and class-restricted concepts in the broader MVP. W3-A accepts both CLASS/PUBLIC. CLASS requires exactly one Classroom, authoritative Teacher assignment authorization and authenticated Student membership; roles/shared URLs do not establish membership. PUBLIC authentication/discovery remains OPEN. | **PARTIALLY RESOLVED, ASSESS-14:** CLASS/PUBLIC scope accepted. PUBLIC authentication/discovery remains OPEN — LEADER; CLASS verification mechanism remains OPEN — ENGINEERING. W3-A access and W3-B start depend on the respective contracts; guests/full Classroom orchestration are not inferred.            |
+| B. Attempt count                | [Assessment product: Assessment publication](../product/assessment.md#assessment-publication) mentions maximum attempts but specifies no value. The approved Wave 3 guardrails explicitly leave count open.                                                                                                                                                                                                                                                                                                                                       | **OPEN — LEADER, ASSESS-10:** count/retry entitlement; W3-B start/resume. Concurrent-start locking is an engineering detail after entitlement is chosen.                                                                                                                                                        |
+| C. Closure with active Attempts | ASSESS-01 blocks new Attempts once `CLOSED`; ASSESS-04 permits eligible submitted owner review after closure. Neither decides ongoing work.                                                                                                                                                                                                                                                                                                                                                                                                       | **OPEN — LEADER, ASSESS-13:** continue, finalize, or another explicit treatment. Blocks W3-A close semantics and W3-B save/submit/cutoff; consider review disclosure while other Attempts remain active.                                                                                                        |
+| D. Autosave concurrency         | [AGENTS.md](../../AGENTS.md), [business rules 29–32](business-rules.md#attempt-correctness), and [assessment Attempts](../product/assessment.md#attempts) require stable order, stale-write prevention, and immutable submitted answers.                                                                                                                                                                                                                                                                                                          | **OPEN — ENGINEERING, ASSESS-11:** revision scope, duplicate retries, conflicts, reconciliation; W3-B API/client freeze. The invariant is already accepted.                                                                                                                                                     |
+| E. Submit retry/finalization    | [AGENTS.md](../../AGENTS.md) and [business rules 31–32](business-rules.md#attempt-correctness) require idempotency and coherent submit/grading/result persistence. ASSESS-03 requires completed grading for score visibility.                                                                                                                                                                                                                                                                                                                     | **OPEN — ENGINEERING, ASSESS-16:** request/response replay, concurrent save/submit, persisted finalization identity, validation and retry recovery. W3-B/results depend on this; cutoff and closure are separate Leader choices.                                                                                |
+| F. Student numeric input        | GRADE-05 accepts exact decimal equality. [ADR-013](../decisions/ADR-013-numeric-fill-format.md) and [Quiz Markdown](quiz-markdown-spec.md#four-character-answer) constrain the published correct-answer token.                                                                                                                                                                                                                                                                                                                                    | **OPEN — LEADER/CONTRACT, GRADE-07:** Student grammar, normalization, unanswered/invalid input behavior. Blocks W3-B numeric submission and grading integration, not preservation of published keys.                                                                                                            |
+| G. Score representation         | Equal maximum weights, deterministic totals, and no intermediate rounding are accepted. [Coding standards](../development/coding-standards.md#persistence) require decimal score arithmetic.                                                                                                                                                                                                                                                                                                                                                      | **OPEN — ENGINEERING, GRADE-08:** exact weights/storage/API and policy identifier. **OPEN — LEADER/CONTRACT:** rounding/display convention if a percentage is shown. Blocks grading/result API freeze; no re-vote on equal weights.                                                                             |
+| H. Time limits/deadlines        | [W3-A scope](w3-a-publication-scheduling-monitoring-policy.md) requires bounded new-start windows and positive bounded duration for CLASS/PUBLIC. Opening, window end, Attempt deadlines and durable closure are distinct. The broader non-proctored unbounded baseline/no-retroactive-shortening rule remains documented; server time is authoritative.                                                                                                                                                                                          | **PARTIALLY RESOLVED, ASSESS-17/12:** bounded Wave 3 scope accepted. Fields/boundaries, duration limits, deadline formula, expiry/resumption/cutoff and manual closure remain OPEN before dependent W3-A/W3-B work. Future unbounded/practice support remains OPEN; baseline diagrams are not frozen semantics. |
+| I. Quiz acquisition/integration | [ADR-003](../decisions/ADR-003-quiz-publication-model.md), [ADR-008](../decisions/ADR-008-service-to-service-authentication.md), and [ADR-014](../decisions/ADR-014-access-token-principal-and-authority-contract.md) accept self-contained snapshots, direct internal REST with Client Credentials, and USER/SERVICE separation. Existing Quiz endpoints are teacher USER only.                                                                                                                                                                  | **OPEN — ENGINEERING, ASSESS-15:** internal route/scope/schema, service registration/config, trusted source-owner enforcement, errors, and snapshot atomicity. W3-A opening depends on this. Broader source sharing would need a separate product decision.                                                     |
+| J. Results/teacher review       | ASSESS-03/04 and [roles/personas](../product/roles-and-personas.md) permit Teachers to view owned Publication results, Students to view only their own results, and post-closure own submitted answer review. [API conventions](api-conventions.md) require backend authorization and explicit DTOs.                                                                                                                                                                                                                                              | **OPEN — ENGINEERING:** result/list/review DTOs, errors, pagination, and backend projection tests under ASSESS-15/16. No permission is added for other Teachers, Student cross-owner reads, Admin bypass, or pre-closure learner answer review. Classroom gradebook integration remains separate.               |
 
 Existing **ID-05** (Redis revocation outage behavior) remains a conditional
 security dependency for protected-service wiring. The near-immediate revocation
@@ -325,9 +365,12 @@ Do not silently settle ID-05 or make it a new scoring-policy question.
 Document and accept:
 
 1. Routes, commands, DTOs, error/status behavior, ownership rules, pagination,
-   lifecycle transition retries/concurrency, and allowed draft edits.
-2. The MVP audience/eligibility/access path; do not assume guest participation
-   or classroom membership integration from broader product baseline examples.
+   lifecycle transition retries/concurrency, and allowed draft edits, including
+   CLASS/PUBLIC audience, exactly one Classroom for CLASS, participation schedule,
+   positive duration and the monitoring configuration contract.
+2. Authoritative CLASS Teacher authorization/membership verification, fail-closed
+   privileged checks, and the still-open PUBLIC authentication/discovery contract;
+   do not infer guest participation or a monitoring mode/default.
 3. Exact QuizVersion identity, protected internal handoff scope/DTO and source
    access enforcement, failure behavior, and the atomic opening transaction.
 4. Assessment-owned Publication/snapshot schema, constraints, stable item IDs/
@@ -396,12 +439,22 @@ Minimum W3-A verification before implementation merge:
 - Browser → Gateway → Identity/Quiz/Assessment E2E for Teacher selection/create/
   open/close and accepted entry states; verify delivery stays self-contained
   during Quiz outage when W3-B is integrated. Distinguish mocks from real topology.
+- CLASS ownership/membership verification and denial/outage cases, including
+  shared-URL bypass attempts; PUBLIC entry according to its approved contract.
+- Timezone-safe schedule validation, authoritative start-window boundaries and
+  positive duration; distinguish opening, window end, Attempt deadline and closure.
+- Monitoring configuration rejects PUBLIC/ineligible use and exposes the accepted
+  Student notice. W3-M1/M2 separately verify evidence, real camera permissions,
+  Teacher isolation, prohibited peer subscriptions, failure handling and release gates.
 
 **W3-A readiness:** inventory is ready for contract review, not feature coding.
-ASSESS-14, ASSESS-13 for close, and ASSESS-17 if timing fields are included need
-Leader choices. ASSESS-15 engineering contracts and conditional ID-05 security
-handling need review. W3-B count/numeric/submit contracts need not block unrelated
-W3-A design work, but must be resolved before their dependent implementation.
+CLASS/PUBLIC and bounded scheduling/duration scope are accepted. Remaining
+ASSESS-14 PUBLIC access, ASSESS-13 closure and ASSESS-17 detailed timing choices
+must be resolved where dependent. ASSESS-15 engineering contracts, CLASS authority
+verification and applicable ID-05 handling need review; required privileged
+checks must fail closed when authority cannot be verified. W3-B count/numeric/
+submit and W3-M privacy/configuration contracts need not block unrelated W3-A
+design work, but must be resolved before their dependent implementation/release.
 
 ### W3-B — Attempt/autosave/submit contract before coding
 
@@ -411,7 +464,7 @@ start/resume/answer/submit request and response semantics, retries/concurrency,
 validation for each question type, persistence/transaction boundaries, and
 student-safe delivery. Resolve Student numeric input compatibility explicitly.
 
-### Grading/results contract before coding
+### W3-C — Grading/results contract before coding
 
 Freeze exact scoring/storage/API/display representation and the version 1 policy
 identifier, then result/review DTOs and authorization. Keep accepted scoring and
@@ -424,9 +477,12 @@ visibility fixed; a contract must not weaken policy for implementation convenien
 3. Implement Publication backend/frontend.
 4. Freeze W3-B Attempt/autosave/submit contracts.
 5. Implement Attempt backend/frontend.
-6. Implement grading, results, and visibility against frozen contracts.
-7. Run complete real-topology E2E.
-8. Close Wave 3 only after its Definition of Done is met.
+6. Freeze W3-C contracts and implement grading, results and visibility.
+7. Freeze and deliver W3-M1 Activity Monitoring and W3-M2 LiveKit camera monitoring
+   in separate bounded workstreams, satisfying privacy/security release gates.
+8. Run complete real-topology E2E for CLASS/PUBLIC, timing and enabled/disabled
+   eligible CLASS monitoring; include real browser camera permissions and failures.
+9. Close Wave 3 only after the W3-A Leader decision's Definition of Done is met.
 
 Verification must cover immutable snapshot isolation, continued delivery during
 Quiz outage, ownership/role/service-principal denials, absence of hidden answers
@@ -443,8 +499,11 @@ alone does not satisfy those gates.
 
 ## MVP exclusions
 
-AI/manual grading, negative marking, advanced scoring, randomized question banks,
-full realtime supervision, Proctoring/LiveKit, advanced Classroom orchestration,
-rich analytics, answer review before closure, and retrospective automatic
-regrading are excluded. Broader baseline features do not expand Wave 3 scope
-without an explicit accepted decision.
+AI/manual grading, AI behavior inference/detectors/risk scoring/alerts, negative
+marking, advanced scoring, randomized question banks, media/audio recording,
+mandatory/strict screen sharing, remote device control, automatic facial
+identification, advanced Classroom orchestration, rich analytics, answer review
+before closure and retrospective automatic regrading are excluded. Required
+Activity Evidence and LiveKit camera monitoring for optional eligible CLASS
+Publications are included under the subsequent W3-A decision. Preserve future AI
+monitoring documentation and extension points without making AI a closure gate.

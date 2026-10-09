@@ -4,7 +4,7 @@
 >
 > **Last updated:** 2026-10-09
 >
-> **Checkpoint baseline:** `develop @ 836194688316360a28e7c6a4335033890a4805f6` (PR #71)
+> **Checkpoint baseline:** inspected `origin/develop @ 0290c6f6d05e733356fd7ea5ae512b3d80ea4a0f` (PR #72)
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -99,7 +99,7 @@ Wave 2 has:
 
 Wave 2 remaining: **none for milestone closure**.
 
-### Wave 3 — Assessment Core
+### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
 **Status: CURRENT — PRODUCT POLICY APPROVED; CONTRACT DOCUMENTATION FIRST.**
 
@@ -109,32 +109,73 @@ opening atomically pins a self-contained snapshot and policy version 1; owner
 score requires successful submit and completed grading, while answer/explanation
 review requires Publication closure and an eligible submitted owner.
 
-Assessment remains a scaffold: no Publication/Attempt/grading business
-implementation or contracts are frozen. Next: freeze W3-A Publication API/data,
-audience/access, and authenticated QuizVersion handoff contracts, then implement
-Publication backend/frontend. W3-B attempt count, autosave revisions, submission
-cutoff, and closure handling remain undecided. Student numeric input and exact
-score representation/display also require accepted contracts before dependent
-implementation. Product policy approval is not implementation/CI/E2E evidence.
+The subsequent [W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md)
+requires CLASS and PUBLIC, bounded participation windows for NEW Attempt starts
+and positive bounded duration. Publication lifecycle, start-window eligibility
+and individual deadlines remain distinct: opening is not participation start,
+and window end is neither closure nor all active Attempts finishing or review
+authorization. CLASS references exactly one Classroom; authoritative Teacher
+assignment authorization and Student membership are required in W3-A/B, including
+shared URLs. Broader Classroom creation/invites/gradebook may remain MVP-C.
 
-The policy specification now includes the A–J source audit, normative grading
-examples, exact existing-route/model inventory, and Dev1/Dev2 W3-A handoff. Its
-endpoint inventory is **PROPOSED**. Closure affects W3-A close as well as W3-B;
-timing scope and conditional ID-05 revocation outage handling also need resolution
-before dependent work. Engineering contract gaps are distinct from Leader
-product/security decisions; non-binding recommendations are in open questions.
+Eligible CLASS Publications may enable the disclosed Activity Evidence + LiveKit
+camera bundle. W3-M1 and W3-M2 are required Wave 3 outcomes. PUBLIC, unbounded and
+practice Proctoring are prohibited. No accepted A/B enum or default is implied.
+Proctoring owns evidence/session/room/token orchestration; Assessment owns Attempt
+validity, deadlines, answers and grades; Classroom owns class authority/membership.
+
+Assessment and Proctoring remain scaffolds; no Publication/Attempt/grading or
+monitoring product implementation is claimed. Next bounded workstreams:
+
+1. W3-A: freeze API/data, CLASS verification, PUBLIC access, authenticated
+   QuizVersion handoff and timing contracts; deliver Publication backend/Teacher UX.
+2. W3-B: freeze count/resume, autosave revisions, deadline/expiry, early-close and
+   retry-safe submit contracts; deliver Student lifecycle and membership checks.
+3. W3-C: preserve accepted grading/visibility; freeze Student numeric syntax and
+   exact score representation/display/policy identity; deliver grading/results.
+4. W3-M1/M2: freeze monitoring configuration/default, evidence schema/transport/
+   retention, sanitized Assessment integration, scoped session/token revocation,
+   camera refusal/loss/accommodations and production LiveKit/privacy contracts;
+   deliver durable evidence/Teacher dashboard and real camera/Teacher video grid.
+5. Verify real CLASS/PUBLIC journeys, bounded timing and monitoring enabled/disabled,
+   then close Wave 3 only after canonical DoD, CI/security and review gates pass.
+
+PUBLIC authentication/eligibility/discovery remains OPEN despite audience approval.
+Bounded timing scope is approved; start-plus-duration deadline formula, exact
+boundaries, duration limits, expiry/resumption and early-close behavior remain
+OPEN. Count/autosave/submit, GRADE-07/08 and unresolved PROCTOR-01..09 contracts
+remain gates before dependent implementation. AI behavior monitoring, recording
+and mandatory/strict screen sharing are deferred; functioning AI is not Wave 3 DoD.
+
+Monitoring acceptance requires pre-start disclosure, real browser camera permission
+and visible capture, truthful refusal/device/permission-loss/reconnect states,
+authorized Teacher-only viewing and Student peer-subscription isolation, scoped
+access/revocation and ending sessions with eligible Attempts. Monitoring failures
+must not corrupt answers/submissions/results, change grades or alter authoritative
+deadlines. Browser signals do not prove misconduct or automatically fail/sanction.
+REST remains authoritative; LiveKit/DataChannels never persist authoritative answers.
+Real-learner enablement requires the [canonical privacy/accessibility/security gates](../specifications/w3-a-publication-scheduling-monitoring-policy.md#11-w3-a10--privacy-accessibility-and-security),
+including no recording; camera refusal/loss outcomes remain OPEN.
+
+ID-05 remains conditional for protected-service revocation wiring: Redis lookup
+outage fail-open/fail-closed/degraded behavior remains OPEN; JWT validation alone
+does not implement near-immediate revocation. Required privileged checks fail
+closed when authority cannot be verified, without settling every ID-05 path.
+The Assessment policy's A–J audit/examples and W3-A endpoint inventory are contract
+inputs; proposed endpoints are not frozen APIs. Product approval and this docs-only
+reconciliation are not new implementation, CI or E2E evidence.
 
 ## 3. Current accepted `develop` checkpoint
 
 Current accepted checkpoint:
 
-`develop = 836194688316360a28e7c6a4335033890a4805f6`
+`origin/develop = 0290c6f6d05e733356fd7ea5ae512b3d80ea4a0f` (PR #72)
 
-This checkpoint includes the earlier Quiz/Identity foundation and PR #71
-(FE-05–FE-09 editor UX, math, navigation, and registration OTP; the merge came
-from the frontend corporate trust redesign branch). Wave 2 closure here is the
-Leader's milestone decision. Local and freshly fetched `origin/develop` match;
-this documentation task does not claim a new CI or real-topology E2E run.
+PR #72 adds the Assessment policy/contract documentation foundation; PR #71
+(`8361946`) Wave 2 closure remains preserved. The subsequent approved W3-A scope
+expands the required delivery plan, not the implemented capabilities at this
+checkpoint. Product approval must not be reported as merged feature evidence.
+No new CI or real-topology E2E run is claimed by this reconciliation.
 
 Important merged checkpoints:
 
@@ -162,6 +203,7 @@ Important merged checkpoints:
 | #69 | `3684ecb`    | Published QuizVersion history/preview frontend                            |
 | #70 | `00265c3`    | Frontend navigation/authoring polish                                      |
 | #71 | `8361946`    | FE-05–FE-09 editor UX, math, navigation, registration OTP; Wave 2 closure |
+| #72 | `0290c6f`    | Wave 3 Assessment policy/contract documentation foundation                |
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
@@ -236,7 +278,8 @@ Current foundation includes:
 - no fake Identity users;
 - local Classroom database ownership.
 
-Broader Classroom product flows remain later work.
+W3-A/B must integrate authoritative Teacher assignment authorization and Student
+membership now. Broader creation/invites/discovery/gradebook UX remains MVP-C.
 
 ## 5. Completed Wave 2 workstreams (historical)
 
@@ -418,13 +461,15 @@ Quiz/import:
 - offline exam DOCX format;
 - AI generation.
 
-Assessment Core is now the current Wave 3 scope, governed by the accepted policy
-and contract gates in section 2. Guest assessment identity/access remains outside
-that approval and must not be inferred from the broader baseline.
+Assessment plus optional eligible CLASS monitoring is current Wave 3 scope,
+governed by section 2 and the W3-A decision. PUBLIC authentication/discovery is
+still OPEN; guest identity/access must not be inferred from audience approval.
 
 Later product areas:
 
-- realtime/proctoring;
+- AI behavior monitoring/inference, media/audio recording and mandatory/strict
+  screen sharing; preserve future Proctoring design and extension points;
+- broader product realtime beyond required W3-M1/M2;
 - Community;
 - Practice/flashcards;
 - AI tutor/generation.
@@ -437,10 +482,10 @@ cut defined in `docs/development/mvp-plan.md`.
 
 - **Wave 1 — Foundation:** CLOSED
 - **Wave 2 — Auth + Quiz Authoring Core:** CLOSED at PR #71
-- **Wave 3 — Assessment Core:** CURRENT; Publication/delivery, Attempt, autosave, submit, grading, results, and visibility under accepted policy
-- **Minimal Classroom product integration:** separate MVP-C workstream; not implicitly included in the Wave 3 policy
+- **Wave 3 — Assessment + eligible CLASS monitoring:** CURRENT; W3-A CLASS/PUBLIC, bounded schedule/duration, snapshot and CLASS Teacher authority; W3-B membership/Attempt/autosave/submit; W3-C unchanged grading/results; required W3-M1 Activity Evidence and W3-M2 LiveKit camera monitoring
+- **Broader minimal Classroom product integration:** MVP-C creation/invites/discovery/gradebook; W3-A/B mandatory eligibility is earlier
 - **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
-- **Wave 4 — Realtime + Proctoring:** post-MVP unless explicitly promoted
+- **Wave 4 — broader Realtime + future Proctoring:** post-MVP; AI behavior monitoring and any separately approved recording/strict screen-sharing evolution, beyond required W3-M1/M2
 - **Wave 5 — Community + Practice + AI:** post-MVP unless explicitly promoted
 - **Wave 6 — broader product hardening / release evolution**
 
@@ -448,10 +493,10 @@ The first MVP does **not** require completion of Waves 4–5. The authoritative
 MVP delivery path, scope tiers, blockers, and release journeys are maintained in
 `docs/development/mvp-plan.md`.
 
-Before dependent Wave 3 implementation, freeze the relevant W3-A/W3-B and
-grading/result contracts. ASSESS-01 through ASSESS-04 and GRADE-01 through
-GRADE-06 product policy is resolved; remaining contract/Attempt-policy gates are
-tracked separately in `docs/open-questions.md`.
+Before dependent implementation, freeze W3-A/B/C and W3-M1/M2 contracts and satisfy
+canonical monitoring release gates. ASSESS-01..04, GRADE-01..06 and W3-A scope are
+approved; detailed PUBLIC/timing/Attempt/monitoring gates remain OPEN in the
+canonical decision and `docs/open-questions.md`.
 
 ## 11. Current development workflow
 

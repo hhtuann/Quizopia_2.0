@@ -168,6 +168,14 @@ All Attempts in that Publication use the finalized snapshot, including its pinne
 grading policy. The accepted details and remaining API/data contract gates are in
 [Assessment Core policy](../specifications/assessment-core-policy.md).
 
+The subsequent [W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md)
+adds CLASS/PUBLIC, bounded participation scheduling and positive Attempt duration
+to Wave 3. Classroom owns authoritative Teacher/member eligibility; Proctoring
+owns Activity Evidence and LiveKit session/token orchestration for optional
+eligible CLASS monitoring. These are required Wave 3 outcomes with separate
+service boundaries. AI behavior analysis remains accepted future design, deferred
+after Wave 3; no monitoring outage may corrupt answers/results or extend deadlines.
+
 ## Local development
 
 Default workflow is hybrid:

@@ -119,6 +119,7 @@ Use `scripts/verify.ps1` or `scripts/verify.sh` for the complete local gate.
 - Product: [`docs/product/`](docs/product/)
 - Architecture: [`docs/architecture/`](docs/architecture/)
 - Specifications: [`docs/specifications/`](docs/specifications/)
+- Approved Wave 3 Publication, scheduling and monitoring scope: [`W3-A Leader decision`](docs/specifications/w3-a-publication-scheduling-monitoring-policy.md)
 - ADRs: [`docs/decisions/`](docs/decisions/)
 - Development: [`docs/development/`](docs/development/)
 - Open questions: [`docs/open-questions.md`](docs/open-questions.md)
