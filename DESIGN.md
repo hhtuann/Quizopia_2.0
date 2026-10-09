@@ -485,7 +485,7 @@ Backend/Gateway/service authorization remains authoritative.
 
 Normal authenticated application pages use one user control in the navbar that
 shows a deterministic avatar fallback, username, and current Learning/Teaching
-workspace. Its accessible menu owns account-settings intent, permitted
+workspace. The avatar-to-pill outer inset is symmetric on the left, top and bottom, with visually concentric rounded borders. Its accessible menu owns account-settings intent, permitted
 workspace switching, and sign out. Do not add a second standalone workspace
 strip or a separate navbar sign-out button.
 
@@ -506,10 +506,7 @@ Description belongs in the pre-publication interaction rather than occupying
 the permanent editor workspace. QuizVersion publication must not be presented
 as Assessment timing, audience, or classroom configuration.
 
-The editor and preview panes use one shared header hierarchy: matching
-Plus Jakarta Sans bold titles plus matching Plus Jakarta Sans helper size, color, line height, and
-spacing. Pane headers should align visually even when helper copy lengths
-differ.
+The editor and preview panes use compact, title-first headers with aligned content-start positions. Do not show internal implementation notes or backend validation disclaimers as persistent helper copy. Preserve accessible descriptions wherever they remain meaningful, without reserving unnecessary blank space.
 
 The source pane behaves like a focused code editor while preserving exact
 authoring text. Tab accepts a visible completion; otherwise it inserts a literal
@@ -838,7 +835,7 @@ Routine state changes do not always need celebratory UI.
 
 # 16. Navigation
 
-Navigation should be stable and predictable.
+Navigation should be stable and predictable. Marketing and application navigation should remain visible while the surrounding page scrolls, using a single sticky header or an equivalent already-persistent application shell. Never stack duplicate sticky headers or clip menus with overflow containers.
 
 Rules:
 
@@ -859,6 +856,8 @@ Use `lucide-react` as the Corporate Trust icon language where available in the r
 Do not add another icon library for isolated features without justification.
 
 ## 17.2 Style
+
+Use accessible, reusable inline SVG icon components for functional controls and meaningful UI metaphors (including Create quiz, directional CTA arrows and the Learning workspace book). Do not render ASCII/Unicode punctuation, emoji, wingdings or arbitrary text glyphs as substitute UI icons. Preserve literal punctuation when it is actual content, mathematics, code or teacher-authored Quiz Markdown.
 
 - default stroke width: approximately 2px
 - inline: 16px
@@ -1094,6 +1093,9 @@ Do not duplicate a primitive that already exists in the project.
 
 Authentication pages should:
 
+- keep a stable desktop Welcome panel across Login, Register and Verify Email, with independent form scrolling only where height demands it; mobile/tablet should scroll naturally;
+- use visually hidden but operational auth scrollbars, retaining keyboard/touch scrolling and focus visibility;
+- display an accessible six-digit OTP field with paste, keyboard navigation, one-time-code autofill where supported, and a single-string API payload;
 - be calm and focused;
 - keep one dominant primary action;
 - avoid excessive decorative motion;
@@ -1138,6 +1140,10 @@ The editor uses the full available application width instead of forcing the mark
 
 Editor UI prioritizes:
 
+- compact title-only pane headers, with the Markdown frame and first preview card aligned at their top edges;
+- compact question-card rhythm, without a redundant Source control when the entire card offers equivalent accessible source navigation;
+- a legible `Quiz title` label (approximately 14px, semibold) and Save status integrated into the Save button (Save, Saving…, Saved, Retry save), with error detail still available accessibly;
+- Back navigation to the Quiz Library (`/app/quizzes`) while preserving unsaved-changes protection;
 - authoring speed
 - stable layout
 - content readability
@@ -1302,4 +1308,61 @@ A user should recognize the Corporate Trust template from buttons, typography, d
 - Verify contrast **at both ends and middle of gradients** and in hover/disabled states; do not assume white on Violet 600 always satisfies every text-size threshold.
 - Use real app states in screenshots, including library, editor, auth, empty/error/loading, and any implemented Learning/Teaching screens. Prefer visual regression coverage for shared primitives and page chrome.
 - Distinguish documented exceptions from accidental design drift. Any further deviation from this signature needs an explicit reason, documented here rather than silently normalized.
+
+---
+
+# 31. UI Interaction & Product Contract Safeguards (FE-05–FE-09)
+
+This section records approved **interaction/design intentions**, not permission to bypass the authoritative domain contracts, authentication architecture, or server validation. Implement screens using shared primitives, clear semantics, and regression tests; do not treat screenshots as the sole acceptance criterion.
+
+## 31.1 SVG icons and directional affordances (FE-06)
+
+- Use the shared, Lucide-style SVG icon primitives for CTA arrows, plus/minus signs used as controls, Learning (`BookOpen`), Teaching/authoring, and other functional metaphors. Maintain the canonical lightning-bolt Quizopia logo.
+- Never substitute raw `+`, `→`, `↗`, emoji, or special characters for graphical UI controls. Literal prose, code, source Markdown, mathematical operators, and user-authored data are not icons and must not be rewritten.
+- Give icon-only controls accessible names; mark decorative icons hidden from assistive technology. Keep meaningful link/button accessible names stable.
+- CTA directional icons may translate a few pixels and Create quiz's plus icon may rotate gently on hover/focus. Prefer transform-only 150–200ms transitions, no layout shift, and honor `prefers-reduced-motion`. Use shared variants instead of one-off CSS.
+
+## 31.2 Persistent page navigation and user-control geometry (FE-07)
+
+- Landing, application dashboard, and quiz library maintain one visible sticky navigation bar during document scrolling. Quiz Editor keeps its toolbar persistently available using the existing viewport-filling layout; do not stack a second sticky element.
+- Header backgrounds remain readable over scrolling content (subtle translucent surface/backdrop blur and border/shadow as needed). Header height, layers, focus order, and dropdown overflow must remain stable at mobile/tablet/desktop sizes. Dialogs and menus must appear above the header.
+- The authenticated avatar/pill presents visually equal left/top/bottom outer inset around the circular avatar; derive pill height and border radius from avatar size plus symmetric padding. Align username, workspace indicator and chevron without changing menu behavior.
+- No fixed/sticky navigation is added to the independent Login/Register/Verify Email welcome/form layout solely for consistency.
+
+## 31.3 Session-aware navigation and sign-out (FE-08)
+
+- Authenticated application logo/home links lead to `/app`; public-state brand links lead to `/`. Accessing public landing while authenticated must offer workspace/dashboard navigation instead of exclusively asking the user to register or sign in.
+- Decide visibility from the actual AuthProvider session state, not token presence in browser storage. During session bootstrap, do not flash misleading logged-out CTAs. An unavailable/failed bootstrap must not impersonate an authenticated user.
+- On **confirmed successful** sign-out, navigate with history replacement to `/login`. On failed sign-out, preserve truthful session/error handling and do not redirect as though the operation succeeded. Guard duplicate submission.
+- Browser Back, reload, and direct protected-route access must not expose authenticated content after logout. Keep existing server-side authorization, refresh/revocation, and security boundaries unchanged.
+
+## 31.4 Compact focused authoring UI (FE-05)
+
+- The source and preview panes use equally aligned compact title-only headers. Remove internal technical/helper paragraphs from the permanent authoring workspace; the Markdown frame and first question card begin at matching vertical positions at desktop sizes in comparable states.
+- Preview cards use measured, compact padding/gaps between question heading, stem, answers and explanation, retaining accessible tap targets and text readability. Remove a separate `Source` link only if equivalent click and keyboard navigation remains discoverable and operable without nested conflicting interactive elements.
+- The toolbar uses an approximately 14px semibold `Quiz title` label and keeps the title input/Save/Publish responsive. Display Save status **in the Save action**, not as an extra `Saved`/`Unsaved changes` label. Map pristine/dirty/saving/saved/error states to accessible Save, Saving…, Saved, Retry save variants and keep detailed errors in visible live announcements.
+- Back returns to `/app/quizzes`; unsaved-change prompts remain intact. Publishing validation and all exact-source/caret/tab/completion/scroll/correctness operations remain authoritative and regression-tested.
+
+## 31.5 Mathematics and LaTeX (FE-05, cross-contract feature)
+
+- Desired rich-content UX: inline `$...$` and display `$$...$$` math render as proper typeset formulas inside question stems, choice content, explanations, and published-version views **after** the Quiz Markdown grammar contract has explicitly accepted them.
+- **Design alone does not authorize grammar expansion.** `docs/specifications/quiz-markdown-spec.md` currently excludes LaTeX/math rendering. Any implementation must update/obtain acceptance for that spec and then verify both frontend preview and authoritative backend publication consistently accept exactly the agreed syntax.
+- Preserve byte-for-byte teacher source; do not interpret dollar syntax in fenced/inline code; safely handle malformed math and literal currency; never execute untrusted HTML, scripts, macros or network requests. Use a safe supported math renderer without trust mode.
+- Do not alter existing question marker semantics, correctness editing, NUMERIC_FILL exact four-character answer rules, or already-published immutable QuizVersions. Update schema/version only if representation changes require it, with explicit migration/compatibility analysis.
+- Do not ship a frontend-only illusion of accepted LaTeX if the backend still rejects publication.
+
+## 31.6 Registration and OTP experience (FE-09, cross-contract security change)
+
+- Successful Create account should create a pending account and **durably issue its first six-digit email OTP** without requiring the user to press Resend first. Email delivery stays asynchronous through Identity's transactional outbox; never block registration on SMTP or generate an OTP in the browser.
+- Requested policy: a **60-second server-enforced OTP validity window** and a **60-second resend cooldown**, retaining five failed attempts and existing issuance/rate limits unless an accepted policy revision states otherwise. This changes the currently accepted 10-minute OTP policy and requires an explicit Identity architecture/specification update and leader approval before merge. Access-token JWT TTL is unrelated.
+- Each successfully issued replacement immediately supersedes the previous OTP and its eligible pending outbox work. Rejected/anonymous-no-op requests, cooldown, or throttling must **not** invalidate a still-valid existing OTP. Preserve anti-enumeration responses and exact stored identity semantics.
+- Display verification/resend feedback truthfully: a generic `202 VERIFICATION_REQUEST_ACCEPTED` does **not** guarantee a new OTP was issued or sent. Avoid resetting an on-screen countdown unless server-authoritative issuance timing can be established without exposing protected account state. Account for email latency and the short validity window.
+- Update the verification email template to match actual expiry, not the previous ten-minute claim. Preserve OTP hash-only challenge, encrypted outbox payload, safe logging, send fence, concurrency and retry rules.
+- Backend registration, verification, resend, invalidation, time-boundary and Mailpit integration tests must accompany the policy/workflow change; update accepted domain docs (especially `docs/architecture/authentication.md` and `docs/development/identity-email-verification-core.md`) rather than treating DESIGN.md as their replacement.
+
+## 31.7 Definition of visual and behavioral acceptance
+
+- Verify at 375px mobile, 768px tablet, 1280px desktop, and wide desktop with real scroll/overflow states. Check sticky offsets, keyboard/focus and accessible names, avatar inset geometry, quiz pane top alignment, condensed card density, save-state transitions, and session-aware CTA/navigation across bootstrapping/authenticated/anonymous/logout states.
+- Cover valid/invalid/expired/reissued OTP flows with a controllable server clock; no fixed real-time test sleeps for the 60-second boundary. Outbox assertions must prove no SMTP before commit and no issuance after a failed registration transaction.
+- Where a requested feature changes an accepted backend policy or grammar, record the explicit conflict and required approval in the PR before merge. Do not silently claim that the UI design document overrules the architecture or quiz specification.
 
