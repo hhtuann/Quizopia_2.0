@@ -217,6 +217,22 @@ class IdentityAuthHttpIntegrationTest {
         assertEquals(
                 "PENDING_EMAIL_VERIFICATION",
                 text("SELECT account_status FROM user_account WHERE username = ?", username));
+        assertEquals(
+                1L,
+                count(
+                        "SELECT COUNT(*) FROM email_verification_challenge challenge "
+                                + "JOIN user_account account ON account.id = challenge.user_id "
+                                + "WHERE account.username = ?",
+                        username));
+        assertEquals(1L, count("SELECT COUNT(*) FROM email_verification_issuance WHERE email = ?", email));
+        assertEquals(
+                1L,
+                count(
+                        "SELECT COUNT(*) FROM email_verification_email_outbox outbox "
+                                + "JOIN email_verification_issuance issuance ON issuance.id = outbox.issuance_id "
+                                + "WHERE issuance.email = ? AND outbox.state = 'PENDING' "
+                                + "AND outbox.ciphertext IS NOT NULL AND outbox.nonce IS NOT NULL",
+                        email));
         assertEquals(0L, count("SELECT COUNT(*) FROM refresh_token_family"));
         assertNoCredentialResponse(response, "registration-secret");
     }
@@ -1171,8 +1187,9 @@ class IdentityAuthHttpIntegrationTest {
 
     private String registerPending(String prefix, String email) {
         String username = username(prefix);
-        ResponseEntity<String> response = register(username, email, "registration-secret-" + UUID.randomUUID());
-        assertEquals(HttpStatus.ACCEPTED, response.getStatusCode());
+        UserAccountEntity pending = new UserAccountEntity(email, username);
+        pending.setAccountStatus(AccountLifecycleStatus.PENDING_EMAIL_VERIFICATION);
+        userAccountRepository.saveAndFlush(pending);
         return username;
     }
 

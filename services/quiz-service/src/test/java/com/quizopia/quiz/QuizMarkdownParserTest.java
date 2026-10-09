@@ -26,7 +26,8 @@ class QuizMarkdownParserTest {
 
     @Test
     void preservesDisplayMathWithoutInterpretingStructuralMarkers() {
-        String source = """
+        String source =
+                """
                 Câu 1 [SINGLE_CHOICE]: Compute $x^2$
                 $$
                 Câu 99 [NUMERIC_FILL]: x^2
@@ -56,8 +57,8 @@ class QuizMarkdownParserTest {
     @Test
     void rejectsUnterminatedDisplayMathWithSourceLine() {
         QuizMarkdownParseResult result = parser.parse("Câu 1 [NUMERIC_FILL]: x\n$$\nCâu 2 [NUMERIC_FILL]: fake");
-        assertTrue(result.errors().stream().anyMatch(error ->
-                error.code().equals("UNCLOSED_MATH_BLOCK") && error.line() == 2));
+        assertTrue(result.errors().stream()
+                .anyMatch(error -> error.code().equals("UNCLOSED_MATH_BLOCK") && error.line() == 2));
     }
 
     @Test
