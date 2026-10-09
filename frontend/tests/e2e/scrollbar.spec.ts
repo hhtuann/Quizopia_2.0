@@ -156,6 +156,7 @@ test("document scrollbar uses gradient thumb and stable root gutter", async ({
         .backgroundImage,
       width: document.body.getBoundingClientRect().width,
       overflow: root.scrollWidth > innerWidth,
+      scrollable: root.scrollHeight > innerHeight,
     });
     const initial = read();
     root.style.overflowY = "hidden";
@@ -167,9 +168,18 @@ test("document scrollbar uses gradient thumb and stable root gutter", async ({
   });
   expect(result.initial.gutter).toBe("stable");
   expect(result.initial.scrollbar).toBe("7px");
-  expect(result.initial.thumb).toContain("linear-gradient");
-  expect(result.initial.thumb).toContain("rgb(79, 70, 229)");
-  expect(result.initial.thumb).toContain("rgb(124, 58, 237)");
+  // The browser may leave the native thumb hovered (e.g. when the pointer
+  // starts over the scrollbar in CI). Both authored states are intentional.
+  // Require a full gradient with exactly the default OR hover token pair.
+  expect(result.initial.thumb).toMatch(
+    /^linear-gradient\((?:180deg,\s*)?rgb\(\d+, \d+, \d+\), rgb\(\d+, \d+, \d+\)\)$/,
+  );
+  const stops = result.initial.thumb.match(/rgb\(\d+, \d+, \d+\)/g);
+  expect([
+    ["rgb(79, 70, 229)", "rgb(124, 58, 237)"], // primary → secondary
+    ["rgb(67, 56, 202)", "rgb(109, 40, 217)"], // hover tokens
+  ]).toContainEqual(stops);
+  expect(result.initial.scrollable).toBe(true);
   expect(Math.abs(result.initial.width - result.hidden.width)).toBeLessThan(1);
   expect(Math.abs(result.initial.width - result.restored.width)).toBeLessThan(
     1,
