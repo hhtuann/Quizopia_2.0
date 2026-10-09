@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
+import { BookOpenIcon } from "../ui/icons";
 
 const workspaceLabels = {
   LEARNING: "Learning",
@@ -200,6 +201,7 @@ export function AuthenticatedUserMenu() {
               role="menuitem"
               type="button"
             >
+              <BookOpenIcon className="mr-2 size-4 shrink-0" />
               Switch to Learning
             </button>
           ) : null}

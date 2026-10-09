@@ -188,16 +188,90 @@ test("verification supports generic resend and confirms a six-digit OTP without 
   });
   await page.goto("/verify-email?username=learner01");
 
-  const code = page.getByLabel("Verification code");
-  await expect(code).toHaveAttribute("inputmode", "numeric");
-  await expect(code).toHaveAttribute("maxlength", "6");
+  const code = page.getByRole("textbox", { name: /Verification code digit/ });
+  await expect(code).toHaveCount(6);
+  await expect(code.first()).toHaveAttribute("inputmode", "numeric");
   await page.getByRole("button", { name: "Resend code" }).click();
   await expect(page.getByRole("status")).toContainText(
     "If a verification code can be issued",
   );
 
-  await code.fill("123456");
+  await code.first().fill("123456");
+  await expect(code.nth(5)).toHaveValue("6");
   await page.getByRole("button", { name: "Verify email" }).click();
 
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("OTP supports keyboard editing, full paste, validation, failure and retry", async ({
+  page,
+}) => {
+  await mockAnonymousBootstrap(page);
+  let attempts = 0;
+  await page.route("**/api/auth/email-verification/confirm", async (route) => {
+    attempts += 1;
+    expect(route.request().postDataJSON()).toEqual({
+      username: "learner01",
+      otp: "123456",
+    });
+    await route.fulfill(
+      attempts === 1
+        ? {
+            status: 400,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "AUTH_VERIFICATION_FAILED",
+              status: 400,
+              message: "Invalid verification code",
+              path: "/api/auth/email-verification/confirm",
+              traceId: null,
+            }),
+          }
+        : { status: 204 },
+    );
+  });
+  await page.goto("/verify-email?username=learner01");
+  const slots = page.getByRole("textbox", { name: /Verification code digit/ });
+  await page.getByRole("button", { name: "Verify email" }).click();
+  await expect(
+    page.getByText("Enter the six-digit verification code."),
+  ).toBeVisible();
+  await expect(slots.first()).toHaveAttribute("aria-invalid", "true");
+  await slots.first().fill("12");
+  await expect(slots.nth(1)).toHaveValue("2");
+  await slots.nth(1).press("ArrowRight");
+  await expect(slots.nth(2)).toBeFocused();
+  await slots.nth(2).press("Backspace");
+  await expect(slots.nth(1)).toBeFocused();
+  await expect(slots.nth(1)).toHaveValue("");
+  await slots.first().focus();
+  await page
+    .evaluate(() => navigator.clipboard?.writeText("123456"))
+    .catch(() => {});
+  await slots.first().press("ControlOrMeta+V");
+  // Explicit paste is also tested for browsers that deny clipboard permissions.
+  if ((await slots.nth(5).inputValue()) !== "6") {
+    await slots.first().evaluate((element) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "123456");
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: data,
+        }),
+      );
+    });
+  }
+  for (let digit = 0; digit < 6; digit++) {
+    await expect(slots.nth(digit)).toHaveValue(String(digit + 1));
+  }
+  await page.getByRole("button", { name: "Verify email" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Email verification failed" }),
+  ).toBeVisible();
+  await expect(slots.first()).toHaveValue("1");
+  await page.getByRole("button", { name: "Verify email" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect(attempts).toBe(2);
 });

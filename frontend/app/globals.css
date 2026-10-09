@@ -162,3 +162,33 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Keep auth content independent on tall desktop viewports. Short windows and
+   touch-sized layouts use the document's natural scroll instead. */
+@media (min-width: 1024px) and (min-height: 660px) {
+  .auth-frame {
+    height: 100dvh;
+    overflow-y: hidden;
+  }
+
+  .auth-grid {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .auth-form-scroll {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .auth-form-content {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    padding-block: 1rem;
+  }
+}

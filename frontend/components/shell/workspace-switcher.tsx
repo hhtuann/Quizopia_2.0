@@ -1,6 +1,7 @@
 "use client";
 
 import type { Workspace } from "../../features/auth/model/workspace";
+import { BookOpenIcon } from "../ui/icons";
 
 export interface WorkspaceSwitcherProps {
   readonly activeWorkspace: Workspace | null;
@@ -48,6 +49,9 @@ export function WorkspaceSwitcher({
                 onClick={() => onSwitch(workspace)}
                 type="button"
               >
+                {workspace === "LEARNING" ? (
+                  <BookOpenIcon className="mr-1 inline size-4 align-[-0.2em]" />
+                ) : null}
                 {workspaceLabels[workspace]}
               </button>
             );

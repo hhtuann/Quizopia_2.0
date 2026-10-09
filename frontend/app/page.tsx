@@ -5,6 +5,14 @@ import {
   PRIMARY_LINK_CLASSES,
 } from "../components/ui/button";
 import { PageContainer } from "../components/ui/page-container";
+import {
+  ArrowRightIcon,
+  ArrowUpRightIcon,
+  BookOpenIcon,
+  CheckCircleIcon,
+  LayersIcon,
+  PencilIcon,
+} from "../components/ui/icons";
 
 export default function HomePage() {
   return (
@@ -33,8 +41,12 @@ export default function HomePage() {
               <Link className={OUTLINE_LINK_CLASSES} href="/login">
                 Sign in
               </Link>
-              <Link className={PRIMARY_LINK_CLASSES} href="/register">
-                Get started <span aria-hidden="true">↗</span>
+              <Link
+                className={`${PRIMARY_LINK_CLASSES} group`}
+                href="/register"
+              >
+                Get started
+                <ArrowUpRightIcon className="size-4 shrink-0 transition-transform motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5 motion-reduce:transition-none" />
               </Link>
             </nav>
           </PageContainer>
@@ -62,7 +74,8 @@ export default function HomePage() {
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <Link className={PRIMARY_LINK_CLASSES} href="/register">
-                Create your account <span aria-hidden="true">→</span>
+                Create your account
+                <ArrowRightIcon className="size-4 shrink-0" />
               </Link>
               <Link className={OUTLINE_LINK_CLASSES} href="/login">
                 Open your workspace
@@ -87,7 +100,7 @@ export default function HomePage() {
                     className="brand-gradient flex size-11 items-center justify-center rounded-2xl text-xl font-black text-white"
                     aria-hidden="true"
                   >
-                    ✦
+                    <LayersIcon className="size-6" />
                   </span>
                   <div>
                     <p className="text-sm font-bold text-foreground">
@@ -108,7 +121,7 @@ export default function HomePage() {
                     className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"
                     aria-hidden="true"
                   >
-                    ◇
+                    <BookOpenIcon className="size-5" />
                   </span>
                   <h2 className="mt-5 text-lg font-bold text-foreground">
                     Learning
@@ -122,7 +135,7 @@ export default function HomePage() {
                     className="flex size-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary"
                     aria-hidden="true"
                   >
-                    ✎
+                    <PencilIcon className="size-5" />
                   </span>
                   <h2 className="mt-5 text-lg font-bold text-foreground">
                     Teaching
@@ -138,7 +151,7 @@ export default function HomePage() {
                     className="flex size-9 items-center justify-center rounded-lg bg-success/10 text-success"
                     aria-hidden="true"
                   >
-                    ✓
+                    <CheckCircleIcon className="size-5" />
                   </span>
                   <div>
                     <p className="text-sm font-bold text-foreground">

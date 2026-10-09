@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <main
       id="main-content"
       tabIndex={-1}
-      className="relative isolate min-h-screen overflow-hidden"
+      className="auth-frame relative isolate min-h-dvh overflow-x-clip"
     >
       <div
         aria-hidden="true"
@@ -17,9 +17,12 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       />
       <PageContainer
         width="marketing"
-        className="grid min-h-screen items-center gap-12 py-8 lg:grid-cols-2 lg:gap-16 lg:py-12"
+        className="auth-grid grid min-h-dvh items-center gap-12 py-8 lg:grid-cols-2 lg:gap-16 lg:py-10"
       >
-        <aside className="hidden max-w-xl justify-self-center lg:block">
+        <aside
+          data-testid="auth-welcome"
+          className="hidden w-full max-w-xl justify-self-center lg:block"
+        >
           <span className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-xs font-bold tracking-wide text-primary">
             WELCOME TO QUIZOPIA 2.0
           </span>
@@ -39,7 +42,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
                 A focused workspace for your learning journey.
               </p>
             </div>
-            <div className="ml-8 rounded-xl border border-secondary/15 bg-surface/90 p-5 shadow-card">
+            <div className="rounded-xl border border-secondary/15 bg-surface/90 p-5 shadow-card">
               <p className="font-semibold text-foreground">
                 Made for educators
               </p>
@@ -49,21 +52,26 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </aside>
-        <div className="mx-auto w-full max-w-md lg:max-w-lg">
-          <Link
-            aria-label="Quizopia home"
-            className="mx-auto flex min-h-11 w-fit items-center rounded-lg px-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
-            href="/"
-          >
-            <QuizopiaLogo />
-          </Link>
+        <div
+          data-testid="auth-form-scroll"
+          className="auth-form-scroll min-w-0 w-full"
+        >
+          <div className="auth-form-content mx-auto w-full max-w-md lg:max-w-lg">
+            <Link
+              aria-label="Quizopia home"
+              className="mx-auto flex min-h-11 w-fit items-center rounded-lg px-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
+              href="/"
+            >
+              <QuizopiaLogo />
+            </Link>
 
-          <Surface className="mt-6 border-primary/10 p-6 shadow-[0_20px_65px_-25px_rgba(79,70,229,0.25)] sm:p-9">
-            {children}
-          </Surface>
-          <p className="mt-5 text-center text-xs text-foreground-muted">
-            Quizopia 2.0 · Learn, create, grow
-          </p>
+            <Surface className="mt-6 border-primary/10 p-6 shadow-[0_20px_65px_-25px_rgba(79,70,229,0.25)] sm:p-9">
+              {children}
+            </Surface>
+            <p className="mt-5 text-center text-xs text-foreground-muted">
+              Quizopia 2.0 · Learn, create, grow
+            </p>
+          </div>
         </div>
       </PageContainer>
     </main>

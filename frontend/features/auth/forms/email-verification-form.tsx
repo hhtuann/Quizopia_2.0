@@ -3,10 +3,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
+import { OtpInput } from "../../../components/ui/otp-input";
 import { TextField } from "../../../components/ui/text-field";
 import { useAuth } from "../auth-provider";
 
@@ -37,6 +38,7 @@ export function EmailVerificationForm({
   const {
     formState: { errors, isSubmitting },
     getValues,
+    control,
     handleSubmit,
     register,
     trigger,
@@ -104,17 +106,19 @@ export function EmailVerificationForm({
         type="text"
         {...register("username")}
       />
-      <TextField
-        autoCapitalize="off"
-        autoComplete="one-time-code"
-        error={errors.verificationCode?.message}
-        inputMode="numeric"
-        label="Verification code"
-        maxLength={6}
-        pattern="[0-9]{6}"
-        spellCheck={false}
-        type="text"
-        {...register("verificationCode")}
+      <Controller
+        control={control}
+        name="verificationCode"
+        render={({ field }) => (
+          <OtpInput
+            disabled={isSubmitting || isRequesting}
+            error={errors.verificationCode?.message}
+            onBlur={field.onBlur}
+            onChange={field.onChange}
+            ref={field.ref}
+            value={field.value}
+          />
+        )}
       />
 
       {serverError ? (
