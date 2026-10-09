@@ -455,7 +455,7 @@ export function PublishedVersionHistory({
         </header>
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[20rem_minmax(0,1fr)]">
-          <aside className="min-h-0 overflow-y-auto border-b border-border bg-surface-muted/50 p-3 sm:p-4 lg:border-b-0 lg:border-r">
+          <aside className="scrollbar-brand scrollbar-brand-gutter min-h-0 overflow-y-auto border-b border-border bg-surface-muted/50 p-3 sm:p-4 lg:border-b-0 lg:border-r">
             {visibleHistoryState.phase === "loading" ? (
               <div
                 className="flex min-h-40 items-center justify-center gap-3"
@@ -568,7 +568,7 @@ export function PublishedVersionHistory({
             )}
           </aside>
 
-          <main className="min-h-0 overflow-y-auto bg-surface-muted/30 p-3 sm:p-5">
+          <main className="scrollbar-brand scrollbar-brand-gutter min-h-0 overflow-y-auto bg-surface-muted/30 p-3 sm:p-5">
             {selectedVersion === null ? (
               <div className="flex min-h-64 items-center justify-center">
                 <div className="max-w-md text-center">

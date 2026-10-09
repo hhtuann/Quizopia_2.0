@@ -125,11 +125,33 @@
 @layer base {
   :root {
     color-scheme: light;
+    --scrollbar-track: color-mix(
+      in srgb,
+      var(--color-primary) 5%,
+      var(--color-surface-muted)
+    );
+    --scrollbar-thumb: var(--color-primary);
+    --scrollbar-thumb-gradient: linear-gradient(
+      180deg,
+      var(--color-primary),
+      var(--color-secondary)
+    );
   }
 
   html {
     min-width: 320px;
     background: var(--color-background);
+  }
+
+  /* Reserve space only for the visible document scrollbar. Auth routes use
+     a hidden scrollbar, so they must not inherit a reserved blank gutter. */
+  html:not(:has(.auth-frame)) {
+    scrollbar-gutter: stable;
+  }
+
+  html:has(.auth-frame),
+  .auth-form-scroll {
+    scrollbar-width: none;
   }
 
   body {
@@ -150,6 +172,58 @@
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
   }
+}
+
+/* Keep standard Firefox scrollbars branded without overriding WebKit gradient
+   thumb painting in Chromium, Edge, and Safari. */
+@supports (-moz-appearance: none) {
+  html:not(:has(.auth-frame)),
+  .scrollbar-brand {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
+  }
+}
+
+@supports selector(::-webkit-scrollbar) {
+  html:not(:has(.auth-frame))::-webkit-scrollbar,
+  .scrollbar-brand::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+
+  html:not(:has(.auth-frame))::-webkit-scrollbar-track,
+  .scrollbar-brand::-webkit-scrollbar-track {
+    border-radius: 999px;
+    background: var(--scrollbar-track);
+  }
+
+  html:not(:has(.auth-frame))::-webkit-scrollbar-thumb,
+  .scrollbar-brand::-webkit-scrollbar-thumb {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--scrollbar-thumb-gradient) padding-box;
+  }
+
+  html:not(:has(.auth-frame))::-webkit-scrollbar-thumb:hover,
+  .scrollbar-brand::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+        180deg,
+        var(--color-primary-hover),
+        var(--color-secondary-hover)
+      )
+      padding-box;
+  }
+
+  html:has(.auth-frame)::-webkit-scrollbar,
+  .auth-form-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Use on substantial independent panes only. Never add to the Markdown
+   textarea: its highlight mirror shares precise editor content geometry. */
+.scrollbar-brand-gutter {
+  scrollbar-gutter: stable;
 }
 
 @media (prefers-reduced-motion: reduce) {

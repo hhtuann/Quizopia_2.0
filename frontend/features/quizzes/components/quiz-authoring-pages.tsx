@@ -909,7 +909,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           </section>
           <section
             aria-label="Live quiz preview"
-            className={`${mobilePane === "preview" ? "block" : "hidden"} min-h-0 min-w-0 overflow-y-auto rounded-xl border border-primary/10 bg-surface-muted/50 p-3 shadow-card sm:p-4 lg:block`}
+            className={`${mobilePane === "preview" ? "block" : "hidden"} scrollbar-brand scrollbar-brand-gutter min-h-0 min-w-0 overflow-y-auto rounded-xl border border-primary/10 bg-surface-muted/50 p-3 shadow-card sm:p-4 lg:block`}
           >
             <QuizPreview
               onDiagnosticSelect={(line, column) => {
