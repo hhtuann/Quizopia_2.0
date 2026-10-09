@@ -206,7 +206,6 @@ export function AuthenticatedUserMenu() {
               role="menuitem"
               type="button"
             >
-              <BookOpenIcon className="mr-2 size-4 shrink-0" />
               Switch to Learning
             </button>
           ) : null}
