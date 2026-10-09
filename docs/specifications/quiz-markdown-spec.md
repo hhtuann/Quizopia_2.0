@@ -247,7 +247,11 @@ Normalization is intentionally minimal:
 - do not pad/truncate;
 - do not otherwise guess teacher intent.
 
-Learner-answer comparison/grading remains governed by `GRADE-05`.
+Wave 3 [GRADE-05](assessment-core-policy.md) compares numeric answers by exact
+decimal numerical equality without tolerance. The four-character grammar above
+continues to govern the published correct-answer token. Student submission
+syntax and validation remain a separate GRADE-07 contract gate; this authoring
+grammar does not itself require Students to type four characters.
 
 ## Optional explanation block
 

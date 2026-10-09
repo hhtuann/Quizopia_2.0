@@ -97,6 +97,13 @@ Owns:
 
 Assessment must not call Quiz Service for authoritative question content during an active attempt.
 
+For Wave 3, Assessment finalizes its protected delivery/grading snapshot atomically
+with Publication `DRAFT → OPEN`, enforces `DRAFT → OPEN → CLOSED`, and owns score
+and answer-review visibility. Quiz remains authoritative for source QuizVersion;
+Classroom remains authoritative for membership/assignments. The
+[Assessment Core policy](../specifications/assessment-core-policy.md) defines this
+milestone without expanding Classroom, AI, Community, or Proctoring scope.
+
 Practice persistence is not finalized yet; do not invent it.
 
 ## Community Service

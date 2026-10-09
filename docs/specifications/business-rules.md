@@ -1,6 +1,10 @@
 # Business Rules
 
-Status: **Baseline v0.2**
+Status: **Baseline v0.2 with accepted Wave 3 Assessment Core policy**
+
+For Wave 3, [Assessment Core policy](assessment-core-policy.md) governs the MVP
+cut. Broader baseline capabilities below do not implicitly approve guest,
+Classroom, configurable timing, or configurable visibility contracts.
 
 ## Identity
 
@@ -55,10 +59,17 @@ Status: **Baseline v0.2**
 
 ## Results/review
 
-34. Score visibility and answer-review visibility are publication policies.
+34. Wave 3 score visibility requires successful submission and completed grading, and is restricted to the authenticated Attempt owner; Teachers may view results for owned Publications.
 35. Policy design must avoid contradictory boolean combinations.
 36. Hidden answer keys must not leak through learner APIs/realtime payloads.
-37. Per-question-type scoring policy is intentionally **TBD** and must be finalized before Assessment grading implementation.
+37. Wave 3 uses equal question weights: exact single-choice correctness, exact multiple-choice set matching without partial credit, equal per-statement true/false credit, and exact decimal numeric equality without tolerance. No negative marking. Snapshot-pinned grading policy version 1 is mandatory. See `assessment-core-policy.md` for accepted rules and remaining numeric-input/score-representation contract gates.
+
+Wave 3 Publications follow `DRAFT → OPEN → CLOSED`; opening atomically finalizes
+the self-contained snapshot. Opened references cannot change, no return to draft
+or reopening is allowed in MVP, and closure blocks new Attempts. Correct answers
+and explanations require closure and an eligible submitted owner. These rules
+are enforced by Assessment backend, including omission of hidden data before
+review is allowed.
 
 ## Proctoring
 

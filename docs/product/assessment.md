@@ -1,6 +1,31 @@
 # Assessment
 
-Status: **Baseline v0.1**
+Status: **Baseline v0.1 with accepted Wave 3 MVP policy**
+
+## Wave 3 Assessment Core
+
+The [accepted Assessment Core policy](../specifications/assessment-core-policy.md)
+governs Wave 3 after Wave 2 closure at PR #71. Assessment owns Publication
+`DRAFT → OPEN → CLOSED`, finalizes a self-contained immutable snapshot atomically
+on opening, and pins grading policy version 1. Opened Publications cannot return
+to draft or change QuizVersion; closed Publications cannot reopen in MVP.
+
+Authenticated Students see their own score after successful submission and
+completed grading. Correct answers and explanations are available only after
+Publication closure to eligible submitted Students reviewing their own Attempts.
+Teachers view results for owned Publications. Backend authorization and safe
+response representations enforce these rules.
+
+All questions have equal maximum weight: single choice requires the one correct
+option, multiple choice requires exact set equality without partial credit,
+true/false matrices award equal credit per statement, and numeric fill uses exact
+decimal numerical equality. No negative marking. The published four-character
+numeric answer grammar is unchanged; Student input syntax remains a contract gate.
+
+The sections below describe the broader product baseline. Configurable visibility,
+guest access, Classroom orchestration, timing, attempt limits, and shuffle examples
+are not approvals of Wave 3 contracts. Remaining contract gates and implementation
+sequence are in the accepted policy and `docs/open-questions.md`.
 
 ## Separation of concepts
 

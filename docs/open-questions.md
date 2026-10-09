@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: **Active after pre-scaffold decisions — v0.2**
+Status: **Active after accepted Wave 3 product policy — v0.3**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
@@ -15,6 +15,11 @@ lifetime is accepted as an absolute seven days and future rotation must not
 extend that original expiry.
 
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
+
+Status: **OPEN — security decision**. Conditional Wave 3 protected-service
+dependency; near-immediate revocation itself is already accepted. Recommendation
+for review: fail closed for protected Assessment operations when authoritative
+revocation cannot be established. This is not an approved outage policy.
 
 **ID-07.** Which production SMTP service/deployment and sender identity should
 Identity use for OTP delivery? The provider-neutral SMTP adapter, transactional
@@ -49,13 +54,12 @@ QM-01 through QM-05 are resolved by the accepted MVP grammar in
 
 ## Publication / Assessment
 
-**ASSESS-01.** Exact persisted Publication status/state model?
-
-**ASSESS-02.** At which publication transition is the self-contained Assessment delivery snapshot finalized?
-
-**ASSESS-03.** Exact score-visibility policy enum/behavior?
-
-**ASSESS-04.** Exact answer-review policy enum/behavior?
+ASSESS-01 through ASSESS-04 are resolved for Wave 3 by the
+[accepted Assessment Core policy](specifications/assessment-core-policy.md):
+`DRAFT → OPEN → CLOSED`, atomic snapshot finalization on opening, owner score
+after successful submit and completed grading, and owner answer/explanation
+review only after closure for eligible submitted Students. Configurable policy
+variants are outside that MVP decision; exact API/schema details are not frozen.
 
 **ASSESS-05.** Publication password hashing/rate-limit/access policy?
 
@@ -67,21 +71,135 @@ QM-01 through QM-05 are resolved by the accepted MVP grammar in
 
 **ASSESS-09.** Policy for changing availability start after attempts have begun?
 
+ASSESS-05 through ASSESS-09 are **OPEN — conditional/deferred**, not automatic
+Wave 3 blockers. Passwords/guest identity are deferred unless explicitly added;
+an opaque public-link format is needed if ASSESS-14 selects that path, and
+ASSESS-09 matters only if post-start time editing is included. Full Classroom
+orchestration and guest flows must not be inferred from broader baseline scope.
+
+**ASSESS-10.** Allowed Attempt count and start/resume/concurrent-start behavior?
+
+Status: **OPEN — Leader product decision**; blocks **W3-B start/resume**.
+Recommendation: one Attempt per authenticated Student per Publication in MVP,
+with resumable active work and retry-safe start. Count/retake entitlement needs
+approval; the uniqueness/locking implementation is an engineering choice.
+
+**ASSESS-11.** Exact autosave revision/sequence, retry, and conflict contract?
+Stale writes must be rejected and submitted Attempts must be immutable.
+
+Status: **OPEN — engineering contract**; blocks **W3-B autosave API/client**.
+Recommendation: Attempt-wide monotonically increasing revision with conditional
+save, explicit stale-conflict response and authoritative re-read reconciliation.
+Freeze retry/duplicate handling and concurrent submit behavior in that contract;
+do not escalate a choice of Java classes or database lock mechanism.
+
+**ASSESS-12.** Submission cutoff/deadline and timeout-finalization behavior?
+
+Status: **OPEN — Leader product decision**; blocks **W3-B submit/finalization**
+and timing-dependent **W3-A configuration**. Recommendation: base the MVP cutoff
+on explicit closure if unbounded timing is selected under ASSESS-17; accept no
+client clock authority or undocumented grace period. Deadline jobs are required
+only if the accepted timing variant needs them.
+
+**ASSESS-13.** Treatment of in-progress Attempts when a Publication closes?
+Closure prevents new Attempts but does not itself settle existing Attempt behavior.
+
+Status: **OPEN — Leader product decision**; blocks **W3-A close** and **W3-B
+save/submit/finalization**. Recommendation: close finalizes active Attempts using
+their latest authoritative saved answers and prevents further mutation. The
+Leader must approve treatment of unsaved work and cutoff before implementation;
+transaction/recovery design is then engineering. Review opens after closure, so
+allowing other Attempts to continue needs an explicit disclosure-risk decision.
+
+**ASSESS-14.** Wave 3 audience/eligibility/access path? Explicitly decide whether
+the bounded workstream needs public authenticated access or Classroom integration;
+guest identity and later Classroom orchestration are not implicitly approved.
+
+Status: **OPEN — Leader product decision**; blocks **W3-A access/discovery** and
+**W3-B start**. Recommendation: an opaque-link Publication available to any
+authenticated `STUDENT` in the bounded Wave 3 slice, with Teacher management
+restricted to its owner. Preserve the broader accepted class-membership rule for
+MVP-C; do not implement guest or full Classroom assignment orchestration here.
+
+**ASSESS-15.** W3-A Publication API/data and QuizVersion handoff contract?
+Freeze routes/DTOs/errors, draft mutation/transition concurrency, source-version
+ownership checks, internal service endpoint/scope, snapshot schema/atomic opening,
+and security/configuration impacts before coding. Ownership and atomic opening
+policy are already accepted; this item must not reopen them.
+
+Status: **OPEN — engineering contract**, with ASSESS-14/13/17 product dependencies;
+blocks **W3-A contract freeze/opening**. Recommendation: preserve the existing
+Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
+the USER principal, acquire the exact QuizVersion through a least-privilege
+Client Credentials internal Quiz endpoint that enforces source ownership, and
+commit the snapshot plus `OPEN` state atomically in Assessment. Exact paths,
+scopes, DTOs, schema, locks and failure/retry semantics require review, not a
+new Leader vote for every implementation detail. The policy specification's
+endpoint inventory remains explicitly **PROPOSED**.
+
+**ASSESS-16.** Exact submission idempotency/finalization and result/review API
+contract, including concurrent autosave/submit, validation, replay responses,
+persisted submitted-answer/result identity, authorization projections, and errors?
+
+Status: **OPEN — engineering contract**; blocks **W3-B submit** and
+**grading/results API freeze**. Idempotency, transactional coherence, owner-only
+Student results, owned-Publication Teacher results, and the review gate are
+already accepted. Recommendation: one durable finalization/result per Attempt,
+atomic submitted-answer/grade/result persistence, and retries returning the same
+authoritative result without another grade. Decide whether request identity is
+the Attempt or an explicit replay key, and document save/submit races and
+malformed/unknown-option handling. Do not invent a separate grading-completion
+lifecycle merely to satisfy a DTO; expose completed grading truthfully.
+
+**ASSESS-17.** Which accepted non-proctored timing variant ships in Wave 3:
+unbounded availability/duration, configured bounds, or a smaller explicit subset?
+
+Status: **OPEN — Leader scope/product decision**; blocks **W3-A timing fields**
+and **W3-B deadline behavior**. Existing `docs/product/assessment.md` permits
+unbounded non-proctored timing and requires no retroactive shortening after
+Attempts start; server time is authoritative. Recommendation: unbounded ordinary
+timing in the initial slice, with explicit open/close and the ASSESS-12/13 cutoff
+decision. This preserves the existing allowed baseline without approving a
+new timer, grace period, scheduling state, or editable deadline policy.
+
 ## Grading
 
-This group was added after independent Codex/Claude review identified that v0.1 did not define per-type scoring.
+GRADE-01 through GRADE-06 are resolved for Wave 3 by the
+[accepted Assessment Core policy](specifications/assessment-core-policy.md):
+single-choice exact correctness, multiple-choice exact set match without partial
+credit, proportional true/false credit, exact decimal numeric equality without
+tolerance, no negative marking, equal question weights, and snapshot-pinned
+grading policy version 1. The following contract details remain open:
 
-**GRADE-01.** `SINGLE_CHOICE` scoring policy?
+**GRADE-07.** Student numeric input/submission-validation format, including syntax,
+trimming/normalization, bounds, unanswered representation, and invalid-payload
+handling? The published four-character ASCII correct-answer grammar is unchanged;
+do not assume the Student must type four characters.
 
-**GRADE-02.** `MULTIPLE_CHOICE`: all-or-nothing or partial credit?
+Status: **OPEN — Leader product compatibility decision plus submission contract**;
+blocks **W3-B numeric input/save/submit** and **numeric grading integration**.
+Recommendation: variable-length ASCII decimal strings with optional leading
+minus, digits before an optional decimal point, and digits after a present point;
+outer trim only, no exponent/comma/plus/full-width normalization. Treat blank as
+unanswered, reject malformed nonblank wire input, and give invalid answer values
+zero if represented to grading. Set a defensive maximum size in the reviewed
+engineering contract. This recommendation does not change the published
+four-character correct-answer grammar or approve Student syntax yet.
 
-**GRADE-03.** If multiple-choice partial credit exists, are incorrect selections penalized/capped?
+**GRADE-08.** Exact per-question/total score persistence and API representation,
+percentage rounding/display rules, and exact version 1 policy identifier?
+Underlying calculations must not round. Current four-statement matrices yield
+quarters; percentages may repeat when divided by the total question count.
 
-**GRADE-04.** `TRUE_FALSE_MATRIX` scoring policy (proportional, ladder, all-or-nothing, other)?
-
-**GRADE-05.** `NUMERIC_FILL` exact comparison/normalization semantics consistent with the fixed four-character rule?
-
-**GRADE-06.** Are grading/scoring policies versioned/pinned with the immutable delivery snapshot?
+Status: **OPEN — engineering score/API contract; Leader acceptance for visible
+rounding/display policy**; blocks **grading/result API freeze and result UI**.
+Recommendation: exact decimal earned/possible weights with `BigDecimal`, per-question
+quarters for current matrices, integer question count for possible weight, and
+stored pinned policy identity; derive percentage only for presentation. If a
+percentage is shown, propose two decimal places with explicit `HALF_UP` rounding
+for display only. Policy identifiers, decimal serialization/storage scale, and
+the final display convention must be reviewed; no intermediate rounding or
+automatic historic regrading is authorized.
 
 ## Practice
 
@@ -180,6 +298,10 @@ This group was added after independent Codex/Claude review identified that v0.1 
 ## Explicitly resolved since v0.1
 
 The following are no longer open:
+
+- Wave 3 ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06 product policy,
+  as recorded in `docs/specifications/assessment-core-policy.md`; remaining
+  contract and Attempt-policy gates are listed separately above;
 
 - true monorepo;
 - independent Maven project per service;
