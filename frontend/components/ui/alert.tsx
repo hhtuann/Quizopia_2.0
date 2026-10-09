@@ -28,7 +28,7 @@ export function Alert({
   return (
     <div
       {...props}
-      className={`rounded-lg border border-l-4 p-4 text-sm text-foreground-secondary ${variantClasses[variant]} ${className}`}
+      className={`rounded-xl border border-l-4 p-4 text-sm text-foreground-secondary shadow-sm ${variantClasses[variant]} ${className}`}
       role={role ?? (variant === "danger" ? "alert" : "status")}
     >
       <p className="font-semibold text-foreground">{title}</p>

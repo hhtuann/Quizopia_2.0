@@ -67,7 +67,7 @@ class LocalAccountRegistrationIntegrationTest {
     @Qualifier("serviceClientPasswordEncoder") private PasswordEncoder passwordEncoder;
 
     @Test
-    void registrationCreatesCompletePendingAccountWithEncodedCredentialAndNoSideEffects() {
+    void registrationCreatesPendingAccountAndExactlyOneDurableEncryptedVerificationJob() {
         String username = "registration-" + UUID.randomUUID();
         String email = "registration-" + UUID.randomUUID() + "@gmail.com";
         String rawPassword = "Raw-registration-secret-" + UUID.randomUUID();
@@ -92,6 +92,25 @@ class LocalAccountRegistrationIntegrationTest {
         assertTrue(passwordEncoder.matches(rawPassword, encodedPassword));
         assertEquals(1L, count("SELECT COUNT(*) FROM local_credential WHERE user_id = ?", userId));
 
+        assertEquals(1L, count("SELECT COUNT(*) FROM email_verification_challenge WHERE user_id = ?", userId));
+        assertEquals(1L, count("SELECT COUNT(*) FROM email_verification_issuance WHERE email = ?", email));
+        assertEquals(
+                1L,
+                count(
+                        "SELECT COUNT(*) FROM email_verification_email_outbox outbox "
+                                + "JOIN email_verification_issuance issuance ON issuance.id = outbox.issuance_id "
+                                + "WHERE issuance.email = ? AND outbox.state = 'PENDING' "
+                                + "AND outbox.ciphertext IS NOT NULL AND outbox.nonce IS NOT NULL "
+                                + "AND length(outbox.nonce) = 12 AND outbox.attempt_count = 0",
+                        email));
+        assertEquals(
+                1L,
+                count(
+                        "SELECT COUNT(*) FROM email_verification_challenge "
+                                + "WHERE user_id = ? AND expires_at = issued_at + INTERVAL '60 seconds' "
+                                + "AND resend_not_before = issued_at + INTERVAL '60 seconds'",
+                        userId));
+
         assertEquals(0L, count("SELECT COUNT(*) FROM external_provider_identity WHERE user_id = ?", userId));
         assertEquals(0L, count("SELECT COUNT(*) FROM refresh_token_family WHERE user_id = ?", userId));
         assertEquals(
@@ -107,14 +126,20 @@ class LocalAccountRegistrationIntegrationTest {
     @Test
     void exactDuplicateUsernameReturnsConflictWithoutCreatingAnotherAccount() {
         String username = "duplicate-registration-" + UUID.randomUUID();
-        register(username, "first-" + UUID.randomUUID() + "@gmail.com", "first-secret");
+        String firstEmail = "first-" + UUID.randomUUID() + "@gmail.com";
+        String rejectedEmail = "second-" + UUID.randomUUID() + "@gmail.com";
+        register(username, firstEmail, "first-secret");
 
-        LocalRegistrationResult result =
-                register(username, "second-" + UUID.randomUUID() + "@gmail.com", "second-secret");
+        LocalRegistrationResult result = register(username, rejectedEmail, "second-secret");
 
         assertEquals(LocalRegistrationStatus.USERNAME_CONFLICT, result.status());
         assertTrue(result.userId().isEmpty());
         assertEquals(1L, count("SELECT COUNT(*) FROM user_account WHERE username = ?", username));
+        assertEquals(1L, count("SELECT COUNT(*) FROM email_verification_issuance WHERE email = ?", firstEmail));
+        assertEquals(0L, count("SELECT COUNT(*) FROM email_verification_issuance WHERE email = ?", rejectedEmail));
+        assertEquals(
+                0L,
+                count("SELECT COUNT(*) FROM email_verification_email_outbox WHERE recipient_email = ?", rejectedEmail));
         assertEquals(
                 1L,
                 count(

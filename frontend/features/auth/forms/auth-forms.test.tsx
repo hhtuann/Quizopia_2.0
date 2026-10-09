@@ -31,6 +31,18 @@ const authoritativeUser = {
   username: "learner01",
 };
 
+function otpDigits() {
+  return screen.getAllByRole("textbox", {
+    name: /Verification code digit \d of 6/,
+  });
+}
+
+function pasteOtp(value: string, index = 0) {
+  fireEvent.paste(otpDigits()[index]!, {
+    clipboardData: { getData: () => value },
+  });
+}
+
 function apiError(code: string, status: number) {
   return {
     ok: false as const,
@@ -235,13 +247,24 @@ describe("email verification form", () => {
   it("uses username as the subject and enforces a six-digit numeric OTP", async () => {
     render(<EmailVerificationForm initialUsername="learner01" />);
     const username = screen.getByLabelText("Username");
-    const code = screen.getByLabelText("Verification code");
+    const code = otpDigits();
 
     expect(username).toHaveValue("learner01");
-    expect(code).toHaveAttribute("inputmode", "numeric");
-    expect(code).toHaveAttribute("maxlength", "6");
+    expect(code).toHaveLength(6);
+    expect(code[0]).toHaveAttribute("inputmode", "numeric");
+    expect(code[0]).toHaveAttribute("autocomplete", "one-time-code");
 
-    fireEvent.change(code, { target: { value: "12ab56" } });
+    fireEvent.change(code[0]!, { target: { value: "abc" } });
+    expect(code[0]).toHaveValue("");
+    pasteOtp("12ab56");
+    expect(code.map((slot) => (slot as HTMLInputElement).value)).toEqual([
+      "1",
+      "2",
+      "5",
+      "6",
+      "",
+      "",
+    ]);
     fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
 
     expect(
@@ -252,6 +275,7 @@ describe("email verification form", () => {
 
   it("resends with generic acceptance semantics without revealing account state", async () => {
     render(<EmailVerificationForm initialUsername="learner01" />);
+    pasteOtp("12");
 
     fireEvent.click(screen.getByRole("button", { name: "Resend code" }));
 
@@ -263,6 +287,7 @@ describe("email verification form", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "If a verification code can be issued, the request has been accepted.",
     );
+    expect((otpDigits()[0] as HTMLInputElement).value).toBe("1");
   });
 
   it("prevents verify and duplicate resend while a resend request is in flight", async () => {
@@ -289,9 +314,7 @@ describe("email verification form", () => {
 
   it("confirms the OTP and directs the user to normal login without establishing a session", async () => {
     render(<EmailVerificationForm initialUsername="learner01" />);
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "123456" },
-    });
+    pasteOtp("123456");
 
     fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
 
@@ -309,9 +332,7 @@ describe("email verification form", () => {
     const pending = deferred<{ ok: true; value: undefined }>();
     auth.confirmVerification.mockReturnValueOnce(pending.promise);
     render(<EmailVerificationForm initialUsername="learner01" />);
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "123456" },
-    });
+    pasteOtp("123456");
     const verify = screen.getByRole("button", { name: "Verify email" });
     const resend = screen.getByRole("button", { name: "Resend code" });
 
@@ -334,9 +355,7 @@ describe("email verification form", () => {
       apiError("AUTH_VERIFICATION_FAILED", 400),
     );
     render(<EmailVerificationForm initialUsername="learner01" />);
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "123456" },
-    });
+    pasteOtp("123456");
 
     fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
 
@@ -344,5 +363,69 @@ describe("email verification form", () => {
       "Email verification failed",
     );
     expect(navigation.replace).not.toHaveBeenCalled();
+    expect(
+      otpDigits()
+        .map((slot) => (slot as HTMLInputElement).value)
+        .join(""),
+    ).toBe("123456");
+  });
+
+  it("supports digit entry, arrow movement, replacement, and backspace", () => {
+    render(<EmailVerificationForm initialUsername="learner01" />);
+    const slots = otpDigits();
+    (slots[0] as HTMLInputElement).focus();
+    fireEvent.change(slots[0]!, { target: { value: "1" } });
+    expect(slots[1]).toHaveFocus();
+    fireEvent.change(slots[1]!, { target: { value: "2" } });
+    expect(slots[2]).toHaveFocus();
+    fireEvent.keyDown(slots[2]!, { key: "ArrowLeft" });
+    expect(slots[1]).toHaveFocus();
+    fireEvent.change(slots[1]!, { target: { value: "9" } });
+    expect(slots[1]).toHaveValue("9");
+    fireEvent.keyDown(slots[2]!, { key: "Backspace" });
+    expect(slots[1]).toHaveFocus();
+    expect(slots[1]).toHaveValue("");
+    fireEvent.keyDown(slots[1]!, { key: "ArrowRight" });
+    expect(slots[2]).toHaveFocus();
+  });
+
+  it("inserts pasted digits from a selected slot, without exceeding six", () => {
+    render(<EmailVerificationForm initialUsername="learner01" />);
+    pasteOtp("1234567");
+    const slots = otpDigits();
+    expect(slots.map((slot) => (slot as HTMLInputElement).value).join("")).toBe(
+      "123456",
+    );
+    pasteOtp("89", 2);
+    expect(slots.map((slot) => (slot as HTMLInputElement).value).join("")).toBe(
+      "128956",
+    );
+  });
+
+  it("fills the next open slot when typing into an empty later position", () => {
+    render(<EmailVerificationForm initialUsername="learner01" />);
+    const slots = otpDigits();
+    fireEvent.change(slots[4]!, { target: { value: "7" } });
+    expect(slots[0]).toHaveValue("7");
+    expect(slots[1]).toHaveFocus();
+    pasteOtp("890", 5);
+    expect(slots.map((slot) => (slot as HTMLInputElement).value).join("")).toBe(
+      "7890",
+    );
+    expect(slots[4]).toHaveFocus();
+  });
+
+  it("keeps OTP inputs disabled throughout confirmation and blocks overlap", async () => {
+    const pending = deferred<{ ok: true; value: undefined }>();
+    auth.confirmVerification.mockReturnValueOnce(pending.promise);
+    render(<EmailVerificationForm initialUsername="learner01" />);
+    pasteOtp("123456");
+    fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
+    await waitFor(() => expect(otpDigits()[0]).toBeDisabled());
+    expect(auth.confirmVerification).toHaveBeenCalledTimes(1);
+    pending.resolve({ ok: true, value: undefined });
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/login"),
+    );
   });
 });

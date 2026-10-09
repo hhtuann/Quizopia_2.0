@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, type ReactNode, useId } from "react";
+import katex from "katex";
 import type { QuizMarkdownServerError } from "../api/quiz-api-client";
 import {
   analyzeQuizMarkdown,
@@ -26,7 +27,9 @@ interface QuizPreviewProps {
 
 function renderInline(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const pattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
+  // Match code before math, and only recognize unescaped, paired dollar signs.
+  const pattern =
+    /(`[^`\n]+`|(?<!\\)\$(?!\$)[^$\n]+(?<!\\)\$(?!\$)|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
   let cursor = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -44,6 +47,17 @@ function renderInline(text: string): ReactNode[] {
           {token.slice(1, -1)}
         </code>,
       );
+    } else if (token.startsWith("$")) {
+      const contents = token.slice(1, -1);
+      // Treat ambiguous currency prose as text, not an accidental math expression.
+      const currencyProse = /^\d+(?:[.,]\d{1,2})?\s+(?:and|or)\s*$/i.test(
+        contents,
+      );
+      nodes.push(
+        contents.trim() === contents && !currencyProse
+          ? renderMath(contents, false, key++)
+          : token,
+      );
     } else if (token.startsWith("**")) {
       nodes.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
     } else {
@@ -55,6 +69,37 @@ function renderInline(text: string): ReactNode[] {
     nodes.push(text.slice(cursor));
   }
   return nodes;
+}
+
+function renderMath(
+  source: string,
+  displayMode: boolean,
+  key: number,
+): ReactNode {
+  try {
+    // KaTeX escapes user input, disables trust-only commands and never executes HTML.
+    const html = katex.renderToString(source, {
+      displayMode,
+      throwOnError: true,
+      trust: false,
+      strict: "error",
+      maxExpand: 100,
+      maxSize: 20,
+    });
+    if (displayMode) {
+      return (
+        <div
+          className="overflow-x-auto py-1"
+          dangerouslySetInnerHTML={{ __html: html }}
+          key={key}
+        />
+      );
+    }
+    return <span dangerouslySetInnerHTML={{ __html: html }} key={key} />;
+  } catch {
+    // Unknown or malformed math remains visible as literal authored source.
+    return displayMode ? `$$${source}$$` : `$${source}$`;
+  }
 }
 
 function fenceOpening(line: string): number | null {
@@ -76,6 +121,7 @@ function MarkdownContent({ value }: { readonly value: string }) {
   let paragraph: string[] = [];
   let code: string[] | null = null;
   let fenceTicks = 0;
+  let displayMath: string[] | null = null;
 
   function flushParagraph() {
     if (paragraph.length === 0) return;
@@ -116,11 +162,26 @@ function MarkdownContent({ value }: { readonly value: string }) {
       }
       return;
     }
+    if (displayMath !== null) {
+      if (line.trim() === "$$") {
+        blocks.push(renderMath(displayMath.join("\n"), true, blocks.length));
+        displayMath = null;
+      } else {
+        displayMath.push(line);
+      }
+      return;
+    }
     const opening = fenceOpening(line);
     if (opening !== null) {
       flushParagraph();
       fenceTicks = opening;
       code = [];
+    } else if (line.trim() === "$$") {
+      flushParagraph();
+      displayMath = [];
+    } else if (/^\$\$[^$\n]+\$\$$/.test(line.trim())) {
+      flushParagraph();
+      blocks.push(renderMath(line.trim().slice(2, -2), true, blocks.length));
     } else if (line.trim().length === 0) {
       flushParagraph();
     } else {
@@ -129,6 +190,10 @@ function MarkdownContent({ value }: { readonly value: string }) {
   });
   flushParagraph();
   flushCode();
+  const unclosedMath = displayMath as string[] | null;
+  if (unclosedMath !== null) {
+    blocks.push(`$$\n${unclosedMath.join("\n")}`);
+  }
 
   return <div className="space-y-3">{blocks}</div>;
 }
@@ -151,43 +216,36 @@ function PreviewQuestion({
 
   return (
     <article
-      className={`rounded-xl border border-border bg-surface p-5 ${
-        canSelectQuestion
-          ? "cursor-pointer transition-colors hover:border-primary/40 focus-within:border-primary/50 motion-reduce:transition-none"
-          : ""
-      }`}
+      className="rounded-xl border border-border bg-surface p-4 sm:p-5"
       data-source-line={question.source.line}
-      onClick={canSelectQuestion ? () => onQuestionSelect(question) : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-base font-semibold text-foreground">
-          Câu {question.number}
-        </h3>
-        <div className="flex items-center gap-2">
           {canSelectQuestion ? (
             <button
               aria-label={`Jump to source for question ${question.number}, line ${question.source.line}`}
-              className="min-h-9 rounded-md px-2 text-xs font-semibold text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-focus"
-              onClick={(event) => {
-                event.stopPropagation();
-                onQuestionSelect(question);
-              }}
+              className="rounded-md text-left font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus motion-reduce:transition-none"
+              onClick={() => onQuestionSelect(question)}
               type="button"
             >
-              Source
+              Câu {question.number}
             </button>
-          ) : null}
+          ) : (
+            `Câu ${question.number}`
+          )}
+        </h3>
+        <div className="flex items-center gap-2">
           <span className="rounded-md bg-surface-muted px-2 py-1 font-mono text-xs font-semibold text-foreground-secondary">
             {question.type}
           </span>
         </div>
       </div>
-      <div className="mt-4 text-sm text-foreground-secondary">
+      <div className="mt-2 text-sm text-foreground-secondary">
         <MarkdownContent value={question.stem} />
       </div>
       {question.options.length > 0 ? (
         <ol
-          className="mt-5 space-y-2"
+          className="mt-3 space-y-1.5"
           aria-label={`Options for question ${question.number}`}
         >
           {question.options.map((option) => (
@@ -195,7 +253,7 @@ function PreviewQuestion({
               {readOnly || onOptionToggle === undefined ? (
                 <div
                   aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
-                  className={`w-full rounded-lg border p-3 text-left ${
+                  className={`w-full rounded-lg border px-3 py-2.5 text-left ${
                     option.correct
                       ? "border-primary/50 bg-primary/10"
                       : "border-border bg-surface-muted"
@@ -231,7 +289,7 @@ function PreviewQuestion({
                 <button
                   aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
                   aria-pressed={option.correct}
-                  className={`w-full rounded-lg border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
+                  className={`min-h-11 w-full rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
                     option.correct
                       ? "border-primary/50 bg-primary/10 hover:bg-primary/15"
                       : "border-border bg-surface-muted hover:border-primary/30 hover:bg-primary/5"
@@ -273,13 +331,13 @@ function PreviewQuestion({
         </ol>
       ) : null}
       {question.numericAnswer !== null ? (
-        <p className="mt-5 rounded-lg border border-border bg-surface-muted p-3 text-sm text-foreground-secondary">
+        <p className="mt-3 rounded-lg border border-border bg-surface-muted p-3 text-sm text-foreground-secondary">
           <span className="font-semibold text-foreground">Đáp án:</span>{" "}
           <code className="font-mono">{question.numericAnswer}</code>
         </p>
       ) : null}
       {question.explanation !== null ? (
-        <div className="mt-5 border-t border-border pt-4">
+        <div className="mt-3 border-t border-border pt-3">
           <p className="mb-2 text-sm font-semibold text-foreground">Lời giải</p>
           <div className="text-sm text-foreground-secondary">
             <MarkdownContent value={question.explanation} />
@@ -330,7 +388,7 @@ function DiagnosticButton({
 }
 
 export function QuizPreview({
-  description = "Safe preview of the accepted Markdown subset. Frontend diagnostics are authoring guidance; publish validation is authoritative.",
+  description,
   onDiagnosticSelect,
   onOptionToggle,
   onQuestionSelect,
@@ -343,7 +401,7 @@ export function QuizPreview({
   const generatedId = useId();
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <EditorPaneHeader
         description={description}
         descriptionId={`${generatedId}-help`}

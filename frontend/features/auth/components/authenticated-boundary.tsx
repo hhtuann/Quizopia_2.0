@@ -16,7 +16,7 @@ export interface AuthenticatedBoundaryProps {
 }
 
 const loginLinkClasses =
-  "mt-6 inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 py-2.5 text-sm font-semibold text-foreground-inverse shadow-primary transition-colors duration-200 hover:border-primary-hover hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
+  "quiz-button-primary mt-6 inline-flex min-h-11 items-center justify-center rounded-full border px-5 py-2.5 text-sm font-semibold transition-[box-shadow,filter] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none";
 
 interface SessionMessageProps {
   readonly alertRole?: "alert" | "status";

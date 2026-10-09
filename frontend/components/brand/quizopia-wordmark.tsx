@@ -11,11 +11,9 @@ export function QuizopiaWordmark({
       className={`flex flex-col items-start leading-none ${className}`}
       {...props}
     >
-      <span className="font-heading text-lg font-normal tracking-[-0.02em]">
+      <span className="font-brand text-lg font-normal tracking-[-0.02em]">
         <span className="text-foreground">Quiz</span>
-        <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-          opia
-        </span>
+        <span className="brand-gradient-text">opia</span>
       </span>
       <span className="mt-0.5 font-sans text-[0.625rem] font-medium leading-none tracking-[0.08em] text-foreground-muted">
         version 2.0

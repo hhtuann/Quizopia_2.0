@@ -550,8 +550,6 @@ export const QuizMarkdownCodeEditor = forwardRef<
     <div className="relative flex h-full min-h-0 flex-col">
       <EditorPaneHeader
         className="mb-3"
-        description="Column-1 completion stays canonical; publish validation remains authoritative."
-        descriptionId="quiz-editor-help"
         htmlFor="quiz-markdown-source"
         title="Quiz Markdown source"
         titleId="quiz-editor-title"
@@ -614,7 +612,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
             aria-describedby="quiz-editor-help"
             autoCapitalize="off"
             autoCorrect="off"
-            className="absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre bg-transparent px-4 py-3 font-mono font-normal text-transparent outline-none caret-foreground selection:bg-primary/20 disabled:cursor-not-allowed"
+            className="scrollbar-brand absolute inset-0 h-full w-full resize-none overflow-auto whitespace-pre bg-transparent px-4 py-3 font-mono font-normal text-transparent outline-none caret-foreground selection:bg-primary/20 disabled:cursor-not-allowed"
             disabled={disabled}
             id="quiz-markdown-source"
             onChange={handleChange}

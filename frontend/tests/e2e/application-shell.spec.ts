@@ -239,7 +239,7 @@ test("student enables teacher only after refresh and authoritative current-user 
 
   await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
   await expect(
-    page.getByRole("link", { name: "Quiz authoring" }),
+    page.getByRole("link", { name: "Quiz authoring", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", {

@@ -48,7 +48,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
           {...props}
           aria-describedby={describedBy || undefined}
           aria-invalid={error ? true : undefined}
-          className={`min-h-11 w-full rounded-lg border bg-surface px-3 py-2.5 text-base text-foreground shadow-sm transition-[border-color,box-shadow] duration-200 placeholder:text-foreground-muted hover:border-border-strong focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-muted disabled:text-foreground-muted motion-reduce:transition-none ${error ? "border-danger" : "border-border-strong"} ${className}`}
+          className={`min-h-11 w-full rounded-xl border bg-surface px-4 py-2.5 text-base text-foreground shadow-sm transition-[border-color,box-shadow] duration-200 placeholder:text-foreground-muted hover:border-primary/50 focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/30 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-muted disabled:text-foreground-muted motion-reduce:transition-none ${error ? "border-danger" : "border-border-strong"} ${className}`}
           id={inputId}
           ref={ref}
         />

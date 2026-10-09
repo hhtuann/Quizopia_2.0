@@ -51,7 +51,7 @@ class EmailVerificationPolicyTest {
     @Test
     void productionPolicyUsesAcceptedValues() {
         EmailVerificationPolicy policy = EmailVerificationPolicy.production();
-        assertEquals(Duration.ofMinutes(10), policy.expiry());
+        assertEquals(Duration.ofSeconds(60), policy.expiry());
         assertEquals(5, policy.maxAttempts());
         assertEquals(Duration.ofSeconds(60), policy.resendCooldown());
     }

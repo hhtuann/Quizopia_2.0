@@ -217,7 +217,7 @@ The following are no longer open:
 - Playwright;
 - local registration requires the exact stored `gmail.com` domain without
   provider-specific alias normalization;
-- six-digit email OTP with 10-minute expiry, 60-second resend cooldown, five
+- six-digit email OTP with 10-minute expiry (accepted baseline; FE-09 proposes a 60-second expiry subject to leader approval), 60-second resend cooldown, five
   failed attempts, replacement on successful issuance, and at most five
   successful issuances per exact email in a rolling hour;
 - teacher self-enablement is available to an authenticated ACTIVE,

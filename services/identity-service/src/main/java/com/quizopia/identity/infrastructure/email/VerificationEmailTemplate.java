@@ -17,7 +17,7 @@ public final class VerificationEmailTemplate {
 
                 Quizopia username: %s
 
-                This code expires at %s. It is valid for no more than 10 minutes.
+                This code expires at %s. It is valid for no more than 60 seconds.
                 If you did not request this code, you can ignore this message.
                 """
                         .formatted(

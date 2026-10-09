@@ -1,28 +1,58 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "./page";
 
-describe("product foundation page", () => {
-  it("renders the neutral scaffold with accessible product primitives", () => {
+const mockSession = vi.hoisted(() => ({ status: "anonymous" }));
+
+vi.mock("../features/auth/auth-provider", () => ({
+  useAuth: () => ({ session: mockSession }),
+}));
+
+beforeEach(() => {
+  mockSession.status = "anonymous";
+});
+
+describe("public Quizopia landing page", () => {
+  it("introduces the learning platform with an accessible main heading", () => {
     render(<HomePage />);
 
     expect(
-      screen.getByRole("heading", { name: "Product interface foundation" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: "A smarter space to learn and teach.",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Example field")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Design tokens and application providers are ready for review.",
-    );
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+    expect(
+      screen.getByRole("navigation", { name: "Public navigation" }),
+    ).toBeInTheDocument();
   });
 
-  it("announces the interactive foundation check", () => {
+  it("links the public entry points to real authentication routes", () => {
     render(<HomePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Check foundation" }));
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Interaction, focus, and status feedback are working.",
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/login",
     );
-    expect(screen.getByRole("button", { name: "Reset preview" })).toBeEnabled();
+    expect(
+      screen.getByRole("link", { name: "Create your account" }),
+    ).toHaveAttribute("href", "/register");
+    expect(
+      screen.getByRole("link", { name: "Open your workspace" }),
+    ).toHaveAttribute("href", "/login");
+  });
+
+  it("links an authenticated visitor directly to the application", () => {
+    mockSession.status = "authenticated";
+    render(<HomePage />);
+
+    expect(
+      screen.getByRole("link", { name: "Open workspace" }),
+    ).toHaveAttribute("href", "/app");
+    expect(
+      screen.getByRole("link", { name: "Continue to your workspace" }),
+    ).toHaveAttribute("href", "/app");
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 });

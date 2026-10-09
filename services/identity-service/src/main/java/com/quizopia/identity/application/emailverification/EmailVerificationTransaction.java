@@ -111,7 +111,7 @@ public class EmailVerificationTransaction {
         }
         EmailVerificationChallengeEntity challenge =
                 challengeRepository.findByUserIdForUpdate(userId).orElse(null);
-        Instant now = clock.instant();
+        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
         if (challenge != null && now.isBefore(challenge.getResendNotBefore())) {
             return EmailVerificationIssueStatus.COOLDOWN;
         }

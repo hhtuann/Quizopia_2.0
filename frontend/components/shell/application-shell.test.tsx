@@ -20,11 +20,18 @@ import { SkipLink } from "../ui/skip-link";
 import { ApplicationHome } from "./application-home";
 import { ApplicationShell } from "./application-shell";
 
+const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigation,
+}));
+
 const userId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const accessToken = "shell-test-access-token";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  navigation.replace.mockClear();
 });
 
 function renderAuthenticatedShell(roles: readonly AuthRole[]) {
@@ -359,12 +366,12 @@ describe("application shell session behavior and semantics", () => {
     expect(
       within(brandLink).getByTestId("quizopia-brand-mark").parentElement,
     ).toHaveClass("size-9", "rounded-lg");
-    expect(brandLink.querySelector(".xl\\:flex")).toHaveClass("hidden");
+    expect(brandLink.querySelector(".md\\:flex")).toHaveClass("hidden");
     expect(screen.getByRole("banner")).toHaveClass(
       "flex-wrap",
       "items-center",
       "py-2",
-      "sm:px-5",
+      "sm:px-6",
     );
     expect(within(brandLink).getByText("Quiz")).toBeInTheDocument();
     expect(within(brandLink).getByText("opia")).toBeInTheDocument();
@@ -403,7 +410,7 @@ describe("application shell session behavior and semantics", () => {
     expect(document.body).not.toHaveTextContent(accessToken);
   });
 
-  it("calls logout, clears the local session, and returns to auth-required UX without network", () => {
+  it("calls logout, clears the local session, and redirects to login without network", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockRejectedValue(new Error("Unexpected network call"));
@@ -418,6 +425,9 @@ describe("application shell session behavior and semantics", () => {
     expect(runtime.getSnapshot()).toEqual({ status: "anonymous" });
     expect(vault.read()).toBeNull();
     expect(service.logout).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/login"),
+    );
     expect(
       screen.getByRole("heading", { name: "Sign in to continue" }),
     ).toBeInTheDocument();

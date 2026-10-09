@@ -25,11 +25,12 @@ import com.quizopia.identity.application.emailverification.EmailVerificationRequ
 import com.quizopia.identity.application.emailverification.EmailVerificationService;
 import com.quizopia.identity.application.emailverification.EmailVerificationStatus;
 import com.quizopia.identity.application.emailverification.EmailVerificationTimingProtector;
-import com.quizopia.identity.application.registration.LocalRegistrationInput;
 import com.quizopia.identity.application.registration.LocalRegistrationService;
+import com.quizopia.identity.persistence.entity.LocalCredentialEntity;
 import com.quizopia.identity.persistence.entity.UserAccountEntity;
 import com.quizopia.identity.persistence.entity.UserRole;
 import com.quizopia.identity.persistence.entity.UserRoleEntity;
+import com.quizopia.identity.persistence.repository.LocalCredentialRepository;
 import com.quizopia.identity.persistence.repository.UserAccountRepository;
 import com.quizopia.identity.persistence.repository.UserRoleRepository;
 import com.quizopia.identity.security.emailverification.EmailVerificationOtpGenerator;
@@ -38,7 +39,6 @@ import com.quizopia.identity.security.outbox.EncryptedOutboxPayload;
 import com.quizopia.identity.security.outbox.OutboxPayloadBinding;
 import com.quizopia.identity.security.outbox.OutboxPayloadCipher;
 import com.quizopia.identity.security.outbox.OutboxPayloadEncryptionException;
-import com.quizopia.identity.security.password.RawLocalPassword;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -125,6 +125,9 @@ class EmailVerificationIntegrationTest {
     private UserAccountRepository accounts;
 
     @Autowired
+    private LocalCredentialRepository localCredentials;
+
+    @Autowired
     private UserRoleRepository userRoles;
 
     @Autowired
@@ -182,7 +185,7 @@ class EmailVerificationIntegrationTest {
         assertEquals(EmailVerificationRequestStatus.REQUEST_ACCEPTED, requestService.request(userId));
 
         Challenge challenge = challenge(userId);
-        assertEquals(ISSUED_AT.plus(Duration.ofMinutes(10)), challenge.expiresAt());
+        assertEquals(ISSUED_AT.plus(Duration.ofSeconds(60)), challenge.expiresAt());
         assertEquals(ISSUED_AT.plus(Duration.ofSeconds(60)), challenge.resendNotBefore());
         assertEquals(5, challenge.maxAttempts());
         assertTrue(encoder.matches(OTP.value(), challenge.hash()));
@@ -1002,11 +1005,13 @@ class EmailVerificationIntegrationTest {
 
     private UUID register(String email) {
         String identity = UUID.randomUUID().toString();
-        return registrationService
-                .register(new LocalRegistrationInput(
-                        "otp-" + identity, email, RawLocalPassword.from("fixture local password")))
-                .userId()
-                .orElseThrow();
+        // Create a pending fixture directly; registration now automatically issues an OTP.
+        // These tests intentionally exercise the separate request, resend and verification flows.
+        UserAccountEntity account = new UserAccountEntity(email, "otp-" + identity);
+        account.setAccountStatus(AccountLifecycleStatus.PENDING_EMAIL_VERIFICATION);
+        UserAccountEntity persisted = accounts.saveAndFlush(account);
+        localCredentials.saveAndFlush(new LocalCredentialEntity(persisted, encoder.encode("fixture local password")));
+        return persisted.getId();
     }
 
     private UUID issue(EmailVerificationPolicy policy) {

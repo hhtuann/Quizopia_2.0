@@ -3,6 +3,51 @@ import { describe, expect, it, vi } from "vitest";
 import { QuizPreview } from "./quiz-preview";
 
 describe("QuizPreview", () => {
+  it("renders inline and display LaTeX in questions, answers, and explanations", () => {
+    const { container } = render(
+      <QuizPreview
+        source={
+          "C\u00e2u 1 [SINGLE_CHOICE]: Solve $x^2 + 1$\n$$\\frac{1}{2}$$\n*A. $\\sqrt{4}$\nB. $y_1$\nC. 3\nD. 4\nL\u1eddi gi\u1ea3i: Integral\n$$\\int_0^1 x\\,dx$$"
+        }
+      />,
+    );
+    expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(
+      4,
+    );
+    expect(container.querySelectorAll(".katex-display").length).toBe(2);
+    expect(
+      screen.getByRole("group", { name: "A. Marked correct" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps code spans, code fences, currency, and malformed math literal", () => {
+    const { container } = render(
+      <QuizPreview
+        source={
+          "C\u00e2u 1 [SINGLE_CHOICE]: `$x^2$` costs $5 and $10. Unknown $\\notarealcommand{a}$\n```\n$$x^2$$\n```\n*A. $a+b$\nB. b\nC. c\nD. d"
+        }
+      />,
+    );
+    expect(container.querySelector("p code")).toHaveTextContent("$x^2$");
+    expect(container.querySelector("pre code")).toHaveTextContent("$$x^2$$");
+    expect(container).toHaveTextContent("$5 and $10");
+    expect(container).toHaveTextContent("$\\notarealcommand{a}$");
+    expect(container.querySelectorAll(".katex")).toHaveLength(1);
+  });
+
+  it("renders unsafe HTML commands as literal source and preserves read-only history", () => {
+    const { container } = render(
+      <QuizPreview
+        readOnly
+        source={
+          "C\u00e2u 1 [NUMERIC_FILL]: $\\htmlClass{evil}{x}$ plus $x+1$\n\u0110\u00e1p \u00e1n: 2.50"
+        }
+      />,
+    );
+    expect(container).toHaveTextContent("$\\htmlClass{evil}{x}$");
+    expect(container.querySelectorAll(".katex")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /Jump to source/ })).toBeNull();
+  });
   it("renders the accepted inline Markdown subset without executing raw HTML or links", () => {
     const { container } = render(
       <QuizPreview

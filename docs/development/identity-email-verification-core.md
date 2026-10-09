@@ -49,7 +49,7 @@ encoded hash. The same transient OTP is separately encrypted by the Identity
 outbox cipher for later recovery. The existing encoder also serves local
 registration.
 
-`EmailVerificationPolicy.production()` is fixed at a 10-minute expiry, five
+`EmailVerificationPolicy.production()` is fixed at a 60-second expiry (FE-09 proposal requiring leader approval before merge), five
 failed attempts, and a 60-second resend cooldown. Lower-level tests may still
 construct explicit policies to verify boundary behavior. Registration accepts an
 exact stored address only when the domain substring is exactly `gmail.com`; it

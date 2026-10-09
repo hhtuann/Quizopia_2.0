@@ -34,12 +34,35 @@ public final class QuizMarkdownParser {
         RawQuestion current = null;
         ContentTarget target = ContentTarget.NONE;
         Fence fence = null;
+        Integer displayMathLine = null;
 
         for (SourceLine line : lines) {
+            if (displayMathLine != null) {
+                appendContent(current, target, line.text(), errors, line.number());
+                if (line.text().strip().equals("$$")) {
+                    displayMathLine = null;
+                }
+                continue;
+            }
             if (fence != null) {
                 appendContent(current, target, line.text(), errors, line.number());
                 if (isFenceClosing(line.text(), fence.backtickCount())) {
                     fence = null;
+                }
+                continue;
+            }
+
+            if (line.text().strip().equals("$$")) {
+                if (current == null || !target.acceptsMultilineContent()) {
+                    errors.add(error(
+                            "UNEXPECTED_CONTENT",
+                            current == null ? null : current.number,
+                            line.number(),
+                            1,
+                            "Display math is not valid at this structural position"));
+                } else {
+                    appendContent(current, target, line.text(), errors, line.number());
+                    displayMathLine = line.number();
                 }
                 continue;
             }
@@ -200,6 +223,14 @@ public final class QuizMarkdownParser {
             appendContent(current, target, line.text(), errors, line.number());
         }
 
+        if (displayMathLine != null) {
+            errors.add(error(
+                    "UNCLOSED_MATH_BLOCK",
+                    current == null ? null : current.number,
+                    displayMathLine,
+                    1,
+                    "Display math block is not closed"));
+        }
         if (fence != null) {
             errors.add(error(
                     "UNCLOSED_CODE_FENCE",

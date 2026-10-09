@@ -255,7 +255,9 @@ describe("QuizLibraryPage real listing contract", () => {
       `/app/quizzes/${secondQuizId}`,
     );
     expect(screen.getByText("Draft only")).toBeInTheDocument();
-    expect(screen.getAllByText("2026-10-01T03:00:00Z")).toHaveLength(2);
+    expect(
+      document.querySelectorAll('time[datetime="2026-10-01T03:00:00Z"]'),
+    ).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: "Load more" }),
     ).not.toBeInTheDocument();
@@ -550,15 +552,15 @@ describe("QuizEditorPage real-contract behavior", () => {
     );
     title.focus();
     expect(title).toHaveFocus();
-    const back = screen.getByRole("button", { name: "Back to app" });
+    const back = screen.getByRole("button", { name: "Back to Quiz Library" });
     expect(back).toBeEnabled();
-    expect(back).toHaveAttribute("aria-label", "Back to app");
+    expect(back).toHaveAttribute("aria-label", "Back to Quiz Library");
     expect(back).toHaveTextContent(/^\s*$/);
     expect(back.querySelector('svg[aria-hidden="true"] path')).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Saved" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish" })).toBeInTheDocument();
     fireEvent.click(back);
-    expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app");
+    expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app/quizzes");
   });
 
   it("confirms before discarding a dirty title, preserving changes when canceled", async () => {
@@ -580,15 +582,15 @@ describe("QuizEditorPage real-contract behavior", () => {
       fireEvent.change(title, {
         target: { value: "A long changed quiz title" },
       });
-      expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
-      const back = screen.getByRole("button", { name: "Back to app" });
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      const back = screen.getByRole("button", { name: "Back to Quiz Library" });
       fireEvent.click(back);
       expect(confirm).toHaveBeenCalledOnce();
       expect(navigation.push).not.toHaveBeenCalled();
       expect(title).toHaveValue("A long changed quiz title");
       confirm.mockReturnValue(true);
       fireEvent.click(back);
-      expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app");
+      expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app/quizzes");
     } finally {
       confirm.mockRestore();
     }
@@ -638,7 +640,7 @@ describe("QuizEditorPage real-contract behavior", () => {
       name: "Quiz Markdown source",
     });
     fireEvent.change(editor, { target: { value: exactEditedSource } });
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
@@ -739,7 +741,7 @@ describe("QuizEditorPage real-contract behavior", () => {
       await screen.findByText("Draft persistence failed"),
     ).toBeInTheDocument();
     expect(editor).toHaveValue(editedSource);
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry save" })).toBeEnabled();
   });
 
   it("keeps unsaved draft state isolated while previewing a published version", async () => {
@@ -838,7 +840,7 @@ describe("QuizEditorPage real-contract behavior", () => {
 
     expect(editor).toHaveValue(unsavedSource);
     expect(titleInput).toHaveValue("Unsaved current title");
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     expect(updateCalls).toBe(0);
   });
 
@@ -1060,7 +1062,7 @@ describe("QuizEditorPage real-contract behavior", () => {
     expect(
       screen.queryByRole("listbox", { name: "Quiz Markdown suggestions" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
 
     const markerCaret = updatedSource.indexOf("*B. beta") + 2;
     editor.setSelectionRange(markerCaret, markerCaret);

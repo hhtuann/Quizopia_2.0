@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
+import { BookOpenIcon } from "../ui/icons";
 
 const workspaceLabels = {
   LEARNING: "Learning",
@@ -10,6 +12,7 @@ const workspaceLabels = {
 } as const;
 
 export function AuthenticatedUserMenu() {
+  const router = useRouter();
   const { activeWorkspace, logout, switchWorkspace, user } = useAuth();
   const {
     clearNotice,
@@ -102,7 +105,10 @@ export function AuthenticatedUserMenu() {
     clearNotice();
     setIsSigningOut(true);
     const result = await logout();
-    if (!result.ok) {
+    if (result.ok) {
+      setOpen(false);
+      router.replace("/login");
+    } else {
       setMessage(
         "Sign out could not be completed. Your session is still active.",
       );
@@ -111,7 +117,7 @@ export function AuthenticatedUserMenu() {
   }
 
   const menuItemClasses =
-    "flex min-h-11 w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none";
+    "flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium text-foreground-secondary transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none";
 
   return (
     <div className="relative sm:ml-auto" ref={rootRef}>
@@ -119,7 +125,7 @@ export function AuthenticatedUserMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Open user menu for ${user.username}, ${workspace} workspace`}
-        className="flex min-h-11 max-w-full items-center gap-3 rounded-lg border border-border bg-surface px-2.5 py-0.5 text-left transition-colors hover:border-border-strong hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+        className="flex min-h-11 max-w-full items-center gap-3 rounded-full border border-border bg-surface py-1 pl-1 pr-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
         onClick={() => {
           setMessage(null);
           clearNotice();
@@ -130,7 +136,7 @@ export function AuthenticatedUserMenu() {
       >
         <span
           aria-label={`${user.username} avatar fallback`}
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary"
+          className="brand-gradient flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
           role="img"
         >
           {initial}
@@ -162,7 +168,7 @@ export function AuthenticatedUserMenu() {
       {open ? (
         <div
           aria-label="User menu"
-          className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-2 shadow-card"
+          className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-2 shadow-card-hover"
           onKeyDown={handleMenuKeyDown}
           ref={menuRef}
           role="menu"
