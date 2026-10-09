@@ -10,6 +10,18 @@ Status: **Baseline v0.2**
 - AI proctoring produces suspicious-event signals, not automatic guilt decisions.
 - Uploaded source documents require access control and retention rules.
 
+## AI behavior monitoring — accepted future design
+
+The [W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md#9-w3-a08--ai-behavior-monitoring)
+preserves [AI proctoring](proctoring.md#ai-proctoring), deferred after Wave 3.
+Future signals may include no face, multiple faces, phone/object detection and
+looking away. Preserve extension points for future AI monitoring integrations;
+do not make media inference, detectors, thresholds, AI snapshots, risk scores,
+alerts or AI disciplinary-review workflows Wave 3 dependencies or closure gates.
+AI risk signals are distinct from AI grading and never automatically establish
+cheating, fail a Student or sanction an account. Detector/provider contracts and
+remaining PROCTOR questions are not resolved by this scope decision.
+
 ## AI-assisted quiz authoring
 
 The teacher uses the normal manual Markdown authoring screen:

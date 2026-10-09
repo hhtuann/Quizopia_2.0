@@ -1,6 +1,18 @@
 # Classroom
 
-Status: **Baseline v0.1**
+Status: **Baseline v0.1 with approved Wave 3 CLASS authorization scope**
+
+## Wave 3 Assessment integration
+
+The [approved W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md)
+requires CLASS Publications referencing exactly one Classroom. Classroom remains
+authoritative for Teacher assignment authorization and Student membership;
+Assessment enforces eligibility through approved integration, including shared
+URLs. Verification mechanism and assignment model remain contract gates. This
+does not approve every broader Classroom join/invitation/orchestration feature.
+Eligible CLASS Publications may require Activity Evidence and LiveKit camera
+monitoring owned by Proctoring. PUBLIC Publications have no Classroom membership
+requirement and cannot enable Classroom Proctoring.
 
 ## Purpose
 

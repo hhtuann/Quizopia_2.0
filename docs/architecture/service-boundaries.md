@@ -102,7 +102,13 @@ with Publication `DRAFT → OPEN`, enforces `DRAFT → OPEN → CLOSED`, and own
 and answer-review visibility. Quiz remains authoritative for source QuizVersion;
 Classroom remains authoritative for membership/assignments. The
 [Assessment Core policy](../specifications/assessment-core-policy.md) defines this
-milestone without expanding Classroom, AI, Community, or Proctoring scope.
+milestone's grading/visibility rules. The subsequent
+[W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md)
+adds required CLASS authorization, bounded scheduling/duration, and optional
+eligible CLASS Activity Evidence plus LiveKit camera monitoring in Wave 3.
+Assessment owns Attempt validity/deadlines; Classroom owns membership/assignment
+eligibility; Proctoring owns sessions/evidence and LiveKit orchestration. These
+integrations do not transfer authoritative ownership or permit cross-service SQL.
 
 Practice persistence is not finalized yet; do not invent it.
 
@@ -136,6 +142,13 @@ Assessment remains authoritative for attempt start/deadline/submit and answer pe
 
 Ownership/duplication of answer-change/question-navigation evidence into the proctor timeline must be finalized before Proctoring implementation.
 
+Wave 3 requires Activity Monitoring (W3-M1) and LiveKit camera monitoring (W3-M2)
+as an optional bundle for eligible CLASS Publications. Store sanitized evidence,
+not a second authoritative answer state. Schemas, transport, retention, mode
+encoding/default, camera refusal/loss and scoped token/session revocation need
+contract freeze; real-learner enablement requires the W3-A privacy/security gates.
+PUBLIC proctoring is prohibited. No accepted A/B enum is assumed.
+
 ## AI Service
 
 Owns:
@@ -146,8 +159,14 @@ Owns:
 - quiz-generation workflow;
 - AI tutor orchestration;
 - model/provider abstraction.
+- future AI behavior-monitoring integrations, deferred beyond Wave 3.
 
 AI does not directly publish quiz versions and does not mutate assessment grading.
+
+Preserve future AI risk-signal extension points without making inference,
+detectors, thresholds, scoring or AI alerts a Wave 3 dependency. Proctoring retains
+ownership of monitoring sessions/evidence/flags; exact future integration contracts
+remain open. AI must never automatically convict, fail or sanction a learner.
 
 ## Example cross-service flow: pending classroom invitation
 

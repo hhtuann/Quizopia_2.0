@@ -1,10 +1,18 @@
 # Open Questions
 
-Status: **Active after accepted Wave 3 product policy — v0.3**
+Status: **Active after accepted Wave 3 Assessment and W3-A scope policy — v0.4**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
 Agents MUST NOT silently resolve these items.
+
+The [approved W3-A Leader decision](specifications/w3-a-publication-scheduling-monitoring-policy.md)
+accepts CLASS/PUBLIC, bounded participation windows, positive Attempt duration
+and optional eligible CLASS Activity Evidence plus LiveKit monitoring. It
+supersedes public-only/unbounded recommendations and blanket Proctoring deferral.
+Only explicitly resolved portions below are closed; PUBLIC access, detailed
+timing/closure, monitoring contracts and privacy/security gates remain open.
+AI behavior monitoring remains future design, deferred after Wave 3.
 
 ## Identity
 
@@ -17,9 +25,11 @@ extend that original expiry.
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
 
 Status: **OPEN — security decision**. Conditional Wave 3 protected-service
-dependency; near-immediate revocation itself is already accepted. Recommendation
-for review: fail closed for protected Assessment operations when authoritative
-revocation cannot be established. This is not an approved outage policy.
+dependency; near-immediate revocation is already accepted. W3-A now requires
+privileged security checks to fail closed when authoritative verification is
+unavailable. Detailed Redis outage/recovery/degraded contracts across Gateway and
+services remain OPEN within that constraint; this does not settle every global
+outage behavior or authorize an unverified privileged operation.
 
 **ID-07.** Which production SMTP service/deployment and sender identity should
 Identity use for OTP delivery? The provider-neutral SMTP adapter, transactional
@@ -73,9 +83,10 @@ variants are outside that MVP decision; exact API/schema details are not frozen.
 
 ASSESS-05 through ASSESS-09 are **OPEN — conditional/deferred**, not automatic
 Wave 3 blockers. Passwords/guest identity are deferred unless explicitly added;
-an opaque public-link format is needed if ASSESS-14 selects that path, and
-ASSESS-09 matters only if post-start time editing is included. Full Classroom
-orchestration and guest flows must not be inferred from broader baseline scope.
+a public-link format is needed if the ASSESS-14 access/discovery contract selects
+that path, and ASSESS-09 matters only if post-start time editing is included.
+CLASS authorization/membership integration is now required; full Classroom
+orchestration and guest flows are not inferred from that approval.
 
 **ASSESS-10.** Allowed Attempt count and start/resume/concurrent-start behavior?
 
@@ -96,10 +107,13 @@ do not escalate a choice of Java classes or database lock mechanism.
 **ASSESS-12.** Submission cutoff/deadline and timeout-finalization behavior?
 
 Status: **OPEN — Leader product decision**; blocks **W3-B submit/finalization**
-and timing-dependent **W3-A configuration**. Recommendation: base the MVP cutoff
-on explicit closure if unbounded timing is selected under ASSESS-17; accept no
-client clock authority or undocumented grace period. Deadline jobs are required
-only if the accepted timing variant needs them.
+and dependent **W3-A configuration**. Bounded start windows and positive bounded
+Attempt duration are accepted. Exact deadline formula, cutoff, expiry/automatic
+submission, unsaved-work treatment, resumption and response ordering remain OPEN.
+Start-plus-duration is recommended pending contract freeze; participation-window
+end must not silently shorten a valid Attempt or be equated with durable closure.
+Server enforcement must not depend solely on background jobs. No client clock
+authority or undocumented grace period is approved.
 
 **ASSESS-13.** Treatment of in-progress Attempts when a Publication closes?
 Closure prevents new Attempts but does not itself settle existing Attempt behavior.
@@ -111,23 +125,27 @@ Leader must approve treatment of unsaved work and cutoff before implementation;
 transaction/recovery design is then engineering. Review opens after closure, so
 allowing other Attempts to continue needs an explicit disclosure-risk decision.
 
-**ASSESS-14.** Wave 3 audience/eligibility/access path? Explicitly decide whether
-the bounded workstream needs public authenticated access or Classroom integration;
-guest identity and later Classroom orchestration are not implicitly approved.
+**ASSESS-14.** Wave 3 audience/eligibility/access and discovery contracts?
 
-Status: **OPEN — Leader product decision**; blocks **W3-A access/discovery** and
-**W3-B start**. Recommendation: an opaque-link Publication available to any
-authenticated `STUDENT` in the bounded Wave 3 slice, with Teacher management
-restricted to its owner. Preserve the broader accepted class-membership rule for
-MVP-C; do not implement guest or full Classroom assignment orchestration here.
+Status: **PARTIALLY RESOLVED — CLASS/PUBLIC accepted; remaining product and
+engineering contracts OPEN**. Both audiences ship; CLASS references exactly one
+Classroom and requires authoritative Teacher assignment authorization and Student
+membership, including shared-URL access. Classroom Service owns that authority.
+PUBLIC has no membership requirement and cannot enable Classroom Proctoring.
+Whether PUBLIC strictly requires an authenticated STUDENT, its precise
+authorization, discovery and sharing remain **OPEN — Leader product decision**;
+CLASS verification mechanism remains an **OPEN — engineering contract**. These
+block dependent **W3-A access/discovery** and **W3-B start**. Do not infer guests,
+close this whole item, or postpone required CLASS authorization to MVP-C.
 
 **ASSESS-15.** W3-A Publication API/data and QuizVersion handoff contract?
-Freeze routes/DTOs/errors, draft mutation/transition concurrency, source-version
-ownership checks, internal service endpoint/scope, snapshot schema/atomic opening,
-and security/configuration impacts before coding. Ownership and atomic opening
-policy are already accepted; this item must not reopen them.
+Freeze routes/DTOs/errors, CLASS/PUBLIC fields, authoritative Classroom checks,
+schedule instants/boundaries, positive duration/limits, monitoring configuration,
+draft mutation/transition concurrency, source-version ownership, internal service
+endpoint/scope, snapshot schema/atomic opening and security/configuration impacts
+before coding. Accepted scope, ownership and atomic opening are not reopened.
 
-Status: **OPEN — engineering contract**, with ASSESS-14/13/17 product dependencies;
+Status: **OPEN — engineering contract**, with unresolved ASSESS-14/13/17 dependencies;
 blocks **W3-A contract freeze/opening**. Recommendation: preserve the existing
 Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
 the USER principal, acquire the exact QuizVersion through a least-privilege
@@ -151,16 +169,20 @@ the Attempt or an explicit replay key, and document save/submit races and
 malformed/unknown-option handling. Do not invent a separate grading-completion
 lifecycle merely to satisfy a DTO; expose completed grading truthfully.
 
-**ASSESS-17.** Which accepted non-proctored timing variant ships in Wave 3:
-unbounded availability/duration, configured bounds, or a smaller explicit subset?
+**ASSESS-17.** Detailed timing contract and future unbounded/practice scope?
 
-Status: **OPEN — Leader scope/product decision**; blocks **W3-A timing fields**
-and **W3-B deadline behavior**. Existing `docs/product/assessment.md` permits
-unbounded non-proctored timing and requires no retroactive shortening after
-Attempts start; server time is authoritative. Recommendation: unbounded ordinary
-timing in the initial slice, with explicit open/close and the ASSESS-12/13 cutoff
-decision. This preserves the existing allowed baseline without approving a
-new timer, grace period, scheduling state, or editable deadline policy.
+Status: **PARTIALLY RESOLVED — bounded Wave 3 scope accepted; details and future
+scope OPEN**. Both CLASS/PUBLIC require bounded participation availability for new
+starts and positive bounded Attempt duration. Opening is distinct from scheduling;
+retain `DRAFT → OPEN → CLOSED`. Exact fields, timezone-safe storage/display,
+chronological validation, inclusive/exclusive start boundaries, duration limits,
+before-window/after-window behavior and interactions with ASSESS-12/13 remain
+OPEN; they block dependent **W3-A timing** and **W3-B deadline** contracts.
+Start-plus-duration is recommended, not frozen. The broader non-proctored
+unbounded baseline and no-retroactive-shortening rule remain documented; future
+unbounded/practice support is **OPEN — Leader product decision**, outside this
+Wave 3 cut. Do not claim the entire question is resolved or retain the superseded
+recommendation to ship unbounded Wave 3 timing.
 
 ## Grading
 
@@ -229,23 +251,87 @@ automatic historic regrading is authorized.
 
 ## Proctoring
 
+W3-M1 Activity Evidence and W3-M2 LiveKit camera monitoring are required Wave 3
+outcomes, optional together per eligible CLASS Publication. PUBLIC proctoring is
+prohibited. AI behavior monitoring remains accepted future design, deferred after
+Wave 3; it is not a closure dependency. No established A/B enum/default is implied.
+PROCTOR-01..09 retain unresolved portions; scope approval is not contract freeze.
+
 **PROCTOR-01.** Evidence retention default: 7 days, 30 days, or another platform value?
+
+Status: **OPEN — product/privacy contract**; blocks W3-M1 retention/deletion and
+real-learner enablement. No indefinite retention or unapproved default.
 
 **PROCTOR-02.** Suspicious snapshot trigger/frequency policy?
 
+Status: **OPEN — deferred future scope**. Automatic AI snapshot extraction is
+not required for Wave 3; approval does not establish snapshot collection policy.
+
 **PROCTOR-03.** Which AI detectors are MVP vs later?
+
+Status: **OPEN — future detector selection; deferred after Wave 3**. AI inference,
+thresholds, risk scores and alerts are not Wave 3 implementation/closure gates.
 
 **PROCTOR-04.** Is microphone ever required?
 
+Status: **OPEN — future product decision**; W3-A does not require microphone
+capture and excludes audio recording. Do not infer a microphone requirement.
+
 **PROCTOR-05.** Is strict consent-based screen-sharing mode in roadmap?
+
+Status: **OPEN — future scope**; mandatory/strict screen capture is outside Wave 3.
 
 **PROCTOR-06.** Exact teacher violation-review workflow?
 
+Status: **OPEN**. Wave 3 requires authorized activity/video monitoring, without
+automatic penalties. AI-assisted disciplinary review is deferred; no final
+violation workflow is approved by monitoring scope alone.
+
 **PROCTOR-07.** Production LiveKit deployment: self-hosted or managed?
+
+Status: **OPEN — deployment/privacy contract**; deployment location, scoped access
+and production controls must be reviewed before real-learner enablement.
 
 **PROCTOR-08.** Which service is authoritative for answer-change/question-navigation evidence in the proctor timeline, and what sanitized event is copied from Assessment to Proctoring?
 
+Status: **PARTIALLY RESOLVED — ownership accepted; evidence contract OPEN**.
+Assessment owns authoritative answers/Attempt lifecycle/deadlines; Proctoring owns
+monitoring evidence. No authoritative answer-state duplication. Freeze sanitized
+answer-change metadata without answer content, supported browser events, timestamps,
+durability/tamper resistance, schemas, transport, retry/ordering and access controls
+before W3-M1 implementation. Browser observations are incomplete/untrusted evidence,
+not proof of misconduct.
+
 **PROCTOR-09.** Exact modeling of the "exactly one classroom" constraint between Publication/Assignment/Proctoring?
+
+Status: **OPEN — engineering contract**. Exactly one Classroom, authoritative
+Teacher/member checks and active eligible Attempts are accepted constraints.
+Freeze references and verification without cross-service foreign keys/SQL.
+
+**PROCTOR-10.** Persisted monitoring configuration, UI terminology and default?
+
+Status: **OPEN — product/engineering contract**; blocks dependent W3-A/W3-M UI
+and schema. The optional eligible CLASS bundle includes Activity Evidence and
+LiveKit camera monitoring; do not invent a previously accepted A/B enum or
+ACTIVITY_ONLY/ACTIVITY_AND_LIVE values/defaults.
+
+**PROCTOR-11.** Camera refusal/loss, unavailable devices, accommodations and
+session/token lifetime/revocation/reconnect outcomes?
+
+Status: **OPEN — product/security contract**; blocks dependent W3-M2 behavior and
+real-learner enablement. No hidden capture or falsely active status. Teachers view
+only authorized active participants; Students cannot subscribe to peers. Monitoring
+failures cannot corrupt answers/results, change grading or silently extend time.
+
+**PROCTOR-12.** Monitoring privacy/accessibility/security release-gate completion?
+
+Status: **OPEN — required release review**, not a claim of legal compliance.
+Finalize notice/viewers, lawful basis/consent/authorization, minors, accommodations,
+refusal behavior, retention/deletion, access audits, deployment location, incident
+and data-subject procedures, and no recording before real-learner enablement.
+Review applicable Vietnamese and other deployment-jurisdiction requirements;
+browser permission alone is insufficient. Required privileged checks fail closed
+when authoritative verification is unavailable; remaining ID-05 details stay open.
 
 ## AI
 
@@ -302,6 +388,10 @@ The following are no longer open:
 - Wave 3 ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06 product policy,
   as recorded in `docs/specifications/assessment-core-policy.md`; remaining
   contract and Attempt-policy gates are listed separately above;
+- W3-A scope: CLASS/PUBLIC, authoritative CLASS eligibility, bounded participation
+  windows, positive Attempt duration and optional eligible CLASS Activity/LiveKit
+  monitoring; only these scope portions are resolved, not the remaining ASSESS-14/
+  ASSESS-17 or PROCTOR contracts. AI behavior monitoring is deferred after Wave 3;
 
 - true monorepo;
 - independent Maven project per service;

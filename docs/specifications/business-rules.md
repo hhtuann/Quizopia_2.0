@@ -3,8 +3,12 @@
 Status: **Baseline v0.2 with accepted Wave 3 Assessment Core policy**
 
 For Wave 3, [Assessment Core policy](assessment-core-policy.md) governs the MVP
-cut. Broader baseline capabilities below do not implicitly approve guest,
-Classroom, configurable timing, or configurable visibility contracts.
+grading/visibility rules and the subsequent
+[W3-A Leader decision](w3-a-publication-scheduling-monitoring-policy.md) governs
+audience, scheduling and monitoring scope. CLASS/PUBLIC, bounded start windows,
+positive Attempt duration and optional eligible CLASS Activity/LiveKit monitoring
+are accepted. PUBLIC access, detailed timing and monitoring contracts remain open;
+broader guest/configurable visibility features are not implicitly approved.
 
 ## Identity
 
@@ -41,12 +45,25 @@ Classroom, configurable timing, or configurable visibility contracts.
 22. Class publication requires authenticated classroom membership.
 23. Practice does not use assessment timing configuration.
 
+Wave 3 CLASS targets exactly one Classroom; Teacher assignment authority and
+Student membership are checked authoritatively through Classroom Service. Shared
+URLs cannot bypass membership. PUBLIC has no membership requirement and cannot
+enable Classroom Proctoring; PUBLIC authentication/discovery remains OPEN.
+
 ## Assessment time mutation
 
 24. Before attempts begin, editable timing follows normal publication rules.
 25. After the first attempt starts, availability end must not move earlier.
 26. After the first attempt starts, attempt duration must not be reduced.
 27. Time may be extended according to authorization/business rules.
+
+Wave 3 requires a bounded participation window for starting Attempts and a
+positive bounded per-Attempt duration. Opening is distinct from scheduling;
+window end is not durable closure, automatic Attempt finalization or answer-review
+permission. Server time controls starts/deadlines without relying solely on jobs.
+Precise boundaries, duration limits, deadline formula, expiry/resumption and
+manual-close behavior remain contract gates. Future unbounded/practice timing is
+not decided by this limited scope.
 
 ## Attempt correctness
 
@@ -82,6 +99,22 @@ review is allowed.
 44. AI flags do not automatically fail a learner or declare cheating as fact.
 45. Proctoring evidence has short-lived retention; exact default is TBD.
 46. Full video recording is deferred from MVP.
+
+Under W3-A, Activity Evidence and LiveKit camera monitoring are required Wave 3
+outcomes, enabled together optionally for eligible CLASS Publications after clear
+Student disclosure. Monitoring encoding/default is not frozen; no A/B enum is
+established. Browser evidence must not collect unrelated app activity, other-tab
+URLs, browsing history, keystrokes or clipboard contents; answer-change metadata
+must not leak answer content. Evidence never automatically disqualifies or zeros
+a score. Teachers view only authorized active participants; Students cannot view
+peer streams; capture/permission/failure status must be truthful. Required
+privileged checks fail closed when unverifiable. Monitoring failures cannot
+corrupt answers/results, change grading or silently extend deadlines.
+
+AI behavior analysis, recording, mandatory/strict screen sharing, remote device
+control and automatic facial identification are outside Wave 3. Evidence retention,
+camera refusal/loss/accommodations, scoped access/revocation and the W3-A
+privacy/security release gates must be finalized before dependent release.
 
 ## Community
 
