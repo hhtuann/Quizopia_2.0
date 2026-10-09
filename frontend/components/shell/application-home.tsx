@@ -51,7 +51,11 @@ export function ApplicationHome() {
               className={`${OUTLINE_LINK_CLASSES} mt-6`}
               href="/app/quizzes"
             >
+<<<<<<< Updated upstream
               Open quiz authoring <ArrowRightIcon className="size-4" />
+=======
+              Open quiz authoring
+>>>>>>> Stashed changes
             </Link>
           ) : null}
         </div>

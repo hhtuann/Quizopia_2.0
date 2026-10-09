@@ -59,7 +59,16 @@ export default function HomePage() {
               with clarity and confidence.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
+<<<<<<< Updated upstream
               <LandingSessionLinks placement="hero" />
+=======
+              <Link className={PRIMARY_LINK_CLASSES} href="/register">
+                Create your account
+              </Link>
+              <Link className={OUTLINE_LINK_CLASSES} href="/login">
+                Open your workspace
+              </Link>
+>>>>>>> Stashed changes
             </div>
             <p className="mt-5 text-sm text-foreground-muted">
               Already part of Quizopia? Sign in to pick up where you left off.
