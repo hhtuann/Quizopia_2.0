@@ -11,6 +11,52 @@ function suggestions(source: string) {
   return getQuizAutocompleteSuggestions(source, source.length);
 }
 
+describe("Quiz Markdown math blocks", () => {
+  const source = [
+    "Câu 1 [SINGLE_CHOICE]: Compute",
+    "$$",
+    "Câu 99 [NUMERIC_FILL]: x^2",
+    "$$",
+    "*A. answer",
+    "$$",
+    "B. x+y",
+    "$$",
+    "B. other",
+    "C. third",
+    "D. fourth",
+    "Lời giải: Reason",
+    "$$",
+    "*A. x^2",
+    "$$",
+  ].join("\n");
+
+  it("preserves structural-looking math as content and retains source positions", () => {
+    const result = analyzeQuizMarkdown(source);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.questions).toHaveLength(1);
+    expect(result.questions[0]?.stem).toContain("Câu 99 [NUMERIC_FILL]: x^2");
+    expect(result.questions[0]?.options[0]?.content).toContain("B. x+y");
+    expect(result.questions[0]?.options[1]?.source.line).toBe(9);
+    expect(result.questions[0]?.explanation).toContain("*A. x^2");
+  });
+
+  it("reports an unclosed display block without accepting its fake structure", () => {
+    const result = analyzeQuizMarkdown(
+      "Câu 1 [NUMERIC_FILL]: x\n$$\nCâu 2 [NUMERIC_FILL]: fake",
+    );
+    expect(result.questions).toHaveLength(1);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "UNCLOSED_MATH_BLOCK", line: 2 }),
+      ]),
+    );
+  });
+
+  it("suppresses autocomplete within display math", () => {
+    expect(suggestions("Câu 1 [SINGLE_CHOICE]: x\n$$\n*A.")).toEqual([]);
+  });
+});
+
 describe("Quiz Markdown autocomplete context", () => {
   it.each(["C", "Câ", "Câu"])(
     "offers four direct question snippets for %s at column 1",

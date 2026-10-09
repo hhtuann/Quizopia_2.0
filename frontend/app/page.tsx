@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { QuizopiaLogo } from "../components/brand/quizopia-logo";
-import {
-  OUTLINE_LINK_CLASSES,
-  PRIMARY_LINK_CLASSES,
-} from "../components/ui/button";
+import { LandingSessionLinks } from "../components/shell/landing-session-links";
 import { PageContainer } from "../components/ui/page-container";
 import {
-  ArrowRightIcon,
-  ArrowUpRightIcon,
   BookOpenIcon,
   CheckCircleIcon,
   LayersIcon,
@@ -22,7 +17,7 @@ export default function HomePage() {
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(ellipse_at_75%_15%,rgba(124,58,237,0.12),transparent_50%),radial-gradient(ellipse_at_5%_55%,rgba(79,70,229,0.12),transparent_55%)]"
         />
-        <header className="border-b border-border/80 bg-surface/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-border/80 bg-surface/90 backdrop-blur-xl">
           <PageContainer
             width="marketing"
             className="flex min-h-20 flex-wrap items-center justify-between gap-4 py-3"
@@ -38,16 +33,7 @@ export default function HomePage() {
               aria-label="Public navigation"
               className="flex flex-wrap items-center gap-2 sm:gap-3"
             >
-              <Link className={OUTLINE_LINK_CLASSES} href="/login">
-                Sign in
-              </Link>
-              <Link
-                className={`${PRIMARY_LINK_CLASSES} group`}
-                href="/register"
-              >
-                Get started
-                <ArrowUpRightIcon className="size-4 shrink-0 transition-transform motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5 motion-reduce:transition-none" />
-              </Link>
+              <LandingSessionLinks placement="header" />
             </nav>
           </PageContainer>
         </header>
@@ -73,13 +59,7 @@ export default function HomePage() {
               with clarity and confidence.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link className={PRIMARY_LINK_CLASSES} href="/register">
-                Create your account
-                <ArrowRightIcon className="size-4 shrink-0" />
-              </Link>
-              <Link className={OUTLINE_LINK_CLASSES} href="/login">
-                Open your workspace
-              </Link>
+              <LandingSessionLinks placement="hero" />
             </div>
             <p className="mt-5 text-sm text-foreground-muted">
               Already part of Quizopia? Sign in to pick up where you left off.

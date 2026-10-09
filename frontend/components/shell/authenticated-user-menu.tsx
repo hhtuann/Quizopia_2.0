@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
 import { BookOpenIcon } from "../ui/icons";
@@ -11,6 +12,7 @@ const workspaceLabels = {
 } as const;
 
 export function AuthenticatedUserMenu() {
+  const router = useRouter();
   const { activeWorkspace, logout, switchWorkspace, user } = useAuth();
   const {
     clearNotice,
@@ -103,7 +105,10 @@ export function AuthenticatedUserMenu() {
     clearNotice();
     setIsSigningOut(true);
     const result = await logout();
-    if (!result.ok) {
+    if (result.ok) {
+      setOpen(false);
+      router.replace("/login");
+    } else {
       setMessage(
         "Sign out could not be completed. Your session is still active.",
       );
@@ -120,7 +125,7 @@ export function AuthenticatedUserMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={`Open user menu for ${user.username}, ${workspace} workspace`}
-        className="flex min-h-11 max-w-full items-center gap-3 rounded-full border border-border bg-surface px-2.5 py-0.5 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
+        className="flex min-h-11 max-w-full items-center gap-3 rounded-full border border-border bg-surface py-1 pl-1 pr-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
         onClick={() => {
           setMessage(null);
           clearNotice();
@@ -131,7 +136,7 @@ export function AuthenticatedUserMenu() {
       >
         <span
           aria-label={`${user.username} avatar fallback`}
-          className="brand-gradient flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+          className="brand-gradient flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
           role="img"
         >
           {initial}

@@ -1,7 +1,7 @@
 interface EditorPaneHeaderProps {
   readonly className?: string;
-  readonly description: string;
-  readonly descriptionId: string;
+  readonly description?: string;
+  readonly descriptionId?: string;
   readonly htmlFor?: string;
   readonly title: string;
   readonly titleId: string;
@@ -19,7 +19,7 @@ export function EditorPaneHeader({
     "block font-heading text-base font-bold leading-6 text-foreground";
 
   return (
-    <div className={`min-h-[4.5rem] shrink-0 ${className}`}>
+    <div className={`shrink-0 ${className}`}>
       {htmlFor ? (
         <label className={titleClasses} htmlFor={htmlFor} id={titleId}>
           {title}
@@ -29,12 +29,14 @@ export function EditorPaneHeader({
           {title}
         </h2>
       )}
-      <p
-        className="mt-1 text-sm leading-5 text-foreground-muted"
-        id={descriptionId}
-      >
-        {description}
-      </p>
+      {description ? (
+        <p
+          className="mt-1 text-sm leading-5 text-foreground-muted"
+          id={descriptionId}
+        >
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }

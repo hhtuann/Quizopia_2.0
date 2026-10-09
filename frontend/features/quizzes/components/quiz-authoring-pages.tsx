@@ -19,6 +19,12 @@ import {
   PRIMARY_LINK_CLASSES,
 } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
+import {
+  CheckIcon,
+  PlusIcon,
+  RetryIcon,
+  SaveIcon,
+} from "../../../components/ui/icons";
 import { Surface } from "../../../components/ui/surface";
 import { useAuth } from "../../auth/auth-provider";
 import {
@@ -299,7 +305,7 @@ export function QuizLibraryPage() {
           className={`${linkButtonClasses} relative shrink-0`}
           href="/app/quizzes/new"
         >
-          <span aria-hidden="true">+</span> Create quiz
+          <PlusIcon className="size-4" /> Create quiz
         </Link>
       </div>
 
@@ -336,7 +342,7 @@ export function QuizLibraryPage() {
               aria-hidden="true"
               className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-bold text-primary"
             >
-              +
+              <PlusIcon className="size-5" />
             </div>
             <h3 className="text-lg font-semibold text-foreground">
               No quizzes yet
@@ -523,6 +529,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const [source, setSource] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const saveInFlight = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
@@ -539,6 +546,10 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     () => ({ authoringSource: source, description, title }),
     [description, source, title],
   );
+  const latestInputRef = useRef(currentInput);
+  useLayoutEffect(() => {
+    latestInputRef.current = currentInput;
+  }, [currentInput]);
   const dirty =
     savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
 
@@ -549,7 +560,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         "You have unsaved changes. Leave the editor and discard them?",
       )
     ) {
-      router.push("/app");
+      router.push("/app/quizzes");
     }
   }
 
@@ -610,21 +621,31 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   }, [client, quizId]);
 
   async function saveDraft(): Promise<boolean> {
-    if (client === null || isSaving) {
+    if (client === null || saveInFlight.current) {
       return false;
     }
+    saveInFlight.current = true;
     setSaveError(null);
     setPublishMessage(null);
     setIsSaving(true);
     const input = currentInput;
-    const result = await client.updateDraft(quizId, input);
-    setIsSaving(false);
-    if (!result.ok) {
-      setSaveError(failureMessage(result.error));
+    try {
+      const result = await client.updateDraft(quizId, input);
+      if (!result.ok) {
+        setSaveError(failureMessage(result.error));
+        return false;
+      }
+      setSavedSnapshot(inputSnapshot(input));
+      return true;
+    } catch {
+      setSaveError(
+        "Unable to save the draft. Check your connection and retry.",
+      );
       return false;
+    } finally {
+      saveInFlight.current = false;
+      setIsSaving(false);
     }
-    setSavedSnapshot(inputSnapshot(input));
-    return true;
   }
 
   async function publishDraft() {
@@ -636,12 +657,29 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     setServerDiagnostics([]);
     setIsPublishing(true);
 
+    const snapshotBeforePublish = inputSnapshot(latestInputRef.current);
     if (dirty && !(await saveDraft())) {
       setIsPublishing(false);
       return;
     }
+    // A save can finish after the author has typed again. Never publish a
+    // snapshot older than the visible editor state.
+    if (inputSnapshot(latestInputRef.current) !== snapshotBeforePublish) {
+      setPublishError(
+        "The draft changed while saving. Save your latest changes before publishing.",
+      );
+      setIsPublishing(false);
+      return;
+    }
 
-    const result = await client.publishDraft(quizId);
+    let result;
+    try {
+      result = await client.publishDraft(quizId);
+    } catch {
+      setPublishError("Unable to publish. Check your connection and retry.");
+      setIsPublishing(false);
+      return;
+    }
     setIsPublishing(false);
     if (!result.ok) {
       if (result.error.kind === "validation-error") {
@@ -770,7 +808,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           />
         </Link>
         <Button
-          aria-label="Back to app"
+          aria-label="Back to Quiz Library"
           className="size-11 shrink-0 p-0"
           disabled={isSaving || isPublishing}
           onClick={backToApp}
@@ -796,7 +834,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         />
         <div className="order-3 flex w-full min-w-0 items-center gap-3 sm:order-none sm:w-auto sm:min-w-[16rem] sm:flex-1 sm:max-w-xl">
           <label
-            className="shrink-0 text-xs font-semibold text-foreground-secondary"
+            className="shrink-0 text-sm font-semibold text-foreground-secondary"
             htmlFor="editor-title"
           >
             Quiz title
@@ -811,12 +849,6 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           />
         </div>
         <div className="order-4 ml-auto flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto">
-          <span
-            aria-live="polite"
-            className="hidden font-mono text-xs font-semibold text-foreground-muted sm:inline"
-          >
-            {isSaving ? "Saving…" : dirty ? "Unsaved changes" : "Saved"}
-          </span>
           <Button
             aria-expanded={historyOpen}
             aria-haspopup="dialog"
@@ -830,13 +862,31 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           </Button>
           <Button
             className="px-3 sm:px-4"
-            disabled={!dirty || isPublishing}
+            disabled={(!dirty && !saveError) || isSaving || isPublishing}
             isLoading={isSaving}
             loadingLabel="Saving draft"
             onClick={() => void saveDraft()}
             variant="neutral-outline"
           >
-            Save
+            <span
+              aria-live="polite"
+              className="inline-flex items-center gap-1.5"
+            >
+              {saveError ? (
+                <RetryIcon className="size-4" />
+              ) : dirty ? (
+                <SaveIcon className="size-4" />
+              ) : (
+                <CheckIcon className="size-4" />
+              )}
+              {isSaving
+                ? "Saving…"
+                : saveError
+                  ? "Retry save"
+                  : dirty
+                    ? "Save"
+                    : "Saved"}
+            </span>
           </Button>
           <Button
             className="px-3 sm:px-5"

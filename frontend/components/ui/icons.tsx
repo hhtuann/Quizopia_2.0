@@ -67,3 +67,37 @@ export function LayersIcon(props: IconProps) {
     </IconFrame>
   );
 }
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <IconFrame {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </IconFrame>
+  );
+}
+
+export function SaveIcon(props: IconProps) {
+  return (
+    <IconFrame {...props}>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z" />
+      <path d="M17 21v-8H7v8M7 3v5h8" />
+    </IconFrame>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <IconFrame {...props}>
+      <path d="m5 12 4 4L19 6" />
+    </IconFrame>
+  );
+}
+
+export function RetryIcon(props: IconProps) {
+  return (
+    <IconFrame {...props}>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+    </IconFrame>
+  );
+}

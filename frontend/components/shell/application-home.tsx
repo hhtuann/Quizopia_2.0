@@ -6,6 +6,7 @@ import type { AuthRole } from "../../features/auth/model/authenticated-user";
 import type { Workspace } from "../../features/auth/model/workspace";
 import { Alert } from "../ui/alert";
 import { OUTLINE_LINK_CLASSES } from "../ui/button";
+import { ArrowRightIcon } from "../ui/icons";
 import { Surface } from "../ui/surface";
 
 const roleLabels: Record<AuthRole, string> = {
@@ -50,7 +51,7 @@ export function ApplicationHome() {
               className={`${OUTLINE_LINK_CLASSES} mt-6`}
               href="/app/quizzes"
             >
-              Open quiz authoring <span aria-hidden="true">→</span>
+              Open quiz authoring <ArrowRightIcon className="size-4" />
             </Link>
           ) : null}
         </div>

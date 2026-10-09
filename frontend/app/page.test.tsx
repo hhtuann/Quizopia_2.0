@@ -1,6 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "./page";
+
+const mockSession = vi.hoisted(() => ({ status: "anonymous" }));
+
+vi.mock("../features/auth/auth-provider", () => ({
+  useAuth: () => ({ session: mockSession }),
+}));
+
+beforeEach(() => {
+  mockSession.status = "anonymous";
+});
 
 describe("public Quizopia landing page", () => {
   it("introduces the learning platform with an accessible main heading", () => {
@@ -31,5 +41,18 @@ describe("public Quizopia landing page", () => {
     expect(
       screen.getByRole("link", { name: "Open your workspace" }),
     ).toHaveAttribute("href", "/login");
+  });
+
+  it("links an authenticated visitor directly to the application", () => {
+    mockSession.status = "authenticated";
+    render(<HomePage />);
+
+    expect(
+      screen.getByRole("link", { name: "Open workspace" }),
+    ).toHaveAttribute("href", "/app");
+    expect(
+      screen.getByRole("link", { name: "Continue to your workspace" }),
+    ).toHaveAttribute("href", "/app");
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
   });
 });

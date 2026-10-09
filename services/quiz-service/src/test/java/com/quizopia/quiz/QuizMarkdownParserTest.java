@@ -25,6 +25,42 @@ class QuizMarkdownParserTest {
     private final QuizMarkdownParser parser = new QuizMarkdownParser();
 
     @Test
+    void preservesDisplayMathWithoutInterpretingStructuralMarkers() {
+        String source = """
+                Câu 1 [SINGLE_CHOICE]: Compute $x^2$
+                $$
+                Câu 99 [NUMERIC_FILL]: x^2
+                $$
+                *A. answer
+                $$
+                B. x+y
+                $$
+                B. second
+                C. third
+                D. fourth
+                Lời giải: Reason
+                $$
+                *A. x^2
+                $$
+                """;
+
+        QuizContent content = valid(source);
+        assertEquals(1, content.questions().size());
+        QuizQuestion question = content.questions().getFirst();
+        assertTrue(question.stemMarkdown().contains("Câu 99 [NUMERIC_FILL]: x^2"));
+        assertTrue(question.options().getFirst().markdown().contains("B. x+y"));
+        assertEquals(QuizOptionLabel.B, question.options().get(1).label());
+        assertTrue(question.explanationMarkdown().contains("*A. x^2"));
+    }
+
+    @Test
+    void rejectsUnterminatedDisplayMathWithSourceLine() {
+        QuizMarkdownParseResult result = parser.parse("Câu 1 [NUMERIC_FILL]: x\n$$\nCâu 2 [NUMERIC_FILL]: fake");
+        assertTrue(result.errors().stream().anyMatch(error ->
+                error.code().equals("UNCLOSED_MATH_BLOCK") && error.line() == 2));
+    }
+
+    @Test
     void parsesAllFourTypesMultilineContentAndOptionalExplanations() {
         String source =
                 """

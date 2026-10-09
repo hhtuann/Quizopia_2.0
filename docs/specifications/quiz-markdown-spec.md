@@ -324,7 +324,6 @@ An unclosed fenced code block is invalid source.
 The MVP does not define support for:
 
 - images;
-- LaTeX/math rendering;
 - raw HTML;
 - audio/video embeds;
 - tables;
@@ -334,6 +333,27 @@ The MVP does not define support for:
 - other advanced nested rich-content structures.
 
 These may be added later through an explicit compatible specification update.
+
+### Proposed FE-05 math extension — pending project-leader approval
+
+This section proposes extending the accepted MVP rendering subset; it is **not
+yet an approved replacement** for v1.0. A question stem, option/statement body,
+or explanation may contain inline math `$E = mc^2$` or display math enclosed in
+`$$` delimiters, either on one line (`$$x^2$$`) or as a standalone multi-line
+block with `$$` on separate lines. A paired `$...$` expression must be on one
+line, have non-whitespace characters at both ends, and must not contain another
+unescaped `$`. Standalone display delimiters must close before the block ends.
+Unpaired/invalid delimiters and ordinary currency remain visible as text.
+
+Math is content only: `authoringSource`, source offsets, correct-answer markers,
+NUMERIC_FILL's exact four-character answer, and immutable published structured
+question strings remain unchanged. This extension does not apply to metadata,
+question-type tags, answer tokens, fenced code, inline code or escaped `\$`.
+Only the display renderer interprets these delimiters. It must escape input,
+disable trusted HTML/URL commands, limit macro expansion, and render invalid
+math as literal source without executing code. Existing published strings remain
+compatible without a schema-version bump. Both live and version-history preview
+use the same renderer. Project-leader approval is required before merge.
 
 ## Source preservation — QM-05
 

@@ -31,7 +31,7 @@ export function ApplicationShell({
         <Link
           aria-label="Quizopia home"
           className="inline-flex min-h-11 items-center rounded-lg pr-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
-          href="/"
+          href="/app"
         >
           <QuizopiaLogo
             markClassName="size-9 rounded-lg"

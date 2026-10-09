@@ -6,7 +6,7 @@ import java.util.Objects;
 /** Email-verification challenge policy. */
 public record EmailVerificationPolicy(Duration expiry, int maxAttempts, Duration resendCooldown) {
     private static final EmailVerificationPolicy PRODUCTION =
-            new EmailVerificationPolicy(Duration.ofMinutes(10), 5, Duration.ofSeconds(60));
+            new EmailVerificationPolicy(Duration.ofSeconds(60), 5, Duration.ofSeconds(60));
 
     public EmailVerificationPolicy {
         Objects.requireNonNull(expiry, "expiry");

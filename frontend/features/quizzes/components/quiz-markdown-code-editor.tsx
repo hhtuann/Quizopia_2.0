@@ -550,8 +550,6 @@ export const QuizMarkdownCodeEditor = forwardRef<
     <div className="relative flex h-full min-h-0 flex-col">
       <EditorPaneHeader
         className="mb-3"
-        description="Column-1 completion stays canonical; publish validation remains authoritative."
-        descriptionId="quiz-editor-help"
         htmlFor="quiz-markdown-source"
         title="Quiz Markdown source"
         titleId="quiz-editor-title"

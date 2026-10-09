@@ -212,13 +212,42 @@ export function analyzeQuizMarkdown(source: string): QuizMarkdownAnalysis {
   let current: MutableQuestion | null = null;
   let target: ContentTarget = "none";
   let fence: { ticks: number; line: number } | null = null;
+  let displayMathLine: number | null = null;
 
   sourceLines(source).forEach((line, index) => {
     const lineNumber = index + 1;
+    if (displayMathLine !== null) {
+      appendContent(current, target, line, diagnostics, lineNumber);
+      if (line.trim() === "$$") {
+        displayMathLine = null;
+      }
+      return;
+    }
     if (fence !== null) {
       appendContent(current, target, line, diagnostics, lineNumber);
       if (isFenceClosing(line, fence.ticks)) {
         fence = null;
+      }
+      return;
+    }
+
+    if (line.trim() === "$$") {
+      if (
+        current === null ||
+        !["stem", "option", "explanation"].includes(target)
+      ) {
+        diagnostics.push(
+          diagnostic(
+            "UNEXPECTED_CONTENT",
+            current?.number ?? null,
+            lineNumber,
+            1,
+            "Display math is not valid at this structural position",
+          ),
+        );
+      } else {
+        appendContent(current, target, line, diagnostics, lineNumber);
+        displayMathLine = lineNumber;
       }
       return;
     }
@@ -433,6 +462,17 @@ export function analyzeQuizMarkdown(source: string): QuizMarkdownAnalysis {
   });
 
   const unclosedFence = fence as { ticks: number; line: number } | null;
+  if (displayMathLine !== null) {
+    diagnostics.push(
+      diagnostic(
+        "UNCLOSED_MATH_BLOCK",
+        questions.at(-1)?.number ?? null,
+        displayMathLine,
+        1,
+        "Display math block is not closed",
+      ),
+    );
+  }
   if (unclosedFence !== null) {
     diagnostics.push(
       diagnostic(
@@ -794,8 +834,13 @@ function scanEditorState(sourceBeforeCurrentLine: string): EditorState {
   let questionCount = 0;
   let target: ContentTarget = "none";
   let fenceTicks: number | null = null;
+  let displayMath = false;
 
   for (const line of sourceLines(sourceBeforeCurrentLine)) {
+    if (displayMath) {
+      if (line.trim() === "$$") displayMath = false;
+      continue;
+    }
     if (fenceTicks !== null) {
       if (isFenceClosing(line, fenceTicks)) {
         fenceTicks = null;
@@ -807,6 +852,13 @@ function scanEditorState(sourceBeforeCurrentLine: string): EditorState {
       if (["stem", "option", "explanation"].includes(target)) {
         fenceTicks = opening;
       }
+      continue;
+    }
+    if (
+      line.trim() === "$$" &&
+      ["stem", "option", "explanation"].includes(target)
+    ) {
+      displayMath = true;
       continue;
     }
     const header = QUESTION_HEADER.exec(line);
@@ -854,18 +906,29 @@ function scanEditorState(sourceBeforeCurrentLine: string): EditorState {
   return { current, questionCount };
 }
 
-function isInsideFenceBeforeLine(sourceBeforeCurrentLine: string): boolean {
+function isInsideLiteralBlockBeforeLine(
+  sourceBeforeCurrentLine: string,
+): boolean {
   let fenceTicks: number | null = null;
+  let displayMath = false;
   for (const line of sourceLines(sourceBeforeCurrentLine)) {
+    if (displayMath) {
+      if (line.trim() === "$$") displayMath = false;
+      continue;
+    }
     if (fenceTicks !== null) {
       if (isFenceClosing(line, fenceTicks)) {
         fenceTicks = null;
       }
       continue;
     }
+    if (line.trim() === "$$") {
+      displayMath = true;
+      continue;
+    }
     fenceTicks = openingFenceLength(line);
   }
-  return fenceTicks !== null;
+  return fenceTicks !== null || displayMath;
 }
 
 function foldAutocompleteText(value: string): string {
@@ -933,7 +996,7 @@ export function getQuizAutocompleteSuggestions(
   const fullLine = source.slice(bounds.start, bounds.contentEnd);
   const beforeLine = source.slice(0, bounds.start);
 
-  if (/^[\t ]/.test(fullLine) || isInsideFenceBeforeLine(beforeLine)) {
+  if (/^[\t ]/.test(fullLine) || isInsideLiteralBlockBeforeLine(beforeLine)) {
     return [];
   }
 

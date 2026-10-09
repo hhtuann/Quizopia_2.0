@@ -32,7 +32,7 @@ OTP requirements:
 
 - exactly six ASCII decimal digits generated with cryptographically secure randomness;
 - hashed at rest;
-- 10-minute expiry;
+- 60-second expiry (proposed FE-09 contract change; requires product/security leader approval before merge);
 - 60-second resend cooldown;
 - five failed attempts per OTP;
 - a successful issuance replaces the previous challenge;
