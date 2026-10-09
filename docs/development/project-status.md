@@ -2,9 +2,9 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-01
+> **Last updated:** 2026-10-09
 >
-> **Checkpoint baseline:** `develop @ c6c81fcddaf6fa144bda58028ffc9e4fca13f680`
+> **Checkpoint baseline:** `develop @ 836194688316360a28e7c6a4335033890a4805f6` (PR #71)
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -64,8 +64,7 @@ Completed foundation includes:
 
 ### Wave 2 — Auth + Quiz Authoring Core
 
-**Status: CLOSED (pending final Leader review/merge of the frontend teacher
-self-enablement PR)**
+**Status: CLOSED at PR #71, as confirmed by Leader.**
 
 Current phase:
 
@@ -98,42 +97,71 @@ Wave 2 has:
 - real Browser → Gateway → Identity → Quiz Service user → teacher → Quiz
   save/reload/publish E2E.
 
-Wave 2 remaining:
+Wave 2 remaining: **none for milestone closure**.
 
-- final independent Leader review and merge of the frontend teacher
-  self-enablement PR.
+### Wave 3 — Assessment Core
+
+**Status: CURRENT — PRODUCT POLICY APPROVED; CONTRACT DOCUMENTATION FIRST.**
+
+[Accepted Assessment Core policy](../specifications/assessment-core-policy.md)
+records ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06. Publication
+opening atomically pins a self-contained snapshot and policy version 1; owner
+score requires successful submit and completed grading, while answer/explanation
+review requires Publication closure and an eligible submitted owner.
+
+Assessment remains a scaffold: no Publication/Attempt/grading business
+implementation or contracts are frozen. Next: freeze W3-A Publication API/data,
+audience/access, and authenticated QuizVersion handoff contracts, then implement
+Publication backend/frontend. W3-B attempt count, autosave revisions, submission
+cutoff, and closure handling remain undecided. Student numeric input and exact
+score representation/display also require accepted contracts before dependent
+implementation. Product policy approval is not implementation/CI/E2E evidence.
+
+The policy specification now includes the A–J source audit, normative grading
+examples, exact existing-route/model inventory, and Dev1/Dev2 W3-A handoff. Its
+endpoint inventory is **PROPOSED**. Closure affects W3-A close as well as W3-B;
+timing scope and conditional ID-05 revocation outage handling also need resolution
+before dependent work. Engineering contract gaps are distinct from Leader
+product/security decisions; non-binding recommendations are in open questions.
 
 ## 3. Current accepted `develop` checkpoint
 
 Current accepted checkpoint:
 
-`develop = 848ecf68654337936ff323d30edcd80aaceb0d83`
+`develop = 836194688316360a28e7c6a4335033890a4805f6`
 
-This checkpoint includes PR #63 (persistent teacher Quiz Library frontend),
-PR #64 (focused Quiz authoring UX), PR #65 (branding/editor polish), and
-PR #66 (Identity teacher self-enablement backend).
+This checkpoint includes the earlier Quiz/Identity foundation and PR #71
+(FE-05–FE-09 editor UX, math, navigation, and registration OTP; the merge came
+from the frontend corporate trust redesign branch). Wave 2 closure here is the
+Leader's milestone decision. Local and freshly fetched `origin/develop` match;
+this documentation task does not claim a new CI or real-topology E2E run.
 
 Important merged checkpoints:
 
-| PR  | Merge commit | Result                                        |
-| --- | ------------ | --------------------------------------------- |
-| #49 | `91b68ea`    | Wave 1A Identity/Auth core                    |
-| #51 | `eb0112f`    | USER/SERVICE access-token principal contract  |
-| #52 | `c5fb0bf`    | Classroom core                                |
-| #53 | `6a3f15f`    | Frontend auth/application-shell foundation    |
-| #54 | `d697e40`    | Quiz Library/Draft backend core               |
-| #55 | `de7e164`    | Identity Auth HTTP orchestration              |
-| #56 | `7aeb079`    | Gateway auth/browser transport hardening      |
-| #57 | `0f2e480`    | Frontend Identity integration + real auth E2E |
-| #58 | `5a1083d`    | Project status + MVP delivery plan            |
-| #59 | `06f1af7`    | Accepted Quiz Markdown contract               |
-| #60 | `58fd7c2`    | Quiz Markdown parser + immutable publishing   |
-| #61 | `c6c81fc`    | Teacher Quiz Library cursor listing           |
-| #62 | `f6664fb`    | Identity login-test expiry rollover hardening |
-| #63 | `4d21b97`    | Persistent teacher Quiz Library frontend      |
-| #64 | `7919aba`    | Focused Quiz authoring UX                     |
-| #65 | `8a4a7cb`    | Branding/editor polish                        |
-| #66 | `848ecf6`    | Identity teacher self-enablement backend      |
+| PR  | Merge commit | Result                                                                    |
+| --- | ------------ | ------------------------------------------------------------------------- |
+| #49 | `91b68ea`    | Wave 1A Identity/Auth core                                                |
+| #51 | `eb0112f`    | USER/SERVICE access-token principal contract                              |
+| #52 | `c5fb0bf`    | Classroom core                                                            |
+| #53 | `6a3f15f`    | Frontend auth/application-shell foundation                                |
+| #54 | `d697e40`    | Quiz Library/Draft backend core                                           |
+| #55 | `de7e164`    | Identity Auth HTTP orchestration                                          |
+| #56 | `7aeb079`    | Gateway auth/browser transport hardening                                  |
+| #57 | `0f2e480`    | Frontend Identity integration + real auth E2E                             |
+| #58 | `5a1083d`    | Project status + MVP delivery plan                                        |
+| #59 | `06f1af7`    | Accepted Quiz Markdown contract                                           |
+| #60 | `58fd7c2`    | Quiz Markdown parser + immutable publishing                               |
+| #61 | `c6c81fc`    | Teacher Quiz Library cursor listing                                       |
+| #62 | `f6664fb`    | Identity login-test expiry rollover hardening                             |
+| #63 | `4d21b97`    | Persistent teacher Quiz Library frontend                                  |
+| #64 | `7919aba`    | Focused Quiz authoring UX                                                 |
+| #65 | `8a4a7cb`    | Branding/editor polish                                                    |
+| #66 | `848ecf6`    | Identity teacher self-enablement backend                                  |
+| #67 | `d39b76b`    | Frontend teacher self-enablement                                          |
+| #68 | `c977d78`    | Teacher-owned immutable QuizVersion history/detail backend                |
+| #69 | `3684ecb`    | Published QuizVersion history/preview frontend                            |
+| #70 | `00265c3`    | Frontend navigation/authoring polish                                      |
+| #71 | `8361946`    | FE-05–FE-09 editor UX, math, navigation, registration OTP; Wave 2 closure |
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
@@ -210,7 +238,7 @@ Current foundation includes:
 
 Broader Classroom product flows remain later work.
 
-## 5. Next workstreams
+## 5. Completed Wave 2 workstreams (historical)
 
 ### Dev 1 — Quiz Markdown + immutable version publishing
 
@@ -255,12 +283,11 @@ Mission:
 Dev 2 does not need to wait for Dev 1 to begin library/draft UI work, but must
 not invent Markdown or publish APIs.
 
-**Current state on `feature/frontend-quiz-library`:** authenticated teacher
-Quiz Library listing, create/read/update authoring, live preview, grammar-aware
-completion, save, and real publish integration are implemented against merged
-contracts. The Library uses backend-owned state and the opaque cursor returned by
-`GET /api/quizzes`; it does not use browser storage or production fixtures as an
-authoritative store. Final verification/review and merge are still pending.
+**Current state: MERGED.** PR #63 delivered persistent teacher Quiz Library;
+subsequent merged work added authoring/editor UX and publish integration. The
+Library uses backend-owned state and opaque cursors rather than browser storage
+or production fixtures as an authoritative store. These historical workstreams
+are not the next Wave 3 assignments; see section 2 and the accepted policy.
 
 ## 6. Accepted Quiz Markdown contract
 
@@ -295,7 +322,7 @@ Authoritative details:
 **QM-06 remains open** for future AI/import canonical rendering and does not
 block the current manual-authoring/publishing workstream.
 
-## 7. Important known gap: teacher self-enablement
+## 7. Completed teacher self-enablement
 
 The accepted product rules say:
 
@@ -305,8 +332,7 @@ The accepted product rules say:
 
 Identity owns teacher-role enablement.
 
-The completed local-auth milestone does **not** currently establish a complete
-end-user teacher self-enablement HTTP/UI journey in this checkpoint.
+Teacher self-enablement backend/frontend is part of the closed Wave 2 milestone.
 
 The Leader accepted **ID-06** for MVP: an ACTIVE, email-verified USER who retains
 the authoritative persisted `STUDENT` role may idempotently add TEACHER; the
@@ -316,12 +342,12 @@ rate limit; and a normal refresh is required for a new JWT role claim.
 Therefore:
 
 - the backend `POST /api/auth/teacher-enablement` operation is merged (PR #66)
-  and the frontend entry point is implemented on the teacher-enablement
-  frontend branch: an authenticated STUDENT can self-enable TEACHER from the
+  and the frontend entry point is merged: an authenticated STUDENT can
+  self-enable TEACHER from the
   user menu or the authoring boundary, and the browser then uses the existing
   refresh coordinator so the replacement JWT and the authoritative `/me`
   expose `STUDENT` + `TEACHER` before the Teaching workspace unlocks;
-- the real-topology E2E on that branch proves the complete product journey
+- the previously recorded real-topology E2E proves the complete product journey
   (new verified account → self-enablement → Quiz create/edit/save/reload/
   publish) through Browser → Gateway → Identity → Quiz Service with real
   PostgreSQL/Redis/Mailpit and a durable `role_grant_audit` row — no direct
@@ -335,7 +361,9 @@ separate accepted product capability that is now implemented end to end.
 
 ## 8. Wave 2 Definition of Done
 
-Wave 2 can close when all of the following are true:
+Wave 2 is CLOSED by Leader at PR #71. The following are its retained exit
+criteria and previously recorded evidence, not new verification in this
+documentation change:
 
 ### Auth
 
@@ -390,14 +418,9 @@ Quiz/import:
 - offline exam DOCX format;
 - AI generation.
 
-Assessment:
-
-- Publication lifecycle/status model;
-- assessment delivery snapshots;
-- attempt/autosave/submit;
-- per-question grading policy;
-- score/review visibility policies;
-- guest assessment identity/access.
+Assessment Core is now the current Wave 3 scope, governed by the accepted policy
+and contract gates in section 2. Guest assessment identity/access remains outside
+that approval and must not be inferred from the broader baseline.
 
 Later product areas:
 
@@ -413,8 +436,9 @@ reality changes. It is not a replacement for product specifications or the MVP
 cut defined in `docs/development/mvp-plan.md`.
 
 - **Wave 1 — Foundation:** CLOSED
-- **Wave 2 — Auth + Quiz Authoring Core:** CURRENT
-- **Wave 3 — Assessment Core:** Publication/delivery, Attempt, autosave, submit, grading, results, minimal Classroom product integration
+- **Wave 2 — Auth + Quiz Authoring Core:** CLOSED at PR #71
+- **Wave 3 — Assessment Core:** CURRENT; Publication/delivery, Attempt, autosave, submit, grading, results, and visibility under accepted policy
+- **Minimal Classroom product integration:** separate MVP-C workstream; not implicitly included in the Wave 3 policy
 - **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
 - **Wave 4 — Realtime + Proctoring:** post-MVP unless explicitly promoted
 - **Wave 5 — Community + Practice + AI:** post-MVP unless explicitly promoted
@@ -424,8 +448,10 @@ The first MVP does **not** require completion of Waves 4–5. The authoritative
 MVP delivery path, scope tiers, blockers, and release journeys are maintained in
 `docs/development/mvp-plan.md`.
 
-Before deep Wave 3 implementation, unresolved Assessment/Publication and grading
-policy items in `docs/open-questions.md` must be resolved.
+Before dependent Wave 3 implementation, freeze the relevant W3-A/W3-B and
+grading/result contracts. ASSESS-01 through ASSESS-04 and GRADE-01 through
+GRADE-06 product policy is resolved; remaining contract/Attempt-policy gates are
+tracked separately in `docs/open-questions.md`.
 
 ## 11. Current development workflow
 

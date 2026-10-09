@@ -4,6 +4,11 @@
 >
 > **Accepted for planning:** 2026-09-30
 >
+> **Wave 3 policy reconciliation:** 2026-10-09; Wave 2 CLOSED at PR #71 per
+> Leader. [Assessment Core policy](../specifications/assessment-core-policy.md)
+> governs Wave 3. Minimal Classroom product integration remains a separate MVP-C
+> gate; it is not automatically added to Assessment Core.
+>
 > **Purpose:** define the shortest accepted path from the current repository
 > state to a usable Quizopia 2.0 MVP.
 >
@@ -125,7 +130,9 @@ The MVP does not require full long-term Publication configurability if a smaller
 accepted policy model can satisfy the journeys above without contradicting
 business rules.
 
-Current state: **NOT STARTED / POLICY DECISIONS REQUIRED**
+Current state: **NOT STARTED / W3-A CONTRACT FREEZE REQUIRED**. ASSESS-01 through
+ASSESS-04 product policy is approved; audience/access, API/data, and handoff
+contracts still require explicit documentation before implementation.
 
 #### Attempt and answer persistence
 
@@ -151,7 +158,9 @@ Current state: **NOT STARTED**
 - answer/correct-answer visibility follows an accepted MVP review policy;
 - teacher can read assessment/classroom results relevant to owned content.
 
-Current state: **BLOCKED ON GRADING / REVIEW-POLICY DECISIONS**
+Current state: **NOT STARTED / CONTRACT DETAILS REQUIRED**. GRADE-01 through
+GRADE-06 and review visibility are approved. Student numeric validation, exact
+score representation/display, and the policy identifier remain contract gates.
 
 #### Minimal Classroom integration
 
@@ -438,77 +447,93 @@ works through the real topology.
 
 ### MVP-B — Wave 3: Assessment Core
 
-Before implementation, resolve the minimum policy set needed by the MVP.
+Wave 2 is CLOSED at PR #71 as confirmed by the Leader. The
+[accepted Wave 3 policy](../specifications/assessment-core-policy.md) fixes the
+Assessment Core product rules. Product approval does not freeze API/schema
+contracts or satisfy implementation/testing gates.
 
 #### B1. Publication/delivery decisions
 
-At minimum resolve:
+Accepted ASSESS-01 through ASSESS-04:
 
-- ASSESS-01 persisted Publication/status model;
-- ASSESS-02 delivery-snapshot finalization point;
-- ASSESS-03 score visibility for MVP;
-- ASSESS-04 answer-review visibility for MVP.
-
-Other Assessment open questions remain deferred unless the selected MVP journey
-requires them.
+- Assessment-owned Publication lifecycle `DRAFT → OPEN → CLOSED`, without
+  return to draft, source-version changes after opening, or reopening;
+- atomic delivery-snapshot finalization on opening, shared by all Attempts;
+- authenticated owner score after successful submission and completed grading;
+- correct answers/explanations only after closure for eligible submitted owners.
 
 #### B2. Grading decisions
 
-Resolve scoring for all four MVP question types:
+Accepted GRADE-01 through GRADE-06:
 
-- GRADE-01;
-- GRADE-02;
-- GRADE-03 if partial credit is selected;
-- GRADE-04;
-- GRADE-05;
-- GRADE-06 if grading policy must be pinned/versioned with immutable delivery.
+- single-choice exact correctness;
+- multiple-choice exact set match without partial credit;
+- true/false equal per-statement credit, including valid all-false matrices;
+- exact decimal numeric equality without tolerance;
+- equal question weights and no negative marking;
+- snapshot-pinned grading policy version 1, without automatic regrading.
 
-#### B3. Publication + delivery snapshot backend
+Student numeric syntax/validation, exact score storage/API/display, and the policy
+identifier still require accepted contracts. The four-character published-answer
+grammar is preserved; it does not itself constrain Student input length.
 
-Deliver:
+#### B3. W3-A — Freeze Publication contracts, then implement backend/frontend
+
+First freeze Publication API/data contracts and the QuizVersion handoff,
+including eligibility, source ownership, transition concurrency, atomic snapshot
+opening, protected grading data, Gateway/security, and configuration impacts.
+Then deliver:
 
 - Assessment-owned publication/delivery configuration;
 - immutable/self-contained attempt delivery snapshot;
-- public authenticated and classroom audience checks;
-- accepted availability/duration policies;
+- the explicitly accepted audience/access checks for W3-A;
+- only availability/duration behavior covered by an accepted contract;
 - QuizVersion handoff without cross-service DB access;
 - service authentication if synchronous Quiz snapshot retrieval is required;
-- durable ownership/reference model.
+- durable ownership/reference model;
+- teacher Publication create/open/close frontend through Gateway.
 
-#### B4. Attempt backend
+#### B4. W3-B — Freeze Attempt contracts, then implement backend/frontend
+
+Resolve attempt count, autosave revision/conflicts, submission cutoff, and
+in-progress Attempt handling at closure before dependent implementation. Freeze
+Student input validation and retry/concurrency/transaction semantics.
 
 Deliver:
 
 - start/resume;
-- deadline enforcement;
-- stable shuffle/order;
+- server-authoritative deadlines under the accepted cutoff contract;
+- stable question/option order; do not infer a randomization contract;
 - answer mutation;
 - autosave sequence protection;
 - idempotent submit;
-- transactional submission/grading/result persistence.
+- transactional submission/grading/result persistence;
+- Student Attempt/autosave/submit frontend through Gateway.
 
 #### B5. Grading + result backend
 
-Deliver deterministic grading and authorized result APIs according to accepted
-MVP policies.
+Freeze grading/result representation and visibility DTOs, then deliver
+deterministic grading and authorized result APIs according to the accepted
+policies. Score requires completed grading; answer/explanation review requires
+closure and an eligible submitted owner. No pre-review key/explanation leakage.
 
-#### B6. Assessment frontend
+#### B6. Grading/results frontend and real-topology verification
 
-Deliver:
-
-- teacher minimal assessment configuration;
-- learner attempt UI;
-- autosave UX;
-- timer/state UX where relevant;
-- submit/retry-safe UX;
-- learner result view;
-- teacher result view.
+Deliver learner and Teacher result/review views against accepted contracts.
+Publication UI ships with W3-A; Attempt/autosave/submit and any accepted timer
+UI ship with W3-B. Verify the combined real-topology journey below.
 
 Wave 3 exit:
 
 `published QuizVersion → assessment → learner attempt → submit → authoritative result`
 
 works end-to-end.
+
+Run complete real-topology E2E after the contract/implementation sequence. Close
+Wave 3 only when its Definition of Done is met. Each workstream targets
+`develop`, matches the approved contract, passes required tests and CI, verifies
+security boundaries, has no remaining Blocker/High finding, and reports accurate
+real integration evidence. Leader performs final review/merge.
 
 ### MVP-C — Minimal Classroom/Product integration
 
@@ -570,16 +595,28 @@ PR #66 + frontend + real-topology E2E) and no longer blocks MVP-A.
 
 ### Blocks MVP-B
 
-- ASSESS-01
-- ASSESS-02
-- ASSESS-03
-- ASSESS-04
-- GRADE-01
-- GRADE-02
-- GRADE-03 if applicable
-- GRADE-04
-- GRADE-05
-- GRADE-06 if required by the selected grading model
+ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06 are accepted product
+policy and no longer open. The remaining implementation gates are:
+
+- W3-A Publication API/data/internal handoff freeze and audience/access decision
+  (ASSESS-14/15);
+- W3-A close behavior (ASSESS-13) and any timing configuration (ASSESS-17);
+- W3-B attempt count, autosave revision/conflicts, submission cutoff, closure,
+  and submit/finalization contract (ASSESS-10 through ASSESS-13, ASSESS-16/17);
+- Student numeric input/submission validation (GRADE-07);
+- exact score representation/rounding/display and version 1 identifier (GRADE-08).
+
+ID-05 remains a conditional security dependency for revocation outage handling.
+The [Assessment Core specification](../specifications/assessment-core-policy.md)
+contains the A–J source audit, normative grading examples, proposed W3-A endpoint
+inventory, and Dev1/Dev2 handoff. `docs/open-questions.md` distinguishes Leader
+product/security choices from engineering contracts, with recommendations that
+are explicitly not accepted policy. Routine class/lock/component choices do not
+require separate product decisions.
+
+Other open questions block only a workstream that explicitly depends on them;
+passwords, guests, and broader Classroom integration are not implicitly required
+by this Wave 3 policy.
 
 ### Potentially blocks MVP-C
 
@@ -601,29 +638,29 @@ Status vocabulary:
 - `BLOCKED` — cannot safely implement without a recorded decision/dependency;
 - `NOT STARTED`.
 
-| Capability                            | Status      | Notes                                                                                                        |
-| ------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
-| Scaffold / service isolation          | VERIFIED    | Wave 1                                                                                                       |
-| Local account auth                    | VERIFIED    | Browser → Gateway → Identity                                                                                 |
-| Frontend auth/session                 | VERIFIED    | refresh/bootstrap/logout E2E                                                                                 |
-| Teacher self-enablement               | VERIFIED    | backend PR #66 + frontend; real user → teacher → publish E2E proven                                          |
-| Classroom core                        | MERGED      | assignment/product integration missing                                                                       |
-| Quiz stable identity + draft backend  | VERIFIED    | create/read/update foundation                                                                                |
-| Quiz frontend library/editor          | MERGED      | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish                                |
-| Quiz Markdown grammar/editor contract | DECIDED     | QM-01 through QM-05 accepted                                                                                 |
-| Quiz parser/validator                 | VERIFIED    | merged in PR #60                                                                                             |
-| Immutable QuizVersion/publish         | VERIFIED    | merged in PR #60                                                                                             |
-| Assessment Publication                | BLOCKED     | ASSESS decisions                                                                                             |
-| Delivery snapshot                     | BLOCKED     | ASSESS decisions + QuizVersion                                                                               |
-| Attempt core                          | NOT STARTED | depends on delivery snapshot                                                                                 |
-| Autosave/stale-write protection       | NOT STARTED | Attempt core                                                                                                 |
-| Submit/idempotency                    | NOT STARTED | Attempt core                                                                                                 |
-| Grading                               | BLOCKED     | GRADE decisions                                                                                              |
-| Learner result                        | NOT STARTED | grading/result model                                                                                         |
-| Teacher result                        | NOT STARTED | grading/result model                                                                                         |
-| Classroom assignment integration      | NOT STARTED | Assessment publication                                                                                       |
-| Full MVP E2E                          | NOT STARTED | all MUST capabilities                                                                                        |
-| MVP hardening/release                 | NOT STARTED | full MVP E2E first                                                                                           |
+| Capability                            | Status      | Notes                                                                                 |
+| ------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| Scaffold / service isolation          | VERIFIED    | Wave 1                                                                                |
+| Local account auth                    | VERIFIED    | Browser → Gateway → Identity                                                          |
+| Frontend auth/session                 | VERIFIED    | refresh/bootstrap/logout E2E                                                          |
+| Teacher self-enablement               | VERIFIED    | backend PR #66 + frontend; real user → teacher → publish E2E proven                   |
+| Classroom core                        | MERGED      | assignment/product integration missing                                                |
+| Quiz stable identity + draft backend  | VERIFIED    | create/read/update foundation                                                         |
+| Quiz frontend library/editor          | MERGED      | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish         |
+| Quiz Markdown grammar/editor contract | DECIDED     | QM-01 through QM-05 accepted                                                          |
+| Quiz parser/validator                 | VERIFIED    | merged in PR #60                                                                      |
+| Immutable QuizVersion/publish         | VERIFIED    | merged in PR #60                                                                      |
+| Assessment Publication                | NOT STARTED | product policy accepted; W3-A API/data/access contract freeze required                |
+| Delivery snapshot                     | NOT STARTED | atomic opening accepted; internal QuizVersion handoff contract required               |
+| Attempt core                          | NOT STARTED | finalized snapshot + W3-B contract/attempt policy gates                               |
+| Autosave/stale-write protection       | NOT STARTED | stale-write rejection required; exact revision/conflict contract open                 |
+| Submit/idempotency                    | NOT STARTED | idempotency/coherence required; cutoff/closure/concurrency contract open              |
+| Grading                               | NOT STARTED | product policy accepted; numeric input + score representation/policy identifier gates |
+| Learner result                        | NOT STARTED | grading/result model                                                                  |
+| Teacher result                        | NOT STARTED | grading/result model                                                                  |
+| Classroom assignment integration      | NOT STARTED | Assessment publication                                                                |
+| Full MVP E2E                          | NOT STARTED | all MUST capabilities                                                                 |
+| MVP hardening/release                 | NOT STARTED | full MVP E2E first                                                                    |
 
 Update this table whenever a material workstream merges or becomes blocked.
 

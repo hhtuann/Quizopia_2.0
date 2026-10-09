@@ -44,14 +44,22 @@ A published version itself is immutable; the arrow back to DRAFT represents crea
 
 ## Publication
 
-The exact persisted publication status enum is **TBD**.
+Wave 3 Assessment Publication lifecycle is accepted:
 
-Required conceptual phases:
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT: teacher prepares
+    DRAFT --> OPEN: finalize snapshot atomically
+    OPEN --> CLOSED: close to new attempts
+```
 
-- configuration/draft;
-- published/shareable;
-- effective availability determined by policy/time;
-- archived/disabled.
+The QuizVersion reference cannot change after opening. No return to `DRAFT` or
+reopening `CLOSED` is in MVP. QuizVersion publication does not automatically open
+an Assessment Publication. All Attempts use the snapshot pinned on opening.
+
+This resolves ASSESS-01/02 for Assessment Core; it does not define Practice
+publication states or approve scheduling/cutoff behavior. See
+[accepted policy](assessment-core-policy.md).
 
 Do not create read-triggered hidden state transitions like the legacy session lifecycle.
 
@@ -72,9 +80,19 @@ stateDiagram-v2
 
 Automatic grading/result persistence occurs coherently with submission.
 
+The diagram above is a baseline, not approval of Wave 3 timeout/cutoff behavior.
+Attempt count, precise autosave revision/conflict semantics, submission cutoff,
+and in-progress Attempt handling at closure remain contract gates. Closure only
+establishes that no new Attempts may start; do not infer forced finalization.
+
 Do not add unused `GRADED`/`RELEASED` states unless a real separate lifecycle requires them.
 
 Result visibility is controlled by publication policy rather than by placeholder states with no behavior.
+
+Wave 3 score visibility requires successful submission and completed grading;
+submission alone is insufficient. Correct answers/explanations require a `CLOSED`
+Publication and an eligible submitted owner. Backend response authorization must
+enforce both gates without inventing a separate persisted lifecycle prematurely.
 
 ## Proctoring session
 

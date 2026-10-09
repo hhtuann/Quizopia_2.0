@@ -163,7 +163,10 @@ An active assessment must keep working when Quiz Service is unavailable.
 
 Assessment therefore stores a self-contained immutable delivery snapshot before the active-attempt path depends on it.
 
-The exact publication transition at which that snapshot is finalized remains a feature-level open question.
+For Wave 3, the snapshot is finalized atomically with Publication `DRAFT → OPEN`.
+All Attempts in that Publication use the finalized snapshot, including its pinned
+grading policy. The accepted details and remaining API/data contract gates are in
+[Assessment Core policy](../specifications/assessment-core-policy.md).
 
 ## Local development
 

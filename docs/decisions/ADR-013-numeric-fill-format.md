@@ -71,9 +71,17 @@ The same representation rule must be implemented consistently in:
 The complete authoring grammar is defined in
 `docs/specifications/quiz-markdown-spec.md`.
 
-## Still open
+## Wave 3 grading clarification
 
-This ADR does not define the learner-answer comparison/scoring algorithm.
+The Leader's [accepted Wave 3 policy](../specifications/assessment-core-policy.md)
+resolves GRADE-05 comparison as exact decimal numerical equality, using exact
+decimal arithmetic such as `BigDecimal`, without binary floating-point comparison
+or tolerance. Invalid or unanswered submissions earn zero according to the final
+accepted submission-validation contract.
 
-Exact grading comparison/normalization remains tracked by `GRADE-05` and must
-be finalized before Assessment grading implementation.
+The four-character grammar above continues to apply to the published correct
+answer. The consistency requirement preserves that answer representation across
+authoring/import/storage and interpretation by grading; it does not establish a
+four-character Student input constraint. Student input syntax, normalization,
+bounds, and validation/rejection semantics remain explicitly open under GRADE-07
+and must be documented before dependent implementation.
