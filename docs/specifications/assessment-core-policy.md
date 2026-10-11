@@ -402,7 +402,11 @@ outstanding under the bounded contract below, not a new scoring-policy question.
 
 ### LD-05 — Bounded security implementation and verification contract
 
-**Status: OPEN — ENGINEERING CONTRACT; Dev1 preparation required before dependent wiring.**
+**Historical gate: Dev1 preparation required before dependent wiring.**
+The subsequently approved Candidate B architecture and bounded Identity
+prerequisite are recorded in the [LD-05 addendum](../architecture/identity-authority-admission.md).
+That approval supersedes the recovery-design preparation statement below;
+Gateway/downstream enforcement, verification and activation remain incomplete.
 
 This is the required scope for the next security contract, not approval of a
 recovery design or a claim that checks exist. Preserve Identity's durable

@@ -149,3 +149,39 @@ $login = Invoke-WebRequest -Method Post -Uri "$api/api/auth/login" -ContentType 
 $accessToken = ($login.Content | ConvertFrom-Json).accessToken
 Invoke-RestMethod -Method Get -Uri "$api/api/auth/me" -Headers @{ Authorization = "Bearer $accessToken" }
 ```
+
+## LD-05 authority admission prerequisite
+
+See [architecture and operational runbook](../../docs/architecture/identity-authority-admission.md).
+V13 captures durable per-actor reconciliation work transactionally. The new
+complete Redis namespace does not replace sparse revocation keys or change
+login/refresh issuance. No Gateway or downstream adapter is included.
+
+Both `IDENTITY_USER_ADMISSION_ENABLED` and
+`IDENTITY_AUTHORITY_RECONCILIATION_ENABLED` default to false and are independently
+controlled. Admission activation requires enabled Identity issuance/signing keys,
+`IDENTITY_USER_ADMISSION_ALLOWED_CLIENTS` as an exact comma-separated client-ID
+allowlist and registration of scope `identity.user-admission` using the existing
+service-client provisioning capability. No default client grants are installed.
+`IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT` defaults to true; only controlled
+local tests may turn it off. Internal TLS, destination/network restrictions and
+sensitive-header redaction are deployment gates.
+
+Worker controls are `IDENTITY_AUTHORITY_BATCH_SIZE` (default 50, maximum 500),
+`IDENTITY_AUTHORITY_POLLING_INTERVAL` (default PT5S, minimum PT1S) and
+`IDENTITY_USER_ADMISSION_QUERY_TIMEOUT_SECONDS` (default 2, range 1–30).
+`REDIS_CONNECT_TIMEOUT` and `REDIS_COMMAND_TIMEOUT` default to 2s. Set bounded
+Hikari acquisition and JDBC connect/socket/cancel timeouts, then load-test the
+complete call path before rollout. No recovery SLA follows from these defaults.
+Never use Redis PING or publication counters to assert global actor readiness.
+
+The internal bodyless POST accepts SERVICE Authorization and the original compact
+USER JWT in `X-Quizopia-User-Evidence`. Never forward cookies or expose this header
+through browser CORS; never log either credential. Responses are no-store and
+contain only verified actor UUID/current roles or a fixed sanitized error code.
+Production activation requires the later Gateway/downstream work and Leader
+review; existing protected APIs are not LD-05 compliant merely because this
+Identity capability is present.
+
+The service-local [internal OpenAPI contract](contracts/user-admission.openapi.yaml)
+records this dual-credential endpoint separately from browser-facing Swagger.

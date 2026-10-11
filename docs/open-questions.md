@@ -28,7 +28,16 @@ extend that original expiry.
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
 
 Status: **PARTIALLY RESOLVED — LD-05 Wave 3 security policy accepted;
-implementation/recovery/verification contracts OPEN**. Required revocation/account
+Candidate B architecture APPROVED; Identity prerequisite under review;
+end-to-end enforcement/operational activation/verification OPEN**.
+The Leader-approved Candidate B A–E decision authorizes always-required primary
+Identity admission, complete Redis equality, per-actor trustworthy recovery,
+coherent PostgreSQL snapshot and narrow dual USER/SERVICE evidence, with mandatory
+ADR/capacity/rollout/security gates. See the bounded
+[Identity architecture/addendum](architecture/identity-authority-admission.md).
+This records the approval from the implementation assignment without inventing
+its original date. Gateway/downstream implementation and production activation
+remain incomplete. Required revocation/account
 authority must be trustworthy; signature-valid unexpired JWTs alone are
 insufficient. Affected protected Assessment, Classroom and Proctoring operations
 fail closed while required authority is unavailable or untrustworthy. Prefer
@@ -39,8 +48,8 @@ authenticated lower-risk reads are approved for initial Wave 3. Redis health or
 connectivity alone does not establish recovery: trustworthy coverage or
 reconstruction from authoritative durable state is required before authorization
 resumes. Independent truly public, nonprivileged infrastructure operations may
-remain available. Dev1 must freeze the bounded security implementation,
-authoritative recovery mechanism and verification contract; see
+remain available. The bounded Identity implementation is proposed for review; end-to-end
+security enforcement, recovery verification and rollout gates remain required; see
 [Assessment Core gate](specifications/assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).
 No authentication subsystem rewrite is authorized. Wider non-Wave-3 outage
 contracts are not settled by this bounded decision.
