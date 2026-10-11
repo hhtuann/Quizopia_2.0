@@ -350,7 +350,23 @@ When an account is disabled/revoked:
 4. refresh is rejected;
 5. Gateway and protected services reject revoked users even if an otherwise-valid short-lived JWT has not expired.
 
-Exact cache-failure/fail-open-vs-fail-closed behavior remains an operational/security open question.
+The later [approved W3-A LD-05 follow-up](../specifications/w3-a-publication-scheduling-monitoring-policy.md#ld-05--redis-revocation-outage-and-recovery)
+records the initial Wave 3 policy: required revocation/account authority must be
+trustworthy before affected protected Assessment, Classroom and Proctoring
+operations are authorized. Signature-valid, unexpired JWTs cannot bypass required
+checks; fail closed during required authority unavailability/untrustworthiness.
+No automatic Identity fallback or degraded authenticated lower-risk read policy
+is approved. Outage alone must not invalidate refresh credentials, silently log
+out or create refresh loops. Prefer sanitized service-unavailable responses where
+appropriate, subject to API contract review.
+
+Redis health/connectivity alone does not establish trustworthy recovery.
+Trustworthy coverage or reconstruction from authoritative durable state is
+required; affected protected operations remain unavailable until then.
+Independent truly public nonprivileged infrastructure may remain available.
+ID-05 is partially resolved: implementation, authoritative recovery mechanism
+and security verification remain open under the [bounded Dev1 contract gate](../specifications/assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).
+This records policy only and authorizes no authentication subsystem rewrite.
 
 ## Service-to-service authentication
 

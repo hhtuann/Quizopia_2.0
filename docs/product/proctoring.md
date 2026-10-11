@@ -8,8 +8,14 @@ The [approved W3-A Leader decision](../specifications/w3-a-publication-schedulin
 supersedes blanket Wave 3 Proctoring deferral. Eligible CLASS Publications may
 require a disclosed bundle of Browser Activity Evidence and LiveKit camera
 monitoring. W3-M1 and W3-M2 are required Wave 3 outcomes; enabling monitoring is
-optional per eligible Publication. No previously accepted A/B enum exists, and
-configuration encoding, UI terminology and defaults remain OPEN.
+optional per eligible Publication. Follow-up LD-02 requires an explicit CLASS
+Teacher choice before OPEN. Unconfigured CLASS DRAFT has no implicit ON/OFF
+default and cannot OPEN; the recorded choice becomes immutable upon OPEN.
+PUBLIC must have monitoring disabled. Enabled means the Activity Evidence plus
+LiveKit Camera bundle; no additional Activity-only, AI-enabled or A/B modes are
+approved. Persisted representation and UI terminology remain engineering work;
+runtime capture still requires eligible active Attempts and W3-M1/M2
+authorization, privacy and failure contracts.
 
 AI behavior monitoring remains accepted future design, deferred beyond Wave 3.
 Media/audio recording, mandatory/strict screen sharing, remote device control and
@@ -31,7 +37,7 @@ Proctoring may be enabled only when all of the following are true:
 - Teacher is authorized to assign to that Classroom;
 - learner must be authenticated and a classroom member;
 - publication has a bounded availability window;
-- attempt has a bounded positive duration.
+- attempt has an integer duration of 5–240 minutes inclusive, in one-minute steps (LD-01).
 
 Therefore:
 
@@ -185,3 +191,12 @@ privileged checks fail closed when authoritative verification is unavailable.
 Monitoring failures must not corrupt answers/results, change grading or silently
 extend deadlines. The exact refusal/loss outcome remains OPEN, not an automatic
 failure or an implicitly authorized bypass.
+
+LD-05 requires affected protected Proctoring operations to fail closed while
+required revocation/account authority is unavailable or untrustworthy. A valid
+unexpired JWT alone cannot bypass required checks. No automatic Identity fallback
+or degraded authenticated lower-risk read policy is approved for initial Wave 3.
+Outage alone must not invalidate refresh credentials, silently log out or create
+refresh loops. Redis health alone does not prove recovery; trustworthy coverage
+or reconstruction from durable authority is required. Implementation/recovery/
+verification remain gated by the [Assessment Core security contract](../specifications/assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).

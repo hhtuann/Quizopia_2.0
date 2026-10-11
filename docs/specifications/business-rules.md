@@ -7,8 +7,11 @@ grading/visibility rules and the subsequent
 [W3-A Leader decision](w3-a-publication-scheduling-monitoring-policy.md) governs
 audience, scheduling and monitoring scope. CLASS/PUBLIC, bounded start windows,
 positive Attempt duration and optional eligible CLASS Activity/LiveKit monitoring
-are accepted. PUBLIC access, detailed timing and monitoring contracts remain open;
-broader guest/configurable visibility features are not implicitly approved.
+are accepted. The LD-01..05 follow-up accepts timing boundaries/deadline/duration,
+explicit CLASS monitoring choice, authenticated link-only PUBLIC participation,
+reject-CLOSE while active and Wave 3 revocation outage/recovery policy. Remaining
+engineering/W3-B/C/M1/M2 gates stay open; broader guest/configurable visibility
+features are not implicitly approved.
 
 ## Identity
 
@@ -48,7 +51,14 @@ broader guest/configurable visibility features are not implicitly approved.
 Wave 3 CLASS targets exactly one Classroom; Teacher assignment authority and
 Student membership are checked authoritatively through Classroom Service. Shared
 URLs cannot bypass membership. PUBLIC has no membership requirement and cannot
-enable Classroom Proctoring; PUBLIC authentication/discovery remains OPEN.
+enable Classroom Proctoring. LD-03 requires authenticated USER with authoritative
+STUDENT and Identity account/token-validity/revocation rules; TEACHER + STUDENT
+may participate through STUDENT. Wave 3 uses a shared direct link with a suitably
+non-enumerable locator; no directory, guests, passwords or anonymous-session
+identity is required. Teacher management remains owner-authorized and Student
+APIs expose safe projections. Link possession bypasses no eligibility rule;
+exact locator/route/error contracts remain engineering work. No new owner
+self-participation permission or prohibition is introduced.
 
 ## Assessment time mutation
 
@@ -61,8 +71,14 @@ Wave 3 requires a bounded participation window for starting Attempts and a
 positive bounded per-Attempt duration. Opening is distinct from scheduling;
 window end is not durable closure, automatic Attempt finalization or answer-review
 permission. Server time controls starts/deadlines without relying solely on jobs.
-Precise boundaries, duration limits, deadline formula, expiry/resumption and
-manual-close behavior remain contract gates. Future unbounded/practice timing is
+LD-01 accepts OPEN + eligible Student + `startAt <= serverNow < endAt`, integer
+5–240-minute duration with one-minute granularity, and authoritative start plus
+duration deadlines. Timezone-safe authoritative instants and unambiguous local
+conversion are required. Window end does not shorten an already-started Attempt;
+configuration must never retroactively shorten existing authoritative deadlines.
+Rules 24–27 remain applicable; no blanket post-OPEN timing ban is introduced.
+Wire/validation details and W3-B expiration, cutoff, timeout finalization,
+resumption and response ordering remain gates. Future unbounded/practice timing is
 not decided by this limited scope.
 
 ## Attempt correctness
@@ -88,6 +104,15 @@ and explanations require closure and an eligible submitted owner. These rules
 are enforced by Assessment backend, including omission of hidden data before
 review is allowed.
 
+LD-04 rejects OPEN → CLOSED while any Attempt is authoritatively active, with a
+documented conflict response. Teacher may close once all Attempts are terminal.
+CLOSE must handle overdue Attempts and start/finalization races transactionally;
+concurrent start/CLOSE cannot leave an unauthorized active Attempt in CLOSED.
+W3-B must ensure expired Attempts eventually become terminal independently of
+timely background processing. No automatic closure or force-close is introduced.
+Saved/unsaved answer treatment, deadline finalization and submit semantics remain
+W3-B contracts; only durable CLOSED enables eligible submitted-owner review.
+
 ## Proctoring
 
 38. Proctoring is allowed only for one-class, authenticated, bounded-time assessments.
@@ -102,8 +127,11 @@ review is allowed.
 
 Under W3-A, Activity Evidence and LiveKit camera monitoring are required Wave 3
 outcomes, enabled together optionally for eligible CLASS Publications after clear
-Student disclosure. Monitoring encoding/default is not frozen; no A/B enum is
-established. Browser evidence must not collect unrelated app activity, other-tab
+Student disclosure. LD-02 requires explicit CLASS Teacher choice before OPEN,
+with no implicit ON/OFF default for unconfigured CLASS DRAFT; the choice is
+immutable upon OPEN. PUBLIC monitoring must be disabled. No additional
+Activity-only, AI-enabled or A/B modes are approved. Persisted representation/UI
+terminology and W3-M1/M2 runtime authorization/privacy/failure contracts stay open. Browser evidence must not collect unrelated app activity, other-tab
 URLs, browsing history, keystrokes or clipboard contents; answer-change metadata
 must not leak answer content. Evidence never automatically disqualifies or zeros
 a score. Teachers view only authorized active participants; Students cannot view
@@ -150,6 +178,18 @@ privacy/security release gates must be finalized before dependent release.
 73. Services publish OpenAPI contracts; frontend contracts/clients should be generated/derived where practical.
 74. Flyway owns database schema changes; Hibernate validates schema.
 75. Production secrets must never be committed to Git.
+
+LD-05 requires trustworthy revocation/account authority for affected protected
+Assessment/Classroom/Proctoring operations. Valid unexpired JWTs cannot bypass
+required near-immediate revocation checks; fail closed during required authority
+unavailability/untrustworthiness. Prefer sanitized service-unavailable responses
+where appropriate, subject to API review. Outage alone must not invalidate
+refresh credentials, silently log out or cause refresh loops. No automatic
+Identity fallback or degraded authenticated lower-risk reads are approved for
+initial Wave 3. Recovery requires trustworthy coverage or durable reconstruction,
+not merely Redis health/connectivity. Independent truly public nonprivileged
+infrastructure may remain available. ID-05 implementation/recovery/verification
+remain open; no auth subsystem rewrite is authorized.
 
 ## Quality/operations
 

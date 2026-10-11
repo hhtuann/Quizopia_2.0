@@ -50,7 +50,7 @@ Wave 3 Assessment Publication lifecycle is accepted:
 stateDiagram-v2
     [*] --> DRAFT: teacher prepares
     DRAFT --> OPEN: finalize snapshot atomically
-    OPEN --> CLOSED: close to new attempts
+    OPEN --> CLOSED: owner closes only when all Attempts terminal
 ```
 
 The QuizVersion reference cannot change after opening. No return to `DRAFT` or
@@ -67,8 +67,14 @@ Do not create read-triggered hidden state transitions like the legacy session li
 For Wave 3, represent scheduling as separate eligibility conditions, not additional
 Publication states. Opening and participation start are distinct; participation
 window end alone is neither durable closure nor automatic Attempt finalization.
-Explicit lifecycle commands remain retry-safe; expiry/early-close behavior requires
-its own accepted contract.
+LD-01 accepts inclusive-start/exclusive-end eligibility and authoritative
+start-plus-duration deadlines (integer 5–240-minute duration). LD-04 rejects CLOSE
+while any Attempt is authoritatively active, with a documented conflict response;
+only terminal Attempts permit Teacher closure. Overdue handling and start/
+finalization races require transactional contracts; no unauthorized active
+Attempt may remain in CLOSED after concurrent start/CLOSE. Explicit lifecycle
+commands remain retry-safe; expiry/finalization and concurrency require W3-B and
+engineering contracts. No automatic closure or force-close is introduced.
 
 ## Assessment attempt
 
@@ -87,8 +93,11 @@ Automatic grading/result persistence occurs coherently with submission.
 
 The diagram above is a baseline, not approval of Wave 3 timeout/cutoff behavior.
 Attempt count, precise autosave revision/conflict semantics, submission cutoff,
-and in-progress Attempt handling at closure remain contract gates. Closure only
-establishes that no new Attempts may start; do not infer forced finalization.
+and expiration/timeout finalization, resumption and response ordering remain
+contract gates. LD-04 rejects closure while any Attempt is authoritatively active;
+W3-B must ensure expired Attempts eventually become terminal independently of
+timely jobs. Saved/unsaved answer treatment and submit semantics remain open.
+Do not infer forced finalization from the Publication transition.
 
 Do not add unused `GRADED`/`RELEASED` states unless a real separate lifecycle requires them.
 
@@ -105,8 +114,11 @@ Wave 3 includes optional eligible CLASS Activity Evidence and LiveKit camera
 monitoring under the [W3-A Leader decision](w3-a-publication-scheduling-monitoring-policy.md).
 The session below is distinct from Publication lifecycle and new-start scheduling.
 Participation-window end alone is not Attempt end or a review-release transition.
-Detailed expiry/finalization, early closure, token revocation and camera-failure
-behavior remain OPEN; no new mandatory session state is approved by this diagram.
+LD-02 requires an explicit CLASS monitoring choice before OPEN, immutable upon
+OPEN; runtime capture requires eligible active Attempts and W3-M1/M2 contracts.
+Detailed expiry/finalization, transactional close handling, token revocation and
+camera-failure behavior remain OPEN; no new mandatory session state is approved
+by this diagram.
 
 ```mermaid
 stateDiagram-v2

@@ -43,4 +43,7 @@ Still TBD:
 - OTP exact parameters;
 - account-link conflict UX;
 - exact token TTL values;
-- Redis revocation lookup outage behavior.
+- Redis revocation implementation, authoritative recovery mechanism and security
+  verification; the later [W3-A LD-05 follow-up](../specifications/w3-a-publication-scheduling-monitoring-policy.md#ld-05--redis-revocation-outage-and-recovery)
+  accepts initial Wave 3 fail-closed/no-automatic-fallback/no-degraded-read policy.
+  Broader outage contracts outside that scope remain open.
