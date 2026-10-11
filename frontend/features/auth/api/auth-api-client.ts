@@ -144,6 +144,14 @@ function normalizeTransportResult(
   result: HttpTransportResult,
 ): AuthApiResult<HttpResponse> {
   if (result.kind === "transport-error") {
+    if (
+      result.error.kind === "invalid-response" &&
+      result.error.status !== undefined
+    )
+      return {
+        ok: false,
+        error: { kind: "unexpected-response", status: result.error.status },
+      };
     return {
       ok: false,
       error: { kind: "transport-error", error: result.error },
@@ -157,6 +165,14 @@ function normalizeAuthenticatedResult(
   result: AuthenticatedRequestResult,
 ): AuthApiResult<HttpResponse> {
   if (result.kind === "transport-error") {
+    if (
+      result.error.kind === "invalid-response" &&
+      result.error.status !== undefined
+    )
+      return {
+        ok: false,
+        error: { kind: "unexpected-response", status: result.error.status },
+      };
     return {
       ok: false,
       error: { kind: "transport-error", error: result.error },

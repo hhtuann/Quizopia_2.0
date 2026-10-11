@@ -52,6 +52,7 @@ export function SessionVerificationRecovery() {
             : null}
       </p>
       <Button
+        aria-label={isRetrying ? "Verifying account" : undefined}
         isLoading={isRetrying}
         loadingLabel="Verifying account"
         onClick={() => void retry()}

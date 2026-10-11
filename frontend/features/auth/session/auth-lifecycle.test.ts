@@ -695,3 +695,121 @@ it("does not recover bootstrap's account after a newer login fails", async () =>
   expect((await h.service.retryVerification()).ok).toBe(false);
   expect(h.me).toHaveBeenCalledTimes(1);
 });
+
+it.each(["timeout", "rejection"] as const)(
+  "preserves verification after logout lock acquisition %s",
+  async (failure) => {
+    vi.useFakeTimers();
+    const h = harness();
+    h.me.mockResolvedValueOnce(response(503));
+    await h.service.login(input);
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: () =>
+          failure === "rejection"
+            ? Promise.reject(new Error("Lock unavailable"))
+            : new Promise(() => {}),
+      },
+    });
+    const logout = h.service.logout();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect((await logout).ok).toBe(false);
+    expect(h.logout).not.toHaveBeenCalled();
+    delete (navigator as { locks?: LockManager }).locks;
+    expect((await h.service.retryVerification()).ok).toBe(true);
+    expect(h.service.runtime.getSnapshot().status).toBe("authenticated");
+  },
+);
+
+it.each(["timeout", "network", "503"] as const)(
+  "does not automatically repeat an ordinary refresh after %s uncertainty",
+  async (failure) => {
+    vi.useFakeTimers();
+    const h = harness();
+    await h.service.login(input);
+    h.protectedRequest.mockResolvedValue(response(401));
+    if (failure === "timeout") {
+      const gate = holdNext(h.refresh);
+      const first = h.service.authenticatedRequests.execute({
+        createRequest: () => ({ target: "/api/protected" }),
+      });
+      await gate.entered.promise;
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(await first).toMatchObject({ kind: "refresh-failure" });
+    } else {
+      h.refresh.mockResolvedValueOnce(
+        failure === "network"
+          ? { kind: "transport-error", error: { kind: "network" } }
+          : response(503),
+      );
+      expect(
+        await h.service.authenticatedRequests.execute({
+          createRequest: () => ({ target: "/api/protected" }),
+        }),
+      ).toMatchObject({ kind: "refresh-failure" });
+    }
+    for (let attempt = 0; attempt < 3; attempt += 1)
+      expect(
+        await h.service.authenticatedRequests.execute({
+          createRequest: () => ({ target: "/api/protected" }),
+        }),
+      ).toMatchObject({ kind: "refresh-failure" });
+    expect(h.refresh).toHaveBeenCalledTimes(2); // bootstrap plus the uncertain rotation
+    expect(h.logout).not.toHaveBeenCalled();
+    expect(h.service.runtime.getSnapshot().status).toBe("authenticated");
+    await signInTeacher(h); // A fresh explicit login clears uncertainty with its new session generation.
+    h.refresh.mockResolvedValueOnce(credentials("teacher-access"));
+    h.me.mockResolvedValueOnce(profile(true));
+    await h.service.authenticatedRequests.execute({
+      createRequest: () => ({ target: "/api/protected" }),
+    });
+    expect(h.refresh).toHaveBeenCalledTimes(3);
+  },
+);
+
+it.each([200, 401, 403, 503])(
+  "preserves /me HTTP %s classification when JSON is malformed",
+  async (status) => {
+    const fetcher = vi.fn<typeof fetch>(async (target) => {
+      const path = String(target);
+      if (path.endsWith("/refresh"))
+        return Response.json(
+          {
+            code: "AUTH_REFRESH_FAILED",
+            message: "Refresh failed.",
+            path,
+            status: 401,
+            traceId: null,
+          },
+          { status: 401 },
+        );
+      if (path.endsWith("/login"))
+        return Response.json({
+          accessToken: "candidate",
+          expiresIn: 300,
+          tokenType: "Bearer",
+        });
+      if (path.endsWith("/me"))
+        return new Response("{malformed", {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      if (path.endsWith("/logout")) return new Response(null, { status: 204 });
+      throw new Error("Unexpected test request");
+    });
+    const service = createAuthSessionService({
+      transport: createFetchHttpTransport(fetcher),
+    });
+    expect(await service.login(input)).toMatchObject({
+      ok: false,
+      error: { kind: "unexpected-response", status },
+    });
+    expect(service.runtime.getSnapshot().status).toBe(
+      [401, 403].includes(status) ? "anonymous" : "verification-unavailable",
+    );
+    expect(
+      fetcher.mock.calls.some(([url]) => String(url).endsWith("/logout")),
+    ).toBe([401, 403].includes(status));
+  },
+);

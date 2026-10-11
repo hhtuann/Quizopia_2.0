@@ -107,7 +107,7 @@ describe("refresh coordinator", () => {
     expect(vault.read()).toBe("third-access-token");
   });
 
-  it("resets after transient returned and thrown failures", async () => {
+  it("blocks automatic replay after uncertainty and permits an explicit attempt", async () => {
     const { runtime, vault } = authenticatedRuntime();
     const firstCause = new Error("Temporary failure");
     const secondCause = new Error("Rejected operation");
@@ -125,6 +125,12 @@ describe("refresh coordinator", () => {
     expect(vault.read()).toBe("initial-access-token");
 
     await expect(coordinator.refresh()).resolves.toEqual({
+      status: "transient-failure",
+      cause: firstCause,
+    });
+    expect(refreshOperation).toHaveBeenCalledTimes(1);
+
+    await expect(coordinator.refresh({ explicit: true })).resolves.toEqual({
       status: "transient-failure",
       cause: secondCause,
     });

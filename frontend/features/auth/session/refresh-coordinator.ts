@@ -3,7 +3,7 @@ import type { RefreshOperation, RefreshResult } from "./refresh-result";
 
 export interface RefreshCoordinator {
   bootstrap(): Promise<RefreshResult>;
-  refresh(): Promise<RefreshResult>;
+  refresh(options?: { readonly explicit?: boolean }): Promise<RefreshResult>;
   waitForIdle(): Promise<void>;
 }
 
@@ -12,6 +12,10 @@ export function createRefreshCoordinator(
   refreshOperation: RefreshOperation,
 ): RefreshCoordinator {
   let inFlightRefresh: Promise<RefreshResult> | null = null;
+  let uncertainRefresh: {
+    readonly sessionGeneration: number;
+    readonly result: RefreshResult;
+  } | null = null;
 
   async function performBootstrap(): Promise<RefreshResult> {
     const generation = sessionRuntime.getOperationGeneration();
@@ -52,9 +56,11 @@ export function createRefreshCoordinator(
     return result;
   }
 
-  async function performRefresh(): Promise<RefreshResult> {
+  async function performRefresh(explicit: boolean): Promise<RefreshResult> {
     const generation = sessionRuntime.getOperationGeneration();
     const sessionGeneration = sessionRuntime.getSessionGeneration();
+    if (!explicit && uncertainRefresh?.sessionGeneration === sessionGeneration)
+      return uncertainRefresh.result;
     if (!sessionRuntime.beginRefreshing()) {
       return { status: "no-session" };
     }
@@ -73,6 +79,7 @@ export function createRefreshCoordinator(
       return { status: "no-session" };
 
     if (result.status === "refreshed") {
+      uncertainRefresh = null;
       return sessionRuntime.completeRefreshing(result.session)
         ? result
         : { status: "no-session" };
@@ -83,6 +90,9 @@ export function createRefreshCoordinator(
       return result;
     }
 
+    // A failed response may follow a committed cookie rotation. Further 401s
+    // must not automatically replay a potentially consumed credential.
+    uncertainRefresh = { sessionGeneration, result };
     return sessionRuntime.recoverFromRefreshFailure()
       ? result
       : { status: "no-session" };
@@ -110,8 +120,8 @@ export function createRefreshCoordinator(
     bootstrap() {
       return singleFlight(performBootstrap);
     },
-    refresh() {
-      return singleFlight(performRefresh);
+    refresh(options?: { readonly explicit?: boolean }) {
+      return singleFlight(() => performRefresh(options?.explicit === true));
     },
     async waitForIdle() {
       await inFlightRefresh;

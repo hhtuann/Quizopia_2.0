@@ -270,8 +270,9 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
     .click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   expect((await logoutResponse).ok()).toBe(true);
+  await expect(page).toHaveURL(/\/login$/);
   await expect(
-    page.getByRole("heading", { name: "Sign in to continue" }),
+    page.getByRole("heading", { name: "Sign in", exact: true }),
   ).toBeVisible();
 
   const afterLogoutCookies = await context.cookies(refreshCookieUrl);
@@ -286,6 +287,10 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
   });
 
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).toBeVisible();
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "Sign in to continue" }),
   ).toBeVisible();

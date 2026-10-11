@@ -391,7 +391,7 @@ export function createAuthSessionService(
         if (!runtime.isCurrentOperation(generation))
           return clientStateFailure("session-changed");
 
-        const refreshed = await refreshCoordinator.refresh();
+        const refreshed = await refreshCoordinator.refresh({ explicit: true });
         if (refreshed.status === "no-session") {
           return clientStateFailure("no-session");
         }
@@ -555,7 +555,7 @@ export function createAuthSessionService(
           return clientStateFailure("session-changed");
         const previousPending = pendingVerification;
         const generation = runtime.beginOperation();
-        return serializeAuth(() =>
+        const result = await serializeAuth(() =>
           lockForOperation(
             generation,
             async () => {
@@ -571,20 +571,24 @@ export function createAuthSessionService(
               if (result.ok) {
                 pendingVerification = null;
                 runtime.clearLocalSession();
-              } else if (
-                previousPending !== null &&
-                pendingVerification === previousPending &&
-                runtime.getSnapshot().status === "verification-unavailable"
-              ) {
-                // An unsuccessful explicit logout must leave manual verification
-                // available, while keeping the canceled request's epoch obsolete.
-                pendingVerification = { ...previousPending, generation };
               }
               return result;
             },
             canceledRequest(),
           ),
         );
+        if (
+          !result.ok &&
+          runtime.isCurrentOperation(generation) &&
+          previousPending !== null &&
+          pendingVerification === previousPending &&
+          runtime.getSnapshot().status === "verification-unavailable"
+        ) {
+          // Acquisition failure must preserve recovery just like HTTP failure.
+          pendingVerification = { ...previousPending, generation };
+          runtime.setVerificationPending(false, generation);
+        }
+        return result;
       })();
       logoutPromise = attempt;
       const clearLogout = () => {

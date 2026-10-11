@@ -44,9 +44,11 @@ async function unavailableLogin(page: Page) {
   await page.getByLabel("Username or email").fill("learner");
   await page.getByLabel("Password").fill("test-password");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "Account verification is temporarily unavailable",
-  );
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Account verification is temporarily unavailable" }),
+  ).toContainText("Account verification is temporarily unavailable");
   return {
     recover: () => {
       recovered = true;
@@ -57,7 +59,7 @@ async function unavailableLogin(page: Page) {
 
 test("manual verification is keyboard accessible, announces repeated failure and fits mobile", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const h = await unavailableLogin(page);
   const retry = page.getByRole("button", {
@@ -75,6 +77,10 @@ test("manual verification is keyboard accessible, announces repeated failure and
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("verification-mobile.png"),
+    fullPage: true,
+  });
   h.recover();
   await retry.focus();
   await page.keyboard.press("Space");

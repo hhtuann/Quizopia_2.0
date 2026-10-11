@@ -199,6 +199,14 @@ own ten-second deadline and operation cancellation; a callback granted after
 cancellation cannot execute. These are interactive frontend deadlines, not a
 backend cancellation or refresh-rotation guarantee.
 
+An uncertain ordinary refresh result is latched for that session generation.
+Later protected 401 responses return refresh failure without another automatic
+rotation or local expiry. A new verified login establishes a new generation;
+the existing explicit Teacher enablement action may request one explicit refresh.
+No transport/503 assumption establishes that an unsuccessful rotation had no
+server-side or cookie effect. Received `/me` 401/403 stays a denial even if its
+JSON body cannot be decoded; HTTP status survives response-body parse failure.
+
 Bootstrap retains a successfully refreshed candidate privately if `/me` cannot
 complete, enabling the same manual verification UI. If refresh itself fails
 transiently, no candidate exists: startup settles as unavailable with a sign-in
