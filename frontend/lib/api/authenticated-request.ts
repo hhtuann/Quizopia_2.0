@@ -57,6 +57,16 @@ export function createAuthenticatedRequestExecutor(options: {
   const { accessTokenVault, refreshCoordinator, sessionRuntime, transport } =
     options;
 
+  function fenceResult(
+    result: AuthenticatedRequestResult,
+    sessionGeneration: number,
+  ): AuthenticatedRequestResult {
+    return accessTokenVault.readSnapshot().sessionGeneration ===
+      sessionGeneration
+      ? result
+      : { kind: "authentication-failure", reason: "session-changed" };
+  }
+
   async function executeAttempt(
     request: ReplayableAuthenticatedRequest,
     accessToken: string,
@@ -91,7 +101,10 @@ export function createAuthenticatedRequestExecutor(options: {
     accessToken: string,
     sessionGeneration: number,
   ): Promise<AuthenticatedRequestResult> {
-    const retryResult = await executeAttempt(request, accessToken);
+    const retryResult = fenceResult(
+      await executeAttempt(request, accessToken),
+      sessionGeneration,
+    );
     const unauthorized = unauthorizedResponse(retryResult);
     if (unauthorized === null) {
       return retryResult;
@@ -129,7 +142,10 @@ export function createAuthenticatedRequestExecutor(options: {
         };
       }
 
-      const firstResult = await executeAttempt(request, initial.accessToken);
+      const firstResult = fenceResult(
+        await executeAttempt(request, initial.accessToken),
+        initial.sessionGeneration,
+      );
       if (unauthorizedResponse(firstResult) === null) {
         return firstResult;
       }
@@ -194,15 +210,18 @@ export function createAuthenticatedRequestExecutor(options: {
     },
 
     async executeOnce(request) {
-      const accessToken = accessTokenVault.read();
-      if (accessToken === null) {
+      const initial = accessTokenVault.readSnapshot();
+      if (initial.accessToken === null) {
         return {
           kind: "authentication-failure",
           reason: "no-access-token",
         };
       }
 
-      return executeAttempt(request, accessToken);
+      return fenceResult(
+        await executeAttempt(request, initial.accessToken),
+        initial.sessionGeneration,
+      );
     },
 
     executeOnceWithAccessToken(request, accessToken) {

@@ -12,6 +12,7 @@ export interface RefreshFoundNoSession {
 export interface RefreshFailedTransiently {
   readonly status: "transient-failure";
   readonly cause?: unknown;
+  readonly verificationPending?: true;
 }
 
 export type RefreshResult =

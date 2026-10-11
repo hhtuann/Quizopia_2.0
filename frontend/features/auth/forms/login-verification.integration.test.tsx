@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFetchHttpTransport } from "../../../lib/api/http-transport";
 import { AuthProvider, useAuth } from "../auth-provider";
@@ -54,7 +60,7 @@ function harness() {
   const service = createAuthSessionService({
     transport: createFetchHttpTransport(fetcher),
   });
-  render(
+  const view = render(
     <AuthProvider service={service}>
       <LoginForm />
       <SessionProbe />
@@ -63,6 +69,7 @@ function harness() {
   return {
     fetcher,
     service,
+    view,
     setMeStatus: (status: number) => {
       meStatus = status;
     },
@@ -141,6 +148,9 @@ describe("login hydration UI integration", () => {
       "verification-unavailable",
     );
     expect(
+      screen.getByRole("status", { name: "Verification progress" }),
+    ).toHaveTextContent("Verification attempt 2 could not be completed");
+    expect(
       fetcher.mock.calls.some(([url]) => String(url).endsWith("/logout")),
     ).toBe(false);
     setMeStatus(401);
@@ -153,6 +163,9 @@ describe("login hydration UI integration", () => {
       ),
     );
     expect(navigation.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sign in could not be completed",
+    );
     expect(
       screen.queryByRole("button", { name: "Retry account verification" }),
     ).not.toBeInTheDocument();
@@ -161,5 +174,90 @@ describe("login hydration UI integration", () => {
         fetcher.mock.calls.filter(([url]) => String(url).endsWith("/logout")),
       ).toHaveLength(1),
     );
+  });
+});
+
+describe("recovery UI lifecycle", () => {
+  function deferredResponse() {
+    let resolve!: (value: Response) => void;
+    let entered!: () => void;
+    const started = new Promise<void>((done) => {
+      entered = done;
+    });
+    const pending = new Promise<Response>((done) => {
+      resolve = done;
+    });
+    return { resolve, entered, started, pending };
+  }
+  const verifiedProfile = () =>
+    Response.json({
+      id: "8ad4c564-3c27-4e6d-91aa-a004334aa8f8",
+      email: "learner@gmail.com",
+      username: "learner",
+      roles: ["STUDENT"],
+    });
+
+  it("keeps shared pending state across remount and prevents duplicate retry", async () => {
+    const h = harness();
+    await submitLogin();
+    const gate = deferredResponse();
+    h.fetcher.mockImplementationOnce(() => {
+      gate.entered();
+      return gate.pending;
+    });
+    const firstButton = screen.getByRole("button", {
+      name: "Retry account verification",
+    });
+    firstButton.focus();
+    expect(firstButton).toHaveFocus();
+    fireEvent.click(firstButton);
+    await gate.started;
+    expect(
+      screen.getByRole("button", { name: "Verifying account" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("status", { name: "Verification progress" }),
+    ).toHaveTextContent("Checking your account");
+    h.view.unmount();
+    render(
+      <AuthProvider service={h.service}>
+        <LoginForm />
+        <SessionProbe />
+      </AuthProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Verifying account" }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Verifying account" }));
+    expect(
+      h.fetcher.mock.calls.filter(([url]) => String(url).endsWith("/me")),
+    ).toHaveLength(2);
+    await act(async () => {
+      gate.resolve(verifiedProfile());
+    });
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledTimes(1));
+    expect(navigation.replace).toHaveBeenCalledWith("/app");
+  });
+
+  it("does not navigate from an unmounted login recovery after late success", async () => {
+    const h = harness();
+    await submitLogin();
+    const gate = deferredResponse();
+    h.fetcher.mockImplementationOnce(() => {
+      gate.entered();
+      return gate.pending;
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry account verification" }),
+    );
+    await gate.started;
+    h.view.unmount();
+    await act(async () => {
+      gate.resolve(verifiedProfile());
+    });
+    await waitFor(() =>
+      expect(h.service.runtime.getSnapshot().status).toBe("authenticated"),
+    );
+    expect(navigation.replace).not.toHaveBeenCalled();
   });
 });

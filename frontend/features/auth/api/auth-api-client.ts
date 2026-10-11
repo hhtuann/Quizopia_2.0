@@ -99,7 +99,7 @@ export interface AuthApiClient {
   enableTeacher(
     authenticatedRequests: AuthenticatedRequestExecutor,
   ): Promise<AuthApiResult<void>>;
-  logout(): Promise<AuthApiResult<void>>;
+  logout(signal?: AbortSignal): Promise<AuthApiResult<void>>;
   me(
     authenticatedRequests: AuthenticatedRequestExecutor,
     accessToken: string,
@@ -286,10 +286,11 @@ export function createAuthApiClient(options: {
       return result.ok ? expectEmpty(result.value, 204) : result;
     },
 
-    async logout() {
+    async logout(signal) {
       const result = normalizeTransportResult(
         await transport.execute({
           credentials: "include",
+          signal,
           headers: { accept: "application/json" },
           method: "POST",
           target: target("/api/auth/logout"),

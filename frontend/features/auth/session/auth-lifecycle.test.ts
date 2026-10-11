@@ -52,6 +52,7 @@ function harness() {
   const me = vi.fn<Handler>(async () => profile());
   const logout = vi.fn<Handler>(async () => response(204));
   const protectedRequest = vi.fn<Handler>(async () => response(200, {}));
+  const enableTeacher = vi.fn<Handler>(async () => response(204));
   const service = createAuthSessionService({
     transport: {
       async execute(request) {
@@ -61,11 +62,20 @@ function harness() {
         if (path.endsWith("/me")) return me(request);
         if (path.endsWith("/logout")) return logout(request);
         if (path === "/api/protected") return protectedRequest(request);
+        if (path.endsWith("/teacher-enablement")) return enableTeacher(request);
         throw new Error(`Unexpected request ${path}`);
       },
     },
   });
-  return { service, login, refresh, me, logout, protectedRequest };
+  return {
+    service,
+    login,
+    refresh,
+    me,
+    logout,
+    protectedRequest,
+    enableTeacher,
+  };
 }
 function holdNext(handler: ReturnType<typeof vi.fn<Handler>>) {
   const entered = deferred<HttpRequest>();
@@ -269,6 +279,7 @@ describe("expired-candidate recovery cancellation", () => {
       value: {
         request: async <T>(
           _name: string,
+          _options: LockOptions,
           work: () => Promise<T>,
         ): Promise<T> => {
           heldLocks += 1;
@@ -452,4 +463,235 @@ describe("expired-candidate recovery cancellation", () => {
     expect((await service.logout()).ok).toBe(true);
     expect(refreshes).toBe(2);
   });
+});
+
+describe("Dev 2 takeover regressions", () => {
+  it("retains bootstrap's candidate for manual authoritative recovery without another rotation", async () => {
+    const h = harness();
+    h.refresh.mockResolvedValueOnce(credentials("bootstrap-candidate"));
+    h.me.mockResolvedValueOnce(response(503));
+    expect(await h.service.bootstrap()).toMatchObject({
+      status: "transient-failure",
+    });
+    expect(h.service.runtime.getSnapshot().status).toBe(
+      "verification-unavailable",
+    );
+    expect(
+      await h.service.authenticatedRequests.executeOnce({
+        createRequest: () => ({ target: "/api/protected" }),
+      }),
+    ).toMatchObject({ kind: "authentication-failure" });
+    expect(h.protectedRequest).not.toHaveBeenCalled();
+    expect((await h.service.retryVerification()).ok).toBe(true);
+    expect(
+      new Headers(h.me.mock.lastCall?.[0].headers).get("authorization"),
+    ).toBe("Bearer bootstrap-candidate");
+    expect(h.refresh).toHaveBeenCalledTimes(1);
+    expect(h.logout).not.toHaveBeenCalled();
+  });
+
+  it.each(["execute", "executeOnce"] as const)(
+    "discards %s success from a previous account",
+    async (method) => {
+      const h = harness();
+      await h.service.login(input);
+      const gate = holdNext(h.protectedRequest);
+      const request = h.service.authenticatedRequests[method]({
+        createRequest: () => ({ target: "/api/protected" }),
+      });
+      await gate.entered.promise;
+      await signInTeacher(h);
+      gate.late.resolve(
+        response(200, { privateStudentData: "must not escape" }),
+      );
+      expect(await request).toEqual({
+        kind: "authentication-failure",
+        reason: "session-changed",
+      });
+      await expectTeacher(h);
+    },
+  );
+
+  it("discards successful protected replay after local clear", async () => {
+    const h = harness();
+    await h.service.login(input);
+    h.protectedRequest.mockResolvedValueOnce(response(401));
+    h.refresh.mockResolvedValueOnce(credentials("replacement"));
+    const gate = holdNext(h.protectedRequest);
+    const request = h.service.authenticatedRequests.execute({
+      createRequest: () => ({ target: "/api/protected" }),
+    });
+    await gate.entered.promise;
+    h.service.runtime.clearLocalSession();
+    gate.late.resolve(response(200, { privateStudentData: "must not escape" }));
+    expect(await request).toEqual({
+      kind: "authentication-failure",
+      reason: "session-changed",
+    });
+  });
+
+  it("does not refresh a newer identity after stale Teacher enablement success", async () => {
+    const h = harness();
+    await h.service.login(input);
+    const gate = holdNext(h.enableTeacher);
+    const enabling = h.service.enableTeacher();
+    await gate.entered.promise;
+    await signInTeacher(h);
+    gate.late.resolve(response(204));
+    expect((await enabling).ok).toBe(false);
+    expect(h.refresh).toHaveBeenCalledTimes(1);
+    await expectTeacher(h);
+  });
+
+  it.each([false, true])(
+    "bounds ordinary refresh and releases logout (Web Locks=%s)",
+    async (useLocks) => {
+      vi.useFakeTimers();
+      let held = 0;
+      if (useLocks)
+        Object.defineProperty(navigator, "locks", {
+          configurable: true,
+          value: {
+            request: async <T>(
+              _name: string,
+              _options: LockOptions,
+              work: () => Promise<T>,
+            ) => {
+              held += 1;
+              try {
+                return await work();
+              } finally {
+                held -= 1;
+              }
+            },
+          },
+        });
+      const h = harness();
+      await h.service.login(input);
+      h.protectedRequest.mockResolvedValueOnce(response(401));
+      const gate = holdNext(h.refresh);
+      const request = h.service.authenticatedRequests.execute({
+        createRequest: () => ({ target: "/api/protected" }),
+      });
+      const refreshing = await gate.entered.promise;
+      const logout = h.service.logout();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(refreshing.signal?.aborted).toBe(true);
+      expect(await request).toMatchObject({ kind: "refresh-failure" });
+      expect((await logout).ok).toBe(true);
+      expect(held).toBe(0);
+      gate.late.resolve(credentials("obsolete"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(h.service.runtime.getSnapshot().status).toBe("anonymous");
+      await signInTeacher(h);
+    },
+  );
+
+  it("bounds bootstrap refresh with a non-settling transport", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    const gate = holdNext(h.refresh);
+    const attempt = h.service.bootstrap();
+    const request = await gate.entered.promise;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await attempt).toMatchObject({ status: "transient-failure" });
+    expect(request.signal?.aborted).toBe(true);
+    expect(h.service.runtime.getSnapshot().status).toBe("bootstrap-failed");
+    expect(h.logout).not.toHaveBeenCalled();
+    await signInTeacher(h);
+    gate.late.resolve(credentials("obsolete"));
+    await vi.advanceTimersByTimeAsync(0);
+    await expectTeacher(h);
+  });
+
+  it("bounds queued Web Lock acquisition and ignores a non-cooperating late callback", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    h.me.mockResolvedValueOnce(response(503));
+    await h.service.login(input);
+    const entered = deferred<AbortSignal>();
+    let lateWork!: () => Promise<unknown>;
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: (
+          _name: string,
+          options: LockOptions,
+          work: () => Promise<unknown>,
+        ) => {
+          lateWork = work;
+          entered.resolve(options.signal!);
+          return new Promise(() => {});
+        },
+      },
+    });
+    const retry = h.service.retryVerification();
+    const signal = await entered.promise;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect((await retry).ok).toBe(false);
+    expect(signal.aborted).toBe(true);
+    expect(h.me).toHaveBeenCalledTimes(1);
+    await lateWork();
+    expect(h.me).toHaveBeenCalledTimes(1);
+    delete (navigator as { locks?: LockManager }).locks;
+    expect((await h.service.logout()).ok).toBe(true);
+  });
+
+  it("cancels queued Web Lock acquisition when a new login supersedes it", async () => {
+    const h = harness();
+    h.me.mockResolvedValueOnce(response(503));
+    await h.service.login(input);
+    const entered = deferred<AbortSignal>();
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: (_name: string, options: LockOptions) => {
+          entered.resolve(options.signal!);
+          return new Promise(() => {});
+        },
+      },
+    });
+    const retry = h.service.retryVerification();
+    const signal = await entered.promise;
+    delete (navigator as { locks?: LockManager }).locks;
+    await signInTeacher(h);
+    expect(signal.aborted).toBe(true);
+    expect((await retry).ok).toBe(false);
+  });
+
+  it.each([
+    response(200, {}),
+    response(401),
+    response(403),
+    response(429),
+    response(500),
+  ])(
+    "keeps hydration status classification fail-closed: %j",
+    async (failure) => {
+      const h = harness();
+      h.me.mockResolvedValueOnce(failure);
+      expect((await h.service.login(input)).ok).toBe(false);
+      const status = failure.kind === "response" ? failure.response.status : 0;
+      expect(h.service.runtime.getSnapshot().status).toBe(
+        [401, 403].includes(status) ? "anonymous" : "verification-unavailable",
+      );
+      expect(h.logout).toHaveBeenCalledTimes(
+        [401, 403].includes(status) ? 1 : 0,
+      );
+      expect(h.protectedRequest).not.toHaveBeenCalled();
+    },
+  );
+});
+
+it("does not recover bootstrap's account after a newer login fails", async () => {
+  const h = harness();
+  h.refresh.mockResolvedValueOnce(credentials("bootstrap-account"));
+  h.me.mockResolvedValueOnce(response(503));
+  h.login.mockResolvedValueOnce(response(401));
+  expect(
+    (await h.service.login({ ...input, identifier: "another-account" })).ok,
+  ).toBe(false);
+  expect(h.service.runtime.getSnapshot().status).toBe("anonymous");
+  expect((await h.service.retryVerification()).ok).toBe(false);
+  expect(h.me).toHaveBeenCalledTimes(1);
 });

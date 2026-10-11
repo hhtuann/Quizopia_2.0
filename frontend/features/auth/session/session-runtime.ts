@@ -45,6 +45,10 @@ export interface SessionRuntime {
   subscribe(listener: () => void): () => void;
   switchWorkspace(workspace: Workspace): boolean;
   markVerificationUnavailable(operationGeneration?: number): void;
+  setVerificationPending(
+    isVerifying: boolean,
+    operationGeneration: number,
+  ): void;
 }
 
 export function createSessionRuntime(
@@ -218,6 +222,17 @@ export function createSessionRuntime(
         accessTokenVault.invalidateOperations();
       accessTokenVault.clear();
       publish(VERIFICATION_UNAVAILABLE_SESSION);
+    },
+
+    setVerificationPending(isVerifying, operationGeneration) {
+      if (
+        runtime.isCurrentOperation(operationGeneration) &&
+        state.status === "verification-unavailable"
+      ) {
+        publish(
+          Object.freeze({ status: "verification-unavailable", isVerifying }),
+        );
+      }
     },
 
     recoverFromRefreshFailure() {

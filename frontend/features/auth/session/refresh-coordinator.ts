@@ -44,6 +44,8 @@ export function createRefreshCoordinator(
 
     if (result.status === "no-session") {
       sessionRuntime.completeBootstrapAsAnonymous();
+    } else if (result.verificationPending) {
+      sessionRuntime.markVerificationUnavailable(generation);
     } else {
       sessionRuntime.completeBootstrapAsUnavailable();
     }

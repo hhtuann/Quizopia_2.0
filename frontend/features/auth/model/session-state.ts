@@ -15,6 +15,7 @@ export interface BootstrapFailedSession {
 
 export interface VerificationUnavailableSession {
   readonly status: "verification-unavailable";
+  readonly isVerifying?: boolean;
 }
 
 export interface AuthenticatedSession {

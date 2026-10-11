@@ -178,7 +178,7 @@ The configured access-token TTL remains deployment/security configuration and mu
 
 ### Frontend login hydration and temporary unavailability
 
-Successful login credentials alone do not establish frontend authenticated
+Successful login or bootstrap refresh credentials alone do not establish frontend authenticated
 identity: `/api/auth/me` must hydrate the authoritative user first. If hydration
 returns 503 or fails because of timeout or network unavailability, the frontend
 keeps the refresh cookie intact and enters `verification-unavailable`. It exposes
@@ -193,14 +193,26 @@ Expired-candidate recovery also bounds its refresh request to ten seconds, an
 interactive deadline consistent with hydration. Its AbortSignal reaches the HTTP
 transport and fetch. Timeout/cancellation settles the client operation, releases
 the queue/held browser lock, and ignores any late response; it never automatically
-repeats an uncertain rotation. Normal bootstrap/refresh gain operation cancellation
-without a new refresh timeout.
+repeats an uncertain rotation. Bootstrap and ordinary refresh requests, login and
+logout requests also use ten-second deadlines. Browser lock acquisition has its
+own ten-second deadline and operation cancellation; a callback granted after
+cancellation cannot execute. These are interactive frontend deadlines, not a
+backend cancellation or refresh-rotation guarantee.
+
+Bootstrap retains a successfully refreshed candidate privately if `/me` cannot
+complete, enabling the same manual verification UI. If refresh itself fails
+transiently, no candidate exists: startup settles as unavailable with a sign-in
+action. A login intent supersedes any candidate produced while awaiting bootstrap.
+Retry pending state belongs to the existing runtime so remounting its presentation
+cannot enable duplicate submissions. Failed attempts receive a fresh status
+announcement; login recovery navigation belongs to the mounted login form.
 
 Login, recovery, refresh and logout cookie operations are serialized locally and
 use the existing browser auth lock where available. The in-memory token vault owns
 two monotonic fences with distinct purposes: `sessionGeneration` changes when
 tokens are cleared or an identity is established/changed and protects request
-replay; `operationGeneration` changes on new login intent, explicit local clearing,
+replay and every protected response, including successful one-shot and replayed
+responses; `operationGeneration` changes on new login intent, explicit local clearing,
 session expiry, logout execution, or a refreshed identity changing accounts and
 cancels older asynchronous auth work.
 Automatic bootstrap completion and same-session refresh do not advance the
@@ -222,13 +234,19 @@ Refresh rotation after an uncertain response and backend unavailable-status
 mapping require coordinated backend contracts and real-browser integration
 verification. The frontend performs no compensating automatic logout or refresh.
 
-The frontend relies on a separately accepted unavailable-response contract for
+The frontend requires a separately accepted unavailable-response contract for
 Identity and Gateway; HTTP 503 is the proposed coordinated mapping for temporary
 security authority unavailability, rather than 401/403. LD-05 does not itself
 freeze the exact wire status/error. A real `/me` 401/403 still rejects
 the session; `AUTH_REFRESH_FAILED` 401 still ends refresh recovery. Protected 503
 responses pass through without refresh or logout. This frontend behavior does not
 implement backend revocation authority or change its accepted LD-05 requirements.
+PR #75 freezes only the internal Identity admission `503 AUTHORITY_UNAVAILABLE`
+code-only response. It does not freeze browser `/me`, refresh, Gateway or protected
+downstream unavailable envelopes, or implement those admission adapters. See
+[Identity authority admission](identity-authority-admission.md) and the
+[frontend takeover review](../development/frontend-ld05-review.md) for the
+remaining contract and real-topology gates.
 
 ### Access-token principal contract
 
