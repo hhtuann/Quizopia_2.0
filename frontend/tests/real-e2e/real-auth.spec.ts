@@ -54,6 +54,25 @@ async function waitForVerificationCode(
   throw new Error("Timed out waiting for the verification email in Mailpit.");
 }
 
+async function fillVerificationCode(page: Page, code: string) {
+  const group = page.getByRole("group", {
+    name: "Verification code",
+    exact: true,
+  });
+  const slots = group.getByRole("textbox", { name: /Verification code digit/ });
+
+  await expect(slots).toHaveCount(6);
+  await group
+    .getByRole("textbox", {
+      name: "Verification code digit 1 of 6",
+      exact: true,
+    })
+    .fill(code);
+  for (let digit = 0; digit < 6; digit++) {
+    await expect(slots.nth(digit)).toHaveValue(code[digit]);
+  }
+}
+
 async function browserStorageSnapshot(page: Page) {
   return page.evaluate(async () => ({
     cookie: document.cookie,
@@ -119,7 +138,7 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
 
   const otp = await waitForVerificationCode(request, email);
   const invalidOtp = otp === "000000" ? "111111" : "000000";
-  await page.getByLabel("Verification code").fill(invalidOtp);
+  await fillVerificationCode(page, invalidOtp);
   await page.getByRole("button", { name: "Verify email" }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "Email verification failed" }),
@@ -134,7 +153,7 @@ test("real browser auth traverses Gateway, Identity, PostgreSQL, Redis, and Mail
         `${gatewayOrigin}/api/auth/email-verification/confirm` &&
       response.request().method() === "POST",
   );
-  await page.getByLabel("Verification code").fill(otp);
+  await fillVerificationCode(page, otp);
   await page.getByRole("button", { name: "Verify email" }).click();
   expect((await confirmResponse).ok()).toBe(true);
   await expect(page).toHaveURL(/\/login$/);
@@ -331,7 +350,7 @@ test("real teacher preserves published A/B history while current draft advances 
   );
 
   const otp = await waitForVerificationCode(request, email);
-  await page.getByLabel("Verification code").fill(otp);
+  await fillVerificationCode(page, otp);
   await page.getByRole("button", { name: "Verify email" }).click();
   await expect(page).toHaveURL(/\/login$/);
 
