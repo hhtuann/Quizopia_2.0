@@ -49,3 +49,15 @@ The local Gateway values must match the Identity authority:
 `IDENTITY_ISSUER=http://localhost:8081` and
 `IDENTITY_JWKS_URI=http://localhost:8081/oauth2/jwks`. The Identity README
 contains the key-generation, service startup, and register-to-`/me` smoke flow.
+
+## LD-05 admission boundary
+
+See the [exact protected-route inventory and deployment gates](../docs/architecture/ld05-enforcement.md).
+Admission is independently disabled by default; selected Classroom operations
+fail closed while disabled/unconfigured. Assessment and Proctoring business
+routes remain denied until exact reviewed adapters exist. Provision this
+deployment's own least-privilege SERVICE client and runtime secret. No Wave 3
+business feature or Identity activation is enabled by this prerequisite.
+
+Do not route activated protected traffic to bypass-capable older Gateway or
+downstream instances. Drain/block old instances before activation or rollback.

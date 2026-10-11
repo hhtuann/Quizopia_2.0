@@ -22,6 +22,12 @@ spring:
             - id: quiz-service
               uri: ${QUIZ_SERVICE_URL:http://localhost:8082}
               predicates: [Path=/api/quizzes/**]
+            - id: classroom-create
+              uri: ${CLASSROOM_SERVICE_URL:http://localhost:8083}
+              predicates: [Path=/classrooms, Method=POST]
+            - id: classroom-owned-read
+              uri: ${CLASSROOM_SERVICE_URL:http://localhost:8083}
+              predicates: ["Path=/classrooms/{classroomId}", Method=GET]
             - id: classroom-service
               uri: ${CLASSROOM_SERVICE_URL:http://localhost:8083}
               predicates: [Path=/api/classes/**]
@@ -42,6 +48,17 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 quizopia:
+  admission:
+    enabled: ${USER_ADMISSION_ENABLED:false}
+    identity-base-url: ${USER_ADMISSION_IDENTITY_BASE_URL:}
+    client-id: ${USER_ADMISSION_CLIENT_ID:}
+    client-secret: ${USER_ADMISSION_CLIENT_SECRET:}
+    allow-insecure-loopback: ${USER_ADMISSION_ALLOW_INSECURE_LOOPBACK:false}
+    connect-timeout: ${USER_ADMISSION_CONNECT_TIMEOUT:PT1S}
+    response-timeout: ${USER_ADMISSION_RESPONSE_TIMEOUT:PT3S}
+    total-timeout: ${USER_ADMISSION_TOTAL_TIMEOUT:PT5S}
+    max-connections: ${USER_ADMISSION_MAX_CONNECTIONS:8}
+    pending-acquires: ${USER_ADMISSION_PENDING_ACQUIRES:32}
   gateway:
     browser:
       allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:3000}
@@ -68,3 +85,13 @@ management:
       export:
         otlp:
           endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+# Dedicated credential clients must remain redacted even when root logging is DEBUG/TRACE.
+logging:
+  level:
+    org.springframework.web.reactive.function.client: WARN
+    org.springframework.http.codec: WARN
+    org.springframework.core.codec: WARN
+    org.springframework.web.HttpLogging: WARN
+    org.springframework.security.oauth2.client: WARN
+    reactor.netty.http.client: WARN

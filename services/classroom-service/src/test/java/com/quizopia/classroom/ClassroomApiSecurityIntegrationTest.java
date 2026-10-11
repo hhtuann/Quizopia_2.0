@@ -27,6 +27,8 @@ import com.quizopia.classroom.security.AuthenticatedUserIdResolver;
 import com.quizopia.classroom.security.ClassroomSecurityErrorHandler;
 import com.quizopia.classroom.security.QuizopiaJwtAuthenticationConverter;
 import com.quizopia.classroom.security.QuizopiaTokenClaims;
+import com.quizopia.classroom.security.admission.AdmissionProperties;
+import com.quizopia.classroom.security.admission.IdentityAdmissionClient;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +49,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import reactor.core.publisher.Mono;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -88,7 +91,7 @@ class ClassroomApiSecurityIntegrationTest {
     @Test
     void malformedAndMixedUserClaimsReturn401() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(jwtDecoder.decode("malformed"))
+        when(jwtDecoder.decode("malformed.payload.signature"))
                 .thenReturn(jwt(
                         "not-a-uuid",
                         Map.of(
@@ -96,7 +99,7 @@ class ClassroomApiSecurityIntegrationTest {
                                 QuizopiaTokenClaims.USER,
                                 QuizopiaTokenClaims.ROLES,
                                 List.of("TEACHER"))));
-        when(jwtDecoder.decode("mixed"))
+        when(jwtDecoder.decode("mixed.payload.signature"))
                 .thenReturn(jwt(
                         userId.toString(),
                         Map.of(
@@ -107,10 +110,12 @@ class ClassroomApiSecurityIntegrationTest {
                                 QuizopiaTokenClaims.SCOPE,
                                 List.of("classroom.read"))));
 
-        mvc.perform(get("/classrooms/{id}", UUID.randomUUID()).header("Authorization", "Bearer malformed"))
+        mvc.perform(get("/classrooms/{id}", UUID.randomUUID())
+                        .header("Authorization", "Bearer malformed.payload.signature"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
-        mvc.perform(get("/classrooms/{id}", UUID.randomUUID()).header("Authorization", "Bearer mixed"))
+        mvc.perform(get("/classrooms/{id}", UUID.randomUUID())
+                        .header("Authorization", "Bearer mixed.payload.signature"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -119,11 +124,12 @@ class ClassroomApiSecurityIntegrationTest {
     void validServiceTokenCannotAccessUserEndpoints() throws Exception {
         configureServiceToken("service");
 
-        mvc.perform(get("/classrooms/{id}", UUID.randomUUID()).header("Authorization", "Bearer service"))
+        mvc.perform(get("/classrooms/{id}", UUID.randomUUID())
+                        .header("Authorization", "Bearer service.payload.signature"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
         mvc.perform(post("/classrooms")
-                        .header("Authorization", "Bearer service")
+                        .header("Authorization", "Bearer service.payload.signature")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(CREATE_REQUEST))
                 .andExpect(status().isForbidden());
@@ -135,12 +141,12 @@ class ClassroomApiSecurityIntegrationTest {
         configureUserToken("admin", UUID.randomUUID(), List.of("STUDENT", "ADMIN"));
 
         mvc.perform(post("/classrooms")
-                        .header("Authorization", "Bearer student")
+                        .header("Authorization", "Bearer student.payload.signature")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(CREATE_REQUEST))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/classrooms")
-                        .header("Authorization", "Bearer admin")
+                        .header("Authorization", "Bearer admin.payload.signature")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(CREATE_REQUEST))
                 .andExpect(status().isForbidden());
@@ -157,7 +163,7 @@ class ClassroomApiSecurityIntegrationTest {
                         classroomId, callerUserId, "Study group", "Interdisciplinary", "Mixed ages", "Notes"));
 
         mvc.perform(post("/classrooms")
-                        .header("Authorization", "Bearer teacher")
+                        .header("Authorization", "Bearer teacher.payload.signature")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(CREATE_REQUEST))
                 .andExpect(status().isCreated())
@@ -189,7 +195,7 @@ class ClassroomApiSecurityIntegrationTest {
                         .formatted(UUID.randomUUID());
 
         mvc.perform(post("/classrooms")
-                        .header("Authorization", "Bearer teacher")
+                        .header("Authorization", "Bearer teacher.payload.signature")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestWithOwner))
                 .andExpect(status().isBadRequest())
@@ -202,7 +208,7 @@ class ClassroomApiSecurityIntegrationTest {
         configureUserToken("teacher", UUID.randomUUID(), List.of("STUDENT", "TEACHER"));
 
         mvc.perform(post("/classrooms")
-                        .header("Authorization", "Bearer teacher")
+                        .header("Authorization", "Bearer teacher.payload.signature")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\" \",\"subject\":\"\",\"grade\":null}"))
                 .andExpect(status().isBadRequest())
@@ -221,7 +227,7 @@ class ClassroomApiSecurityIntegrationTest {
         when(classroomApplicationService.getOwnedClassroom(owner, classroomId))
                 .thenReturn(new Classroom(classroomId, owner, "Class", "Subject", "Grade", null));
 
-        mvc.perform(get("/classrooms/{id}", classroomId).header("Authorization", "Bearer owner"))
+        mvc.perform(get("/classrooms/{id}", classroomId).header("Authorization", "Bearer owner.payload.signature"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(classroomId.toString()))
                 .andExpect(jsonPath("$.ownerTeacherUserId").value(owner.toString()));
@@ -239,12 +245,12 @@ class ClassroomApiSecurityIntegrationTest {
         when(classroomApplicationService.getOwnedClassroom(caller, missingId))
                 .thenThrow(new ClassroomNotFoundException(missingId));
 
-        mvc.perform(get("/classrooms/{id}", deniedId).header("Authorization", "Bearer user"))
+        mvc.perform(get("/classrooms/{id}", deniedId).header("Authorization", "Bearer user.payload.signature"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(content().string(not(containsString(caller.toString()))));
-        mvc.perform(get("/classrooms/{id}", missingId).header("Authorization", "Bearer user"))
+        mvc.perform(get("/classrooms/{id}", missingId).header("Authorization", "Bearer user.payload.signature"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("CLASSROOM_NOT_FOUND"))
                 .andExpect(jsonPath("$.status").value(404))
@@ -269,7 +275,7 @@ class ClassroomApiSecurityIntegrationTest {
     }
 
     private void configureUserToken(String token, UUID userId, List<String> roles) {
-        when(jwtDecoder.decode(token))
+        when(jwtDecoder.decode(token + ".payload.signature"))
                 .thenReturn(jwt(
                         userId.toString(),
                         Map.of(
@@ -280,7 +286,7 @@ class ClassroomApiSecurityIntegrationTest {
     }
 
     private void configureServiceToken(String token) {
-        when(jwtDecoder.decode(token))
+        when(jwtDecoder.decode(token + ".payload.signature"))
                 .thenReturn(jwt(
                         "assessment-service",
                         Map.of(
@@ -297,8 +303,8 @@ class ClassroomApiSecurityIntegrationTest {
         return Jwt.withTokenValue("redacted-test-token")
                 .header("alg", "RS256")
                 .claims(values -> values.putAll(claims))
-                .issuedAt(Instant.parse("2026-09-13T00:00:00Z"))
-                .expiresAt(Instant.parse("2026-09-13T00:05:00Z"))
+                .issuedAt(Instant.now().minusSeconds(10))
+                .expiresAt(Instant.now().plusSeconds(300))
                 .build();
     }
 
@@ -313,6 +319,19 @@ class ClassroomApiSecurityIntegrationTest {
         SecurityConfiguration.class
     })
     static class TestApplication {
+        // Compatibility fixture only; real signed-token/admission topology is tested separately.
+        @Bean
+        AdmissionProperties admissionProperties() {
+            return new AdmissionProperties();
+        }
+
+        @Bean
+        IdentityAdmissionClient identityAdmissionClient() {
+            var client = mock(IdentityAdmissionClient.class);
+            when(client.admit(any(), any())).thenReturn(Mono.empty());
+            return client;
+        }
+
         @Bean
         ClassroomApplicationService classroomApplicationService() {
             return mock(ClassroomApplicationService.class);
