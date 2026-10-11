@@ -12,7 +12,15 @@ URLs. Verification mechanism and assignment model remain contract gates. This
 does not approve every broader Classroom join/invitation/orchestration feature.
 Eligible CLASS Publications may require Activity Evidence and LiveKit camera
 monitoring owned by Proctoring. PUBLIC Publications have no Classroom membership
-requirement and cannot enable Classroom Proctoring.
+requirement and cannot enable Classroom Proctoring. LD-02 requires CLASS
+Teachers to record an explicit monitoring choice before OPEN, with no implicit
+ON/OFF default; the choice becomes immutable upon OPEN. Runtime capture remains
+gated by eligible active Attempts and W3-M1/M2 contracts. PUBLIC participation
+requires authenticated USER with authoritative STUDENT and a shared direct link
+under LD-03. LD-05 requires affected protected Classroom operations to fail
+closed until required revocation/account authority is trustworthy; no automatic
+Identity fallback or degraded authenticated reads are approved. Implementation,
+authoritative recovery and verification remain open.
 
 ## Purpose
 

@@ -145,9 +145,16 @@ Ownership/duplication of answer-change/question-navigation evidence into the pro
 Wave 3 requires Activity Monitoring (W3-M1) and LiveKit camera monitoring (W3-M2)
 as an optional bundle for eligible CLASS Publications. Store sanitized evidence,
 not a second authoritative answer state. Schemas, transport, retention, mode
-encoding/default, camera refusal/loss and scoped token/session revocation need
-contract freeze; real-learner enablement requires the W3-A privacy/security gates.
-PUBLIC proctoring is prohibited. No accepted A/B enum is assumed.
+representation/UI terminology, camera refusal/loss and scoped token/session
+revocation need contract freeze; real-learner enablement requires W3-M1/M2 and the
+W3-A privacy/security gates. LD-02 requires explicit CLASS choice before OPEN,
+with no implicit ON/OFF default; choice becomes immutable upon OPEN. PUBLIC must
+have monitoring disabled. No additional Activity-only, AI-enabled or A/B modes
+are approved. LD-05 requires affected protected Assessment/Classroom/Proctoring
+operations to fail closed until required revocation/account authority is
+trustworthy; recovery/implementation/verification remain engineering contracts.
+Neither an automatic Identity fallback nor degraded authenticated reads are
+approved for initial Wave 3. Identity's durable authority remains unchanged.
 
 ## AI Service
 

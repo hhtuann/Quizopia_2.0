@@ -6,7 +6,13 @@
 **Date:** 2026-10-09
 **Baseline:** Wave 2 CLOSED through PR #71; Wave 3 foundation merged in PR #72
 **Reference inspection:** `origin/develop` at `0290c6f`
-**Implementation status:** Documentation update required before feature coding.
+**Implementation status:** Product policy recorded; engineering contracts remain required before feature coding.
+
+**Follow-up record:** Leader-approved LD-01 through LD-05 recorded on 2026-10-11
+in [section 16](#16-follow-up-leader-decisions-ld-01-through-ld-05).
+The 2026-10-09 decision and its historical baseline above are preserved. Current
+contract statements below are reconciled to this later approval; LD-01..05 were
+not approved in PR #72 or PR #73. This document records no feature implementation.
 
 ### 1. Purpose
 
@@ -51,9 +57,12 @@ For `PUBLIC`:
 - Classroom Proctoring is prohibited.
 - Publication access and Attempt authorization must follow an explicit approved Public access contract.
 
-**Unresolved:** Whether PUBLIC participation strictly requires an authenticated STUDENT account, how public discovery/sharing works, and the precise authorization rules tracked by existing Assessment open questions.
-
-Do not automatically close these questions simply because the `PUBLIC` audience has been approved.
+**Follow-up LD-03:** PUBLIC participation requires an authenticated USER with
+an authoritative STUDENT role, through a shared direct link with a suitably
+non-enumerable locator. Identity account, token-validity and revocation rules
+apply; a user with TEACHER + STUDENT may participate through STUDENT under the
+same rules. Exact locator/route/error contracts and CLASS verification remain
+engineering work under ASSESS-14/15.
 
 A QuizVersion may be referenced by multiple independent Publications.
 
@@ -112,7 +121,11 @@ Opening a Publication and reaching its participation start time are distinct eve
 
 Do not redefine the existing `DRAFT → OPEN → CLOSED` lifecycle merely to represent scheduling. Use separate scheduling/eligibility conditions if appropriate.
 
-The exact field names and inclusive/exclusive boundary convention belong to the API freeze.
+**Follow-up LD-01:** New starts require an OPEN Publication, an eligible Student
+and `startAt <= serverNow < endAt`: start inclusive, end exclusive. Store and
+compare timezone-safe authoritative instants; frontend-local times require
+unambiguous conversion. Exact wire field names and chronological validation
+remain engineering contracts; the notation here does not approve DTO fields.
 
 **Wave 3 scope decision:** Scheduled participation applies to the Wave 3 CLASS/PUBLIC Assessment journey.
 
@@ -122,7 +135,7 @@ Future unbounded or practice Assessment behavior is not decided by this limited 
 
 **Status: ACCEPTED**
 
-Each Wave 3 Publication supports a positive bounded Attempt duration.
+Each Wave 3 Publication supports an integer Attempt duration of 5 through 240 minutes inclusive, with one-minute granularity (follow-up LD-01).
 
 Example: 40 minutes.
 
@@ -134,11 +147,14 @@ The Student cannot extend the deadline through client-side clock changes, refres
 
 Attempts started during the valid participation window have their own deadlines.
 
-**Recommended timing interpretation, pending contract freeze:**
+**Accepted deadline formula — follow-up LD-01:**
 
 `attemptDeadlineAt = authoritativeStartedAt + configuredDuration`
 
-Closing the new-start window should not automatically shorten a previously valid Attempt.
+Participation-window end does not shorten an already-started Attempt or close
+Publication. Configuration changes must never retroactively shorten existing
+authoritative Attempt deadlines. This does not prohibit every post-OPEN timing
+mutation; accepted time-mutation rules still apply.
 
 Example:
 
@@ -148,7 +164,10 @@ Example:
 - Student starts at 08:25.
 - Individual deadline is 09:05.
 
-The exact cutoff, resumption, close/finalization semantics and interaction with manually closing a Publication remain OPEN until the appropriate dependent contract is approved.
+Expiration, cutoff, timeout finalization, resumption and response ordering remain
+OPEN for W3-B. Follow-up LD-04 rejects CLOSE while any Attempt is authoritatively
+active; overdue-Attempt handling and start/finalization races require engineering
+contracts and W3-B terminalization before dependent implementation.
 
 Backend deadline checks must not depend solely on scheduled background jobs.
 
@@ -169,9 +188,13 @@ Eligibility follows the accepted repository design:
 
 `PUBLIC`, unbounded and practice assessments are not eligible for this Classroom Proctoring scope.
 
-Teacher may choose whether the CLASS Publication requires Proctoring.
+**Follow-up LD-02:** CLASS Teachers explicitly choose whether Proctoring is
+required. An unconfigured CLASS DRAFT has no implicit ON or OFF default and
+cannot OPEN without an explicit recorded choice. The choice becomes immutable
+upon OPEN. PUBLIC must have monitoring disabled and cannot enable Classroom
+Proctoring. No additional Activity-only, AI-enabled or A/B modes are approved.
 
-When Classroom Proctoring is enabled for Wave 3, the intended feature bundle includes:
+When Classroom Proctoring is enabled for Wave 3, the accepted feature bundle includes:
 
 1. Browser Activity Evidence.
 2. LiveKit Camera Monitoring.
@@ -302,7 +325,15 @@ A participation window ending is not itself sufficient to reveal correct answers
 
 The backend must never equate “new students cannot start” with “all active students have completed.”
 
-Detailed decisions for expiration, automatic submission, Teacher early closure, simultaneous finalization and response ordering remain part of the Attempt/closure contract freeze.
+**Follow-up LD-04:** Reject OPEN → CLOSED while any Attempt remains
+authoritatively active, with a documented conflict response. Teacher may close
+once all Attempts are terminal. CLOSE must handle overdue Attempts and
+start/finalization races transactionally: concurrent start and CLOSE cannot
+leave an unauthorized active Attempt in a CLOSED Publication. W3-B must ensure
+deadline-expired Attempts eventually become terminal, with authoritative checks
+independent of timely background processing. Automatic closure and force-close
+are not introduced. Saved/unsaved answer treatment, deadline finalization,
+submit semantics and response ordering remain contract gates.
 
 ### 11. W3-A10 — Privacy, Accessibility and Security
 
@@ -380,25 +411,27 @@ Security checks required for privileged access must fail closed when they cannot
 
 ### 13. Contract Items That Remain Open
 
-Do not present the following as approved merely because this document proposes an implementation direction:
+The follow-up LD-01..05 approval resolves the product choices identified in
+section 16. The following dependencies remain open before dependent work:
 
-- PUBLIC authentication/eligibility and discoverability (including ASSESS-14).
+- Exact PUBLIC locator/route/error and safe projection contracts (ASSESS-14/15).
 - Future unbounded/practice assessment support (including ASSESS-17).
 - Allowed Attempt count and resumption model.
-- Precise start/end window boundary semantics.
-- Maximum/minimum configured Attempt duration.
+- Timing wire fields, chronological validation and local-time conversion contract.
+- Implementation/validation of the accepted 5–240-minute integer duration.
 - Handling when an Attempt deadline expires.
-- Whether/how Teachers may close early while Attempts are active.
+- Reject-CLOSE conflict, overdue-Attempt handling and transactional races (ASSESS-13).
 - Autosave revisions and retry-safe submission.
 - Exact QuizVersion service-to-service authorization contract.
 - CLASS ownership/membership verification mechanism.
-- Proctoring mode encoding and default.
+- Monitoring persisted representation and UI terminology (PROCTOR-10), within LD-02.
 - Activity Evidence schema, event transport and retention.
 - Camera permission refusal, loss and accommodations.
 - Proctoring session/token lifetime and revocation.
 - Production LiveKit deployment and privacy controls.
 - PROCTOR-01..09 items not resolved by this Leader Decision.
 - Numeric input syntax and score precision from the Assessment grading contracts.
+- LD-05 security implementation, trustworthy recovery mechanism and verification (ID-05).
 
 These issues shall remain OPEN unless already resolved by authoritative accepted repository documents.
 
@@ -456,5 +489,109 @@ Wave 3 cannot close until:
 ---
 
 **Leader-approved product direction is final. Specific OPEN contracts still require source-truth reconciliation and approval before dependent implementation.**
+
+### 16. Follow-up Leader Decisions LD-01 through LD-05
+
+**Status: APPROVED — all five decisions explicitly approved by the Leader**
+
+**Recorded:** 2026-10-11. **Verified documentation baseline:**
+`origin/develop @ 87ff6b064b972400cd4903f7bc4fec9375e559a1`.
+This is a follow-up to the historical 2026-10-09 W3-A decision, recorded after
+PR #72 and PR #73. It preserves ASSESS-01..04, GRADE-01..06, W3-A scope and
+accepted architecture. Approval records policy, not executable contracts or
+working integrations. No additional coordinator recommendation is approved here.
+
+#### LD-01 — Participation Timing and Duration
+
+- New Attempt starts require OPEN Publication, eligible Student and
+  `startAt <= serverNow < endAt`; start inclusive, end exclusive.
+- `attemptDeadlineAt = authoritativeStartedAt + configuredDuration`.
+  Participation-window end does not shorten an already-started Attempt.
+- Duration is an integer number of minutes from 5 through 240 inclusive,
+  with one-minute granularity.
+- Store and compare timezone-safe authoritative instants. Frontend-local times
+  require unambiguous conversion.
+- Window end does not close Publication. OPEN, scheduled eligibility, individual
+  deadlines and CLOSED remain distinct.
+- Configuration changes must never retroactively shorten existing authoritative
+  Attempt deadlines. This decision does not ban all post-OPEN timing mutations;
+  existing accepted time-mutation rules remain applicable.
+- W3-B expiration, cutoff, timeout finalization, resumption and response ordering
+  remain unresolved. Unbounded assessments and Practice timing remain deferred.
+
+#### LD-02 — Monitoring Configuration
+
+- CLASS Teachers explicitly choose whether Classroom Proctoring is required.
+  An unconfigured CLASS DRAFT has no implicit ON or OFF default and cannot OPEN
+  without an explicit recorded monitoring choice.
+- Enabled monitoring means the accepted Browser Activity Evidence plus LiveKit
+  Camera bundle. No additional Activity-only, AI-enabled or A/B modes are approved.
+- PUBLIC must have monitoring disabled and cannot enable Classroom Proctoring.
+- Monitoring choice becomes immutable upon OPEN.
+- Runtime capture requires eligible active Attempts and future W3-M1/M2
+  authorization, privacy and failure contracts.
+- Engineering may propose persisted representation and UI terminology without
+  inventing product modes. PROCTOR-10 remains partially resolved on that basis.
+
+#### LD-03 — PUBLIC Authentication and Discovery
+
+- PUBLIC participation requires authenticated USER with authoritative STUDENT
+  role. Identity account, token-validity and revocation rules apply.
+- TEACHER + STUDENT users may participate through STUDENT under the same rules.
+  No permission is granted or denied here for an owner attempting their own
+  Publication.
+- No Classroom membership is required. Wave 3 uses a shared direct link with a
+  suitably non-enumerable locator.
+- No searchable public directory, anonymous guest participation, password
+  protection or anonymous-session identity is required for Wave 3.
+- Teacher management stays owner-authorized; Student APIs expose safe projections.
+- Link possession never bypasses authentication, lifecycle, timing or Attempt
+  eligibility. Exact locator/route/error contracts remain engineering work.
+
+#### LD-04 — Closing With Active Attempts
+
+- Reject OPEN → CLOSED while any Attempt remains authoritatively active, with a
+  documented conflict response.
+- Participation-window end prevents new starts; it does not automatically close
+  Publication or finalize Attempts.
+- W3-B must ensure deadline-expired Attempts eventually become terminal, with
+  authoritative checks independent of timely background processing.
+- CLOSE must handle overdue Attempts and start/finalization races transactionally.
+  Concurrent start and CLOSE cannot leave an unauthorized active Attempt in a
+  CLOSED Publication.
+- Teacher may close once all Attempts are terminal. Only durable CLOSED enables
+  eligible submitted-owner answer/explanation review.
+- Automatic closure and force-close are not introduced. Saved/unsaved answer
+  treatment, deadline finalization and submit semantics still require W3-B contracts.
+
+#### LD-05 — Redis Revocation Outage and Recovery
+
+- Required revocation/account authority must be trustworthy before protected
+  operations are authorized. Signature-valid, unexpired JWTs alone cannot bypass
+  required near-immediate revocation checks.
+- Affected protected Assessment, Classroom and Proctoring operations fail closed
+  during required authority unavailability. Prefer sanitized service-unavailable
+  errors over misleading invalid-credential errors when appropriate, subject to
+  API contract review; no exact wire error/status is frozen here.
+- Do not invalidate refresh credentials, silently log out users or create refresh
+  loops solely because revocation authority is unavailable.
+- No automatic Identity fallback or degraded authenticated lower-risk read policy
+  is approved for initial Wave 3.
+- Redis connectivity/health alone does not establish trustworthy recovery.
+  Recovery requires trustworthy coverage or reconstruction from authoritative
+  durable state. Until authority is trustworthy, affected protected operations
+  remain unavailable.
+- Truly public, nonprivileged infrastructure operations may remain available
+  where independent of the outage. This is not a PUBLIC Assessment bypass.
+- Dev1 must prepare bounded security implementation and verification contracts;
+  see [Assessment Core security contract gate](assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).
+  ID-05 implementation, authoritative recovery mechanism and verification remain
+  outstanding. No authentication subsystem rewrite is authorized by this decision.
+
+ASSESS-13/14/17, PROCTOR-10 and ID-05 are **PARTIALLY RESOLVED**: the policy
+portions above are accepted; identified engineering and later-wave contracts
+remain open. ASSESS-15 remains **OPEN — ENGINEERING CONTRACT**. W3-B/C/M1/M2
+contract and release gates remain in force. This documentation task implements
+neither CLOSE/finalization nor revocation/monitoring runtime.
 
 **END OF LEADER DECISION**

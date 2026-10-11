@@ -10,6 +10,10 @@
 > adds CLASS/PUBLIC, bounded scheduling/duration and optional eligible CLASS
 > monitoring. W3-A/B Classroom eligibility and W3-M1/M2 are required Wave 3 outcomes;
 > broader Classroom creation/invites/gradebook remain MVP-C.
+> LD-01..05 follow-up policy recorded 2026-10-11 after PR #72/#73 accepts timing
+> boundaries/deadline/duration, explicit monitoring choice, authenticated link-only
+> PUBLIC access, reject-CLOSE while active and Wave 3 revocation outage/recovery.
+> Remaining engineering and W3-B/C/M1/M2 gates are preserved.
 >
 > **Purpose:** define the shortest accepted path from the current repository
 > state to a usable Quizopia 2.0 MVP.
@@ -120,9 +124,18 @@ MVP requires the `ASSESSMENT` mode.
 Minimum delivery capability:
 
 - create/configure an assessment from an immutable `QuizVersion`;
-- support `CLASS` (exactly one Classroom) and `PUBLIC`; PUBLIC authentication,
-  eligibility and discovery/sharing remain OPEN;
-- bounded participation window for NEW Attempt starts and positive bounded duration;
+- support `CLASS` (exactly one Classroom) and `PUBLIC`; LD-03 requires authenticated
+  USER with authoritative STUDENT and Identity account/token-validity/revocation
+  rules, including TEACHER + STUDENT through STUDENT. PUBLIC uses a shared direct
+  link with a suitably non-enumerable locator and no membership; exact locator/
+  route/errors remain engineering work. Link possession bypasses no eligibility;
+- LD-01 new starts require OPEN, eligible Student and `startAt <= serverNow < endAt`;
+  duration is integer 5–240 minutes inclusive with one-minute granularity and
+  deadline = authoritative start + duration; use timezone-safe instants and
+  unambiguous local conversion, without retroactive deadline shortening;
+- LD-04 reject CLOSE while any Attempt is authoritatively active, with a documented
+  conflict response; freeze overdue handling and transactional start/finalization
+  races. Only terminal Attempts permit closure; no automatic closure or force-close;
 - keep `DRAFT → OPEN → CLOSED`, start-window eligibility and individual deadlines
   distinct; server-enforce scheduling without relying solely on background jobs;
 - stable question/option ordering per attempt;
@@ -137,8 +150,10 @@ accepted policy model can satisfy the journeys above without contradicting
 business rules.
 
 Current state: **NOT STARTED / W3-A CONTRACT FREEZE REQUIRED**. ASSESS-01 through
-ASSESS-04 and W3-A scope are approved; PUBLIC access, detailed timing, CLASS
-verification, API/data and handoff contracts require freeze before dependent code.
+ASSESS-04, W3-A and LD-01..05 policy are approved; CLASS verification, exact PUBLIC
+locator/wire contract, timing/monitoring representation, close concurrency,
+API/data/handoff and LD-05 security implementation/recovery/verification require
+freeze before dependent code. No new owner self-attempt rule is introduced.
 
 #### Attempt and answer persistence
 
@@ -175,7 +190,10 @@ score representation/display, and the policy identifier remain contract gates.
   evidence, sessions and LiveKit room/token orchestration;
 - optionally enable the disclosed Activity Evidence + LiveKit camera bundle only
   for eligible CLASS, authenticated members, bounded timing and active Attempts;
-- reject PUBLIC/unbounded/practice proctoring; no invented A/B enum or default;
+- explicit CLASS Teacher choice before OPEN, no implicit ON/OFF for unconfigured
+  DRAFT and immutable choice upon OPEN; PUBLIC monitoring must be disabled;
+- reject PUBLIC/unbounded/practice proctoring and additional Activity-only,
+  AI-enabled or A/B modes; persisted representation/UI terminology remain open;
 - W3-M1 evidence API/timeline and Teacher dashboard; W3-M2 real camera capture,
   authorized Teacher grid, peer-view isolation, scoped tokens and session ending;
 - truthful permissions/refusal/device-loss/disconnect/reconnect status, visible
@@ -256,14 +274,11 @@ Before MVP release:
 These improve the MVP but do not block the first MVP release unless later
 promoted explicitly:
 
-- guest participation in public assessments;
-- assessment password protection;
-- additional public-link controls;
+- additional public-link controls under a separately accepted contract;
 - classroom join-by-code/link beyond the minimum supported membership path;
 - richer teacher result summaries;
 - basic announcements if low-cost after classroom UI exists;
 - basic Quiz folders if the final authoring UI benefits materially;
-- basic public quiz discovery rather than link-only access;
 - small usability improvements around authoring preview/history.
 
 A SHOULD item must not silently delay MVP.
@@ -291,6 +306,16 @@ The following are not required to declare the first MVP complete:
 - AI-assisted quiz generation;
 - advanced rich-content support that is not accepted into the MVP Markdown
   grammar.
+
+#### Future public access variants
+
+- anonymous guest participation and anonymous-session identity;
+- assessment password protection;
+- searchable public directory.
+
+LD-03 requires authenticated link-only PUBLIC participation for Wave 3. These
+broader options are deferred and need a separate accepted scope/contract before
+implementation; they are not current Wave 3 gates.
 
 #### Practice
 
@@ -414,8 +439,12 @@ Accepted ASSESS-01 through ASSESS-04:
 - correct answers/explanations only after closure for eligible submitted owners.
 
 W3-A additionally requires CLASS/PUBLIC, bounded NEW START windows and positive
-bounded duration. Window end is neither closure nor all active Attempts finishing.
-Opening and participation start are distinct; window end alone never unlocks keys.
+bounded duration. LD-01 accepts inclusive start/exclusive end, integer 5–240-minute
+duration and authoritative start-plus-duration deadlines. Window end neither
+shortens an already-started Attempt nor closes Publication/finalizes Attempts.
+LD-04 rejects CLOSE while any Attempt is authoritatively active; only all-terminal
+Attempts permit Teacher closure. Durable CLOSED alone enables eligible
+submitted-owner review. Opening and participation start remain distinct.
 
 #### B2. Grading decisions
 
@@ -443,7 +472,8 @@ Then deliver:
 - immutable/self-contained attempt delivery snapshot;
 - CLASS/PUBLIC and authoritative Classroom Teacher assignment checks in W3-A;
 - bounded schedule/duration configuration with timezone-safe storage/display and
-  chronological validation; freeze boundaries, limits and detailed timing first;
+  chronological validation; apply accepted LD-01 boundaries/limits/deadline formula
+  and no retroactive shortening, while freezing exact wire/validation details;
 - QuizVersion handoff without cross-service DB access;
 - authenticated QuizVersion handoff under the approved scoped service contract;
 - durable ownership/reference model;
@@ -451,8 +481,10 @@ Then deliver:
 
 #### B4. W3-B — Freeze Attempt contracts, then implement backend/frontend
 
-Resolve attempt count/resumption, autosave revision/conflicts, deadline formula,
-expiry/cutoff and early-close handling before dependent implementation. Freeze
+Resolve attempt count/resumption, autosave revision/conflicts, expiration/cutoff,
+timeout terminalization, saved/unsaved answer treatment and response ordering
+before dependent implementation. Apply accepted LD-01 deadline formula and LD-04
+reject-CLOSE policy; freeze overdue/start/finalization transactional races. Freeze
 Student input validation and retry/concurrency/transaction semantics.
 
 Deliver:
@@ -486,7 +518,8 @@ Separate bounded workstreams deliver Activity Evidence/session API and Teacher
 timeline/dashboard (M1), then scoped LiveKit room/tokens, real browser camera
 capture, Teacher video grid and failure/reconnect handling (M2). Monitoring is
 optional per eligible CLASS Publication; both capabilities are required to close
-Wave 3. Freeze configuration/default, evidence schema/transport/retention,
+Wave 3. Apply LD-02 explicit choice/OPEN immutability and freeze persisted
+representation/UI terminology, evidence schema/transport/retention,
 sanitized answer-change integration, token/revocation and camera refusal/loss
 contracts; preserve PROCTOR-01..09 where unresolved. No unrelated-tab URLs,
 browsing history, applications, keystrokes, clipboard or answer content collection.
@@ -570,21 +603,31 @@ ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06 are accepted product
 policy and no longer open. The remaining implementation gates are:
 
 - W3-A API/data/internal handoff and Classroom authority verification freeze
-  (ASSESS-15); PUBLIC authentication/eligibility/discovery remains OPEN (ASSESS-14);
-- bounded scope is approved; formula, boundaries, duration limits, expiry,
-  resumption and early-close semantics remain OPEN (ASSESS-12/13/17);
+  (ASSESS-15 remains OPEN — ENGINEERING CONTRACT); LD-03 PUBLIC policy is accepted,
+  while exact locator/route/error and safe projection contracts remain (ASSESS-14);
+- LD-01 timing boundaries/formula/5–240-minute duration and LD-04 reject-CLOSE
+  policy are accepted; wire/validation/conversion, transactional close conflicts/
+  overdue/start-finalization races and W3-B expiry/cutoff/timeout finalization,
+  resumption/response ordering remain OPEN (ASSESS-12/13/17);
 - W3-B attempt count, autosave revision/conflicts, submission cutoff, closure,
   and submit/finalization contract (ASSESS-10 through ASSESS-13, ASSESS-16/17);
 - Student numeric input/submission validation (GRADE-07);
 - exact score representation/rounding/display and version 1 identifier (GRADE-08);
-- W3-M1/M2 configuration/default, evidence/transport/retention, CLASS model,
+- W3-M1/M2 persisted representation/UI terminology, evidence/transport/retention, CLASS model,
   camera refusal/loss/accommodations, session/token revocation and production
   LiveKit/privacy contracts; preserve unresolved PROCTOR-01..09.
 
-ID-05 remains conditional for protected-service revocation wiring: Redis lookup
-outage fail-open/fail-closed/degraded behavior is OPEN; JWT verification alone
-does not implement near-immediate revocation. Required privileged checks fail
-closed when authority cannot be verified; this does not settle every ID-05 path.
+LD-05 accepts fail-closed behavior for affected protected Assessment/Classroom/
+Proctoring operations while required revocation/account authority is unavailable
+or untrustworthy; valid unexpired JWTs cannot bypass checks. No automatic Identity
+fallback or degraded authenticated lower-risk read policy is approved for initial
+Wave 3. Outage alone must not invalidate refresh credentials, silently log out
+or cause refresh loops. Prefer sanitized service-unavailable errors where
+appropriate under API review. Redis health/connectivity is insufficient to resume:
+trustworthy coverage or durable reconstruction is required. Independent public
+nonprivileged infrastructure may remain available. ID-05 implementation,
+authoritative recovery mechanism and security verification remain OPEN under
+the bounded Dev1 contract gate; no authentication subsystem rewrite is authorized.
 The [Assessment Core specification](../specifications/assessment-core-policy.md)
 contains the A–J source audit, normative grading examples, proposed W3-A endpoint
 inventory, and Dev1/Dev2 handoff. `docs/open-questions.md` distinguishes Leader
@@ -666,7 +709,10 @@ Must prove:
 
 `eligible learner opens PUBLIC Publication → start → autosave → resume → submit → result`
 
-PUBLIC authentication/eligibility and discovery remain OPEN; freeze before E2E.
+LD-03 requires authenticated USER with authoritative STUDENT and a shared direct
+link with a suitably non-enumerable locator. Freeze exact locator/route/error
+contracts before E2E. Verify Identity validity/revocation, TEACHER + STUDENT
+participation through STUDENT, no membership requirement and no link bypass.
 
 Must prove:
 
@@ -680,8 +726,9 @@ Must prove:
 - attempt survives mutable Quiz changes/outage assumptions according to accepted
   architecture.
 
-Guest participation is not required for the first MVP unless promoted from
-SHOULD to MUST.
+Anonymous guest participation, passwords, anonymous-session identity and a
+searchable public directory are not required for Wave 3; future scope needs
+separate approval.
 
 ### Journey 3 — Classroom assessment
 
@@ -704,7 +751,10 @@ During an authenticated teacher/learner product journey:
 - one refresh occurs;
 - eligible request retries once;
 - session identity cannot cross account boundaries;
-- logout prevents restoration.
+- logout prevents restoration;
+- LD-05 affected protected operations fail closed during untrustworthy revocation
+  authority; healthy but incomplete Redis does not establish recovery, and outage
+  alone causes no refresh-credential invalidation, silent logout or refresh loop.
 
 This reuses the verified auth architecture but must remain green in the full MVP
 product topology.

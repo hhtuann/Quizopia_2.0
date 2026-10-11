@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: **Active after accepted Wave 3 Assessment and W3-A scope policy — v0.4**
+Status: **Active after accepted Wave 3 policy and LD-01..05 follow-up — v0.5 (2026-10-11)**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
@@ -10,8 +10,11 @@ The [approved W3-A Leader decision](specifications/w3-a-publication-scheduling-m
 accepts CLASS/PUBLIC, bounded participation windows, positive Attempt duration
 and optional eligible CLASS Activity Evidence plus LiveKit monitoring. It
 supersedes public-only/unbounded recommendations and blanket Proctoring deferral.
-Only explicitly resolved portions below are closed; PUBLIC access, detailed
-timing/closure, monitoring contracts and privacy/security gates remain open.
+The Leader-approved LD-01..05 follow-up resolves timing boundaries/duration,
+explicit monitoring choice, authenticated link-only PUBLIC participation,
+reject-CLOSE policy and Wave 3 revocation outage/recovery policy. Only those
+policy portions are closed; engineering, W3-B/C/M1/M2 and release gates below
+remain open.
 AI behavior monitoring remains future design, deferred after Wave 3.
 
 ## Identity
@@ -24,12 +27,23 @@ extend that original expiry.
 
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
 
-Status: **OPEN — security decision**. Conditional Wave 3 protected-service
-dependency; near-immediate revocation is already accepted. W3-A now requires
-privileged security checks to fail closed when authoritative verification is
-unavailable. Detailed Redis outage/recovery/degraded contracts across Gateway and
-services remain OPEN within that constraint; this does not settle every global
-outage behavior or authorize an unverified privileged operation.
+Status: **PARTIALLY RESOLVED — LD-05 Wave 3 security policy accepted;
+implementation/recovery/verification contracts OPEN**. Required revocation/account
+authority must be trustworthy; signature-valid unexpired JWTs alone are
+insufficient. Affected protected Assessment, Classroom and Proctoring operations
+fail closed while required authority is unavailable or untrustworthy. Prefer
+sanitized service-unavailable responses where appropriate, subject to API review.
+Do not invalidate refresh credentials, silently log out or cause refresh loops
+solely due to this outage. No automatic Identity fallback or degraded
+authenticated lower-risk reads are approved for initial Wave 3. Redis health or
+connectivity alone does not establish recovery: trustworthy coverage or
+reconstruction from authoritative durable state is required before authorization
+resumes. Independent truly public, nonprivileged infrastructure operations may
+remain available. Dev1 must freeze the bounded security implementation,
+authoritative recovery mechanism and verification contract; see
+[Assessment Core gate](specifications/assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).
+No authentication subsystem rewrite is authorized. Wider non-Wave-3 outage
+contracts are not settled by this bounded decision.
 
 **ID-07.** Which production SMTP service/deployment and sender identity should
 Identity use for OTP delivery? The provider-neutral SMTP adapter, transactional
@@ -81,12 +95,15 @@ variants are outside that MVP decision; exact API/schema details are not frozen.
 
 **ASSESS-09.** Policy for changing availability start after attempts have begun?
 
-ASSESS-05 through ASSESS-09 are **OPEN — conditional/deferred**, not automatic
-Wave 3 blockers. Passwords/guest identity are deferred unless explicitly added;
-a public-link format is needed if the ASSESS-14 access/discovery contract selects
-that path, and ASSESS-09 matters only if post-start time editing is included.
-CLASS authorization/membership integration is now required; full Classroom
-orchestration and guest flows are not inferred from that approval.
+ASSESS-05/06/07 remain **OPEN — deferred future scope**: passwords, anonymous
+guests and anonymous-session identity are not required in Wave 3 under LD-03.
+ASSESS-08 is **OPEN — engineering contract**: LD-03 selects a shared direct link
+with a suitably non-enumerable locator, whose exact format/route/errors require
+freeze under ASSESS-14/15. ASSESS-09 remains **OPEN — conditional timing-mutation
+contract** if post-start time editing is included. LD-01 forbids retroactive
+shortening of authoritative Attempt deadlines; existing accepted mutation rules
+still apply without a new blanket post-OPEN timing ban. Required CLASS authority
+integration does not approve full Classroom orchestration or guest flows.
 
 **ASSESS-10.** Allowed Attempt count and start/resume/concurrent-start behavior?
 
@@ -106,37 +123,48 @@ do not escalate a choice of Java classes or database lock mechanism.
 
 **ASSESS-12.** Submission cutoff/deadline and timeout-finalization behavior?
 
-Status: **OPEN — Leader product decision**; blocks **W3-B submit/finalization**
-and dependent **W3-A configuration**. Bounded start windows and positive bounded
-Attempt duration are accepted. Exact deadline formula, cutoff, expiry/automatic
-submission, unsaved-work treatment, resumption and response ordering remain OPEN.
-Start-plus-duration is recommended pending contract freeze; participation-window
-end must not silently shorten a valid Attempt or be equated with durable closure.
-Server enforcement must not depend solely on background jobs. No client clock
-authority or undocumented grace period is approved.
+Status: **PARTIALLY RESOLVED — LD-01 deadline formula and LD-04 terminalization
+requirements accepted; W3-B product/engineering contract OPEN**. Deadline equals
+authoritative start plus configured duration; window end neither shortens an
+existing deadline nor closes Publication/finalizes Attempts. Cutoff,
+expiry/timeout finalization, saved/unsaved-work treatment, resumption and response
+ordering remain unresolved and block **W3-B submit/finalization** and dependent
+integration. Deadline-expired Attempts must eventually become terminal;
+authoritative checks must work independently of timely background processing.
+No client clock authority or undocumented grace period is approved.
 
 **ASSESS-13.** Treatment of in-progress Attempts when a Publication closes?
-Closure prevents new Attempts but does not itself settle existing Attempt behavior.
 
-Status: **OPEN — Leader product decision**; blocks **W3-A close** and **W3-B
-save/submit/finalization**. Recommendation: close finalizes active Attempts using
-their latest authoritative saved answers and prevents further mutation. The
-Leader must approve treatment of unsaved work and cutoff before implementation;
-transaction/recovery design is then engineering. Review opens after closure, so
-allowing other Attempts to continue needs an explicit disclosure-risk decision.
+Status: **PARTIALLY RESOLVED — LD-04 reject-CLOSE policy accepted;
+engineering concurrency and W3-B terminalization OPEN**. Reject OPEN → CLOSED
+while any Attempt remains authoritatively active, with a documented conflict
+response. Teacher may close once all Attempts are terminal. Window end only
+prevents new starts; it neither closes Publication nor finalizes Attempts.
+CLOSE must handle overdue Attempts and start/finalization races transactionally;
+concurrent start and CLOSE cannot leave an unauthorized active Attempt in CLOSED.
+W3-B must ensure expired Attempts eventually become terminal independently of
+background-job timeliness. Only durable CLOSED enables eligible submitted-owner
+answer/explanation review. No automatic closure or force-close. Conflict wire
+contract, concurrency/recovery and saved/unsaved answer treatment, deadline
+finalization and submit semantics still block dependent W3-A/W3-B work.
 
 **ASSESS-14.** Wave 3 audience/eligibility/access and discovery contracts?
 
-Status: **PARTIALLY RESOLVED — CLASS/PUBLIC accepted; remaining product and
-engineering contracts OPEN**. Both audiences ship; CLASS references exactly one
-Classroom and requires authoritative Teacher assignment authorization and Student
-membership, including shared-URL access. Classroom Service owns that authority.
-PUBLIC has no membership requirement and cannot enable Classroom Proctoring.
-Whether PUBLIC strictly requires an authenticated STUDENT, its precise
-authorization, discovery and sharing remain **OPEN — Leader product decision**;
-CLASS verification mechanism remains an **OPEN — engineering contract**. These
-block dependent **W3-A access/discovery** and **W3-B start**. Do not infer guests,
-close this whole item, or postpone required CLASS authorization to MVP-C.
+Status: **PARTIALLY RESOLVED — LD-03 authenticated link-only PUBLIC policy
+accepted; engineering contracts OPEN**. Both audiences ship. CLASS references
+exactly one Classroom and requires authoritative Teacher assignment authorization
+and authenticated Student membership, including shared URLs; Classroom owns that
+authority. PUBLIC requires authenticated USER with authoritative STUDENT role,
+Identity account/token-validity/revocation rules and no Classroom membership.
+TEACHER + STUDENT may participate through STUDENT under the same rules. Wave 3
+uses a shared direct link with a suitably non-enumerable locator; no searchable
+directory, anonymous guests, passwords or anonymous-session identity is required.
+Link possession bypasses no authentication, lifecycle, timing or Attempt rule.
+Teacher management stays owner-authorized; Student APIs expose safe projections.
+No new rule grants or denies an owner permission to attempt their own Publication.
+Exact locator/route/error and CLASS verification contracts remain OPEN and block
+dependent **W3-A access** and **W3-B start**. Do not close this entire item or
+postpone required CLASS authorization to MVP-C.
 
 **ASSESS-15.** W3-A Publication API/data and QuizVersion handoff contract?
 Freeze routes/DTOs/errors, CLASS/PUBLIC fields, authoritative Classroom checks,
@@ -145,7 +173,8 @@ draft mutation/transition concurrency, source-version ownership, internal servic
 endpoint/scope, snapshot schema/atomic opening and security/configuration impacts
 before coding. Accepted scope, ownership and atomic opening are not reopened.
 
-Status: **OPEN — engineering contract**, with unresolved ASSESS-14/13/17 dependencies;
+Status: **OPEN — ENGINEERING CONTRACT**, applying approved LD-01..05 policy;
+remaining ASSESS-13/14/17, PROCTOR-10 and ID-05 engineering dependencies remain;
 blocks **W3-A contract freeze/opening**. Recommendation: preserve the existing
 Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
 the USER principal, acquire the exact QuizVersion through a least-privilege
@@ -171,18 +200,21 @@ lifecycle merely to satisfy a DTO; expose completed grading truthfully.
 
 **ASSESS-17.** Detailed timing contract and future unbounded/practice scope?
 
-Status: **PARTIALLY RESOLVED — bounded Wave 3 scope accepted; details and future
-scope OPEN**. Both CLASS/PUBLIC require bounded participation availability for new
-starts and positive bounded Attempt duration. Opening is distinct from scheduling;
-retain `DRAFT → OPEN → CLOSED`. Exact fields, timezone-safe storage/display,
-chronological validation, inclusive/exclusive start boundaries, duration limits,
-before-window/after-window behavior and interactions with ASSESS-12/13 remain
-OPEN; they block dependent **W3-A timing** and **W3-B deadline** contracts.
-Start-plus-duration is recommended, not frozen. The broader non-proctored
-unbounded baseline and no-retroactive-shortening rule remain documented; future
-unbounded/practice support is **OPEN — Leader product decision**, outside this
-Wave 3 cut. Do not claim the entire question is resolved or retain the superseded
-recommendation to ship unbounded Wave 3 timing.
+Status: **PARTIALLY RESOLVED — LD-01 timing policy accepted;
+engineering/W3-B/future-scope contracts OPEN**. CLASS/PUBLIC new starts require
+OPEN Publication, eligible Student and `startAt <= serverNow < endAt`: start
+inclusive, end exclusive. Duration is an integer 5–240 minutes inclusive with
+one-minute granularity. `attemptDeadlineAt = authoritativeStartedAt + configuredDuration`;
+window end does not shorten an already-started Attempt or close Publication.
+Store/compare timezone-safe authoritative instants and convert frontend-local
+times unambiguously. OPEN, scheduled eligibility, individual deadlines and CLOSED
+remain distinct. Configuration changes must never retroactively shorten existing
+authoritative deadlines; accepted time-mutation rules still apply without a
+blanket post-OPEN timing prohibition. Exact wire fields, chronological validation
+and conversion details remain engineering work. Expiration, cutoff, timeout
+finalization, resumption and response ordering remain OPEN for W3-B (ASSESS-12/13).
+Unbounded assessments and Practice timing remain deferred future scope, not
+approved Wave 3 behavior. These remaining contracts block dependent work.
 
 ## Grading
 
@@ -254,7 +286,9 @@ automatic historic regrading is authorized.
 W3-M1 Activity Evidence and W3-M2 LiveKit camera monitoring are required Wave 3
 outcomes, optional together per eligible CLASS Publication. PUBLIC proctoring is
 prohibited. AI behavior monitoring remains accepted future design, deferred after
-Wave 3; it is not a closure dependency. No established A/B enum/default is implied.
+Wave 3; it is not a closure dependency. LD-02 requires explicit CLASS choice
+before OPEN, with no implicit ON/OFF default; choice is immutable upon OPEN.
+No additional Activity-only, AI-enabled or A/B mode is approved.
 PROCTOR-01..09 retain unresolved portions; scope approval is not contract freeze.
 
 **PROCTOR-01.** Evidence retention default: 7 days, 30 days, or another platform value?
@@ -310,10 +344,16 @@ Freeze references and verification without cross-service foreign keys/SQL.
 
 **PROCTOR-10.** Persisted monitoring configuration, UI terminology and default?
 
-Status: **OPEN — product/engineering contract**; blocks dependent W3-A/W3-M UI
-and schema. The optional eligible CLASS bundle includes Activity Evidence and
-LiveKit camera monitoring; do not invent a previously accepted A/B enum or
-ACTIVITY_ONLY/ACTIVITY_AND_LIVE values/defaults.
+Status: **PARTIALLY RESOLVED — LD-02 explicit choice and OPEN immutability
+accepted; persisted representation/UI terminology OPEN — engineering contract**.
+CLASS Teachers explicitly choose whether monitoring is required. Unconfigured
+CLASS DRAFT has no implicit ON or OFF default and cannot OPEN until an explicit
+choice is recorded. Enabled means Browser Activity Evidence plus LiveKit Camera;
+no additional Activity-only, AI-enabled or A/B modes are approved. PUBLIC must
+have monitoring disabled and cannot enable Classroom Proctoring. Choice becomes
+immutable upon OPEN. Engineering may propose persisted representation without
+inventing modes. Runtime capture still requires eligible active Attempts and
+W3-M1/M2 authorization/privacy/failure contracts; those gates remain open.
 
 **PROCTOR-11.** Camera refusal/loss, unavailable devices, accommodations and
 session/token lifetime/revocation/reconnect outcomes?
@@ -390,8 +430,13 @@ The following are no longer open:
   contract and Attempt-policy gates are listed separately above;
 - W3-A scope: CLASS/PUBLIC, authoritative CLASS eligibility, bounded participation
   windows, positive Attempt duration and optional eligible CLASS Activity/LiveKit
-  monitoring; only these scope portions are resolved, not the remaining ASSESS-14/
-  ASSESS-17 or PROCTOR contracts. AI behavior monitoring is deferred after Wave 3;
+  monitoring. The later approved LD-01..05 follow-up records timing boundaries,
+  deadline formula and 5–240-minute duration, explicit CLASS choice/OPEN immutability,
+  authenticated link-only PUBLIC participation, reject-CLOSE with active Attempts,
+  and fail-closed/no-fallback/no-degraded-read revocation outage/recovery policy.
+  ASSESS-13/14/17, PROCTOR-10 and ID-05 remain partially resolved for engineering
+  and later-wave dependencies; ASSESS-15 remains OPEN — ENGINEERING CONTRACT.
+  AI behavior monitoring is deferred after Wave 3;
 
 - true monorepo;
 - independent Maven project per service;

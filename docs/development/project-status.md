@@ -2,9 +2,9 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-09
+> **Last updated:** 2026-10-11
 >
-> **Checkpoint baseline:** inspected `origin/develop @ 0290c6f6d05e733356fd7ea5ae512b3d80ea4a0f` (PR #72)
+> **Checkpoint baseline:** fetched/inspected `origin/develop @ 87ff6b064b972400cd4903f7bc4fec9375e559a1` (includes PR #72/#73)
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -120,31 +120,48 @@ shared URLs. Broader Classroom creation/invites/gradebook may remain MVP-C.
 
 Eligible CLASS Publications may enable the disclosed Activity Evidence + LiveKit
 camera bundle. W3-M1 and W3-M2 are required Wave 3 outcomes. PUBLIC, unbounded and
-practice Proctoring are prohibited. No accepted A/B enum or default is implied.
+practice Proctoring are prohibited. LD-02 requires explicit CLASS Teacher choice
+before OPEN, with no implicit ON/OFF default for unconfigured DRAFT; choice is
+immutable upon OPEN and PUBLIC monitoring must be disabled. No additional
+Activity-only, AI-enabled or A/B modes are approved.
 Proctoring owns evidence/session/room/token orchestration; Assessment owns Attempt
 validity, deadlines, answers and grades; Classroom owns class authority/membership.
 
 Assessment and Proctoring remain scaffolds; no Publication/Attempt/grading or
 monitoring product implementation is claimed. Next bounded workstreams:
 
-1. W3-A: freeze API/data, CLASS verification, PUBLIC access, authenticated
-   QuizVersion handoff and timing contracts; deliver Publication backend/Teacher UX.
-2. W3-B: freeze count/resume, autosave revisions, deadline/expiry, early-close and
+1. W3-A: freeze ASSESS-15 API/data, CLASS verification, PUBLIC locator/route/errors,
+   QuizVersion handoff, timing/configuration representation and transactional
+   reject-CLOSE contracts; prepare bounded LD-05 security/recovery/verification
+   contracts, then deliver Publication backend/Teacher UX after acceptance.
+2. W3-B: freeze count/resume, autosave revisions, cutoff/expiry/terminalization and
    retry-safe submit contracts; deliver Student lifecycle and membership checks.
 3. W3-C: preserve accepted grading/visibility; freeze Student numeric syntax and
    exact score representation/display/policy identity; deliver grading/results.
-4. W3-M1/M2: freeze monitoring configuration/default, evidence schema/transport/
+4. W3-M1/M2: freeze monitoring representation/UI terminology, evidence schema/transport/
    retention, sanitized Assessment integration, scoped session/token revocation,
    camera refusal/loss/accommodations and production LiveKit/privacy contracts;
    deliver durable evidence/Teacher dashboard and real camera/Teacher video grid.
 5. Verify real CLASS/PUBLIC journeys, bounded timing and monitoring enabled/disabled,
    then close Wave 3 only after canonical DoD, CI/security and review gates pass.
 
-PUBLIC authentication/eligibility/discovery remains OPEN despite audience approval.
-Bounded timing scope is approved; start-plus-duration deadline formula, exact
-boundaries, duration limits, expiry/resumption and early-close behavior remain
-OPEN. Count/autosave/submit, GRADE-07/08 and unresolved PROCTOR-01..09 contracts
-remain gates before dependent implementation. AI behavior monitoring, recording
+The Leader-approved LD-01..05 follow-up is recorded on 2026-10-11, after PR #72/#73:
+PUBLIC requires authenticated USER with authoritative STUDENT and Identity
+account/token-validity/revocation rules, including TEACHER + STUDENT through
+STUDENT. Shared direct links use suitably non-enumerable locators; no membership,
+directory, guests, passwords or anonymous-session identity is required. Link
+possession bypasses no eligibility rule; no new owner self-attempt rule is added.
+LD-01 accepts `startAt <= serverNow < endAt`, integer 5–240-minute duration in
+one-minute steps and deadline = authoritative start + duration, without window-end
+or retroactive configuration shortening. Instants must be timezone-safe and local
+conversion unambiguous. LD-04 rejects CLOSE while any Attempt is authoritatively
+active; close conflict/overdue handling/start-finalization races require
+transactional contracts, with W3-B eventual terminalization independent of timely
+jobs. No automatic closure or force-close is introduced. Exact wire/concurrency/
+representation contracts remain OPEN, along with W3-B cutoff, expiration, timeout
+finalization, saved/unsaved answer treatment, resumption and response ordering.
+Count/autosave/submit, GRADE-07/08 and unresolved PROCTOR contracts remain gates
+before dependent implementation. AI behavior monitoring, recording
 and mandatory/strict screen sharing are deferred; functioning AI is not Wave 3 DoD.
 
 Monitoring acceptance requires pre-start disclosure, real browser camera permission
@@ -157,10 +174,16 @@ REST remains authoritative; LiveKit/DataChannels never persist authoritative ans
 Real-learner enablement requires the [canonical privacy/accessibility/security gates](../specifications/w3-a-publication-scheduling-monitoring-policy.md#11-w3-a10--privacy-accessibility-and-security),
 including no recording; camera refusal/loss outcomes remain OPEN.
 
-ID-05 remains conditional for protected-service revocation wiring: Redis lookup
-outage fail-open/fail-closed/degraded behavior remains OPEN; JWT validation alone
-does not implement near-immediate revocation. Required privileged checks fail
-closed when authority cannot be verified, without settling every ID-05 path.
+LD-05 accepts fail-closed behavior for affected protected Assessment/Classroom/
+Proctoring operations until required revocation/account authority is trustworthy;
+valid JWTs alone cannot bypass checks. No automatic Identity fallback or degraded
+authenticated lower-risk reads are approved for initial Wave 3. Outage alone must
+not invalidate refresh credentials, silently log out or cause refresh loops.
+Prefer sanitized service-unavailable errors where appropriate, subject to API
+review. Redis health alone is insufficient for recovery: trustworthy coverage or
+durable reconstruction is required. Independent public nonprivileged infrastructure
+may remain available. ID-05 implementation/recovery/security verification remain
+OPEN under the bounded Dev1 contract gate; no auth subsystem rewrite is authorized.
 The Assessment policy's A–J audit/examples and W3-A endpoint inventory are contract
 inputs; proposed endpoints are not frozen APIs. Product approval and this docs-only
 reconciliation are not new implementation, CI or E2E evidence.
@@ -169,13 +192,15 @@ reconciliation are not new implementation, CI or E2E evidence.
 
 Current accepted checkpoint:
 
-`origin/develop = 0290c6f6d05e733356fd7ea5ae512b3d80ea4a0f` (PR #72)
+`origin/develop = 87ff6b064b972400cd4903f7bc4fec9375e559a1` (verified 2026-10-11)
 
-PR #72 adds the Assessment policy/contract documentation foundation; PR #71
-(`8361946`) Wave 2 closure remains preserved. The subsequent approved W3-A scope
-expands the required delivery plan, not the implemented capabilities at this
-checkpoint. Product approval must not be reported as merged feature evidence.
-No new CI or real-topology E2E run is claimed by this reconciliation.
+PR #72 adds Assessment policy/contract documentation; PR #73 (`d699bd3`) adds
+W3-A scope reconciliation. The latest checkpoint also includes the frontend
+segmented-OTP E2E fix (`87ff6b0`). PR #71 (`8361946`) Wave 2 closure is preserved.
+The LD-01..05 follow-up is recorded in this later documentation workstream;
+none of those decisions is attributed to PR #72/#73. Product approval expands
+contracts/planning, not implemented capabilities. No new product CI or
+real-topology E2E run is claimed by this reconciliation.
 
 Important merged checkpoints:
 
@@ -204,6 +229,9 @@ Important merged checkpoints:
 | #70 | `00265c3`    | Frontend navigation/authoring polish                                      |
 | #71 | `8361946`    | FE-05–FE-09 editor UX, math, navigation, registration OTP; Wave 2 closure |
 | #72 | `0290c6f`    | Wave 3 Assessment policy/contract documentation foundation                |
+
+PR #73 (`d699bd3`) is the subsequent merged W3-A documentation checkpoint;
+LD-01..05 is a later approval record, not historical PR #73 content.
 
 The SHA in this file is a checkpoint, not permission to skip `git fetch`.
 Always inspect the current remote branch before starting work.
@@ -451,7 +479,7 @@ Identity:
 - MFA;
 - logout-all;
 - device/session-management UI;
-- unresolved Redis outage policy;
+- broader revocation outage policy outside the accepted initial Wave 3 LD-05 scope;
 - production SMTP vendor selection.
 
 Quiz/import:
@@ -462,8 +490,9 @@ Quiz/import:
 - AI generation.
 
 Assessment plus optional eligible CLASS monitoring is current Wave 3 scope,
-governed by section 2 and the W3-A decision. PUBLIC authentication/discovery is
-still OPEN; guest identity/access must not be inferred from audience approval.
+governed by section 2 and the W3-A follow-up decisions. LD-03 accepts
+authenticated STUDENT direct-link PUBLIC participation; exact locator/route/errors
+remain engineering work. Guest identity/access is deferred.
 
 Later product areas:
 
@@ -495,7 +524,9 @@ MVP delivery path, scope tiers, blockers, and release journeys are maintained in
 
 Before dependent implementation, freeze W3-A/B/C and W3-M1/M2 contracts and satisfy
 canonical monitoring release gates. ASSESS-01..04, GRADE-01..06 and W3-A scope are
-approved; detailed PUBLIC/timing/Attempt/monitoring gates remain OPEN in the
+approved, with LD-01..05 follow-up policy recorded. ASSESS-13/14/17, PROCTOR-10
+and ID-05 remain PARTIALLY RESOLVED for engineering/later-wave dependencies;
+ASSESS-15 remains OPEN — ENGINEERING CONTRACT. W3-B/C/M1/M2 gates remain in the
 canonical decision and `docs/open-questions.md`.
 
 ## 11. Current development workflow

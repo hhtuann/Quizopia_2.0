@@ -107,6 +107,17 @@ It may support:
 
 ## Public access
 
+For Wave 3, [approved W3-A follow-up LD-03](../specifications/w3-a-publication-scheduling-monitoring-policy.md#ld-03--public-authentication-and-discovery)
+requires authenticated USER with authoritative STUDENT for PUBLIC participation,
+including TEACHER + STUDENT through STUDENT under the same rules. Identity
+account/token-validity/revocation rules apply; Classroom membership is not required.
+Sharing uses a direct link with a suitably non-enumerable locator; possession
+bypasses no lifecycle, timing or eligibility rule. No searchable directory,
+anonymous guest participation, passwords or anonymous-session identity is required
+for Wave 3. Exact locator/route/error contracts remain open. This adds no rule
+about an owner attempting their own Publication. The guest behavior below is
+broader future scope.
+
 A public publication may allow a guest who has never registered to take the quiz through the public link.
 
 Authenticated users have stronger identity-based controls. Guest attempt limits are best-effort because a normal web platform cannot reliably identify the same anonymous human across browsers/devices.
