@@ -176,6 +176,60 @@ startup dependency while retaining standard timestamp and issuer validation.
 
 The configured access-token TTL remains deployment/security configuration and must stay short-lived. User and service TTLs may be configured separately; when the user TTL is omitted, it uses the configured service-token TTL.
 
+### Frontend login hydration and temporary unavailability
+
+Successful login credentials alone do not establish frontend authenticated
+identity: `/api/auth/me` must hydrate the authoritative user first. If hydration
+returns 503 or fails because of timeout or network unavailability, the frontend
+keeps the refresh cookie intact and enters `verification-unavailable`. It exposes
+no user, workspace, or protected-request token in this state. Any previous account
+identity is cleared after successful replacement login.
+
+Recovery is an explicit, single-flight verification action, with a ten-second
+timeout on each `/me` request and no automatic retry loop. The candidate access
+token stays only in service memory. Recovery reuses it while unexpired; an expired
+candidate permits one cookie refresh before hydration per explicit action.
+Expired-candidate recovery also bounds its refresh request to ten seconds, an
+interactive deadline consistent with hydration. Its AbortSignal reaches the HTTP
+transport and fetch. Timeout/cancellation settles the client operation, releases
+the queue/held browser lock, and ignores any late response; it never automatically
+repeats an uncertain rotation. Normal bootstrap/refresh gain operation cancellation
+without a new refresh timeout.
+
+Login, recovery, refresh and logout cookie operations are serialized locally and
+use the existing browser auth lock where available. The in-memory token vault owns
+two monotonic fences with distinct purposes: `sessionGeneration` changes when
+tokens are cleared or an identity is established/changed and protects request
+replay; `operationGeneration` changes on new login intent, explicit local clearing,
+session expiry, logout execution, or a refreshed identity changing accounts and
+cancels older asynchronous auth work.
+Automatic bootstrap completion and same-session refresh do not advance the
+operation fence, so a login awaiting its own bootstrap remains valid. Both fences
+are captured before bootstrap/refresh work; login captures its operation fence
+before any await. Responses are checked before hydration and state changes.
+Confirmed login clears the previous identity/token while retaining its own
+operation fence. Direct runtime identity establishment cancels older operations;
+fenced establishment completes only the current operation. Logout waits for normal
+refresh as before, checks whether a newer intent superseded that wait, and then
+cancels pending login/recovery before sending logout.
+
+Client cancellation does not prove that Identity canceled a login/refresh
+transaction, that a refresh family did not rotate, or that a browser cookie was
+unchanged. Already-applied Set-Cookie and cross-tab cookie changes cannot be
+rolled back by frontend generation checks. Web Locks coordinate participating
+tabs where available; the local queue alone does not synchronize other tabs.
+Refresh rotation after an uncertain response and backend unavailable-status
+mapping require coordinated backend contracts and real-browser integration
+verification. The frontend performs no compensating automatic logout or refresh.
+
+The frontend relies on a separately accepted unavailable-response contract for
+Identity and Gateway; HTTP 503 is the proposed coordinated mapping for temporary
+security authority unavailability, rather than 401/403. LD-05 does not itself
+freeze the exact wire status/error. A real `/me` 401/403 still rejects
+the session; `AUTH_REFRESH_FAILED` 401 still ends refresh recovery. Protected 503
+responses pass through without refresh or logout. This frontend behavior does not
+implement backend revocation authority or change its accepted LD-05 requirements.
+
 ### Access-token principal contract
 
 All Quizopia access tokens contain the case-sensitive `principal_type` claim with

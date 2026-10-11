@@ -4,6 +4,9 @@ export interface AccessTokenSnapshot {
 }
 
 export interface AccessTokenVault {
+  getOperationGeneration(): number;
+  invalidateOperations(): number;
+  subscribeOperations(listener: () => void): () => void;
   clear(): void;
   read(): string | null;
   readSnapshot(): AccessTokenSnapshot;
@@ -14,6 +17,11 @@ export interface AccessTokenVault {
 export function createAccessTokenVault(): AccessTokenVault {
   let accessToken: string | null = null;
   let sessionGeneration = 0;
+  // Explicit intent/cancellation fences asynchronous auth work. Token generation
+  // separately fences protected-request replay; routine bootstrap completion or
+  // token rotation must not cancel a login waiting for that same bootstrap.
+  let operationGeneration = 0;
+  const operationListeners = new Set<() => void>();
 
   function requireToken(nextAccessToken: string) {
     if (nextAccessToken.length === 0) {
@@ -22,6 +30,18 @@ export function createAccessTokenVault(): AccessTokenVault {
   }
 
   return Object.freeze({
+    getOperationGeneration() {
+      return operationGeneration;
+    },
+    invalidateOperations() {
+      operationGeneration += 1;
+      operationListeners.forEach((listener) => listener());
+      return operationGeneration;
+    },
+    subscribeOperations(listener: () => void) {
+      operationListeners.add(listener);
+      return () => operationListeners.delete(listener);
+    },
     clear() {
       accessToken = null;
       sessionGeneration += 1;

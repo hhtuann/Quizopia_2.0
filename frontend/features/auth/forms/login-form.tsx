@@ -9,6 +9,7 @@ import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
 import { useAuth } from "../auth-provider";
+import { SessionVerificationRecovery } from "../components/session-verification-recovery";
 
 const loginSchema = z.object({
   identifier: z
@@ -27,7 +28,7 @@ type LoginFields = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, session } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     formState: { errors, isSubmitting },
@@ -77,7 +78,11 @@ export function LoginForm() {
         {...register("password")}
       />
 
-      {serverError ? (
+      {session.status === "verification-unavailable" ? (
+        <SessionVerificationRecovery
+          onVerified={() => router.replace("/app")}
+        />
+      ) : serverError ? (
         <Alert title="Sign in failed" variant="danger">
           {serverError}
         </Alert>

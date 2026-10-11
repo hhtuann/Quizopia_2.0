@@ -14,19 +14,30 @@ export function createRefreshCoordinator(
   let inFlightRefresh: Promise<RefreshResult> | null = null;
 
   async function performBootstrap(): Promise<RefreshResult> {
+    const generation = sessionRuntime.getOperationGeneration();
+    const sessionGeneration = sessionRuntime.getSessionGeneration();
     if (sessionRuntime.getSnapshot().status !== "bootstrapping") {
       return { status: "no-session" };
     }
 
     let result: RefreshResult;
     try {
-      result = await refreshOperation();
+      result = await refreshOperation(generation, sessionGeneration);
     } catch (cause) {
       result = { status: "transient-failure", cause };
     }
 
+    if (
+      !sessionRuntime.isCurrentOperation(generation) ||
+      sessionRuntime.getSessionGeneration() !== sessionGeneration
+    )
+      return { status: "no-session" };
+
     if (result.status === "refreshed") {
-      return sessionRuntime.establishAuthenticatedSession(result.session)
+      return sessionRuntime.establishAuthenticatedSession(
+        result.session,
+        generation,
+      )
         ? result
         : { status: "no-session" };
     }
@@ -40,16 +51,24 @@ export function createRefreshCoordinator(
   }
 
   async function performRefresh(): Promise<RefreshResult> {
+    const generation = sessionRuntime.getOperationGeneration();
+    const sessionGeneration = sessionRuntime.getSessionGeneration();
     if (!sessionRuntime.beginRefreshing()) {
       return { status: "no-session" };
     }
 
     let result: RefreshResult;
     try {
-      result = await refreshOperation();
+      result = await refreshOperation(generation, sessionGeneration);
     } catch (cause) {
       result = { status: "transient-failure", cause };
     }
+
+    if (
+      !sessionRuntime.isCurrentOperation(generation) ||
+      sessionRuntime.getSessionGeneration() !== sessionGeneration
+    )
+      return { status: "no-session" };
 
     if (result.status === "refreshed") {
       return sessionRuntime.completeRefreshing(result.session)

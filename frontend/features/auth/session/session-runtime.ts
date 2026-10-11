@@ -4,6 +4,7 @@ import {
   BOOTSTRAP_FAILED_SESSION,
   BOOTSTRAPPING_SESSION,
   EXPIRED_SESSION,
+  VERIFICATION_UNAVAILABLE_SESSION,
   hasAuthenticatedIdentity,
   type AuthenticatedSession,
   type RefreshingSession,
@@ -23,17 +24,27 @@ export interface AuthenticatedSessionInput {
 }
 
 export interface SessionRuntime {
+  beginOperation(): number;
+  getOperationGeneration(): number;
+  getSessionGeneration(): number;
+  isCurrentOperation(generation: number): boolean;
+  prepareLoginHydration(generation: number): boolean;
+  subscribeOperations(listener: () => void): () => void;
   beginRefreshing(): boolean;
   clearLocalSession(): void;
   completeBootstrapAsAnonymous(): boolean;
   completeBootstrapAsUnavailable(): boolean;
   completeRefreshing(input: AuthenticatedSessionInput): boolean;
-  establishAuthenticatedSession(input: AuthenticatedSessionInput): boolean;
+  establishAuthenticatedSession(
+    input: AuthenticatedSessionInput,
+    operationGeneration?: number,
+  ): boolean;
   expireSession(): boolean;
   getSnapshot(): SessionState;
   recoverFromRefreshFailure(): boolean;
   subscribe(listener: () => void): () => void;
   switchWorkspace(workspace: Workspace): boolean;
+  markVerificationUnavailable(operationGeneration?: number): void;
 }
 
 export function createSessionRuntime(
@@ -77,6 +88,26 @@ export function createSessionRuntime(
   }
 
   const runtime: SessionRuntime = {
+    beginOperation() {
+      const generation = accessTokenVault.invalidateOperations();
+      // A superseded refresh must not leave the existing identity refreshing.
+      runtime.recoverFromRefreshFailure();
+      return generation;
+    },
+    getOperationGeneration: accessTokenVault.getOperationGeneration,
+    getSessionGeneration() {
+      return accessTokenVault.readSnapshot().sessionGeneration;
+    },
+    isCurrentOperation(generation) {
+      return generation === accessTokenVault.getOperationGeneration();
+    },
+    subscribeOperations: accessTokenVault.subscribeOperations,
+    prepareLoginHydration(generation) {
+      if (!runtime.isCurrentOperation(generation)) return false;
+      accessTokenVault.clear();
+      publish(ANONYMOUS_SESSION);
+      return true;
+    },
     beginRefreshing() {
       if (state.status !== "authenticated") {
         return false;
@@ -92,6 +123,7 @@ export function createSessionRuntime(
     },
 
     clearLocalSession() {
+      accessTokenVault.invalidateOperations();
       accessTokenVault.clear();
       publish(ANONYMOUS_SESSION);
     },
@@ -124,6 +156,7 @@ export function createSessionRuntime(
       const identityChanged = state.user.id !== input.user.id;
       const activeWorkspace = activeWorkspaceFor(input.user, state);
       if (identityChanged) {
+        accessTokenVault.invalidateOperations();
         accessTokenVault.startSession(input.accessToken);
       } else {
         accessTokenVault.replace(input.accessToken);
@@ -132,16 +165,24 @@ export function createSessionRuntime(
       return true;
     },
 
-    establishAuthenticatedSession(input) {
+    establishAuthenticatedSession(input, operationGeneration) {
+      if (
+        operationGeneration !== undefined &&
+        !runtime.isCurrentOperation(operationGeneration)
+      )
+        return false;
       if (
         state.status !== "bootstrapping" &&
         state.status !== "anonymous" &&
         state.status !== "bootstrap-failed" &&
+        state.status !== "verification-unavailable" &&
         state.status !== "session-expired"
       ) {
         return false;
       }
 
+      if (operationGeneration === undefined)
+        accessTokenVault.invalidateOperations();
       accessTokenVault.startSession(input.accessToken);
       publish(
         authenticatedState(
@@ -157,6 +198,7 @@ export function createSessionRuntime(
         return false;
       }
 
+      accessTokenVault.invalidateOperations();
       accessTokenVault.clear();
       publish(EXPIRED_SESSION);
       return true;
@@ -164,6 +206,18 @@ export function createSessionRuntime(
 
     getSnapshot() {
       return state;
+    },
+
+    markVerificationUnavailable(operationGeneration) {
+      if (
+        operationGeneration !== undefined &&
+        !runtime.isCurrentOperation(operationGeneration)
+      )
+        return;
+      if (operationGeneration === undefined)
+        accessTokenVault.invalidateOperations();
+      accessTokenVault.clear();
+      publish(VERIFICATION_UNAVAILABLE_SESSION);
     },
 
     recoverFromRefreshFailure() {

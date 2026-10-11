@@ -17,4 +17,7 @@ export interface RefreshFailedTransiently {
 export type RefreshResult =
   RefreshSucceeded | RefreshFoundNoSession | RefreshFailedTransiently;
 
-export type RefreshOperation = () => Promise<RefreshResult>;
+export type RefreshOperation = (
+  operationGeneration: number,
+  sessionGeneration: number,
+) => Promise<RefreshResult>;

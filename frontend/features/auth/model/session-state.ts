@@ -13,6 +13,10 @@ export interface BootstrapFailedSession {
   readonly status: "bootstrap-failed";
 }
 
+export interface VerificationUnavailableSession {
+  readonly status: "verification-unavailable";
+}
+
 export interface AuthenticatedSession {
   readonly status: "authenticated";
   readonly user: AuthenticatedUser;
@@ -33,6 +37,7 @@ export type SessionState =
   | BootstrappingSession
   | AnonymousSession
   | BootstrapFailedSession
+  | VerificationUnavailableSession
   | AuthenticatedSession
   | RefreshingSession
   | ExpiredSession;
@@ -48,6 +53,9 @@ export const ANONYMOUS_SESSION: AnonymousSession = Object.freeze({
 export const BOOTSTRAP_FAILED_SESSION: BootstrapFailedSession = Object.freeze({
   status: "bootstrap-failed",
 });
+
+export const VERIFICATION_UNAVAILABLE_SESSION: VerificationUnavailableSession =
+  Object.freeze({ status: "verification-unavailable" });
 
 export const EXPIRED_SESSION: ExpiredSession = Object.freeze({
   status: "session-expired",
