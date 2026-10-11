@@ -1,0 +1,112 @@
+package com.quizopia.assessment;
+
+import static com.quizopia.assessment.AdmissionTestTokens.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.*;
+import org.springframework.context.annotation.*;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.reactive.server.WebTestClient;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+@Import(ClosedBusinessBoundaryTest.Keys.class)
+class ClosedBusinessBoundaryTest {
+    @Value("${local.server.port}")
+    int port;
+
+    WebTestClient http() {
+        return WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port).build();
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "/api/assessments/publications",
+                "/publications",
+                "/attempts/" + ACTOR,
+                "/api/proctoring/sessions",
+                "/proctoring/token",
+                "/internal/authority",
+                "/unexpected-business"
+            })
+    void signedUserCannotOpenFutureOrInternalRoute(String path) {
+        http().post()
+                .uri(path)
+                .headers(h -> h.setBearerAuth(user()))
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store");
+    }
+
+    @Test
+    void serviceTokenCannotOpenUserOperationAndWrongIssuerDenied() {
+        var now = Instant.now();
+        var service = sign(
+                KEY,
+                ISSUER,
+                "gateway",
+                "SERVICE",
+                Map.of("scope", List.of("identity.user-admission")),
+                now.minusSeconds(5),
+                now.plusSeconds(300));
+        http().post()
+                .uri("/publications")
+                .headers(h -> h.setBearerAuth(service))
+                .exchange()
+                .expectStatus()
+                .isForbidden();
+        var wrong = sign(
+                KEY,
+                "https://wrong.test",
+                ACTOR,
+                "USER",
+                Map.of("roles", List.of("STUDENT")),
+                now.minusSeconds(5),
+                now.plusSeconds(300));
+        http().post()
+                .uri("/publications")
+                .headers(h -> h.setBearerAuth(wrong))
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+    }
+
+    @Test
+    void spoofedHeadersMissingAndMalformedAuthorizationCannotOpenBoundary() {
+        http().post()
+                .uri("/publications")
+                .header("X-Quizopia-Admitted", "true")
+                .header("X-User-Id", ACTOR)
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+        http().post()
+                .uri("/publications")
+                .header("Authorization", "Bearer malformed")
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+    }
+
+    @TestConfiguration
+    static class Keys {
+        @Bean
+        @Primary
+        JwtDecoder decoder() throws Exception {
+            var d = NimbusJwtDecoder.withPublicKey(KEY.toRSAPublicKey()).build();
+            d.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
+            return d;
+        }
+    }
+}

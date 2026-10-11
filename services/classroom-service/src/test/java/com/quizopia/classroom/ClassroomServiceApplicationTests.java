@@ -12,6 +12,7 @@ class ClassroomServiceApplicationTests {
     @org.springframework.boot.autoconfigure.EnableAutoConfiguration
     @org.springframework.context.annotation.Import({
         com.quizopia.classroom.configuration.SecurityConfiguration.class,
+        com.quizopia.classroom.security.admission.AdmissionClientConfiguration.class,
         com.quizopia.classroom.security.QuizopiaJwtAuthenticationConverter.class,
         com.quizopia.classroom.security.ClassroomSecurityErrorHandler.class
     })

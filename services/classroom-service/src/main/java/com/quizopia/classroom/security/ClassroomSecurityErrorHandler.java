@@ -37,8 +37,14 @@ public final class ClassroomSecurityErrorHandler implements AuthenticationEntryP
             HttpServletResponse response, int status, String code, String message, HttpServletRequest request)
             throws IOException {
         response.setStatus(status);
+        response.setHeader("Cache-Control", "no-store");
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(
-                response.getOutputStream(), new ClassroomApiError(code, message, status, request.getRequestURI()));
+                response.getOutputStream(),
+                new ClassroomApiError(
+                        code,
+                        message,
+                        status,
+                        request.getRequestURI().equals("/classrooms") ? "/classrooms" : "/classrooms/{classroomId}"));
     }
 }

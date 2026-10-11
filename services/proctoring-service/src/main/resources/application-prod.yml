@@ -11,6 +11,7 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${IDENTITY_JWKS_URI}
+          issuer-uri: ${IDENTITY_ISSUER}
 logging:
   structured:
     format:

@@ -1,6 +1,6 @@
 # LD-05 Identity authority admission
 
-Status: **Leader-approved Candidate B architecture; Identity prerequisite implementation for review. End-to-end enforcement and operational activation remain incomplete.**
+Status: **Leader-approved Candidate B architecture; Identity prerequisite merged at PR #75. End-to-end enforcement and operational activation remain incomplete.**
 
 The Leader approved Candidate B decision points A–E in the security architecture
 decision pack and explicitly authorized this bounded implementation assignment.
@@ -250,3 +250,7 @@ are not proof that all actors are recovered.
 8. Security/Leader rollout approval is required before production activation.
    This Identity prerequisite alone neither enables W3-A APIs nor authorizes a
    production release. W3-B/C/M1/M2 and product/privacy gates remain open.
+
+The subsequent [Gateway/downstream enforcement inventory](ld05-enforcement.md)
+records bounded adapter coverage and future default-closed boundaries. It does
+not change this Identity contract or authorize production activation.
