@@ -1,9 +1,10 @@
 # Frontend LD-05 takeover review
 
 Audit started: 2026-10-11; verification/finalization: 2026-10-12 (Asia/Bangkok).
-Owner: Dev 2 implementation agent. Verdict: **BLOCKED — BACKEND CONTRACT**.
-Frontend correctness/quality and independent agent review pass; public LD-05
-contracts and outage integration remain open. Prepare a Draft PR for Leader review.
+Owner: Dev 2 implementation agent. Verdict: **MORE EVIDENCE REQUIRED**.
+Frontend correctness/quality and independent agent review pass. Merged PR #76 now
+defines the scoped Gateway/Classroom public contract; browser LD-05 outage/recovery
+integration and the real-executor suite remain outstanding. Prepare a Draft PR.
 
 ## Initial read-only audit
 
@@ -52,7 +53,7 @@ will be recorded after implementation.
 The handoff architecture was retained. No auth rewrite, backend, schema, event,
 dependency, or runtime configuration change was made. The PR diff is frontend
 plus authentication/review documentation. A normal conflict-free merge preserves
-all PR #75 changes from develop.
+all PR #75 and #76 changes from develop.
 
 | ID  | Severity | Final affected source                                                                                                     | Resolution and regression                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | --- | -------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,7 +73,10 @@ Separate read-only reviewer: `/root/ld05_final_review`, reviewing merged
 The reviewer independently reproduced F7/F9 before and after their fixes and
 confirmed F8's classification. Final finding: **no remaining confirmed
 Blocker/High**. This is agent review, not human/Leader approval. It does not
-establish public backend contract compatibility or actual Redis-outage behavior.
+establish actual Redis-outage behavior. A separate read-only delta review after
+merge `718cd26` checked PR #76 actual filters, response codes and the two new
+fetch-envelope tests, and found no new confirmed security/correctness findings.
+It confirmed scoped contract compatibility while retaining the integration gate.
 
 G1 evidence includes success/invalid/unavailable completions across login and
 bootstrap phases, overlapping accounts, local clear/logout, superseded bootstrap,
@@ -83,25 +87,39 @@ No token/cookie/password/OTP logging or JavaScript credential persistence was ad
 Only `/me` supplies roles; the candidate never enters the business token vault.
 Outage alone sends no logout or refresh-family invalidation.
 
-## Backend contract request for Dev 1
+## Backend contract handoff and remaining integration request
 
-PR #75 implements only `POST /internal/security/user-admissions`. Accepted internal
-errors use a code-only envelope: 400 `INVALID_ADMISSION_REQUEST`, 401
+At initial audit, PR #75 implemented only `POST /internal/security/user-admissions`.
+Its code-only errors are 400 `INVALID_ADMISSION_REQUEST`, 401
 `SERVICE_AUTHENTICATION_INVALID` / `USER_EVIDENCE_INVALID`, 403
-`SERVICE_CALLER_FORBIDDEN`, 503 `AUTHORITY_UNAVAILABLE`; success contains actor ID
-and current roles. Redis/primary mismatch is unavailable before eligibility checks.
-Gateway/downstream admission adapters are explicitly outstanding and capability is
-disabled by default. Existing `/me` reloads durable eligibility/roles/cutoff; it is
-not the new complete Redis/primary admission protocol.
+`SERVICE_CALLER_FORBIDDEN`, and 503 `AUTHORITY_UNAVAILABLE`; success contains actor
+ID and current roles. Redis/primary mismatch is unavailable before eligibility.
 
-Required handoff: freeze browser status/envelope/code and cookie side effects for
-Gateway/downstream authority unavailable, SERVICE auth failure and timeout; document
-`/me` and refresh outage behavior separately from genuine USER denial; enumerate
-protected routes and supply real Redis outage/stale-restore/recovery evidence. The
-frontend currently passes protected 503 through without refresh/logout and treats
-non-denial hydration failures as verification unavailable. Do not map upstream
-SERVICE 401/403 to invalid browser credentials. No backend source changes belong
-to this frontend PR.
+Develop advanced during finalization to `45bf80fa8ad8a4498b800648138a1af4a60f7839`
+(merged PR #76). Its [enforcement contract](../architecture/ld05-enforcement.md)
+and actual Gateway `UserAdmissionWebFilter` / Classroom `UserAdmissionFilter`
+now establish code-only public `503 AUTHORITY_UNAVAILABLE`,
+`401 UNAUTHENTICATED` for genuine USER evidence denial, and
+`403 ACCESS_DENIED` for role denial. SERVICE credential/integration failures,
+malformed admission responses and timeouts produce 503, with `Cache-Control: no-store`, no cookie clearing and no refresh-family invalidation. The exact
+protected routes are POST `/classrooms` (TEACHER) and GET `/classrooms/{UUID}`
+(STUDENT plus existing ownership). Assessment/Proctoring business routes remain
+closed. Admission defaults disabled and requires separate runtime provisioning.
+
+PR #76 explicitly preserves existing `/me`, refresh and Quiz behavior. `/me`
+reloads durable eligibility/roles/cutoff; it is not the complete Redis/primary
+admission protocol. No new `/me`/refresh unavailable code is inferred. Frontend
+non-denial hydration failure remains verification unavailable; actual 401/403
+remain denial. Protected 503/403 pass through without refresh/logout; the exact
+PR #76 JSON envelopes now have fetch-transport regression coverage.
+
+Dev1 integration request: provide an isolated, revision-identified PR #75/#76
+Identity/Gateway/Classroom/Redis topology with authority clients/reconciliation
+configured, then exercise browser outage/stale-restore/recovery and uncertain
+refresh cookie rotation. The PR #76 document reports 253 backend tests including
+six real-topology cases; this frontend agent inspected that evidence and mapping
+code but did not independently execute those backend tests. Their browser/cookie
+coverage must not be inferred. No backend implementation is changed by this PR.
 
 ## Verification evidence
 
@@ -113,8 +131,8 @@ contained missing Linux native optional packages; `CI=true pnpm install
 | Command                                                                                                          | Final result                         | What it proves                                                                                                                                                                                                                      |
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm test` on untouched handoff                                                                                 | PASS: 381 tests, 30 files            | Independently reproduced handoff baseline after frozen install.                                                                                                                                                                     |
-| `pnpm exec vitest run features/auth/session features/auth/forms/login-verification.integration.test.tsx lib/api` | PASS: 139 tests, 10 files            | Focused session, client, transport and React regressions; mocked transports/fetch.                                                                                                                                                  |
-| `pnpm test` on final source                                                                                      | PASS: 408 tests, 30 files            | All frontend regressions, including ApplicationShell and Quiz authoring; 27 additional takeover tests.                                                                                                                              |
+| `pnpm exec vitest run features/auth/session features/auth/forms/login-verification.integration.test.tsx lib/api` | PASS: 141 tests, 10 files            | Focused session, client, transport and React regressions; mocked transports/fetch.                                                                                                                                                  |
+| `pnpm test` on final source                                                                                      | PASS: 410 tests, 30 files            | All frontend regressions, including ApplicationShell and Quiz authoring; 29 additional takeover tests.                                                                                                                              |
 | `pnpm typecheck`                                                                                                 | PASS                                 | Strict TypeScript.                                                                                                                                                                                                                  |
 | `pnpm lint`                                                                                                      | PASS                                 | ESLint.                                                                                                                                                                                                                             |
 | `pnpm format:check`                                                                                              | PASS                                 | Prettier.                                                                                                                                                                                                                           |
@@ -132,7 +150,7 @@ temporary plain TCP IPv6-to-IPv4 forwarding for Gateway8080/Mailpit8025. This
 preserved the backend's configured exact browser Origin without changing backend
 configuration. Temporary configs/forwarders were removed. The existing backend
 runtime revision was not established or rebuilt in this frontend workstream.
-Normal real-API success is not proof of PR #75 activation, Gateway/downstream
+Normal real-API success is not proof of PR #75/#76 activation, Gateway/downstream
 admission, actual Redis outage/stale restore/recovery, or production transport.
 
 The real-auth test had expected an intermediate protected-boundary heading after
@@ -147,7 +165,10 @@ route-announcer alert requiring a scoped test locator; real Chromium's unnamed
 loading button; and one unrelated screenshot protocol capture failure at high
 worker concurrency. The complete browser suite passed with four workers without
 skips/retries. The real-auth navigation assertion was corrected and both complete
-real tests then passed. The executor port blocker remains explicitly unavailable.
+real tests then passed. The executor port blocker remains explicitly unavailable. After PR #76 sync,
+the first full Vitest run concurrent with build/quality checks took 317s and
+timed out one existing Quiz editor test. A standalone unchanged full rerun
+passed all 410 tests in 3.43s; no timeout increase or product change was applied.
 
 UX review: existing Corporate Trust typography/components/tokens retained;
 375px recovery screenshot inspected with no horizontal overflow or clipped
@@ -161,12 +182,15 @@ verification is unavailable. No focus trap or automatic navigation loop was adde
 
 Handoff `6c1192631ba7042410e3cd9bf81ad2616022fbbc` was retained; focused takeover
 commit `92fa632` was followed by normal merge `424fd21` of develop `123c8f5`.
-Final reviewer fixes and this evidence are committed normally on the same feature
-branch. No force-push, reset, clean, shared-history rewrite or backend modification
-was performed. The frontend PR must remain Draft until the public response mapping
-and actual LD-05 outage/recovery integration gates have evidence.
+Final reviewer fixes and evidence were committed as `624ef3e`. When develop
+advanced to PR #76, a second conflict-free normal merge `718cd26` preserved its
+71 backend/documentation files; there was no frontend overlap. The new public
+response envelope tests and updated contract evidence are the only subsequent
+focused changes. Full frontend quality checks were rerun after synchronization.
+No force-push, reset, clean, shared-history rewrite or backend implementation edit
+was performed. The frontend PR remains Draft for actual browser LD-05 outage/
+recovery evidence and the unavailable real-executor gate.
 
-Leader/Dev2 next action: have Dev1 supply the public Gateway/downstream
-status/envelope/cookie contract and route-enforcement handoff described above;
-then verify real Redis outage, stale restore and authoritative recovery before
-removing Draft status. Human final review is still required before merge.
+Leader/Dev2 next action: run the browser outage/stale-restore/recovery and refresh
+rotation cases on the isolated, provisioned PR #75/#76 topology described above.
+Human final review is still required before merge.

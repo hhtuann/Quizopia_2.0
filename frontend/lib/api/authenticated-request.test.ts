@@ -105,6 +105,42 @@ function authenticatedHarness(
 }
 
 describe("authenticated request executor", () => {
+  it.each([
+    [503, "AUTHORITY_UNAVAILABLE"],
+    [403, "ACCESS_DENIED"],
+  ])(
+    "preserves the PR76 %s %s response without refresh or session expiry",
+    async (status, code) => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ code }), {
+          status,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+          },
+        }),
+      );
+      const refreshOperation = vi.fn<RefreshOperation>();
+      const { executor, sessionRuntime, accessTokenVault } =
+        authenticatedHarness(
+          createFetchHttpTransport(fetchMock),
+          refreshOperation,
+        );
+      const before = sessionRuntime.getSnapshot();
+      const request = replayableRequest("classroom-admission");
+
+      await expect(executor.execute(request)).resolves.toMatchObject({
+        kind: "response",
+        response: { status, body: { kind: "json", value: { code } } },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(request.createRequest).toHaveBeenCalledTimes(1);
+      expect(refreshOperation).not.toHaveBeenCalled();
+      expect(sessionRuntime.getSnapshot()).toBe(before);
+      expect(accessTokenVault.read()).toBe("initial-access-token");
+    },
+  );
+
   it("fails before transport when no access token is available", async () => {
     const accessTokenVault = createAccessTokenVault();
     const sessionRuntime = createSessionRuntime(accessTokenVault);

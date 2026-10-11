@@ -242,19 +242,25 @@ Refresh rotation after an uncertain response and backend unavailable-status
 mapping require coordinated backend contracts and real-browser integration
 verification. The frontend performs no compensating automatic logout or refresh.
 
-The frontend requires a separately accepted unavailable-response contract for
-Identity and Gateway; HTTP 503 is the proposed coordinated mapping for temporary
-security authority unavailability, rather than 401/403. LD-05 does not itself
-freeze the exact wire status/error. A real `/me` 401/403 still rejects
-the session; `AUTH_REFRESH_FAILED` 401 still ends refresh recovery. Protected 503
-responses pass through without refresh or logout. This frontend behavior does not
-implement backend revocation authority or change its accepted LD-05 requirements.
-PR #75 freezes only the internal Identity admission `503 AUTHORITY_UNAVAILABLE`
-code-only response. It does not freeze browser `/me`, refresh, Gateway or protected
-downstream unavailable envelopes, or implement those admission adapters. See
-[Identity authority admission](identity-authority-admission.md) and the
-[frontend takeover review](../development/frontend-ld05-review.md) for the
-remaining contract and real-topology gates.
+Merged PR #76 defines code-only `503 AUTHORITY_UNAVAILABLE` for the implemented
+Gateway/Classroom admission adapters; genuine USER evidence denial maps to
+`401 UNAUTHENTICATED`, and current-role denial to `403 ACCESS_DENIED`. SERVICE
+credential failures and dependency failures map to unavailable, not browser
+credential denial. Sensitive outcomes use `Cache-Control: no-store` and do not
+invalidate refresh families or clear cookies. Protected 503/403 responses pass
+through the frontend without refresh or logout; genuine protected 401 retains
+the existing bounded session refresh rules.
+
+This mapping covers only the exact implemented Classroom routes. PR #76 preserves
+existing `/me`, refresh and Quiz contracts; future Assessment/Proctoring business
+routes remain closed. A real `/me` 401/403 still rejects the session;
+`401 AUTH_REFRESH_FAILED` still ends refresh recovery. Existing `/me` durable
+eligibility verification is not the complete new Redis/primary admission protocol.
+The frontend adds no backend authority bypass. Browser outage/cookie-rotation
+behavior against the provisioned PR #75/#76 topology remains an integration gate.
+See [LD-05 enforcement](ld05-enforcement.md),
+[Identity authority admission](identity-authority-admission.md), and the
+[frontend takeover review](../development/frontend-ld05-review.md).
 
 ### Access-token principal contract
 
