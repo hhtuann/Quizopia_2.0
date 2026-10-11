@@ -19,6 +19,12 @@ spring:
             - id: quiz-service
               uri: ${QUIZ_SERVICE_URL}
               predicates: [Path=/api/quizzes/**]
+            - id: classroom-create
+              uri: ${CLASSROOM_SERVICE_URL}
+              predicates: [Path=/classrooms, Method=POST]
+            - id: classroom-owned-read
+              uri: ${CLASSROOM_SERVICE_URL}
+              predicates: ["Path=/classrooms/{classroomId}", Method=GET]
             - id: classroom-service
               uri: ${CLASSROOM_SERVICE_URL}
               predicates: [Path=/api/classes/**]

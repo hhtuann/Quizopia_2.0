@@ -28,7 +28,7 @@ extend that original expiry.
 **ID-05.** If Redis revocation lookup is unavailable, what is the required fail-open/fail-closed/degraded behavior for Gateway/services?
 
 Status: **PARTIALLY RESOLVED — LD-05 Wave 3 security policy accepted;
-Candidate B architecture APPROVED; Identity prerequisite under review;
+Candidate B architecture APPROVED; Identity prerequisite merged at PR #75;
 end-to-end enforcement/operational activation/verification OPEN**.
 The Leader-approved Candidate B A–E decision authorizes always-required primary
 Identity admission, complete Redis equality, per-actor trustworthy recovery,
@@ -36,8 +36,9 @@ coherent PostgreSQL snapshot and narrow dual USER/SERVICE evidence, with mandato
 ADR/capacity/rollout/security gates. See the bounded
 [Identity architecture/addendum](architecture/identity-authority-admission.md).
 This records the approval from the implementation assignment without inventing
-its original date. Gateway/downstream implementation and production activation
-remain incomplete. Required revocation/account
+its original date. Gateway/downstream enforcement is proposed in the bounded
+[enforcement inventory](architecture/ld05-enforcement.md); production activation
+and future route coverage remain incomplete. Required revocation/account
 authority must be trustworthy; signature-valid unexpired JWTs alone are
 insufficient. Affected protected Assessment, Classroom and Proctoring operations
 fail closed while required authority is unavailable or untrustworthy. Prefer
@@ -48,7 +49,7 @@ authenticated lower-risk reads are approved for initial Wave 3. Redis health or
 connectivity alone does not establish recovery: trustworthy coverage or
 reconstruction from authoritative durable state is required before authorization
 resumes. Independent truly public, nonprivileged infrastructure operations may
-remain available. The bounded Identity implementation is proposed for review; end-to-end
+remain available. The bounded Identity prerequisite is merged; end-to-end
 security enforcement, recovery verification and rollout gates remain required; see
 [Assessment Core gate](specifications/assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).
 No authentication subsystem rewrite is authorized. Wider non-Wave-3 outage
