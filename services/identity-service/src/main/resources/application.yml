@@ -25,6 +25,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -66,6 +68,14 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
 quizopia:
   identity:
+    user-admission:
+      enabled: ${IDENTITY_USER_ADMISSION_ENABLED:false}
+      allowed-clients: ${IDENTITY_USER_ADMISSION_ALLOWED_CLIENTS:}
+      require-secure-transport: ${IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT:true}
+      query-timeout-seconds: ${IDENTITY_USER_ADMISSION_QUERY_TIMEOUT_SECONDS:2}
+      reconciliation-enabled: ${IDENTITY_AUTHORITY_RECONCILIATION_ENABLED:false}
+      batch-size: ${IDENTITY_AUTHORITY_BATCH_SIZE:50}
+      polling-interval: ${IDENTITY_AUTHORITY_POLLING_INTERVAL:PT5S}
     email-outbox:
       encryption:
         active-key-version: ${IDENTITY_EMAIL_OUTBOX_ACTIVE_KEY_VERSION:}
