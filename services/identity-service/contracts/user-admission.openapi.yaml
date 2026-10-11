@@ -1,0 +1,105 @@
+openapi: 3.1.0
+info:
+  title: Identity internal USER admission
+  version: 1.0.0
+  description: >-
+    LD-05 Identity prerequisite only. Private authenticated encrypted transport
+    and exact caller/destination allowlists are deployment requirements.
+    This endpoint is excluded from browser-facing Swagger and public Gateway routes.
+paths:
+  /internal/security/user-admissions:
+    post:
+      operationId: admitInitiatingUser
+      description: >-
+        Bodyless request. No query parameters or cookies are accepted. Exactly one
+        caller Authorization header and one initiating USER evidence header are
+        required; duplicate or ambiguous presentations are rejected. Success is
+        valid only for the current request and is not a reusable assertion.
+      security:
+        - serviceCredentials:
+            - identity.user-admission
+          initiatingUserEvidence: []
+      responses:
+        "200":
+          description: Verified actor and complete current roles; caller still checks resource authority.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Admission"
+        "400":
+          description: Malformed request; INVALID_ADMISSION_REQUEST.
+          $ref: "#/components/responses/Error"
+        "401":
+          description: SERVICE_AUTHENTICATION_INVALID or USER_EVIDENCE_INVALID; callers distinguish these codes.
+          $ref: "#/components/responses/Error"
+        "403":
+          description: Authenticated principal is not an allowlisted SERVICE with admission scope; SERVICE_CALLER_FORBIDDEN.
+          $ref: "#/components/responses/Error"
+        "503":
+          description: Authority absent, unavailable, stale, malformed, disabled or untrustworthy; AUTHORITY_UNAVAILABLE.
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    serviceCredentials:
+      type: oauth2
+      description: Identity-issued RS256 SERVICE JWT, exact allowlisted subject, required scope and valid timestamps.
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth2/token
+          scopes:
+            identity.user-admission: Request admission for independently verified initiating USER evidence.
+    initiatingUserEvidence:
+      type: apiKey
+      in: header
+      name: X-Quizopia-User-Evidence
+      description: Sensitive original compact Identity-issued USER JWT; no Bearer prefix; independently verified.
+  headers:
+    NoStore:
+      schema:
+        type: string
+        const: no-store
+      description: Every response forbids caching.
+  responses:
+    Error:
+      description: Fixed sanitized error code without credentials, profile, database or Redis details.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Admission:
+      type: object
+      additionalProperties: false
+      required: [actorId, roles]
+      properties:
+        actorId:
+          type: string
+          format: uuid
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: Complete current global roles, in lexical order; STUDENT is required for admission.
+          items:
+            type: string
+            enum: [ADMIN, STUDENT, TEACHER]
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_ADMISSION_REQUEST
+            - SERVICE_AUTHENTICATION_INVALID
+            - SERVICE_CALLER_FORBIDDEN
+            - USER_EVIDENCE_INVALID
+            - AUTHORITY_UNAVAILABLE

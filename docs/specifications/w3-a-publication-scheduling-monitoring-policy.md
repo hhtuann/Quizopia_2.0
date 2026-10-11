@@ -585,8 +585,9 @@ working integrations. No additional coordinator recommendation is approved here.
   where independent of the outage. This is not a PUBLIC Assessment bypass.
 - Dev1 must prepare bounded security implementation and verification contracts;
   see [Assessment Core security contract gate](assessment-core-policy.md#ld-05--bounded-security-implementation-and-verification-contract).
-  ID-05 implementation, authoritative recovery mechanism and verification remain
-  outstanding. No authentication subsystem rewrite is authorized by this decision.
+  The later approved Candidate B architecture and bounded Identity prerequisite
+  are recorded in the [LD-05 addendum](../architecture/identity-authority-admission.md).
+  End-to-end implementation, recovery verification and activation remain outstanding. No authentication subsystem rewrite is authorized by this decision.
 
 ASSESS-13/14/17, PROCTOR-10 and ID-05 are **PARTIALLY RESOLVED**: the policy
 portions above are accepted; identified engineering and later-wave contracts
