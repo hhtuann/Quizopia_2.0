@@ -1,0 +1,747 @@
+openapi: 3.1.0
+info:
+  title: Assessment Publication backend
+  version: 1.0.0
+  description:
+    ASSESS-15 bounded engineering proposal for Leader review. Default disabled.
+    Current and issued role plus independent LD-05 admission required at Gateway and
+    Assessment. CLOSE/Attempts/results/review denied. Discovery returns metadata only;
+    not Attempt authorization.
+paths:
+  /api/assessments/publications:
+    post:
+      operationId: createPublication
+      description:
+        TEACHER USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "201":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: &id001
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description:
+            Durable owner-scoped replay key. Same key with different typed
+            request conflicts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Configuration"
+  /api/assessments/publications/{id}:
+    get:
+      operationId: get_publication
+      description:
+        TEACHER USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: &id002
+            type: string
+            format: uuid
+    put:
+      operationId: put_publication
+      description:
+        TEACHER USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Update"
+  /api/assessments/publications/{id}/open:
+    post:
+      operationId: post_publication_open
+      description:
+        TEACHER USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Open"
+  /api/assessments/publications/{id}/schedule:
+    patch:
+      operationId: patch_publication_schedule
+      description:
+        TEACHER USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Schedule"
+  /api/assessments/publications/entry:
+    post:
+      operationId: post_entry
+      description:
+        STUDENT USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Entry"
+  /api/assessments/publications/{id}/entry:
+    post:
+      operationId: post_publication_entry
+      description:
+        STUDENT USER required; owner check for management. Schedule supports
+        nondecreasing end/duration only; start fixed.
+      security:
+        - userBearer: []
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentView"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Revision or creation replay conflict.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: *id002
+components:
+  securitySchemes:
+    userBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - UNAUTHENTICATED
+            - ACCESS_DENIED
+            - PUBLICATION_NOT_FOUND
+            - SOURCE_NOT_ACCESSIBLE
+            - CLASSROOM_NOT_ACCESSIBLE
+            - PUBLICATION_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - AUTHORITY_UNAVAILABLE
+            - DEPENDENCY_UNAVAILABLE
+            - PERSISTENCE_UNAVAILABLE
+    Configuration:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - quizId
+        - quizVersionId
+        - versionNumber
+        - audience
+        - startAt
+        - endAt
+        - durationMinutes
+        - monitoringChoice
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type:
+            - string
+            - "null"
+          maxLength: 5000
+        quizId: *id002
+        quizVersionId: *id002
+        versionNumber:
+          type: integer
+          minimum: 1
+          maximum: 999999999
+        audience:
+          type: string
+          enum:
+            - CLASS
+            - PUBLIC
+        classroomId:
+          type:
+            - string
+            - "null"
+          format: uuid
+        startAt: &id003
+          type: string
+          format: date-time
+          description: Explicit timezone offset; at most six fractional digits.
+        endAt: *id003
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 240
+        monitoringChoice:
+          type: string
+          enum:
+            - UNCONFIGURED
+            - ENABLED
+            - DISABLED
+    OwnerView:
+      type: object
+      additionalProperties: false
+      required:
+        - publicationId
+        - configuration
+        - state
+        - revision
+        - createdAt
+        - openedAt
+        - privateLocator
+      properties:
+        publicationId: *id002
+        configuration:
+          $ref: "#/components/schemas/Configuration"
+        state:
+          type: string
+          enum:
+            - DRAFT
+            - OPEN
+            - CLOSED
+        revision:
+          type: integer
+          minimum: 0
+        createdAt: *id003
+        openedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Explicit timezone offset; at most six fractional digits.
+        privateLocator:
+          type:
+            - string
+            - "null"
+          pattern: ^[A-Za-z0-9_-]{43}$
+    StudentView:
+      type: object
+      additionalProperties: false
+      required:
+        - publicationId
+        - title
+        - description
+        - audience
+        - startAt
+        - endAt
+        - durationMinutes
+        - monitoringRequired
+        - windowStatus
+      properties:
+        publicationId: *id002
+        title:
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        audience:
+          type: string
+          enum:
+            - CLASS
+            - PUBLIC
+        startAt: *id003
+        endAt: *id003
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 240
+        monitoringRequired:
+          type: boolean
+        windowStatus:
+          type: string
+          enum:
+            - BEFORE_START
+            - AVAILABLE
+            - WINDOW_ENDED
+    Update:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+        - configuration
+      properties:
+        expectedRevision: &id004
+          type: integer
+          minimum: 0
+        configuration:
+          $ref: "#/components/schemas/Configuration"
+    Open:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+      properties:
+        expectedRevision: *id004
+    Schedule:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+        - endAt
+        - durationMinutes
+      properties:
+        expectedRevision: *id004
+        endAt: *id003
+        durationMinutes:
+          type: integer
+          minimum: 5
+          maximum: 240
+    Entry:
+      type: object
+      additionalProperties: false
+      required:
+        - locator
+      properties:
+        locator:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$

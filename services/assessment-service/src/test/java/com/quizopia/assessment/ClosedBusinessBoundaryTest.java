@@ -20,6 +20,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @ActiveProfiles("test")
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class ClosedBusinessBoundaryTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.PublicationStore store;
+
     @Value("${local.server.port}")
     int port;
 
@@ -30,7 +33,6 @@ class ClosedBusinessBoundaryTest {
     @ParameterizedTest
     @ValueSource(
             strings = {
-                "/api/assessments/publications",
                 "/publications",
                 "/attempts/" + ACTOR,
                 "/api/proctoring/sessions",
@@ -47,6 +49,16 @@ class ClosedBusinessBoundaryTest {
                 .isForbidden()
                 .expectHeader()
                 .valueEquals("Cache-Control", "no-store");
+    }
+
+    @Test
+    void publicationIsDefaultDisabled() {
+        http().post()
+                .uri("/api/assessments/publications")
+                .headers(h -> h.setBearerAuth(user()))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503);
     }
 
     @Test
