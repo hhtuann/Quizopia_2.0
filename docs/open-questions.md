@@ -138,7 +138,7 @@ the [lifecycle contract](specifications/w3-b-attempt-lifecycle-contract.md).
 
 Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
 Question-scoped SAVE, Attempt-wide revision, durable operation identity, same
-payload replay acknowledgment, changed replay/stale409 and terminal immutability.
+payload replay acknowledgment, changed replay/stale 409 and terminal immutability.
 Exact typed DTOs, hashes and transaction order are proposed in the pack.
 
 **ASSESS-12.** Submission cutoff/deadline and timeout-finalization behavior?

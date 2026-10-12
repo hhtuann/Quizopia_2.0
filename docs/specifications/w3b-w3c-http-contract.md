@@ -179,18 +179,18 @@ never grants another Teacher access. SERVICE callers get no public operation.
 
 ## Pagination and retries
 
-Both collections default limit 20, range1..100, response items and nullable nextCursor;
+Both collections default limit 20, range 1..100, response items and nullable nextCursor;
 no total count. Teacher results sort Attempt UUID ascending; notification inbox
 sorts publishedAt DESC then notificationId DESC. Cursor is opaque signed base64url
-(maxAttempts 1024 chars), includes cursor version, route kind, actor/resource binding and
+(maximum 1024 characters), includes cursor version, route kind, actor/resource binding and
 last ordering tuple; runtime HMAC secret belongs only to Assessment and supports
 reviewed rotation. Foreign/malformed cursor 400. Keyset pagination avoids duplicates
 when new notices arrive above prior page; changing row state/result can be reflected
 on later reads. No snapshot-isolated full multi-page export is promised.
 
 Replay responses: START/RETAKE and REQUEST return same selected resource identity's
-current projection (200 replay; creation201). SAVE/SUBMIT/ABANDON/CLOSE/CANCEL/
-COMPLETE return original committed acknowledgment/result/status. COMPLETE202 is
+current projection (200 replay; creation 201). SAVE/SUBMIT/ABANDON/CLOSE/CANCEL/
+COMPLETE return original committed acknowledgment/result/status. COMPLETE 202 is
 not CLOSED: inspect GET C and use new key for another batch after acknowledged
 progress. IN_PROGRESS reservation survives crash and coordinates same-key continuations;
 409 not-ready can be retried with same payload/key without replaying committed work.
@@ -221,7 +221,7 @@ query/cookies, exactly one RS256 SERVICE Authorization, exact allowlisted Assess
 client and scope `identity.notice-recipient.read`. Never Gateway-routed or browser
 accessible. It is a recipient eligibility check, not a USER admission grant.
 
-Response200 `{"studentId":"<matching UUID>","eligible":true,"checkedAt":"<UTC>"}`
+Response 200 `{"studentId":"<matching UUID>","eligible":true,"checkedAt":"<UTC>"}`
 uses the same coherent fenced-primary/current complete Redis equality contract
 as LD-05. Match the requested UUID; eligible means present ACTIVE, verified and
 current STUDENT. Matching complete ineligible/missing authority returns eligible
@@ -231,7 +231,7 @@ The least-privilege caller may inspect only this Boolean; no scope authorizes
 Student business operations or gives workers credentials. No positive eligibility
 cache. Identity owns all account reads; no cross-service SQL.
 
-Internal errors:400 INVALID_INTERNAL_REQUEST,401 SERVICE_AUTHENTICATION_INVALID,
+Internal errors: 400 INVALID_INTERNAL_REQUEST,401 SERVICE_AUTHENTICATION_INVALID,
 403 SERVICE_CALLER_FORBIDDEN,503 AUTHORITY_UNAVAILABLE, code-only/no-store. Bound
 private pools/deadlines/response size like admission (4096 bytes, total 5s, no
 redirect/retry, pinned private HTTPS origin). Validate exact response shape/UUID/
@@ -242,6 +242,6 @@ never make a network call while holding Publication locks. This check and the
 persisted inbox ACL/route-readiness proof jointly establish accessibility.
 
 Deploy/provision/test this dependency before notice confirmation activation. It
-adds one internal proposed operation to the17 public operations, and needs its
+adds one internal proposed operation to the 17 public operations, and needs its
 own exact Identity filter/scope/allowlist adapter. Existing Identity admission
 routes/credentials/USER authorization remain unchanged in this assignment.
