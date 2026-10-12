@@ -1,0 +1,233 @@
+openapi: 3.1.0
+info:
+  title: Quiz private Publication authority
+  version: 1.0.0
+  description:
+    Engineering contract for Leader review. Private HTTPS only; exact configured
+    Assessment client. Bodyless POST, no query/cookies; exactly one SERVICE Authorization
+    plus one sensitive original USER JWT. Server independently validates both and
+    performs fresh Identity admission plus owned resource checks. Not publicly routed.
+paths:
+  /internal/quiz-versions/{quizId}/{quizVersionId}/{versionNumber}/snapshot:
+    post:
+      operationId: quiz_version_snapshot_read
+      security:
+        - serviceCredentials:
+            - quiz.version-snapshot.read
+          initiatingUserEvidence: []
+      parameters:
+        - name: quizId
+          in: path
+          required: true
+          schema: &id001
+            type: string
+            format: uuid
+        - name: quizVersionId
+          in: path
+          required: true
+          schema: *id001
+        - name: versionNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 999999999
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: &id002
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizSnapshot"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    serviceCredentials:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth2/token
+          scopes:
+            quiz.version-snapshot.read: Private authority for evidence-derived actor.
+    initiatingUserEvidence:
+      type: apiKey
+      in: header
+      name: X-Quizopia-User-Evidence
+      description:
+        Sensitive original compact USER JWT, without Bearer prefix. Never
+        log.
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_INTERNAL_REQUEST
+            - SERVICE_AUTHENTICATION_INVALID
+            - USER_EVIDENCE_INVALID
+            - SERVICE_CALLER_FORBIDDEN
+            - USER_ROLE_FORBIDDEN
+            - SOURCE_NOT_ACCESSIBLE
+            - AUTHORITY_UNAVAILABLE
+    QuizSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - quizId
+        - quizVersionId
+        - versionNumber
+        - titleSnapshot
+        - descriptionSnapshot
+        - sourceSnapshot
+        - structuredContent
+        - contentSchemaVersion
+        - createdAt
+      properties:
+        schemaVersion:
+          type: integer
+          const: 1
+        quizId: *id001
+        quizVersionId: *id001
+        versionNumber:
+          type: integer
+          minimum: 1
+          maximum: 999999999
+        titleSnapshot:
+          type: string
+        descriptionSnapshot:
+          type:
+            - string
+            - "null"
+        sourceSnapshot:
+          type: string
+        structuredContent:
+          type: object
+          additionalProperties: false
+          required:
+            - questions
+          properties:
+            questions:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/Question"
+        contentSchemaVersion:
+          type: integer
+          const: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: Explicit timezone offset; at most six fractional digits.
+    Question:
+      type: object
+      additionalProperties: false
+      required:
+        - number
+        - type
+        - stemMarkdown
+        - options
+        - numericAnswer
+        - explanationMarkdown
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum:
+            - SINGLE_CHOICE
+            - MULTIPLE_CHOICE
+            - TRUE_FALSE_MATRIX
+            - NUMERIC_FILL
+        stemMarkdown:
+          type: string
+          minLength: 1
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+          maxItems: 4
+        numericAnswer:
+          type:
+            - string
+            - "null"
+          minLength: 4
+          maxLength: 4
+          description:
+            Exact four-character Quiz token, including leading zeroes.
+            Null for other types.
+        explanationMarkdown:
+          type:
+            - string
+            - "null"
+    Option:
+      type: object
+      additionalProperties: false
+      required:
+        - label
+        - markdown
+        - correct
+      properties:
+        label:
+          type: string
+          enum:
+            - A
+            - B
+            - C
+            - D
+        markdown:
+          type: string
+        correct:
+          type: boolean

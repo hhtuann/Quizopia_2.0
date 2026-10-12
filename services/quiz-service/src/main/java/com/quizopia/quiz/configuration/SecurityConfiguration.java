@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 public class SecurityConfiguration {
     @Bean
+    @org.springframework.core.annotation.Order(1)
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             QuizopiaJwtAuthenticationConverter jwtAuthenticationConverter,

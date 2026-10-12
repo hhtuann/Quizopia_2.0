@@ -48,6 +48,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 quizopia:
+  publication:
+    enabled: ${PUBLICATION_ENABLED:false}
   admission:
     enabled: ${USER_ADMISSION_ENABLED:false}
     identity-base-url: ${USER_ADMISSION_IDENTITY_BASE_URL:}

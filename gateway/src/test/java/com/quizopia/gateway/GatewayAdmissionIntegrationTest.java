@@ -77,6 +77,8 @@ class GatewayAdmissionIntegrationTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry p) {
+        p.add("ASSESSMENT_SERVICE_URL", () -> "http://127.0.0.1:" + BACKEND.port());
+        p.add("quizopia.publication.enabled", () -> true);
         p.add("CLASSROOM_SERVICE_URL", () -> "http://127.0.0.1:" + BACKEND.port());
         p.add("QUIZ_SERVICE_URL", () -> "http://127.0.0.1:" + BACKEND.port());
         p.add("quizopia.admission.enabled", () -> true);
@@ -106,6 +108,40 @@ class GatewayAdmissionIntegrationTest {
     static void stop() {
         IDENTITY.disposeNow();
         BACKEND.disposeNow();
+    }
+
+    @Test
+    void eachPublicationOperationRequiresFreshAdmissionAndPreservesOriginalUser() {
+        String token = user();
+        for (String operation : List.of(
+                "POST /api/assessments/publications",
+                "GET /api/assessments/publications/" + ACTOR,
+                "PUT /api/assessments/publications/" + ACTOR,
+                "POST /api/assessments/publications/" + ACTOR + "/open",
+                "PATCH /api/assessments/publications/" + ACTOR + "/schedule",
+                "POST /api/assessments/publications/entry",
+                "POST /api/assessments/publications/" + ACTOR + "/entry")) {
+            var parts = operation.split(" ");
+            http.method(HttpMethod.valueOf(parts[0]))
+                    .uri(parts[1])
+                    .headers(h -> h.setBearerAuth(token))
+                    .exchange()
+                    .expectStatus()
+                    .isOk()
+                    .expectHeader()
+                    .valueEquals("Cache-Control", "no-store");
+            assertEquals("Bearer " + token, BACKEND_AUTH.get());
+        }
+        assertEquals(7, ADMISSIONS.get());
+        assertEquals(7, BACKEND_CALLS.get());
+        STATUS.set(503);
+        http.post()
+                .uri("/api/assessments/publications")
+                .headers(h -> h.setBearerAuth(token))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503);
+        assertEquals(7, BACKEND_CALLS.get());
     }
 
     @Test

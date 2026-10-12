@@ -248,3 +248,14 @@ a clean archive of unchanged develop also reproduced four diagnostics while its
 origin unconfirmed, requiring assessment during the capacity gate. Passing assertions do not establish
 production memory/latency behavior. No business feature or production authority
 configuration is activated by these tests.
+
+## W3-A bounded extension
+
+The [Publication backend increment](w3a-publication-backend.md) extends the earlier
+closed Assessment inventory with only the exact implemented ASSESS-15 operations.
+Gateway and Assessment each validate USER credentials and obtain fresh admission.
+Quiz/Classroom private source authority additionally validates Assessment SERVICE
+credentials and independently verifies/admit the original initiating USER.
+Earlier verification figures above describe PR #76, not this extension. Default
+off deployment controls, deferred CLOSE/Attempts/results/monitoring and external
+release gates remain explicit; no production route activation follows.

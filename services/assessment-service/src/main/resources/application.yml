@@ -1,4 +1,9 @@
 spring:
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+      fail-on-trailing-tokens: true
+      accept-float-as-int: false
   application:
     name: quizopia-assessment-service
   profiles:
@@ -6,6 +11,12 @@ spring:
   main:
     web-application-type: servlet
   datasource:
+    hikari:
+      connection-timeout: 3000
+      validation-timeout: 1000
+      data-source-properties:
+        socketTimeout: 5
+        loginTimeout: 3
     url: ${DB_URL:jdbc:postgresql://localhost:5432/assessment_db}
     username: ${DB_USERNAME:assessment}
     password: ${DB_PASSWORD:assessment_local_only}
@@ -51,6 +62,12 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
 
 quizopia:
+  publication:
+    enabled: ${PUBLICATION_ENABLED:false}
+    sources:
+      enabled: ${PUBLICATION_SOURCES_ENABLED:false}
+      quiz-base-url: ${PUBLICATION_QUIZ_BASE_URL:}
+      classroom-base-url: ${PUBLICATION_CLASSROOM_BASE_URL:}
   admission:
     enabled: ${USER_ADMISSION_ENABLED:false}
     identity-base-url: ${USER_ADMISSION_IDENTITY_BASE_URL:}
@@ -72,3 +89,4 @@ logging:
     org.springframework.web.HttpLogging: WARN
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
+    org.springframework.web.servlet.mvc.method.annotation: WARN
