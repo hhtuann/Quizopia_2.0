@@ -10,6 +10,8 @@ public final class AdmissionRoutes {
     private AdmissionRoutes() {}
 
     public static String requiredRole(String method, String path) {
+        String publicationRole = PublicationRoutes.requiredRole(method, path);
+        if (publicationRole != null) return publicationRole;
         if (method.equals("POST") && path.equals("/classrooms")) return "TEACHER";
         if (method.equals("GET") && OWNED.matcher(path).matches()) return "STUDENT";
         return null;

@@ -58,6 +58,7 @@ public class SecurityConfiguration {
             ServerHttpSecurity http,
             QuizopiaJwtAuthenticationConverter jwtAuthenticationConverter,
             IdentityAdmissionClient admissionClient,
+            com.quizopia.gateway.security.admission.PublicationProperties publication,
             CorsConfigurationSource corsConfigurationSource) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -94,7 +95,8 @@ public class SecurityConfiguration {
                                     })
                                     .defaultIfEmpty(new AuthorizationDecision(false));
                         }))
-                .addFilterAfter(new UserAdmissionWebFilter(admissionClient), SecurityWebFiltersOrder.AUTHORIZATION)
+                .addFilterAfter(
+                        new UserAdmissionWebFilter(admissionClient, publication), SecurityWebFiltersOrder.AUTHORIZATION)
                 .oauth2ResourceServer(
                         oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .build();
@@ -105,7 +107,7 @@ public class SecurityConfiguration {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(browserOrigins.allowedOrigins());
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cors.setAllowedHeaders(List.of(HttpHeaders.CONTENT_TYPE, HttpHeaders.AUTHORIZATION));
+        cors.setAllowedHeaders(List.of(HttpHeaders.CONTENT_TYPE, HttpHeaders.AUTHORIZATION, "Idempotency-Key"));
         cors.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

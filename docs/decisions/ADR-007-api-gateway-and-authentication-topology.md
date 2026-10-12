@@ -55,3 +55,11 @@ Their adapters, protected route inventories and real-topology tests are still
 required; no production activation or Wave 3 API enablement follows from this PR.
 USER roles/cutoffs and SERVICE scopes/token lifecycle remain distinct under
 ADR-014 and ADR-008. No cross-service database access is introduced.
+
+The accelerated W3-A assignment extends this same admitted-USER boundary to the
+private QuizVersion handoff and Classroom authority checks invoked by Assessment.
+See the [bounded Publication backend](../architecture/w3a-publication-backend.md)
+and its proposed ASSESS-15 route/scope contract. Gateway and Assessment enforcement
+is implemented only for that exact inventory and defaults disabled. Earlier
+closed-route statements describe the prerequisite stage; no W3-B/C/M routes or
+production activation are authorized by this extension.

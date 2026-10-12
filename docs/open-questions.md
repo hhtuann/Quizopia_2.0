@@ -183,7 +183,7 @@ draft mutation/transition concurrency, source-version ownership, internal servic
 endpoint/scope, snapshot schema/atomic opening and security/configuration impacts
 before coding. Accepted scope, ownership and atomic opening are not reopened.
 
-Status: **OPEN — ENGINEERING CONTRACT**, applying approved LD-01..05 policy;
+Status: **ENGINEERING CONTRACT IMPLEMENTED — LEADER REVIEW PENDING**, applying approved LD-01..05 policy;
 remaining ASSESS-13/14/17, PROCTOR-10 and ID-05 engineering dependencies remain;
 blocks **W3-A contract freeze/opening**. Recommendation: preserve the existing
 Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
@@ -191,7 +191,12 @@ the USER principal, acquire the exact QuizVersion through a least-privilege
 Client Credentials internal Quiz endpoint that enforces source ownership, and
 commit the snapshot plus `OPEN` state atomically in Assessment. Exact paths,
 scopes, DTOs, schema, locks and failure/retry semantics require review, not a
-new Leader vote for every implementation detail. The policy specification's
+new Leader vote for every implementation detail. The accelerated backend assignment
+has authorized the bounded [ASSESS-15 engineering proposal](specifications/assess-15-publication-contract.md)
+and [backend implementation](architecture/w3a-publication-backend.md). Routes,
+scopes, DTOs, locator storage and locking choices are submitted for review, not
+claimed as previously approved. CLOSE/Attempt coordination and production
+activation remain blocked by their separate gates. The policy specification's
 endpoint inventory remains explicitly **PROPOSED**.
 
 **ASSESS-16.** Exact submission idempotency/finalization and result/review API
@@ -445,7 +450,7 @@ The following are no longer open:
   authenticated link-only PUBLIC participation, reject-CLOSE with active Attempts,
   and fail-closed/no-fallback/no-degraded-read revocation outage/recovery policy.
   ASSESS-13/14/17, PROCTOR-10 and ID-05 remain partially resolved for engineering
-  and later-wave dependencies; ASSESS-15 remains OPEN — ENGINEERING CONTRACT.
+  and later-wave dependencies; ASSESS-15 engineering implementation awaits Leader review.
   AI behavior monitoring is deferred after Wave 3;
 
 - true monorepo;

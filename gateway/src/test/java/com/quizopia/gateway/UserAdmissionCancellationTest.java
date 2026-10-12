@@ -37,7 +37,8 @@ class UserAdmissionCancellationTest {
         var client = mock(IdentityAdmissionClient.class);
         when(client.admit(any(), any()))
                 .thenReturn(Mono.<Void>never().doFinally(signal -> cancelled.set(signal == SignalType.CANCEL)));
-        var subscription = new UserAdmissionWebFilter(client)
+        var subscription = new UserAdmissionWebFilter(
+                        client, new com.quizopia.gateway.security.admission.PublicationProperties())
                 .filter(exchange(), value -> {
                     downstream.incrementAndGet();
                     return Mono.empty();
@@ -54,7 +55,7 @@ class UserAdmissionCancellationTest {
         var client = mock(IdentityAdmissionClient.class);
         when(client.admit(any(), any())).thenReturn(Mono.error(AdmissionFailure.unavailable()));
         var exchange = exchange();
-        new UserAdmissionWebFilter(client)
+        new UserAdmissionWebFilter(client, new com.quizopia.gateway.security.admission.PublicationProperties())
                 .filter(exchange, value -> {
                     downstream.incrementAndGet();
                     return Mono.empty();
@@ -70,7 +71,8 @@ class UserAdmissionCancellationTest {
         var client = mock(IdentityAdmissionClient.class);
         when(client.admit(any(), any())).thenReturn(Mono.empty());
         var downstream = new IllegalStateException("Business dependency failure");
-        var error = assertThrows(IllegalStateException.class, () -> new UserAdmissionWebFilter(client)
+        var error = assertThrows(IllegalStateException.class, () -> new UserAdmissionWebFilter(
+                        client, new com.quizopia.gateway.security.admission.PublicationProperties())
                 .filter(exchange(), value -> Mono.error(downstream))
                 .block());
         assertSame(downstream, error);

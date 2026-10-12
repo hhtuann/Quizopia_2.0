@@ -9,9 +9,11 @@ import reactor.core.publisher.Mono;
 
 public final class UserAdmissionWebFilter implements WebFilter {
     private final IdentityAdmissionClient admission;
+    private final PublicationProperties publication;
 
-    public UserAdmissionWebFilter(IdentityAdmissionClient admission) {
+    public UserAdmissionWebFilter(IdentityAdmissionClient admission, PublicationProperties publication) {
         this.admission = admission;
+        this.publication = publication;
     }
 
     @Override
@@ -20,6 +22,11 @@ public final class UserAdmissionWebFilter implements WebFilter {
                 exchange.getRequest().getMethod().name(),
                 exchange.getRequest().getURI().getRawPath());
         if (required == null) return chain.filter(exchange);
+        if (PublicationRoutes.requiredRole(
+                                exchange.getRequest().getMethod().name(),
+                                exchange.getRequest().getURI().getRawPath())
+                        != null
+                && !publication.isEnabled()) return error(exchange, AdmissionFailure.unavailable());
         var auth = exchange.getRequest().getHeaders().get("Authorization");
         if (auth == null
                 || auth.size() != 1
