@@ -184,3 +184,16 @@ Default workflow is hybrid:
 - developer runs the active backend service/gateway in the IDE;
 - developer runs Next.js with its normal dev server;
 - a full-container profile may exist for integration/demo use.
+
+## W3-B/C policy and proposed engineering extension
+
+The later [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) accepts unlimited
+individual duration 0 (bounded start windows remain), configurable maxAttempts,
+explicit retake/ABANDON, strict numeric input and two-step delayed Teacher closure.
+[The integrated engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
+proposes Assessment-owned closure notices in a real authenticated inbox, atomic
+local grading/results and existing service authority boundaries. This scoped
+notice projection transfers no Classroom/Identity authority and adds no service.
+W3-A PR #78 is implemented; all W3-B/C routes/schema remain proposals for review.
+Monitoring stays bounded CLASS-only; unlimited CLASS and PUBLIC cannot ENABLE.
+Practice/general inbox/gradebook events and operational/privacy release gates remain.

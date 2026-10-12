@@ -249,9 +249,10 @@ Normalization is intentionally minimal:
 
 Wave 3 [GRADE-05](assessment-core-policy.md) compares numeric answers by exact
 decimal numerical equality without tolerance. The four-character grammar above
-continues to govern the published correct-answer token. Student submission
-syntax and validation remain a separate GRADE-07 contract gate; this authoring
-grammar does not itself require Students to type four characters.
+continues to govern the published correct-answer token. The later [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) separately
+approves Student GRADE-07: four characters after outer ASCII-whitespace trim,
+blank/null unanswered and malformed nonblank 400 without mutation. That explicit
+approval applies the same grammar to Student tokens; authoring syntax is unchanged.
 
 ## Optional explanation block
 

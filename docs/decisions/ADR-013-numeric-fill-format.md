@@ -85,3 +85,13 @@ authoring/import/storage and interpretation by grading; it does not establish a
 four-character Student input constraint. Student input syntax, normalization,
 bounds, and validation/rejection semantics remain explicitly open under GRADE-07
 and must be documented before dependent implementation.
+
+## W3-B/C amendment — accepted Student numeric policy
+
+The later [ADR-015](ADR-015-w3b-w3c-leader-policy.md) explicitly resolves GRADE-07:
+Student nonblank numeric input also requires exactly four characters after outer
+ASCII-whitespace trim under this grammar. Blank/null is unanswered; malformed
+nonblank wire input400 without mutation. Preserve accepted spelling and compare
+BigDecimal numerical equality. The preceding Wave 3 clarification records the
+earlier unresolved checkpoint; its Student deferral is superseded. No authoring
+grammar is weakened. Exact proposed typed DTOs/storage are in the grading pack.

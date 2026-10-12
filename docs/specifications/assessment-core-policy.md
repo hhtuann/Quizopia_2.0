@@ -1,6 +1,6 @@
 # Wave 3 — Assessment Core and Grading Policy
 
-Status: **APPROVED — PRODUCT POLICY; API/data contracts not yet frozen**
+Status: **APPROVED product policy with ADR-015 amendments; W3-B/C engineering pack PROPOSED for review**
 
 Recorded: **2026-10-09**, from the Leader's approved Wave 3 decision.
 
@@ -24,6 +24,18 @@ The later Leader-approved LD-01..05 follow-up is recorded on 2026-10-11 in
 [W3-A section 16](w3-a-publication-scheduling-monitoring-policy.md#16-follow-up-leader-decisions-ld-01-through-ld-05),
 after PR #72/#73; it is not part of their historical approval. Product approval
 does not freeze the remaining API, privacy or security implementation contracts.
+
+## Current W3-B/W3-C amendment
+
+Recorded 2026-10-13: [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md)
+is the later Leader-approved authority for maxAttempts 0/unlimited or 1..10,
+explicit retakes, duration 0/null deadline, ABANDON, strict four-character Student
+numeric input, exact decimal string scores/display to 2 places HALF_UP, timeout and C1..C10
+delayed closure. The [contract pack](../architecture/w3b-w3c-contract-review-evidence.md)
+proposes exact API/schema/locks/inbox details, awaiting independent review and
+Leader engineering sign-off. W3-A PR #78 already implements Publication/snapshot/
+entry, no Attempts/CLOSE/grader/results/inbox. Historical audit sections below
+describe earlier checkpoints and do not override current amendments.
 
 ## Objective and ownership
 
@@ -49,8 +61,9 @@ contracts, never shared databases. No additional grading service is introduced.
 Wave 3 requires `CLASS` and `PUBLIC` Publication flows. Under accepted LD-01,
 new starts require OPEN Publication, eligible Student and
 `startAt <= serverNow < endAt` (inclusive start, exclusive end). Duration is an
-integer 5–240 minutes inclusive with one-minute granularity;
-`attemptDeadlineAt = authoritativeStartedAt + configuredDuration`. Window end
+integer 0 (unlimited) or 5–240 minutes inclusive with one-minute granularity;
+positive duration pins `attemptDeadlineAt = authoritativeStartedAt + configuredDuration`;
+unlimited duration pins null. Window end
 does not shorten an already-started Attempt, close Publication or finalize
 Attempts. OPEN, schedule eligibility, individual deadlines and durable CLOSED
 remain distinct. Store/compare timezone-safe authoritative instants and convert
@@ -84,12 +97,13 @@ CLOSE must handle overdue Attempts and start/finalization races transactionally;
 concurrent start and CLOSE cannot leave an unauthorized active Attempt in CLOSED.
 W3-B must ensure expired Attempts eventually become terminal, with authoritative
 checks independent of timely background processing. Only durable CLOSED enables
-eligible submitted-owner answer/explanation review. No automatic closure or
-force-close is introduced.
+eligible submitted-owner answer/explanation review. No automatic closure is introduced. ADR-015 additionally approves the narrow
+C1..C10 delayed Teacher closure workflow with real notices and individual 48-hour
+cutoffs; ordinary CLOSE still requires all Attempts terminal.
 
-Expiration, cutoff, timeout finalization, saved/unsaved answer treatment, submit
-semantics, resumption and response ordering remain W3-B gates. Unbounded
-assessments and Practice timing remain deferred. W3-M1/M2 remain required Wave 3
+Expiration, cutoff, saved-only timeout, atomic submit, resumption and replay
+policy are now accepted in ADR-015, with proposed engineering contracts in the
+pack. Unlimited individual Assessment duration is approved; Practice remains deferred. W3-M1/M2 remain required Wave 3
 outcomes with privacy/security release gates: camera refusal/loss/accommodations,
 scoped viewer access, retention/deletion and deployment review. AI behavior
 monitoring, media/audio recording, mandatory screen sharing, remote device
@@ -151,35 +165,28 @@ The published correct-answer token retains the accepted Quiz Markdown and
 characters after outer trimming, with the existing constrained ASCII numeric
 grammar. This decision does not relax or normalize that authoring grammar.
 
-The Student input/submission grammar is **not yet approved**. Exact numerical
-comparison does not mean Students must type four characters. The documentation
-contract must explicitly settle allowed Student syntax, trimming/normalization,
-length/size bounds, unanswered representation, and invalid-input handling,
-including whether malformed payloads are rejected or persisted as zero-credit
-answers. Do not reuse the authoring validator for Student input by assumption.
+Student input now follows accepted GRADE-07 in
+[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md): exactly four characters
+after outer ASCII-whitespace trim, preserving ADR-013 grammar/spelling. Blank/null
+unanswered; malformed nonblank wire input returns 400 without mutation. Exact decimal
+comparison does not relax the length rule. See the
+[grading contract](w3-c-grading-results-contract.md) for typed answers and examples.
 
 ### Exact score representation
 
-Score persistence, API representation, rounding, and display formatting must be
-documented before the grading API is frozen. This is still a contract gate.
-
-Inspection note: the current Quiz Markdown contract requires exactly four
-statements per matrix, so current matrix credit is in exact quarters. A percentage
-can still repeat, for example one earned weight out of three questions. The
-contract must preserve earned/possible weights without intermediate rounding and
-specify percentage/display formatting. Decimal weights or numerator/denominator
-representations are candidates, not accepted contracts. Exact numeric-answer
-comparison and score representation are separate concerns; choosing `BigDecimal`
-for the former does not settle the latter. This policy does not change Quiz's
-four-statement authoring grammar.
+Accepted GRADE-08 preserves exact earned/possible weights without intermediate
+rounding; Student-visible numbers are exact decimal strings. Percentage display
+is two decimal places HALF_UP for presentation only. The proposed v1 identifier,
+storage/serialization and aggregates are in the grading contract. Current four-
+statement matrices give exact quarter weights; future policies with rational
+nonterminating weights need a versioned compatibility contract before activation.
 
 ## Normative grading examples
 
 These are grading-engine examples with one maximum weight per question. They
-define numerical outcomes, not wire DTOs, input widgets, a percentage display
-format, or permission to disclose grading keys through a student endpoint.
-Values below are interpreted answers after the eventual accepted submission
-validation contract. Malformed HTTP requests may be rejected by that contract;
+define numerical outcomes, not wire DTOs or permission to disclose grading keys through a student endpoint.
+Values below are interpreted answers; current wire validation is in ADR-015
+and the proposed grading contract. Malformed HTTP requests may be rejected by that contract;
 these examples do not require accepting malformed requests for persistence.
 
 ### SINGLE_CHOICE
@@ -205,8 +212,8 @@ With correct set `{A, C}`:
 | `{A, B, C}`            | `0`           | Extra `B`; no partial credit or penalty. |
 | Unanswered / empty set | `0`           | No selected correct set.                 |
 
-Wire-level duplicate/unknown option handling remains part of submission
-validation; set equality is not an instruction to silently repair a payload.
+The proposed submission contract rejects duplicate/unknown labels with 400;
+set equality does not authorize silent repair.
 
 ### TRUE_FALSE_MATRIX
 
@@ -229,8 +236,8 @@ credit on an all-false key. No negative score is assigned.
 ### NUMERIC_FILL
 
 These rows compare **parsed decimal values**. In particular, the spelling
-`2.5` below does not approve a Student token grammar or a non-four-character
-input widget. That compatibility choice remains GRADE-07.
+`2.5` below illustrates arithmetic only and is rejected by current four-character
+GRADE-07 wire validation. Accepted `0001` and `1.00` illustrate equal wire values.
 
 | Published correct-answer token | Student decimal value                                  | Earned weight | Reason                                            |
 | ------------------------------ | ------------------------------------------------------ | ------------- | ------------------------------------------------- |
@@ -251,7 +258,8 @@ For four questions earning `1`, `0`, `0.75`, and `1`, total earned weight is
 `2.75`, total possible weight is `4`, and the equivalent percentage is `68.75%`.
 The denominator includes unanswered questions. This is a numerical worked
 example, not an API response shape or a mandated percentage display format.
-No intermediate calculation is rounded; final presentation remains GRADE-08.
+No intermediate calculation is rounded; final presentation now follows accepted
+GRADE-08 (two places HALF_UP only).
 
 ## Attempt, autosave, and submit invariants
 
@@ -269,8 +277,8 @@ No intermediate calculation is rounded; final presentation remains GRADE-08.
 CLASS requires authenticated authoritative membership; PUBLIC follows accepted
 LD-03 authenticated STUDENT link-only participation. Allowed Attempt count, exact
 autosave revision/conflict semantics, submission cutoff, saved/unsaved answer
-treatment and terminalization remain open. LD-04 settles reject-CLOSE policy,
-while overdue handling and concurrency still require engineering/W3-B contracts.
+treatment and terminalization are accepted in ADR-015 with proposed exact engineering contracts in the pack.
+LD-04 ordinary close and its C1..C10 amendment are both retained.
 Do not infer timeout/finalization semantics from baseline diagrams.
 
 ## Security and integration requirements
@@ -285,15 +293,21 @@ endpoints require `TOKEN_SERVICE` and least-privilege `SCOPE_*` authorities.
 Assessment cannot read Quiz tables or create cross-service database foreign
 keys. Immediate QuizVersion retrieval uses direct internal REST authenticated
 with short-lived OAuth2 Client Credentials JWTs, per
-[ADR-008](../decisions/ADR-008-service-to-service-authentication.md). The exact
-handoff endpoint, service scope, and source-ownership authorization contract
-still require documentation. Active delivery/grading uses Assessment's snapshot.
+[ADR-008](../decisions/ADR-008-service-to-service-authentication.md). The exact handoff endpoint/scope/source authorization are implemented in
+[ASSESS-15](assess-15-publication-contract.md) at W3-A PR #78. Active
+delivery/grading uses Assessment's snapshot.
 
 If critical integration events are introduced, use RabbitMQ, transactional
 outbox or equivalent recovery, and idempotent consumers. This policy does not
 freeze an event schema or authorize Classroom gradebook integration implicitly.
 
-## Repository inspection and contract gates
+## Historical repository inspection and contract gates
+
+**Historical PR #71/early Wave 3 audit:** the source inventories, A–J gap table
+and preparation gates below are retained as an earlier checkpoint. W3-A PR #78
+and ADR-015 supersede their unimplemented/source-identity and W3-B/C open-policy
+statements. For current availability/review status use the integrated pack and
+open-question register. This historical section does not reopen accepted policy.
 
 At the inspected PR #71 checkpoint:
 

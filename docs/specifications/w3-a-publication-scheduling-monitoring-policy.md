@@ -2,6 +2,15 @@
 
 ## W3-A: Assessment Publication, Audience, Scheduling & Proctoring Scope
 
+**Current-policy amendment (recorded 2026-10-13):**
+[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) adds approved W3-B/C
+maxAttempts, unlimited individual duration, ABANDON, numeric/display policy and
+C1..C10 delayed closure. The historical W3-A/LD-01..05 record below is preserved;
+its former unbounded/Attempt/numeric deferrals and blanket force-close exclusion
+are superseded only to that explicit scope. LD-02/03/05 and monitoring release
+gates remain. Implemented W3-A is PR #78; new W3-B/C engineering is PROPOSED,
+not runtime availability or Leader engineering approval.
+
 **Status:** APPROVED — Product direction and scope
 **Date:** 2026-10-09
 **Baseline:** Wave 2 CLOSED through PR #71; Wave 3 foundation merged in PR #72
@@ -596,3 +605,21 @@ contract and release gates remain in force. This documentation task implements
 neither CLOSE/finalization nor revocation/monitoring runtime.
 
 **END OF LEADER DECISION**
+
+### 17. W3-B/W3-C accepted amendments and proposed engineering pack
+
+[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) is the later accepted
+product authority. LD-01 now permits duration 0 with null individual deadline,
+while retaining bounded participation windows and positive pinned deadlines.
+Unlimited CLASS cannot enable monitoring. No post-OPEN duration mode switch.
+LD-04 ordinary active-Attempt rejection remains; only the approved two-step,
+committed accessible notice plus individual 48-hour cutoff mechanism may finalize
+ACTIVE unlimited work. Workers never close Publication. Student ABANDON is
+explicit/ungraded; maxAttempts 0/unlimited or 1..10 freezes OPEN; numeric Student
+tokens are exactly four ASCII characters, score display to 2 places HALF_UP only.
+Historical LD-01/LD-04 wording above is unchanged and is not the current deferral.
+
+The [integrated contract pack](../architecture/w3b-w3c-contract-review-evidence.md)
+resolves those engineering gaps as reviewable proposals. Real inbox deployment,
+independent contract review and Leader sign-off precede feature activation;
+Practice/general inbox/monitoring privacy and operational release gates remain.

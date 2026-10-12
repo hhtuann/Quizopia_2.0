@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: **Active after accepted Wave 3 policy and LD-01..05 follow-up — v0.5 (2026-10-11)**
+Status: **Active after ADR-015 W3-B/C policy; proposed engineering review gates — v0.6 (2026-10-13)**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
@@ -16,6 +16,14 @@ reject-CLOSE policy and Wave 3 revocation outage/recovery policy. Only those
 policy portions are closed; engineering, W3-B/C/M1/M2 and release gates below
 remain open.
 AI behavior monitoring remains future design, deferred after Wave 3.
+
+The later [ADR-015](decisions/ADR-015-w3b-w3c-leader-policy.md) explicitly
+resolves W3-B/C count/retake, unlimited individual duration, ABANDON, autosave,
+submit/timeout, numeric/display and delayed closure C1..C10 product decisions.
+[The integrated pack](architecture/w3b-w3c-contract-review-evidence.md) is
+PROPOSED engineering awaiting independent review and Leader sign-off. Old
+recommendations superseded below are not active TBDs; operational release gates
+and unrelated product decisions remain open.
 
 ## Identity
 
@@ -107,9 +115,10 @@ variants are outside that MVP decision; exact API/schema details are not frozen.
 
 ASSESS-05/06/07 remain **OPEN — deferred future scope**: passwords, anonymous
 guests and anonymous-session identity are not required in Wave 3 under LD-03.
-ASSESS-08 is **OPEN — engineering contract**: LD-03 selects a shared direct link
-with a suitably non-enumerable locator, whose exact format/route/errors require
-freeze under ASSESS-14/15. ASSESS-09 remains **OPEN — conditional timing-mutation
+ASSESS-08 has **IMPLEMENTED W3-A contract; final review/release gates remain**:
+LD78-02 conditionally accepts private locator retention, ASSESS-15 implements
+32 random bytes/43-character base64url body lookup and masked entry. No PUBLIC
+directory or arbitrary UUID-only creation is proposed. ASSESS-09 remains **OPEN — conditional timing-mutation
 contract** if post-start time editing is included. LD-01 forbids retroactive
 shortening of authoritative Attempt deadlines; existing accepted mutation rules
 still apply without a new blanket post-OPEN timing ban. Required CLASS authority
@@ -117,64 +126,52 @@ integration does not approve full Classroom orchestration or guest flows.
 
 **ASSESS-10.** Allowed Attempt count and start/resume/concurrent-start behavior?
 
-Status: **OPEN — Leader product decision**; blocks **W3-B start/resume**.
-Recommendation: one Attempt per authenticated Student per Publication in MVP,
-with resumable active work and retry-safe start. Count/retake entitlement needs
-approval; the uniqueness/locking implementation is an engineering choice.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+maxAttempts 0/unlimited or 1..10, existing default 1 and OPEN freeze; one ACTIVE per
+Student/Publication, separate identity/ordinal, ordinary START resumes/returns
+latest terminal, explicit retry-safe RETAKE only while OPEN/window/eligible and
+entitled. ABANDON consumes finite entitlement but contributes no zero grade.
+Proposed partial uniqueness and Publication-row serialization are documented in
+the [lifecycle contract](specifications/w3-b-attempt-lifecycle-contract.md).
 
 **ASSESS-11.** Exact autosave revision/sequence, retry, and conflict contract?
-Stale writes must be rejected and submitted Attempts must be immutable.
 
-Status: **OPEN — engineering contract**; blocks **W3-B autosave API/client**.
-Recommendation: Attempt-wide monotonically increasing revision with conditional
-save, explicit stale-conflict response and authoritative re-read reconciliation.
-Freeze retry/duplicate handling and concurrent submit behavior in that contract;
-do not escalate a choice of Java classes or database lock mechanism.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Question-scoped SAVE, Attempt-wide revision, durable operation identity, same
+payload replay acknowledgment, changed replay/stale409 and terminal immutability.
+Exact typed DTOs, hashes and transaction order are proposed in the pack.
 
 **ASSESS-12.** Submission cutoff/deadline and timeout-finalization behavior?
 
-Status: **PARTIALLY RESOLVED — LD-01 deadline formula and LD-04 terminalization
-requirements accepted; W3-B product/engineering contract OPEN**. Deadline equals
-authoritative start plus configured duration; window end neither shortens an
-existing deadline nor closes Publication/finalizes Attempts. Cutoff,
-expiry/timeout finalization, saved/unsaved-work treatment, resumption and response
-ordering remain unresolved and block **W3-B submit/finalization** and dependent
-integration. Deadline-expired Attempts must eventually become terminal;
-authoritative checks must work independently of timely background processing.
-No client clock authority or undocumented grace period is approved.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Duration0 gives null deadline;5..240 pins start-plus-duration. Manual eligibility
+uses serialized server time, no grace. At bounded deadline grade committed saved
+answers only, once, without timely-worker dependency; no window-end finalization.
+Unlimited existing work may continue after endAt until a valid individual closure
+cutoff/terminalization. Atomic submit/replay and explicit ungraded ABANDON accepted.
 
 **ASSESS-13.** Treatment of in-progress Attempts when a Publication closes?
 
-Status: **PARTIALLY RESOLVED — LD-04 reject-CLOSE policy accepted;
-engineering concurrency and W3-B terminalization OPEN**. Reject OPEN → CLOSED
-while any Attempt remains authoritatively active, with a documented conflict
-response. Teacher may close once all Attempts are terminal. Window end only
-prevents new starts; it neither closes Publication nor finalizes Attempts.
-CLOSE must handle overdue Attempts and start/finalization races transactionally;
-concurrent start and CLOSE cannot leave an unauthorized active Attempt in CLOSED.
-W3-B must ensure expired Attempts eventually become terminal independently of
-background-job timeliness. Only durable CLOSED enables eligible submitted-owner
-answer/explanation review. No automatic closure or force-close. Conflict wire
-contract, concurrency/recovery and saved/unsaved answer treatment, deadline
-finalization and submit semantics still block dependent W3-A/W3-B work.
+Status: **PRODUCT RESOLVED — LD-04 plus ADR-015 C1..C10; ENGINEERING PACK PROPOSED**.
+Ordinary CLOSE reconciles bounded expiry, checks persisted ACTIVE states and gives
+sanitized 409 ACTIVE_ATTEMPTS without counts/identities. Delayed owning-Teacher
+REQUEST after endAt establishes real durable authenticated notices; each cutoff is
+confirmed accessibility plus 48 hours. Only eligible unlimited work may then be forced
+submitted/graded; Teacher COMPLETE alone may commit CLOSED once all terminal.
+CANCEL before forced finalization, replacement fresh notices, pending freeze,
+per-Attempt recovery/audit and owner-result/review rules are accepted. Real inbox
+and deployed accessibility are implementation/release dependencies, not existing
+Identity email capability. See [closure contract](specifications/w3-b-closure-notification-contract.md).
 
 **ASSESS-14.** Wave 3 audience/eligibility/access and discovery contracts?
 
-Status: **PARTIALLY RESOLVED — LD-03 authenticated link-only PUBLIC policy
-accepted; engineering contracts OPEN**. Both audiences ship. CLASS references
-exactly one Classroom and requires authoritative Teacher assignment authorization
-and authenticated Student membership, including shared URLs; Classroom owns that
-authority. PUBLIC requires authenticated USER with authoritative STUDENT role,
-Identity account/token-validity/revocation rules and no Classroom membership.
-TEACHER + STUDENT may participate through STUDENT under the same rules. Wave 3
-uses a shared direct link with a suitably non-enumerable locator; no searchable
-directory, anonymous guests, passwords or anonymous-session identity is required.
-Link possession bypasses no authentication, lifecycle, timing or Attempt rule.
-Teacher management stays owner-authorized; Student APIs expose safe projections.
-No new rule grants or denies an owner permission to attempt their own Publication.
-Exact locator/route/error and CLASS verification contracts remain OPEN and block
-dependent **W3-A access** and **W3-B start**. Do not close this entire item or
-postpone required CLASS authorization to MVP-C.
+Status: **PRODUCT RESOLVED — LD-03; W3-A access implemented; W3-B/C extension PROPOSED**.
+CLASS requires current evidence-derived membership; PUBLIC current USER+STUDENT
+and direct non-enumerable locator, no membership. No new owner self-participation
+rule. W3-A exact entry/source authorization is in ASSESS-15. Future Attempt
+owner/current-member checks and PUBLIC locator-bound new creation are in the
+pack. Independent review, LD-05 topology/provisioning and release gates remain;
+no anonymous access or postponed CLASS authorization.
 
 **ASSESS-15.** W3-A Publication API/data and QuizVersion handoff contract?
 Freeze routes/DTOs/errors, CLASS/PUBLIC fields, authoritative Classroom checks,
@@ -184,8 +181,9 @@ endpoint/scope, snapshot schema/atomic opening and security/configuration impact
 before coding. Accepted scope, ownership and atomic opening are not reopened.
 
 Status: **ENGINEERING CONTRACT IMPLEMENTED — LD78-01..04 ACCEPTED; FINAL REVIEW PENDING**, applying approved LD-01..05 policy;
-remaining ASSESS-13/14/17, PROCTOR-10 and ID-05 engineering dependencies remain;
-blocks **W3-A contract freeze/opening**. Recommendation: preserve the existing
+W3-B/C engineering is proposed in the pack; PROCTOR-10 and ID-05 operational
+gates remain. W3-A code is merged but independent review/production activation
+is not inferred. Recommendation: preserve the existing
 Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
 the USER principal, acquire the exact QuizVersion through a least-privilege
 Client Credentials internal Quiz endpoint that enforces source ownership, and
@@ -208,72 +206,42 @@ endpoint inventory remains explicitly **PROPOSED**.
 contract, including concurrent autosave/submit, validation, replay responses,
 persisted submitted-answer/result identity, authorization projections, and errors?
 
-Status: **OPEN — engineering contract**; blocks **W3-B submit** and
-**grading/results API freeze**. Idempotency, transactional coherence, owner-only
-Student results, owned-Publication Teacher results, and the review gate are
-already accepted. Recommendation: one durable finalization/result per Attempt,
-atomic submitted-answer/grade/result persistence, and retries returning the same
-authoritative result without another grade. Decide whether request identity is
-the Attempt or an explicit replay key, and document save/submit races and
-malformed/unknown-option handling. Do not invent a separate grading-completion
-lifecycle merely to satisfy a DTO; expose completed grading truthfully.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Atomic final answers/pinned deterministic grade/result/terminalization, complete
+optional final replacement with expectedRevision, successful identical retry from
+durable receipt without regrading; changed submit409. Exact typed answers/results,
+masking, pagination and review gates are in the proposed HTTP/grading contracts.
 
 **ASSESS-17.** Detailed timing contract and future unbounded/practice scope?
 
-Status: **PARTIALLY RESOLVED — LD-01 timing policy accepted;
-engineering/W3-B/future-scope contracts OPEN**. CLASS/PUBLIC new starts require
-OPEN Publication, eligible Student and `startAt <= serverNow < endAt`: start
-inclusive, end exclusive. Duration is an integer 5–240 minutes inclusive with
-one-minute granularity. `attemptDeadlineAt = authoritativeStartedAt + configuredDuration`;
-window end does not shorten an already-started Attempt or close Publication.
-Store/compare timezone-safe authoritative instants and convert frontend-local
-times unambiguously. OPEN, scheduled eligibility, individual deadlines and CLOSED
-remain distinct. Configuration changes must never retroactively shorten existing
-authoritative deadlines; accepted time-mutation rules still apply without a
-blanket post-OPEN timing prohibition. Exact wire fields, chronological validation
-and conversion details remain engineering work. Expiration, cutoff, timeout
-finalization, resumption and response ordering remain OPEN for W3-B (ASSESS-12/13).
-Unbounded assessments and Practice timing remain deferred future scope, not
-approved Wave 3 behavior. These remaining contracts block dependent work.
+Status: **ASSESSMENT POLICY RESOLVED — LD-01 amended by ADR-015; ENGINEERING PROPOSED**.
+CLASS/PUBLIC keep startAt<endAt; new creation uses inclusive start/exclusive end.
+Individual duration 0 or 5..240, null or pinned positive deadline. Window end is not
+CLOSED, timeout or review permission. Preserve bounded OPEN configuration/deadlines,
+no post-OPEN mode switching; pending closure freezes extension/new creation.
+Unlimited CLASS cannot ENABLE monitoring, PUBLIC always DISABLED. Practice timing
+and broader unbounded availability remain **OPEN — deferred future scope**.
 
 ## Grading
 
-GRADE-01 through GRADE-06 are resolved for Wave 3 by the
-[accepted Assessment Core policy](specifications/assessment-core-policy.md):
-single-choice exact correctness, multiple-choice exact set match without partial
-credit, proportional true/false credit, exact decimal numeric equality without
-tolerance, no negative marking, equal question weights, and snapshot-pinned
-grading policy version 1. The following contract details remain open:
+GRADE-01..06 remain accepted exact equal-weight deterministic v1 policy.
 
-**GRADE-07.** Student numeric input/submission-validation format, including syntax,
-trimming/normalization, bounds, unanswered representation, and invalid-payload
-handling? The published four-character ASCII correct-answer grammar is unchanged;
-do not assume the Student must type four characters.
+**GRADE-07.** Student numeric input/submission-validation format?
 
-Status: **OPEN — Leader product compatibility decision plus submission contract**;
-blocks **W3-B numeric input/save/submit** and **numeric grading integration**.
-Recommendation: variable-length ASCII decimal strings with optional leading
-minus, digits before an optional decimal point, and digits after a present point;
-outer trim only, no exponent/comma/plus/full-width normalization. Treat blank as
-unanswered, reject malformed nonblank wire input, and give invalid answer values
-zero if represented to grading. Set a defensive maximum size in the reviewed
-engineering contract. This recommendation does not change the published
-four-character correct-answer grammar or approve Student syntax yet.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Exactly four characters after outer ASCII-whitespace trim under ADR-013 grammar;
+blank/null unanswered; malformed nonblank 400 with no mutation; preserve spelling
+and exact decimal equality. The former variable-length recommendation is superseded.
 
-**GRADE-08.** Exact per-question/total score persistence and API representation,
-percentage rounding/display rules, and exact version 1 policy identifier?
-Underlying calculations must not round. Current four-statement matrices yield
-quarters; percentages may repeat when divided by the total question count.
+**GRADE-08.** Exact persistence/API and visible percentage format?
 
-Status: **OPEN — engineering score/API contract; Leader acceptance for visible
-rounding/display policy**; blocks **grading/result API freeze and result UI**.
-Recommendation: exact decimal earned/possible weights with `BigDecimal`, per-question
-quarters for current matrices, integer question count for possible weight, and
-stored pinned policy identity; derive percentage only for presentation. If a
-percentage is shown, propose two decimal places with explicit `HALF_UP` rounding
-for display only. Policy identifiers, decimal serialization/storage scale, and
-the final display convention must be reviewed; no intermediate rounding or
-automatic historic regrading is authorized.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Exact earned/possible weights and no intermediate rounding. Student-visible
+values are decimal strings; percentage display two places HALF_UP only. Proposed
+QUIZOPIA_GRADING_V1 identifier, unconstrained finite numeric/quarter-v1 constraints,
+immutable results and highest-graded aggregate are in the pack. No automatic
+historic regrading. Future nonterminating rational weights need a new versioned
+compatibility contract, not silent numeric rounding.
 
 ## Practice
 
@@ -457,6 +425,10 @@ The following are no longer open:
   ASSESS-13/14/17, PROCTOR-10 and ID-05 remain partially resolved for engineering
   and later-wave dependencies; ASSESS-15 has specific LD78-01..04 acceptance; final independent review remains pending.
   AI behavior monitoring is deferred after Wave 3;
+
+- ADR-015 resolves W3-B/C product decisions and explicitly amends historical
+  LD-01/LD-04. The integrated engineering pack is proposed, not Leader-approved
+  implementation; real inbox, review and operational gates remain;
 
 - true monorepo;
 - independent Maven project per service;

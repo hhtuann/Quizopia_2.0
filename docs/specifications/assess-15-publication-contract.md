@@ -22,6 +22,17 @@ Gateway/downstream PR #76 merged). Historical proposed inventories remain contex
 This assignment explicitly authorizes the combined backend implementation after
 writing this contract. No frontend, Attempt, grading or monitoring runtime is added.
 
+## W3-B/C proposed additive extension
+
+Merged W3-A PR #78 is the implemented baseline. The later accepted
+[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) amends duration/count/
+closure policy for future W3-B/C. The [engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
+proposes compatible maxAttempts default 1 without rewriting OPEN JSON/snapshots,
+duration 0/null deadlines, no post-OPEN mode switch and pending closure freeze.
+The duration5..240 and absent maxAttempts schema below describe implemented W3-A,
+not a contradictory future requirement. W3-B/C engineering awaits review; service
+OpenAPI and runtime are unchanged by these docs.
+
 ## Internal source authority
 
 All operations are bodyless POST, accept no query/cookies, require exactly one
@@ -168,7 +179,11 @@ pre-first-Attempt changes await authoritative Attempt integration. Future W3-B
 pins each startedAt + duration deadline; extensions never recalculate or shorten
 existing Attempt deadlines.
 
-## Future START/CLOSE protocol and explicit deferrals
+## Historical W3-A START/CLOSE deferral and current W3-B/C proposal
+
+The paragraph below records W3-A's unimplemented dependency. Its earlier
+product deferrals are now settled by ADR-015; exact engineering details are
+proposed in the integrated pack, including the narrow delayed closure exception.
 
 W3-B START, CLOSE and finalization must lock the same Publication row in the same
 order before inspecting/writing authoritative Attempt state. START checks OPEN,
