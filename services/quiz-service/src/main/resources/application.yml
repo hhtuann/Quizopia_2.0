@@ -23,6 +23,7 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8081/oauth2/jwks}
+          issuer-uri: ${IDENTITY_ISSUER:http://localhost:8081}
 server:
   port: ${SERVER_PORT:8082}
 management:
@@ -51,3 +52,31 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
   swagger-ui:
     enabled: ${OPENAPI_ENABLED:true}
+
+quizopia:
+  internal-authority:
+    enabled: ${INTERNAL_AUTHORITY_ENABLED:false}
+    require-tls: ${INTERNAL_AUTHORITY_REQUIRE_TLS:true}
+    assessment-client-id: ${ASSESSMENT_SERVICE_CLIENT_ID:}
+  admission:
+    enabled: ${USER_ADMISSION_ENABLED:false}
+    identity-base-url: ${USER_ADMISSION_IDENTITY_BASE_URL:}
+    client-id: ${USER_ADMISSION_CLIENT_ID:}
+    client-secret: ${USER_ADMISSION_CLIENT_SECRET:}
+    allow-insecure-loopback: ${USER_ADMISSION_ALLOW_INSECURE_LOOPBACK:false}
+    connect-timeout: ${USER_ADMISSION_CONNECT_TIMEOUT:PT1S}
+    response-timeout: ${USER_ADMISSION_RESPONSE_TIMEOUT:PT3S}
+    total-timeout: ${USER_ADMISSION_TOTAL_TIMEOUT:PT5S}
+    max-connections: ${USER_ADMISSION_MAX_CONNECTIONS:8}
+    pending-acquires: ${USER_ADMISSION_PENDING_ACQUIRES:32}
+
+# Dedicated credential clients must remain redacted even when root logging is DEBUG/TRACE.
+logging:
+  level:
+    org.springframework.web.reactive.function.client: WARN
+    org.springframework.http.codec: WARN
+    org.springframework.core.codec: WARN
+    org.springframework.web.HttpLogging: WARN
+    org.springframework.security.oauth2.client: WARN
+    reactor.netty.http.client: WARN
+    org.springframework.web.servlet.mvc.method.annotation: WARN

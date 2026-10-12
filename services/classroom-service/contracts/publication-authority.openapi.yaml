@@ -1,0 +1,186 @@
+openapi: 3.1.0
+info:
+  title: Classroom private Publication authority
+  version: 1.0.0
+  description:
+    Engineering contract for Leader review. Private HTTPS only; exact configured
+    Assessment client. Bodyless POST, no query/cookies; exactly one SERVICE Authorization
+    plus one sensitive original USER JWT. Server independently validates both and
+    performs fresh Identity admission plus owned resource checks. Not publicly routed.
+paths:
+  /internal/classrooms/{classroomId}/teacher-authority:
+    post:
+      operationId: classroom_teacher_authority_read
+      security:
+        - serviceCredentials:
+            - classroom.teacher-authority.read
+          initiatingUserEvidence: []
+      parameters:
+        - name: classroomId
+          in: path
+          required: true
+          schema: &id002
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: &id001
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Confirmation"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /internal/classrooms/{classroomId}/student-membership:
+    post:
+      operationId: classroom_membership_read
+      security:
+        - serviceCredentials:
+            - classroom.membership.read
+          initiatingUserEvidence: []
+      parameters:
+        - name: classroomId
+          in: path
+          required: true
+          schema: *id002
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Confirmation"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    serviceCredentials:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth2/token
+          scopes:
+            classroom.teacher-authority.read:
+              Private authority for evidence-derived
+              actor.
+            classroom.membership.read: Private authority for evidence-derived actor.
+    initiatingUserEvidence:
+      type: apiKey
+      in: header
+      name: X-Quizopia-User-Evidence
+      description:
+        Sensitive original compact USER JWT, without Bearer prefix. Never
+        log.
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_INTERNAL_REQUEST
+            - SERVICE_AUTHENTICATION_INVALID
+            - USER_EVIDENCE_INVALID
+            - SERVICE_CALLER_FORBIDDEN
+            - USER_ROLE_FORBIDDEN
+            - CLASSROOM_NOT_ACCESSIBLE
+            - AUTHORITY_UNAVAILABLE
+    Confirmation:
+      type: object
+      additionalProperties: false
+      required:
+        - classroomId
+        - actorId
+      properties:
+        classroomId: *id002
+        actorId: *id002
