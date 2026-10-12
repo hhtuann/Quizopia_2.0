@@ -3,7 +3,8 @@
 This increment implements Quiz/Classroom source authority, Assessment DRAFT and
 OPEN persistence, safe discovery and exact Gateway/Assessment LD-05 enforcement.
 The [ASSESS-15 contract](../specifications/assess-15-publication-contract.md) records
-bounded engineering choices submitted for Leader review. Accepted LD-01..05 policy
+bounded engineering choices and the specifically accepted LD78-01..04 decisions.
+Final independent review remains pending. Accepted LD-01..05 policy
 is preserved. **Production activation is not authorized.** W3-A remains partial:
 CLOSE, frontend journeys and W3-B/C/M runtime are not implemented.
 
@@ -22,7 +23,7 @@ Assessment alone writes its PostgreSQL database. Source handoff preserves origin
 source, all four question types, order, Markdown, correctness, numeric answer
 strings and explanations. The source adapter validates the complete versioned wire
 model; unknown/missing/malformed facts fail closed. It accepts a maximum 2 MiB
-response, an engineering capacity bound submitted for review; a larger valid Quiz
+response, the temporarily approved LD78-03 capacity bound; a larger valid Quiz
 version returns dependency 503 rather than truncated or partial publication.
 
 Remote authority/content preparation happens before a short local transaction.
@@ -36,7 +37,7 @@ is claimed across Identity/Classroom authority snapshots and Assessment commit.
 
 The migration uses one-way local snapshot FK, explicit non-null state invariants,
 configuration/relational consistency checks, durable owner-scoped creation replay
-keys, and same-table immutable guards. There is no Attempt table, active counter,
+keys, same-table immutable guards, and the deferred reverse-association check in V2. There is no Attempt table, active counter,
 CLOSE placeholder, automatic closure or published answer/review API. Later W3-B
 must coordinate START/CLOSE/finalization using the same Publication row lock and
 supply authoritative Attempt state before CLOSE can be enabled.
@@ -71,7 +72,7 @@ uncontrolled forwarded scheme headers. Enforce private destination/caller networ
 allowlists; never publicly route `/internal/**` or add USER evidence to browser
 CORS. `Idempotency-Key` is the sole new browser header.
 
-Apply Assessment Flyway migration before enabling traffic, deploy sources with
+Apply Assessment Flyway V1 and V2 before enabling traffic, deploy sources with
 provisioned scopes and caller allowlists, verify admission, deploy Assessment and
 Gateway with flags disabled, then obtain operational release approval. Drain/block
 older bypass-capable Gateway/downstream instances first. Rollback begins by blocking
@@ -86,7 +87,12 @@ clients use dedicated pools/builders, disable redirects/retries, forward no refr
 cookies, and cap response sizes. Record string rendering redacts private DTOs;
 MVC body and reactive credential codec logging are suppressed. PUBLIC locator is
 retained privately in PostgreSQL for owner retrieval, with a SHA-256 lookup digest;
-protect database/backups and keep sharing out of URL query/access logs. Link
+LD78-02 conditionally approves this private plaintext retention. Require restricted
+database/operator access, confidential backups, restricted restore access,
+encryption at rest where required, managed infrastructure encryption keys/secrets,
+ingress/proxy/APM redaction and application/HTTP body logging restrictions. No
+locator-bearing metric/trace dimensions. These deployment controls remain
+unverified external release gates. Keep sharing out of URL query/access logs. Link
 possession never replaces authenticated current STUDENT eligibility.
 
 Admission clients retain bounded pools/deadlines. Source calls use the same bound
@@ -105,6 +111,52 @@ evidence retention and LiveKit runtime policy remain W3-M privacy/security gates
 Persisting ENABLED records only the approved activity/camera bundle choice; it does
 not activate monitoring or authorize its release.
 
+## LD78 database migration and capacity gates
+
+V1 is unchanged: there is no authoritative inventory proving all previously
+applied development/shared databases disposable. Additive V2 preserves its Flyway
+checksum and upgrades valid V1 data. During migration it takes ACCESS EXCLUSIVE
+locks on publications then publication_snapshots, checks existing rows, and stops
+with sanitized SQLSTATE 23514 if any snapshot lacks a matching finalized parent.
+It neither deletes nor repairs data. Drain Publication writers before migrating;
+use restricted operator SQL to identify affected IDs and investigate authoritative
+data, outside ordinary logs. Do not use Flyway repair to conceal invalid data.
+
+```sql
+SELECT s.publication_id
+FROM publication_snapshots s LEFT JOIN publications p ON p.id = s.publication_id
+WHERE p.id IS NULL OR p.state NOT IN ('OPEN', 'CLOSED')
+   OR p.snapshot_id IS DISTINCT FROM s.publication_id;
+```
+
+The V2 AFTER ROW constraint trigger is INITIALLY DEFERRED. Its SELECT FOR UPDATE
+reads the final in-transaction parent and serializes with concurrent parent changes.
+Application OPEN already locks parent before inserting child. Arbitrary direct
+writers using another lock order can deadlock; PostgreSQL aborts a transaction,
+never permits an inconsistent commit. Existing FK proves OPEN's child exists;
+state checks enforce identical IDs, snapshot primary key gives uniqueness, and
+existing guards prohibit child mutation and finalized parent deletion/association
+changes. Early SET CONSTRAINTS IMMEDIATE rejects an unfinished OPEN sequence;
+validation of the final sequence succeeds. Normal READ COMMITTED sessions and
+separate-session lock waits are exercised. This concerns ordinary DML under
+normal enabled constraints, not privileged operators disabling database integrity.
+
+LD78-03's effective boundary is documented in ASSESS-15: uncompressed aggregated
+JSON body bytes, not logical Markdown characters or total heap. Tests measure both
+Content-Length and chunked transfers, ASCII and multibyte UTF-8, and exact inclusive
+2,097,152-byte acceptance. Quiz has no equivalent aggregate limit, so some valid
+published versions cannot be used by Publication create/OPEN. This is an explicit
+temporary compatibility gap. Oversize yields sanitized dependency 503 before the
+local OPEN transaction; no partial snapshot or OPEN is stored. Review source plus
+structured-content duplication, JSON expansion, concurrent buffers, pool limits
+and latency before capacity activation. No Quiz authoring limit or cap increase.
+
+LD78-04 accepts question number/option label only within the immutable snapshot,
+with Publication context; all four types, source ordering, flags, all-false matrices,
+numeric spelling and Markdown remain exact. No item UUID/remapping or W3-B wire
+contract follows. See [correction evidence](w3a-pr78-correction-evidence.md) for
+method-level database, transport, confidentiality and compatibility proof.
+
 ## Verification boundaries
 
 Source focused tests use real PostgreSQL and RSA-signed credentials with a mocked
@@ -122,7 +174,7 @@ outage/role/cutoff scenarios. Fixtures seed complete actor projections with the
 reconciler disabled; Identity's separate compatibility suite verifies reconciliation.
 Explicit loopback HTTP is controlled test transport, not production TLS evidence.
 
-## Executed local verification
+## Original increment local verification (before LD78 correction)
 
 Java 21 / Maven verification passed with zero failures, errors or skipped tests:
 

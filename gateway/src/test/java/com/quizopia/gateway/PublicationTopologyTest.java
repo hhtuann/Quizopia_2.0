@@ -423,6 +423,94 @@ class PublicationTopologyTest {
     }
 
     @Test
+    @Order(1)
+    void oversizedRealPublishedSourceCannotPartiallyOpenSeededDraft() throws Exception {
+        String large = SOURCE.replace("Numeric **question**", "bulk-private-marker " + "Tiếng Việt ".repeat(90000));
+        var created = send(
+                "POST",
+                quiz + "/api/quizzes",
+                userToken,
+                JSON.writeValueAsString(Map.of("title", "Large", "authoringSource", large)),
+                Map.of());
+        assertEquals(201, created.statusCode());
+        String quizId = JSON.readTree(created.body()).path("quizId").asString();
+        var published = send("POST", quiz + "/api/quizzes/" + quizId + "/versions", userToken, null, Map.of());
+        assertEquals(201, published.statusCode());
+        String version = JSON.readTree(published.body()).path("id").asString();
+        String path = "/internal/quiz-versions/" + quizId + "/" + version + "/1/snapshot";
+        String credential = service("assessment-service", SECRET, "quiz.version-snapshot.read");
+        var source = send("POST", quiz + path, credential, null, Map.of("X-Quizopia-User-Evidence", userToken));
+        assertEquals(200, source.statusCode());
+        int bytes = source.body().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        System.out.println("LD78 real topology snapshot bytes=" + bytes);
+        assertTrue(bytes > 2097152);
+        String configuration = publicationBody(quizId, version, null);
+        assertEquals(
+                503,
+                send(
+                                "POST",
+                                gateway + "/api/assessments/publications",
+                                userToken,
+                                configuration,
+                                Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                        .statusCode());
+        // Seed an existing DRAFT directly: current create already fails at the same transport boundary.
+        UUID id = UUID.randomUUID();
+        String locator = Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[32]);
+        sensitiveLocators.add(locator);
+        String digest = HexFormat.of()
+                .formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(locator.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        var c = JSON.readTree(configuration);
+        try (var connection = DriverManager.getConnection(
+                ASSESSMENT_DB.getJdbcUrl(), ASSESSMENT_DB.getUsername(), ASSESSMENT_DB.getPassword())) {
+            execute(
+                    connection,
+                    "INSERT INTO publications(id,owner_id,configuration,quiz_id,quiz_version_id,version_number,audience,start_at,end_at,duration_minutes,monitoring_choice,state,revision,private_locator,locator_digest,created_at) VALUES(?,?,?::jsonb,?,?,1,'PUBLIC',?,?,30,'DISABLED','DRAFT',0,?,?,now())",
+                    id,
+                    ACTOR,
+                    configuration,
+                    UUID.fromString(quizId),
+                    UUID.fromString(version),
+                    Timestamp.from(Instant.parse(c.path("startAt").asString())),
+                    Timestamp.from(Instant.parse(c.path("endAt").asString())),
+                    locator,
+                    digest);
+            for (int retry = 0; retry < 2; retry++) {
+                var failure = send(
+                        "POST",
+                        gateway + "/api/assessments/publications/" + id + "/open",
+                        userToken,
+                        "{\"expectedRevision\":0}",
+                        Map.of());
+                assertEquals(503, failure.statusCode());
+                assertEquals(
+                        "DEPENDENCY_UNAVAILABLE",
+                        JSON.readTree(failure.body()).path("code").asString());
+                assertEquals(
+                        "no-store",
+                        failure.headers().firstValue("Cache-Control").orElseThrow());
+                assertFalse(failure.body().contains(locator));
+                assertFalse(failure.body().contains("bulk-private-marker"));
+                try (var statement = connection.prepareStatement(
+                        "SELECT state,revision,(SELECT count(*) FROM publication_snapshots WHERE publication_id=?) FROM publications WHERE id=?")) {
+                    statement.setObject(1, id);
+                    statement.setObject(2, id);
+                    try (var rows = statement.executeQuery()) {
+                        assertTrue(rows.next());
+                        assertEquals("DRAFT", rows.getString(1));
+                        assertEquals(0, rows.getLong(2));
+                        assertEquals(0, rows.getInt(3));
+                    }
+                }
+            }
+        }
+        var unchanged = send("POST", quiz + path, credential, null, Map.of("X-Quizopia-User-Evidence", userToken));
+        assertEquals(200, unchanged.statusCode());
+        assertEquals(source.body(), unchanged.body());
+    }
+
+    @Test
     @Order(7)
     void privateSourceAndAssessmentLogsContainNoCredentialsOrAnswerBodies() throws Exception {
         for (String name : List.of("quiz", "classroom", "assessment")) {
@@ -430,6 +518,7 @@ class PublicationTopologyTest {
             assertFalse(log.contains(userToken));
             for (String locator : sensitiveLocators) assertFalse(log.contains(locator));
             assertFalse(log.contains("private explanation"));
+            assertFalse(log.contains("bulk-private-marker"));
             assertFalse(log.contains("sourceSnapshot="));
             assertFalse(log.contains("service-fixture-only"));
         }

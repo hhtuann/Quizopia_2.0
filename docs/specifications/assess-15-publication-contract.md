@@ -1,9 +1,21 @@
 # ASSESS-15 — bounded Publication backend contract
 
-Status: **Implemented engineering proposal for Leader review**, under the accelerated
-backend assignment. LD-01..05 and ASSESS-01..04 are approved product policy; the
-new routes, scopes, DTOs and persistence choices below are engineering choices
-submitted through this PR, not a claim of prior Leader approval.
+Status: **Implemented bounded engineering contract; LD78-01..04 decisions accepted;
+final independent review pending.** LD-01..05 and ASSESS-01..04 remain approved
+product policy. The Leader's PR #78 continuation assignment approves the four
+specific decisions below; it does not record global approval of every route,
+scope, DTO or implementation detail, nor production security sign-off. No original
+decision date or unrelated approval PR is inferred.
+
+| Decision | Accepted scope                                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| LD78-01  | Required database-enforced bidirectional finalized snapshot association; implemented by additive V2.                       |
+| LD78-02  | Leader conditionally approved private plaintext locator retention; external confidentiality controls remain release gates. |
+| LD78-03  | Temporary 2 MiB snapshot transport limit approved; published-source compatibility gap documented for capacity review.      |
+| LD78-04  | Approved snapshot v1 identity contract: question number and option label within Publication context.                       |
+
+The remaining engineering details below are implemented for review in PR #78.
+W3-B/C/M contracts and operational activation are separate outstanding work.
 
 Baseline: `45bf80fa8ad8a4498b800648138a1af4a60f7839` (Identity PR #75 and
 Gateway/downstream PR #76 merged). Historical proposed inventories remain context.
@@ -92,8 +104,14 @@ It is separate from Publication UUID. Persist a unique SHA-256 lookup digest and
 retain the random locator in the private Publication row for owner retrieval and
 creation replay. This is not an anonymous authorization credential: authenticated
 current STUDENT is mandatory. Database access and backups must protect the locator;
-plaintext retention is an explicit reviewed storage choice, not encryption-at-rest
-proof. DTO string rendering redacts it. No public enumeration/search or locator
+**LD78-02 — Leader conditionally approved private plaintext locator retention.**
+This is not encryption-at-rest proof. Release requires restricted database and
+operator access, confidential backups and restricted restores, encryption at rest
+where deployment requires it, infrastructure encryption key/secret management,
+ingress/proxy/APM redaction, restricted application/HTTP body logging and no
+locator-bearing telemetry dimensions. These infrastructure controls have not been
+verified by application tests. Future rotation/revocation requires a separate
+contract; this increment introduces neither. DTO string rendering redacts it. No public enumeration/search or locator
 metrics/log labels. Lookup uses POST body, never URL/query/trace attributes. Future
 frontend sharing should keep the locator out of server URL logs (e.g. URL fragment).
 No frontend sharing behavior is implemented here.
@@ -110,12 +128,25 @@ Concurrent inserts serialize through the unique key and commit one Publication.
 No arbitrary replay TTL or deletion job is introduced.
 
 Final snapshots are write-once records containing schemaVersion 1, source snapshot
-and gradingPolicyVersion 1. Existing Quiz question number and option label are
-stable item identities/order; no normalization invents a second answer-key model.
-Publication's nullable snapshot FK points one way to its own snapshot identity;
-DRAFT requires NULL, OPEN/CLOSED requires a matching immutable snapshot. No circular
-FK or cross-table trigger. Local same-table guards protect finalized snapshot writes
-and frozen source/audience/Classroom/monitoring fields. Local database constraints
+and gradingPolicyVersion 1. **LD78-04 — Approved snapshot v1 identity contract.** Existing question `number`
+is stable only within that immutable snapshot, option `label` within its question,
+and Publication identity supplies context. Preserve continuous 1-based source
+order, A/B/C/D order, correctness, all-false matrices, numeric strings and Markdown.
+No synthetic question/option UUID or alternative answer-key model is generated.
+This does not establish identity across QuizVersions. W3-B answer DTOs, autosave
+sequence/revision, shuffling/remapping, future snapshot versions and grading-result
+wire representation remain deferred.
+
+Publication's nullable snapshot FK points to its own snapshot identity; DRAFT
+requires NULL, OPEN/CLOSED requires a matching immutable snapshot. LD78-01 adds an
+AFTER INSERT ROW constraint trigger, DEFERRABLE INITIALLY DEFERRED, which locks the
+corresponding Publication FOR UPDATE and checks its final state and snapshot_id.
+Together with the existing FK and immutable parent/child guards this enforces both
+directions at COMMIT, including direct SQL writers; no circular FK is introduced.
+An incomplete insertion fails with SQLSTATE 23514 and rolls back. SET CONSTRAINTS
+IMMEDIATE validates pending events immediately and fails if the OPEN sequence is
+incomplete. Finalized association cannot subsequently change or disappear.
+Local guards also protect frozen source/audience/Classroom/monitoring fields. Local database constraints
 also enforce schedule/duration/audience/state/revision invariants.
 
 OPEN first reads owner/DRAFT/revision and performs bounded remote prefetch without
@@ -154,6 +185,30 @@ ACCESS_DENIED 403, PUBLICATION_NOT_FOUND / source/class inaccessible 404,
 PUBLICATION_CONFLICT / IDEMPOTENCY_CONFLICT 409, AUTHORITY_UNAVAILABLE or
 DEPENDENCY_UNAVAILABLE / PERSISTENCE_UNAVAILABLE 503. Unsupported handoff schemas
 fail closed as dependency 503. Success and errors are no-store.
+
+## Temporary snapshot transport capacity
+
+**LD78-03 — Temporarily approved 2 MiB limit.** The actual dedicated WebClient
+aggregates `bodyToMono(byte[].class)` with maxInMemorySize 2,097,152. For the tested
+uncompressed JSON responses this counts response body bytes delivered to the
+DataBuffer decoder, including JSON syntax/escaping and UTF-8 multibyte characters;
+it excludes HTTP headers and chunk framing. It is not a Markdown character limit
+or a bound on the expanded JSON tree. Content-Length and chunked tests accept
+2,097,151 and 2,097,152 bytes, reject 2,097,153 and 2,162,688 bytes, and preserve the
+whole validated document. Oversized error or malformed bodies also fail closed.
+Buffer-limit/timeout/malformed source failures retain sanitized 503
+DEPENDENCY_UNAVAILABLE; no public status contract changed. OPEN prefetch occurs
+before its database transaction, so failure commits no snapshot or state change.
+
+Quiz draft/source/Markdown/published-version validation has no matching aggregate
+byte cap; source TEXT and structured JSONB also carry no application 2 MiB CHECK.
+A valid immutable published QuizVersion can therefore exceed this handoff limit
+and be unusable for creating/opening an Assessment Publication. Real Quiz publish
+and private handoff tests demonstrate the gap without changing Quiz validity or
+adding an authoring limit. Source and structured Markdown both occupy the response;
+JSON parsing/serialization and concurrent commands multiply memory beyond the
+transport cap. Capacity review must settle future compatible sizing before
+production activation; this acceptance does not increase the cap.
 
 ## Rollout
 

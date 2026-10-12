@@ -483,6 +483,115 @@ class PublicationIntegrationTest {
                 call("POST", "", body.substring(0, body.length() - 1) + ",\"title\":\"duplicate\"}", user()).status);
     }
 
+    @Test
+    void locatorDigestOwnerOnlyResponsesAndSanitizedErrors() {
+        var p = create();
+        service.open(actor, p.id(), 0, "evidence");
+        assertEquals(
+                com.quizopia.assessment.persistence.JdbcPublicationStore.digest(p.privateLocator()),
+                db.queryForObject("SELECT locator_digest FROM publications WHERE id=?", String.class, p.id()));
+        assertEquals(32, Base64.getUrlDecoder().decode(p.privateLocator()).length);
+        String owner = user();
+        var allowed = call("GET", "/" + p.id(), "", owner);
+        assertEquals(200, allowed.status);
+        assertEquals("no-store", allowed.cache);
+        assertEquals(
+                p.privateLocator(),
+                json.readTree(allowed.body).path("privateLocator").asString());
+        String other = sign(
+                KEY,
+                ISSUER,
+                UUID.randomUUID().toString(),
+                "USER",
+                Map.of("roles", List.of("STUDENT", "TEACHER")),
+                Instant.now().minusSeconds(2),
+                Instant.now().plusSeconds(300));
+        String student = sign(
+                KEY,
+                ISSUER,
+                ACTOR,
+                "USER",
+                Map.of("roles", List.of("STUDENT")),
+                Instant.now().minusSeconds(2),
+                Instant.now().plusSeconds(300));
+        String teacher = sign(
+                KEY,
+                ISSUER,
+                ACTOR,
+                "USER",
+                Map.of("roles", List.of("TEACHER")),
+                Instant.now().minusSeconds(2),
+                Instant.now().plusSeconds(300));
+        String entry = json.writeValueAsString(Map.of("locator", p.privateLocator()));
+        for (var response : List.of(
+                call("GET", "/" + p.id(), "", other),
+                call("GET", "/" + p.id(), "", student),
+                call("POST", "/entry", entry, teacher),
+                call("POST", "/entry", entry, "invalid"),
+                call(
+                        "POST",
+                        "/entry",
+                        json.writeValueAsString(Map.of("locator", p.privateLocator() + "!")),
+                        student))) {
+            assertTrue(Set.of(400, 401, 403, 404).contains(response.status));
+            assertEquals("no-store", response.cache);
+            assertFalse(response.body.contains(p.privateLocator()));
+        }
+        assertEquals(404, call("GET", "/" + p.id(), "", other).status);
+        assertEquals(403, call("GET", "/" + p.id(), "", student).status);
+        assertEquals(403, call("POST", "/entry", entry, teacher).status);
+        assertEquals(401, call("POST", "/entry", entry, "invalid").status);
+        var safe = call("POST", "/entry", entry, student);
+        assertEquals(200, safe.status);
+        assertEquals("no-store", safe.cache);
+        assertFalse(safe.body.contains(p.privateLocator()));
+        assertFalse(new com.quizopia.assessment.api.PublicationController.Entry(p.privateLocator())
+                .toString()
+                .contains(p.privateLocator()));
+    }
+
+    @Test
+    void independentPublicationsPinIdenticalV1ItemsWithoutSyntheticIds() {
+        var bytes = SnapshotFixtures.snapshot(configuration, "Original **Markdown**\n0001");
+        var validated = new com.quizopia.assessment.infrastructure.SnapshotValidator().validate(bytes, configuration);
+        var a = create();
+        var b = create();
+        assertNotEquals(a.id(), b.id());
+        store.open(actor, a.id(), 0, validated);
+        store.open(actor, b.id(), 0, validated);
+        for (UUID id : List.of(a.id(), b.id())) {
+            assertEquals(
+                    1,
+                    db.queryForObject(
+                            "SELECT grading_policy_version FROM publication_snapshots WHERE publication_id=?",
+                            Integer.class,
+                            id));
+            var payload = json.readTree(db.queryForObject(
+                    "SELECT payload::text FROM publication_snapshots WHERE publication_id=?", String.class, id));
+            assertEquals(json.readTree(bytes), payload);
+            assertEquals(1, payload.path("schemaVersion").asInt());
+            assertEquals(1, payload.path("contentSchemaVersion").asInt());
+            var questions = payload.path("structuredContent").path("questions");
+            assertEquals(4, questions.size());
+            for (int n = 0; n < 4; n++) {
+                var q = questions.get(n);
+                assertEquals(n + 1, q.path("number").asInt());
+                assertEquals(6, q.size());
+                for (int i = 0; i < q.path("options").size(); i++) {
+                    var o = q.path("options").get(i);
+                    assertEquals("" + (char) ('A' + i), o.path("label").asString());
+                    assertEquals(3, o.size());
+                }
+            }
+            for (var o : questions.get(2).path("options"))
+                assertFalse(o.path("correct").asBoolean());
+            assertEquals("0001", questions.get(3).path("numericAnswer").asString());
+        }
+        service.extend(actor, a.id(), 1, configuration.endAt().plusSeconds(60), 31);
+        assertEquals(1, store.owned(actor, b.id()).revision());
+        assertEquals(30, store.owned(actor, b.id()).configuration().durationMinutes());
+    }
+
     record Response(int status, String body, String cache) {}
 
     Response call(String method, String path, String body, String token) {

@@ -162,6 +162,15 @@ class InternalAuthorityIntegrationTest {
                         .path("numericAnswer")
                         .asString());
         assertEquals(4, json.path("structuredContent").path("questions").size());
+        assertEquals(
+                mapper.readTree(mapper.writeValueAsString(versions.findByQuizIdAndVersionNumber(resource, 1)
+                        .orElseThrow()
+                        .structuredContent())),
+                json.path("structuredContent"));
+        assertEquals(1, json.path("schemaVersion").asInt());
+        assertEquals(1, json.path("contentSchemaVersion").asInt());
+        for (var o : json.path("structuredContent").path("questions").get(2).path("options"))
+            assertFalse(o.path("correct").asBoolean());
         assertEquals(SOURCE, json.path("sourceSnapshot").asString());
         assertEquals(version.toString(), json.path("quizVersionId").asString());
         assertEquals("2026-10-11T00:00:00.123456Z", json.path("createdAt").asString());
@@ -172,6 +181,37 @@ class InternalAuthorityIntegrationTest {
                                 .getBody())
                         .path("sourceSnapshot")
                         .asString());
+    }
+
+    @Autowired
+    com.quizopia.quiz.application.QuizApplicationService authoring;
+
+    @Test
+    void validPublishedVersionCanExceedTemporaryAssessmentTransportCap() {
+        String large = SOURCE.replace("**Stem**", "**Stem** " + "Tiếng Việt ".repeat(90000));
+        var draft = authoring.create(
+                UUID.fromString(ACTOR), new com.quizopia.quiz.application.QuizDraftInput("Large", null, large));
+        var published = authoring
+                .publishOwnedDraft(UUID.fromString(ACTOR), draft.quiz().id())
+                .version();
+        String path = "/internal/quiz-versions/" + published.quizId() + "/" + published.id() + "/1/snapshot";
+        var response = call(path, service("assessment-service", scope()), user());
+        assertEquals(200, response.getStatusCode().value());
+        int bytes = response.getBody().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        System.out.println("LD78 published Quiz snapshot bytes=" + bytes);
+        assertTrue(bytes > 2097152, "Valid source must demonstrate the temporary compatibility gap");
+        var payload = mapper.readTree(response.getBody());
+        assertEquals(large, payload.path("sourceSnapshot").asString());
+        assertEquals(
+                published.structuredContent(),
+                versions.findByQuizIdAndVersionNumber(published.quizId(), 1)
+                        .orElseThrow()
+                        .structuredContent());
+        assertEquals(
+                large,
+                versions.findByQuizIdAndVersionNumber(published.quizId(), 1)
+                        .orElseThrow()
+                        .sourceSnapshot());
     }
 
     @Test

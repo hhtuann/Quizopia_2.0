@@ -183,7 +183,7 @@ draft mutation/transition concurrency, source-version ownership, internal servic
 endpoint/scope, snapshot schema/atomic opening and security/configuration impacts
 before coding. Accepted scope, ownership and atomic opening are not reopened.
 
-Status: **ENGINEERING CONTRACT IMPLEMENTED — LEADER REVIEW PENDING**, applying approved LD-01..05 policy;
+Status: **ENGINEERING CONTRACT IMPLEMENTED — LD78-01..04 ACCEPTED; FINAL REVIEW PENDING**, applying approved LD-01..05 policy;
 remaining ASSESS-13/14/17, PROCTOR-10 and ID-05 engineering dependencies remain;
 blocks **W3-A contract freeze/opening**. Recommendation: preserve the existing
 Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
@@ -194,8 +194,13 @@ scopes, DTOs, schema, locks and failure/retry semantics require review, not a
 new Leader vote for every implementation detail. The accelerated backend assignment
 has authorized the bounded [ASSESS-15 engineering proposal](specifications/assess-15-publication-contract.md)
 and [backend implementation](architecture/w3a-publication-backend.md). Routes,
-scopes, DTOs, locator storage and locking choices are submitted for review, not
-claimed as previously approved. CLOSE/Attempt coordination and production
+scopes, DTOs and other bounded engineering details remain subject to final review.
+The Leader's PR #78 continuation accepts LD78-01 database association integrity,
+LD78-02 conditional plaintext locator retention, LD78-03 temporary 2 MiB transport
+capacity and LD78-04 snapshot-local number/label identity v1. Their correction and
+verification are recorded in the contract; this is not global document approval.
+Backup/encryption/operator/proxy/APM controls and source-size capacity remain
+external release gates. CLOSE/Attempt coordination and production
 activation remain blocked by their separate gates. The policy specification's
 endpoint inventory remains explicitly **PROPOSED**.
 
@@ -450,7 +455,7 @@ The following are no longer open:
   authenticated link-only PUBLIC participation, reject-CLOSE with active Attempts,
   and fail-closed/no-fallback/no-degraded-read revocation outage/recovery policy.
   ASSESS-13/14/17, PROCTOR-10 and ID-05 remain partially resolved for engineering
-  and later-wave dependencies; ASSESS-15 engineering implementation awaits Leader review.
+  and later-wave dependencies; ASSESS-15 has specific LD78-01..04 acceptance; final independent review remains pending.
   AI behavior monitoring is deferred after Wave 3;
 
 - true monorepo;

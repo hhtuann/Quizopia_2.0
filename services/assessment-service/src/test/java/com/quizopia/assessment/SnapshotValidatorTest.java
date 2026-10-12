@@ -82,6 +82,32 @@ class SnapshotValidatorTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"0001", "2.50", "0.25", "-3.5", "-.12", "12.3", "1234"})
+    void acceptedNumericSpellingAndSnapshotLocalIdentitiesStayExact(String numeric) {
+        String input = new String(
+                        SnapshotFixtures.snapshot(configuration, "Original **Markdown**"), StandardCharsets.UTF_8)
+                .replace("0001", numeric);
+        var actual = json.readTree(validate(input));
+        assertEquals(json.readTree(input), actual);
+        var questions = actual.path("structuredContent").path("questions");
+        for (int i = 0; i < questions.size(); i++) {
+            var q = questions.get(i);
+            assertEquals(i + 1, q.path("number").asInt());
+            assertEquals(6, q.size());
+            assertFalse(q.has("id"));
+            for (int j = 0; j < q.path("options").size(); j++) {
+                var o = q.path("options").get(j);
+                assertEquals("" + (char) ('A' + j), o.path("label").asString());
+                assertEquals(3, o.size());
+                assertFalse(o.has("id"));
+            }
+        }
+        for (var option : questions.get(2).path("options"))
+            assertFalse(option.path("correct").asBoolean());
+        assertEquals(numeric, questions.get(3).path("numericAnswer").asString());
+    }
+
+    @ParameterizedTest
     @ValueSource(
             strings = {
                 "schemaVersion",
