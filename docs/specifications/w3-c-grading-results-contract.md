@@ -1,10 +1,13 @@
 # W3-C — Deterministic grading, results and review
 
-Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); product policy APPROVED; executable runtime NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
+Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); product policy APPROVED; internal W3-C1 implementation FOR REVIEW; Student/results/review HTTP runtime NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
 
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) records Leader policy.
-W3-A already pins grading_policy_version=1 on an immutable snapshot; it implements
-no grader/results/review. These future contracts accompany the
+W3-A pins grading_policy_version=1 on an immutable snapshot; merged W3-B1 supplies
+V4 storage. The [W3-C1 internal implementation](../architecture/w3c1-grading-finalization-implementation.md)
+now supplies actual grading/manual/timeout finalization for independent review.
+Student submission, results and detailed review HTTP APIs remain unavailable.
+The future HTTP portions of these contracts accompany the
 [lifecycle](w3-b-attempt-lifecycle-contract.md),
 [persistence](../architecture/w3b-w3c-persistence-concurrency-design.md) and
 [proposed OpenAPI](proposed/w3b-w3c.openapi.yaml).

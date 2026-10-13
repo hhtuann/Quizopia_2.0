@@ -8,10 +8,15 @@ Run independently from this directory:
 - Unix-like shells: `./mvnw test` or `./mvnw verify`
 
 Implements the seven default-disabled W3-A Publication operations and W3-B1
-Publication configuration plus PostgreSQL Attempt/result persistence. See the
+Publication configuration plus PostgreSQL Attempt/result persistence. W3-C1 adds
+an internal deterministic grader and atomic manual/timeout finalization core,
+pending independent review. See the
 [implemented Publication contract](contracts/publications.openapi.yaml) and
 [W3-B1 implementation evidence](../../docs/architecture/w3b1-persistence-implementation.md).
-Student Attempt, grading, result/review, CLOSE and inbox APIs remain unavailable.
+See also [W3-C1 implementation evidence](../../docs/architecture/w3c1-grading-finalization-implementation.md).
+Student Attempt, submission, result/review, CLOSE and inbox APIs remain unavailable.
+The internal finalizer requires a root transaction; callers must establish current
+authority separately. No scheduler is activated.
 
 Default local port: 8084. See `.env.example` and the root development documentation for configuration.
 
