@@ -60,6 +60,17 @@ APIs expose safe projections. Link possession bypasses no eligibility rule;
 exact locator/route/error contracts remain engineering work. No new owner
 self-participation permission or prohibition is introduced.
 
+## Current W3-B/C amendment
+
+[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) supersedes earlier
+Wave 3 timing/numeric/Attempt deferrals: maxAttempts 0/unlimited or 1..10 freezes OPEN;
+duration 0/null deadline or 5..240; explicit RETAKE and ungraded ABANDON; strict
+four-character ASCII Student numeric tokens; exact score strings/display to 2 places HALF_UP;
+saved-only atomic timeout/submit and C1..C10 two-step Teacher closure with real
+48-hour in-app notices. Ordinary CLOSE still rejects ACTIVE work. Historical
+LD-01/04 text remains in its decision record; implementation is proposed in the
+[contract pack](../architecture/w3b-w3c-contract-review-evidence.md), not activated.
+
 ## Assessment time mutation
 
 24. Before attempts begin, editable timing follows normal publication rules.
@@ -68,18 +79,17 @@ self-participation permission or prohibition is introduced.
 27. Time may be extended according to authorization/business rules.
 
 Wave 3 requires a bounded participation window for starting Attempts and a
-positive bounded per-Attempt duration. Opening is distinct from scheduling;
+bounded or unlimited individual Attempt duration under ADR-015. Opening is distinct from scheduling;
 window end is not durable closure, automatic Attempt finalization or answer-review
 permission. Server time controls starts/deadlines without relying solely on jobs.
-LD-01 accepts OPEN + eligible Student + `startAt <= serverNow < endAt`, integer
-5–240-minute duration with one-minute granularity, and authoritative start plus
-duration deadlines. Timezone-safe authoritative instants and unambiguous local
+LD-01, amended by ADR-015, accepts OPEN + eligible Student +
+`startAt <= serverNow < endAt`, duration 0/unlimited or integer5–240, and null or
+authoritative start-plus-duration deadlines. Timezone-safe authoritative instants and unambiguous local
 conversion are required. Window end does not shorten an already-started Attempt;
 configuration must never retroactively shorten existing authoritative deadlines.
 Rules 24–27 remain applicable; no blanket post-OPEN timing ban is introduced.
-Wire/validation details and W3-B expiration, cutoff, timeout finalization,
-resumption and response ordering remain gates. Future unbounded/practice timing is
-not decided by this limited scope.
+Exact wire/expiry/cutoff/replay behavior is proposed in the W3-B/C pack. Unlimited
+individual Assessment duration is approved; unbounded availability/Practice is deferred.
 
 ## Attempt correctness
 
@@ -109,9 +119,10 @@ documented conflict response. Teacher may close once all Attempts are terminal.
 CLOSE must handle overdue Attempts and start/finalization races transactionally;
 concurrent start/CLOSE cannot leave an unauthorized active Attempt in CLOSED.
 W3-B must ensure expired Attempts eventually become terminal independently of
-timely background processing. No automatic closure or force-close is introduced.
-Saved/unsaved answer treatment, deadline finalization and submit semantics remain
-W3-B contracts; only durable CLOSED enables eligible submitted-owner review.
+timely background processing. No automatic closure is introduced. The accepted ADR-015 notice-cutoff mechanism
+is the only narrow exception for ACTIVE unlimited work. Saved-only timeout/closure
+and atomic submit/replay are accepted, with proposed exact engineering contracts;
+only durable CLOSED enables eligible submitted-owner review.
 
 ## Proctoring
 

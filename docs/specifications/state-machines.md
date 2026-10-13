@@ -62,42 +62,50 @@ publication states or freeze detailed timing/cutoff behavior. W3-A accepts bound
 scheduling separately from lifecycle. See [accepted policy](assessment-core-policy.md)
 and [W3-A scope](w3-a-publication-scheduling-monitoring-policy.md).
 
-Do not create read-triggered hidden state transitions like the legacy session lifecycle.
+Do not create read-triggered hidden Publication transitions like the legacy
+session lifecycle. The proposed Attempt resume explicitly reconciles due
+terminalization; it never closes Publication or releases review early.
 
 For Wave 3, represent scheduling as separate eligibility conditions, not additional
 Publication states. Opening and participation start are distinct; participation
 window end alone is neither durable closure nor automatic Attempt finalization.
-LD-01 accepts inclusive-start/exclusive-end eligibility and authoritative
-start-plus-duration deadlines (integer 5–240-minute duration). LD-04 rejects CLOSE
+LD-01, amended by ADR-015, accepts inclusive-start/exclusive-end new creation
+and positive start-plus-duration deadlines or null duration 0 deadlines. LD-04 rejects CLOSE
 while any Attempt is authoritatively active, with a documented conflict response;
 only terminal Attempts permit Teacher closure. Overdue handling and start/
 finalization races require transactional contracts; no unauthorized active
 Attempt may remain in CLOSED after concurrent start/CLOSE. Explicit lifecycle
 commands remain retry-safe; expiry/finalization and concurrency require W3-B and
-engineering contracts. No automatic closure or force-close is introduced.
+engineering contracts. No automatic closure is introduced. ADR-015 adds only the narrow C1..C10
+Teacher-notice cutoff finalization, retaining the ordinary all-terminal close rule.
 
 ## Assessment attempt
 
-Baseline:
+Current accepted product is [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md);
+state names/transaction details below are **proposed engineering**, not runtime.
+W3-A has no Attempt implementation.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> IN_PROGRESS: start
-    IN_PROGRESS --> IN_PROGRESS: sequence-aware autosave
-    IN_PROGRESS --> SUBMITTED: manual idempotent submit
-    IN_PROGRESS --> SUBMITTED: server timeout finalization
-    SUBMITTED --> [*]
+    [*] --> ACTIVE: START or explicit RETAKE
+    ACTIVE --> ACTIVE: revision-controlled SAVE
+    ACTIVE --> SUBMITTED: atomic manual submit and grade
+    ACTIVE --> SUBMITTED: saved-only bounded timeout
+    ACTIVE --> SUBMITTED: TEACHER_NOTICE_CUTOFF
+    ACTIVE --> ABANDONED: explicit Student abandon, ungraded
 ```
 
-Automatic grading/result persistence occurs coherently with submission.
-
-The diagram above is a baseline, not approval of Wave 3 timeout/cutoff behavior.
-Attempt count, precise autosave revision/conflict semantics, submission cutoff,
-and expiration/timeout finalization, resumption and response ordering remain
-contract gates. LD-04 rejects closure while any Attempt is authoritatively active;
-W3-B must ensure expired Attempts eventually become terminal independently of
-timely jobs. Saved/unsaved answer treatment and submit semantics remain open.
-Do not infer forced finalization from the Publication transition.
+SUBMITTED already includes exact result/final-answer persistence. ABANDONED is
+terminal/ungraded, consumes finite entitlement, excluded from aggregate and own
+submitted-review eligibility. Timeout/closure grade only committed answers. New
+mutations require strictly pre-deadline/pre-confirmed-cutoff serialized server time.
+The [lifecycle](w3-b-attempt-lifecycle-contract.md) and
+[closure](w3-b-closure-notification-contract.md) specify durable replay/recovery.
+Request/cancel/complete closure workflow is separate from Publication state:
+PENDING→FINALIZING→COMPLETED; PENDING may CANCEL or resolve early when all terminal.
+Workers never transition Publication to CLOSED; owning Teacher COMPLETE/ordinary
+CLOSE may do so only after authoritative all-terminal checks. Cancelled request
+never becomes live again; replacement establishes new notices and 48-hour cutoffs.
 
 Do not add unused `GRADED`/`RELEASED` states unless a real separate lifecycle requires them.
 

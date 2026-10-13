@@ -132,3 +132,18 @@ Class publications require an authenticated account and classroom membership.
 - Public content and classroom delivery coexist.
 - Proctoring is evidence/risk support, not an automatic guilt engine.
 - AI assists humans; it does not silently publish unreviewed content.
+
+## W3-B/C policy and proposed engineering extension
+
+The later [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) accepts unlimited
+individual duration 0 (bounded start windows remain), configurable maxAttempts,
+explicit retake/ABANDON, strict numeric input and two-step delayed Teacher closure.
+[The integrated engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
+proposes Assessment-owned closure notices in a real authenticated inbox, atomic
+local grading/results and existing service authority boundaries. This scoped
+notice projection transfers no Classroom/Identity authority and adds no service.
+W3-A PR #78 is implemented. ADR-015 records W3-B/C engineering direction
+APPROVED WITH CONDITIONS (EC79-01..04); routes/schema remain PROPOSED/UNIMPLEMENTED.
+Independent amendment/security/runtime review remains; production is not authorized.
+Monitoring stays bounded CLASS-only; unlimited CLASS and PUBLIC cannot ENABLE.
+Practice/general inbox/gradebook events and operational/privacy release gates remain.

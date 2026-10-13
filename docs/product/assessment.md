@@ -1,80 +1,59 @@
 # Assessment
 
-Status: **Baseline v0.1 with accepted Wave 3 Assessment, W3-A and LD-01..05 policy**
+Status: **Current Wave 3 product policy APPROVED; W3-B/C engineering direction APPROVED WITH CONDITIONS (EC79-01..04), runtime UNIMPLEMENTED**
 
-## Wave 3 Assessment Core
+## Current Wave 3 Assessment Core
 
-The [accepted Assessment Core policy](../specifications/assessment-core-policy.md)
-governs Wave 3 after Wave 2 closure at PR #71. Assessment owns Publication
-`DRAFT → OPEN → CLOSED`, finalizes a self-contained immutable snapshot atomically
-on opening, and pins grading policy version 1. Opened Publications cannot return
-to draft or change QuizVersion; closed Publications cannot reopen in MVP.
+[Assessment Core](../specifications/assessment-core-policy.md), W3-A LD-01..05
+and the later [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) govern
+this milestone. W3-A PR #78 implements preparation/opening/snapshot/entry, not
+Attempt/CLOSE/grading/inbox runtime. The
+[W3-B/C engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
+has Leader engineering approval with conditions EC79-01..04. Its executable
+features remain unimplemented; independent read-only amendment review, real
+security/runtime acceptance and Leader implementation merge/release gates remain.
+Production activation is not authorized.
 
-The subsequent [W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md)
-requires both `CLASS` and `PUBLIC`, a bounded participation window for new
-Attempt starts, and a positive bounded Attempt duration. CLASS references exactly
-one Classroom, with authoritative Teacher authorization and Student membership.
-The follow-up LD-01..05 decisions were recorded on 2026-10-11 after PR #72/#73.
-PUBLIC requires authenticated USER with authoritative STUDENT role, Identity
-account/token-validity/revocation rules and a shared direct link with a suitably
-non-enumerable locator; no Classroom membership is required. TEACHER + STUDENT
-may participate through STUDENT under the same rules. Link possession bypasses
-no authentication, lifecycle, timing or Attempt eligibility rule. Exact locator/
-route/error contracts remain engineering work. No new rule grants or denies an
-owner permission to attempt their own Publication.
+Publication lifecycle is DRAFT→OPEN→CLOSED, immutable self-contained snapshot and
+pinned policy 1 upon OPEN. Both CLASS/PUBLIC have bounded startAt<endAt; new
+START/RETAKE requires OPEN, eligible current Student and inclusive start/exclusive
+end. Individual duration is0/unlimited (null deadline) or integer5..240 minutes
+(deadline=start+duration); existing ACTIVE work may continue after endAt subject
+to deadline/valid closure cutoff. No post-OPEN bounded/unlimited mode switching.
+maxAttempts 0/unlimited or 1..10 freezes OPEN; existing default 1. One ACTIVE Attempt
+per Student/Publication; START resumes/returns latest terminal, explicit RETAKE
+creates a separate entitled Attempt. ABANDON is explicit, irreversible/ungraded,
+consumes finite entitlement and grants no aggregate zero or submitted-owner review.
 
-New starts require OPEN, eligible Student and `startAt <= serverNow < endAt`
-(inclusive start, exclusive end). Duration is integer 5–240 minutes inclusive,
-with one-minute granularity; deadline is authoritative start plus configured
-duration. Opening, schedule eligibility, individual deadlines and CLOSED are
-distinct. Window end does not shorten an already-started Attempt, close
-Publication or automatically finalize Attempts. Store/compare timezone-safe
-instants and convert frontend-local times unambiguously.
+CLASS requires current authoritative membership; Teacher assignment authority
+remains Classroom-owned. PUBLIC current authenticated STUDENT via a private direct
+locator, no membership/guest/directory/password. No new owner self-participation
+permission or prohibition. LD-05 independent Gateway/downstream current admission
+and fail-closed outage/recovery stay mandatory; no fallback or outage logout.
 
-Reject OPEN → CLOSED while any Attempt is authoritatively active, with a
-documented conflict response. Teacher may close once all Attempts are terminal.
-CLOSE must handle overdue Attempts and start/finalization races transactionally;
-no unauthorized active Attempt may remain in CLOSED after a concurrent start.
-W3-B must ensure expired Attempts eventually become terminal independently of
-timely background processing. Automatic closure and force-close are not introduced.
+Ordinary CLOSE rejects persisted ACTIVE Attempts after bounded reconciliation with
+sanitized 409. The C1..C10 narrow exception uses Teacher REQUEST after endAt,
+committed owner-accessible in-app notice, individual confirmation+48h cutoffs and
+Teacher COMPLETE. Workers may grade saved answers after cutoff but never close
+Publication. Cancellation before first forced finalization, fresh replacement
+notices, pending schedule/new-creation freeze and durable audit/recovery are required.
+EndAt alone never finalizes/closes/releases answers. Real inbox is an implementation
+dependency; Identity OTP email is insufficient.
 
-Eligible CLASS Publications may require a disclosed bundle of Browser Activity
-Evidence and LiveKit camera monitoring. Those are required Wave 3 deliverables
-(W3-M1/W3-M2), with monitoring optional per eligible Publication. PUBLIC
-proctoring is prohibited and monitoring must be disabled. CLASS Teachers must
-record an explicit choice before OPEN; an unconfigured DRAFT has no implicit
-ON/OFF default. The choice is immutable upon OPEN. No additional Activity-only,
-AI-enabled or A/B modes are approved. Runtime capture requires eligible active
-Attempts and W3-M1/M2 authorization/privacy/failure contracts.
-AI behavior analysis is accepted future design,
-deferred after Wave 3. See [Proctoring](proctoring.md) for release gates.
+SAVE uses question-scoped typed answer, Attempt-wide revision and durable replay
+identity; SUBMIT/timeout/closure commit final answers/exact grade/result/terminal
+state coherently. Student numeric input is exactly four characters after ASCII
+outer trim under ADR-013, malformed nonblank 400, blank/null unanswered. All four
+question types retain equal weights/exact v1 grading/no intermediate rounding;
+score strings exact, display to 2 places HALF_UP only. Highest graded Attempt is aggregate.
+Students see total-only score after grading; only own submitted Attempts get
+keys/explanations after durable CLOSED. Teachers see owned-Publication results.
 
-Authenticated Students see their own score after successful submission and
-completed grading. Correct answers and explanations are available only after
-Publication closure to eligible submitted Students reviewing their own Attempts.
-Teachers view results for owned Publications. Backend authorization and safe
-response representations enforce these rules.
-
-All questions have equal maximum weight: single choice requires the one correct
-option, multiple choice requires exact set equality without partial credit,
-true/false matrices award equal credit per statement, and numeric fill uses exact
-decimal numerical equality. No negative marking. The published four-character
-numeric answer grammar is unchanged; Student input syntax remains a contract gate.
-
-The sections below describe the broader product baseline. Guest access,
-configurable visibility, advanced Classroom orchestration, unbounded/practice
-timing, attempt limits and shuffle examples are not approvals of Wave 3 contracts.
-Expiration, cutoff, timeout finalization, saved/unsaved answer treatment, submit
-semantics, resumption and response ordering remain W3-B contract gates. Monitoring
-representation/UI terminology, timing wire/validation details and transactional
-close handling remain engineering work. Window end alone never discloses answers
-or explanations. LD-05 requires affected protected Assessment/Classroom/Proctoring
-operations to fail closed until required revocation/account authority is
-trustworthy; no automatic Identity fallback or degraded authenticated lower-risk
-reads are approved. Outage alone must not invalidate refresh credentials, silently
-log out or cause refresh loops. Recovery needs trustworthy coverage or durable
-reconstruction, not merely Redis health. Security implementation/recovery/
-verification and other gates remain in the accepted policies/open questions.
+PUBLIC monitoring DISABLED; unlimited CLASS cannot ENABLE the bundle. Bounded
+CLASS requires explicit monitoring choice before OPEN, immutable thereafter.
+Browser Activity plus LiveKit camera remain required separate W3-M outcomes with
+privacy/refusal/loss/retention/security gates; AI monitoring deferred after Wave 3.
+The broader examples below do not add unsupported Wave 3 configuration/features.
 
 ## Separation of concepts
 
@@ -125,8 +104,9 @@ This broader future possibility does not approve Wave 3 guest access. LD-03
 requires authenticated USER with authoritative STUDENT and a shared direct link;
 no searchable directory, anonymous guests, passwords or anonymous-session
 identity is required. Teacher management remains owner-authorized; Student APIs
-expose safe projections. Exact locator/route/error contracts remain open under
-ASSESS-14/15. CLASS membership is authoritative, including shared-URL entry.
+expose safe projections. W3-A locator/entry contracts are implemented in ASSESS-15;
+W3-B/C Attempt extensions are proposed for review. CLASS membership is authoritative,
+including shared-URL entry.
 
 A class publication is discoverable through the learner's classroom UI and does not require the learner to save/share the public link.
 
@@ -137,14 +117,12 @@ For ordinary, non-proctored assessment:
 - availability may be unbounded;
 - attempt duration may be unbounded.
 
-This broader baseline remains future scope; Wave 3 instead requires a bounded
-start window and integer 5–240-minute duration for CLASS and PUBLIC. LD-01
-accepts inclusive start/exclusive end and authoritative start-plus-duration
-deadlines. Timezone-safe instants/unambiguous local conversion are required;
-exact wire fields and validation remain engineering work. Configuration changes
-must never retroactively shorten existing authoritative deadlines. LD-04 rejects
-CLOSE with active Attempts; conflict/concurrency/overdue handling and W3-B cutoff,
-expiry/finalization/resumption/response ordering remain open.
+Wave 3 requires a bounded participation start window, while ADR-015 now permits
+unlimited individual duration 0 or bounded5..240 minutes. Broader unbounded
+availability and Practice remain deferred. Existing authoritative deadlines stay
+pinned; extensions apply to future starts, mode switching after OPEN is not
+approved, and pending closure freezes extensions. See the proposed pack for
+exact cutoff/replay/terminalization contracts.
 
 After the first learner has started an attempt, time changes must not make an existing attempt unfairly shorter or invalidate already-started work.
 
@@ -171,7 +149,7 @@ Attempt behavior inherits the strongest correctness principles from Quizopia 1.x
 This section describes deferred future behavior. Wave 3 PUBLIC participation
 requires authenticated USER with authoritative STUDENT under LD-03; anonymous
 guest participation and anonymous-session identity are not required. Only exact
-locator/route/error contracts remain open under ASSESS-14/15.
+W3-B/C route extensions remain proposed for review; W3-A entry is implemented.
 
 A guest may take an eligible public assessment without an account.
 
