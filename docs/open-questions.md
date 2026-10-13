@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: **Active after ADR-015 and EC79-01..04 conditional engineering freeze; runtime/release gates remain — v0.8 (2026-10-13)**
+Status: **Active after ADR-015 and EC79-01..04 conditional engineering freeze; runtime/release gates remain — v0.9 (2026-10-13)**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
@@ -24,8 +24,10 @@ submit/timeout, numeric/display and delayed closure C1..C10 product decisions.
 APPROVED WITH CONDITIONS for engineering direction under EC79-01..04; future
 Attempt/closure/result endpoints remain PROPOSED/UNIMPLEMENTED.
 [W3-B1 implementation](architecture/w3b1-persistence-implementation.md) now supplies
-V3/V4 and Publication configuration changes, pending independent implementation
-review; the frozen proposed migration examples are design history.
+V3/V4 and Publication configuration changes (merged PR #80).
+[W3-C1 internal grading/finalization](architecture/w3c1-grading-finalization-implementation.md)
+is implemented for independent review; Student HTTP and closure/inbox integration
+remain unavailable. The frozen proposed migration examples are design history.
 Security/runtime acceptance and Leader implementation merge/release gates
 remain. Production activation is NOT AUTHORIZED. Old
 recommendations superseded below are not active TBDs; operational release gates
@@ -242,6 +244,9 @@ and broader unbounded availability remain **OPEN — deferred future scope**.
 ## Grading
 
 GRADE-01..06 remain accepted exact equal-weight deterministic v1 policy.
+W3-C1 now implements the internal v1 grader, exact totals and atomic manual/timeout
+core for independent review. This does not implement Student submission/results
+or CLOSED review HTTP APIs; runtime integration and release gates remain.
 
 **GRADE-07.** Student numeric input/submission-validation format?
 

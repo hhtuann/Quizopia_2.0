@@ -88,6 +88,8 @@ quizopia:
 # Dedicated credential clients must remain redacted even when root logging is DEBUG/TRACE.
 logging:
   level:
+    # JDBC TRACE parameter binding can disclose durable answers/receipts.
+    org.springframework.jdbc.core: WARN
     org.springframework.web.reactive.function.client: WARN
     org.springframework.http.codec: WARN
     org.springframework.core.codec: WARN

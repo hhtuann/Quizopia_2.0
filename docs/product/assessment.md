@@ -1,6 +1,6 @@
 # Assessment
 
-Status: **Current Wave 3 product policy APPROVED; W3-B/C engineering direction APPROVED WITH CONDITIONS (EC79-01..04), runtime UNIMPLEMENTED**
+Status: **Current Wave 3 product policy APPROVED; W3-B/C engineering direction APPROVED WITH CONDITIONS (EC79-01..04), Student/closure HTTP runtime UNIMPLEMENTED**
 
 ## Current Wave 3 Assessment Core
 
@@ -9,9 +9,11 @@ and the later [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) govern
 this milestone. W3-A PR #78 implements preparation/opening/snapshot/entry, not
 Attempt/CLOSE/grading/inbox runtime. The
 [W3-B/C engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
-has Leader engineering approval with conditions EC79-01..04. Its executable
-features remain unimplemented; independent read-only amendment review, real
-security/runtime acceptance and Leader implementation merge/release gates remain.
+has Leader engineering approval with conditions EC79-01..04. Merged W3-B1 supplies real persistence/configuration;
+[W3-C1](../architecture/w3c1-grading-finalization-implementation.md) adds internal
+grading/finalization for independent review. Student submission/results/review and
+closure/inbox HTTP remain unavailable. Real security/runtime acceptance and Leader
+implementation merge/release gates remain.
 Production activation is not authorized.
 
 Publication lifecycle is DRAFT→OPEN→CLOSED, immutable self-contained snapshot and

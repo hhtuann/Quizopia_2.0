@@ -29,6 +29,10 @@ public final class SnapshotValidator {
     }
 
     public String validate(byte[] bytes, PublicationConfiguration c) {
+        return json.writeValueAsString(validatedTree(bytes, c));
+    }
+
+    public JsonNode validatedTree(byte[] bytes, PublicationConfiguration c) {
         try {
             var root = json.readTree(bytes);
             fields(
@@ -106,7 +110,7 @@ public final class SnapshotValidator {
                     require(!type.equals("MULTIPLE_CHOICE") || correct >= 1);
                 }
             }
-            return json.writeValueAsString(root);
+            return root;
         } catch (RuntimeException e) {
             throw PublicationFailure.dependency();
         }

@@ -27,6 +27,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class ClosedBusinessBoundaryTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.AttemptFinalization finalization;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.quizopia.assessment.application.AttemptPersistence attempts;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
