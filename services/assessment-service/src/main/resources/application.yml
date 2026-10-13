@@ -62,6 +62,11 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
 
 quizopia:
+  assessment:
+    features:
+      attempts-enabled: ${ATTEMPTS_ENABLED:false}
+      results-enabled: ${RESULTS_ENABLED:false}
+      closure-enabled: ${CLOSURE_ENABLED:false}
   publication:
     enabled: ${PUBLICATION_ENABLED:false}
     sources:

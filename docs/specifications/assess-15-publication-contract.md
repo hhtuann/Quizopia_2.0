@@ -22,18 +22,18 @@ Gateway/downstream PR #76 merged). Historical proposed inventories remain contex
 This assignment explicitly authorizes the combined backend implementation after
 writing this contract. No frontend, Attempt, grading or monitoring runtime is added.
 
-## W3-B/C proposed additive extension
+## W3-B1 implemented additive extension
 
-Merged W3-A PR #78 is the implemented baseline. The later accepted
-[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) amends duration/count/
-closure policy for future W3-B/C. The [engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
-proposes compatible maxAttempts default 1 without rewriting OPEN JSON/snapshots,
-duration 0/null deadlines, no post-OPEN mode switch and pending closure freeze.
-The duration5..240 and absent maxAttempts schema below describe implemented W3-A,
-not a contradictory future requirement. W3-B/C engineering direction is now
-approved with conditions EC79-01..04; independent read-only amendment review and
-security/runtime acceptance remain. Service OpenAPI/runtime are unchanged;
-production activation is not authorized.
+Merged W3-A PR #78 is the baseline. [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md)
+and EC79-01..04 approve the engineering direction. The
+[W3-B1 implementation evidence](../architecture/w3b1-persistence-implementation.md)
+records additive V3/V4, effective maxAttempts default 1, duration 0/null deadlines,
+OPEN mode freeze and internal Attempt/result persistence. This implementation is
+pending independent review and Leader merge approval. The implemented service
+OpenAPI describes only the seven existing Publication operations. START, SAVE,
+SUBMIT, results, CLOSE, inbox and Identity recipient eligibility remain unavailable;
+the separate proposed W3-B/C OpenAPI remains a future API contract. Security/runtime
+acceptance and production activation remain separate gates.
 
 ## Internal source authority
 
@@ -88,17 +88,20 @@ or public directory exists. CLOSE/Attempt/result/review routes stay denied.
 
 Full DRAFT configuration: title (1..300 nonblank characters), optional description
 (max 5000), quizId, quizVersionId, versionNumber, audience CLASS/PUBLIC, nullable
-classroomId, startAt, endAt, durationMinutes and monitoringChoice. Updates also
+classroomId, startAt, endAt, durationMinutes, monitoringChoice and optional maxAttempts
+(default 1; integer 0/unlimited or 1..10; explicit null invalid). Updates also
 require nonnegative expectedRevision. Unknown fields are rejected. No owner field.
 Instants use ISO-8601 with an explicit UTC offset and at most PostgreSQL microsecond
-precision; startAt < endAt, duration integer 5..240. Draft schedules may be past:
+precision; startAt < endAt, duration explicitly supplied as integer 0 or 5..240.
+An omitted/null duration is invalid. Draft schedules may be past:
 OPEN and scheduled start eligibility remain separate. No automatic close at endAt.
 
 CLASS requires exactly one Classroom, checked against initiating Teacher authority
 on create/update/open. Monitoring is explicitly UNCONFIGURED, ENABLED or DISABLED;
 UNCONFIGURED is allowed only in DRAFT and cannot OPEN. ENABLED means only the
 approved activity/camera bundle, whose runtime/privacy gates remain separate.
-PUBLIC requires no Classroom and monitoring DISABLED.
+PUBLIC requires no Classroom and monitoring DISABLED. CLASS duration 0 rejects
+ENABLED; it may retain UNCONFIGURED in DRAFT but must choose DISABLED to OPEN.
 
 Source access is verified at create/update and again at OPEN through the exact
 Quiz internal handoff. Failures commit no DRAFT edit or OPEN. Ordinary Teacher
@@ -173,13 +176,16 @@ Other revision/state conflicts return 409. Rollback leaves no snapshot or OPEN.
 Identity/source admission and this commit are not a distributed transaction;
 ownership/revocation changes after their documented snapshots can race in-flight work.
 
-Content, source identity, audience, Classroom and monitoring freeze upon OPEN.
+Content, source identity, audience, Classroom, monitoring and maxAttempts freeze upon OPEN.
 Scheduling is deliberately separate: the OPEN schedule endpoint permits only
-nondecreasing endAt and duration; startAt remains fixed. This is safe regardless
+nondecreasing endAt and bounded duration; unlimited duration stays 0 and switching
+bounded/unlimited mode is forbidden. startAt remains fixed. This is safe regardless
 of future Attempts and does not ban all post-OPEN timing changes. More permissive
 pre-first-Attempt changes await authoritative Attempt integration. Future W3-B
-pins each startedAt + duration deadline; extensions never recalculate or shorten
-existing Attempt deadlines.
+uses the implemented nullable/pinned Attempt deadline schema; extensions never
+recalculate or shorten existing Attempt deadlines. Legacy OPEN JSON without
+maxAttempts remains unchanged except the explicitly extended schedule keys;
+pre-V3 creation receipts remain replayable only with effective maxAttempts 1.
 
 ## Historical W3-A START/CLOSE deferral and current W3-B/C proposal
 

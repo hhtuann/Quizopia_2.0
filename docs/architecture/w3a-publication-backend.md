@@ -6,7 +6,9 @@ The [ASSESS-15 contract](../specifications/assess-15-publication-contract.md) re
 bounded engineering choices and the specifically accepted LD78-01..04 decisions.
 Final independent review remains pending. Accepted LD-01..05 policy
 is preserved. **Production activation is not authorized.** W3-A remains partial:
-CLOSE, frontend journeys and W3-B/C/M runtime are not implemented.
+CLOSE, frontend journeys and W3-B/C/M workflows are not implemented.
+[W3-B1](w3b1-persistence-implementation.md) adds real persistence/configuration,
+pending independent implementation review; it adds no Attempt HTTP workflow.
 
 ## Ownership and transactions
 
@@ -37,8 +39,9 @@ is claimed across Identity/Classroom authority snapshots and Assessment commit.
 
 The migration uses one-way local snapshot FK, explicit non-null state invariants,
 configuration/relational consistency checks, durable owner-scoped creation replay
-keys, same-table immutable guards, and the deferred reverse-association check in V2. There is no Attempt table, active counter,
-CLOSE placeholder, automatic closure or published answer/review API. Later W3-B
+keys, same-table immutable guards, and the deferred reverse-association check in V2.
+Additive W3-B1 V3/V4 now provide Attempt/result tables and database guards. There
+is no CLOSE placeholder, automatic closure or published answer/review API. Later W3-B
 must coordinate START/CLOSE/finalization using the same Publication row lock and
 supply authoritative Attempt state before CLOSE can be enabled.
 
@@ -72,7 +75,7 @@ uncontrolled forwarded scheme headers. Enforce private destination/caller networ
 allowlists; never publicly route `/internal/**` or add USER evidence to browser
 CORS. `Idempotency-Key` is the sole new browser header.
 
-Apply Assessment Flyway V1 and V2 before enabling traffic, deploy sources with
+Apply the current Assessment Flyway V1–V4 chain before enabling traffic, deploy sources with
 provisioned scopes and caller allowlists, verify admission, deploy Assessment and
 Gateway with flags disabled, then obtain operational release approval. Drain/block
 older bypass-capable Gateway/downstream instances first. Rollback begins by blocking

@@ -14,7 +14,8 @@ public record PublicationConfiguration(
         Instant startAt,
         Instant endAt,
         int durationMinutes,
-        MonitoringChoice monitoringChoice) {
+        MonitoringChoice monitoringChoice,
+        Integer maxAttempts) {
     public enum Audience {
         CLASS,
         PUBLIC
@@ -26,7 +27,36 @@ public record PublicationConfiguration(
         DISABLED
     }
 
+    public PublicationConfiguration(
+            String title,
+            String description,
+            UUID quizId,
+            UUID quizVersionId,
+            int versionNumber,
+            Audience audience,
+            UUID classroomId,
+            Instant startAt,
+            Instant endAt,
+            int durationMinutes,
+            MonitoringChoice monitoringChoice) {
+        this(
+                title,
+                description,
+                quizId,
+                quizVersionId,
+                versionNumber,
+                audience,
+                classroomId,
+                startAt,
+                endAt,
+                durationMinutes,
+                monitoringChoice,
+                1);
+    }
+
     public PublicationConfiguration {
+        if (maxAttempts == null) maxAttempts = 1; // Missing legacy JSON field, not explicit wire null.
+
         if (title == null
                 || title.isBlank()
                 || title.length() > 300
@@ -42,8 +72,11 @@ public record PublicationConfiguration(
                 || !startAt.isBefore(endAt)
                 || startAt.getNano() % 1000 != 0
                 || endAt.getNano() % 1000 != 0
-                || durationMinutes < 5
+                || (durationMinutes != 0 && durationMinutes < 5)
                 || durationMinutes > 240
+                || maxAttempts < 0
+                || maxAttempts > 10
+                || (durationMinutes == 0 && monitoringChoice == MonitoringChoice.ENABLED)
                 || (audience == Audience.CLASS && classroomId == null)
                 || (audience == Audience.PUBLIC
                         && (classroomId != null || monitoringChoice != MonitoringChoice.DISABLED)))

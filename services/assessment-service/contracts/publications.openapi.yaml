@@ -1,19 +1,19 @@
 openapi: 3.1.0
 info:
   title: Assessment Publication backend
-  version: 1.0.0
+  version: 1.1.0
   description:
-    ASSESS-15 bounded engineering proposal for Leader review. Default disabled.
-    Current and issued role plus independent LD-05 admission required at Gateway and
-    Assessment. CLOSE/Attempts/results/review denied. Discovery returns metadata only;
-    not Attempt authorization.
+    Implemented W3-A plus W3-B1 Publication configuration, pending independent implementation
+    review. Default disabled. maxAttempts defaults to 1; duration 0 is unlimited. Current and issued role
+    plus independent LD-05 admission required at Gateway and Assessment. CLOSE/Attempts/results/review
+    remain denied; discovery is metadata only.
 paths:
   /api/assessments/publications:
     post:
       operationId: createPublication
       description:
-        TEACHER USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -38,8 +38,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -85,9 +85,7 @@ paths:
           schema:
             type: string
             pattern: ^[A-Za-z0-9_-]{16,128}$
-          description:
-            Durable owner-scoped replay key. Same key with different typed
-            request conflicts.
+          description: Durable owner-scoped replay key. Same key with different typed request conflicts.
       requestBody:
         required: true
         content:
@@ -98,8 +96,8 @@ paths:
     get:
       operationId: get_publication
       description:
-        TEACHER USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -121,8 +119,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -171,8 +169,8 @@ paths:
     put:
       operationId: put_publication
       description:
-        TEACHER USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -194,8 +192,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -249,8 +247,8 @@ paths:
     post:
       operationId: post_publication_open
       description:
-        TEACHER USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -272,8 +270,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -327,8 +325,8 @@ paths:
     patch:
       operationId: patch_publication_schedule
       description:
-        TEACHER USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -350,8 +348,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -405,8 +403,8 @@ paths:
     post:
       operationId: post_entry
       description:
-        STUDENT USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        STUDENT USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -428,8 +426,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -478,8 +476,8 @@ paths:
     post:
       operationId: post_publication_entry
       description:
-        STUDENT USER required; owner check for management. Schedule supports
-        nondecreasing end/duration only; start fixed.
+        STUDENT USER required; owner check for management. Schedule supports nondecreasing
+        end/duration only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -501,8 +499,8 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description:
-            Invalid SERVICE authentication or independently invalid USER
-            evidence; inspect fixed code.
+            Invalid SERVICE authentication or independently invalid USER evidence; inspect
+            fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -618,15 +616,33 @@ components:
           description: Explicit timezone offset; at most six fractional digits.
         endAt: *id003
         durationMinutes:
-          type: integer
-          minimum: 5
-          maximum: 240
+          oneOf:
+            - type: integer
+              const: 0
+            - type: integer
+              minimum: 5
+              maximum: 240
+          description:
+            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never
+            recalculate existing Attempt deadlines.
         monitoringChoice:
           type: string
           enum:
             - UNCONFIGURED
             - ENABLED
             - DISABLED
+        maxAttempts:
+          type: integer
+          minimum: 0
+          maximum: 10
+          default: 1
+          description:
+            Omission defaults to 1, including legacy JSON. Explicit null invalid. 0 unlimited;
+            1..10 finite. Mutable only in DRAFT; freezes OPEN.
+      description:
+        PUBLIC requires monitoring DISABLED. Unlimited CLASS may remain UNCONFIGURED in DRAFT
+        but must choose DISABLED before OPEN; ENABLED is invalid. startAt<endAt required. New writes include
+        effective maxAttempts; legacy OPEN JSON is preserved.
     OwnerView:
       type: object
       additionalProperties: false
@@ -692,9 +708,15 @@ components:
         startAt: *id003
         endAt: *id003
         durationMinutes:
-          type: integer
-          minimum: 5
-          maximum: 240
+          oneOf:
+            - type: integer
+              const: 0
+            - type: integer
+              minimum: 5
+              maximum: 240
+          description:
+            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never
+            recalculate existing Attempt deadlines.
         monitoringRequired:
           type: boolean
         windowStatus:
@@ -733,9 +755,15 @@ components:
         expectedRevision: *id004
         endAt: *id003
         durationMinutes:
-          type: integer
-          minimum: 5
-          maximum: 240
+          oneOf:
+            - type: integer
+              const: 0
+            - type: integer
+              minimum: 5
+              maximum: 240
+          description:
+            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never
+            recalculate existing Attempt deadlines.
     Entry:
       type: object
       additionalProperties: false

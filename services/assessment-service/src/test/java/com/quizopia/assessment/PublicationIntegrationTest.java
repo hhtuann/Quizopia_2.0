@@ -592,6 +592,174 @@ class PublicationIntegrationTest {
         assertEquals(30, store.owned(actor, b.id()).configuration().durationMinutes());
     }
 
+    @Test
+    void omittedAndExplicitMaxAttemptsAndZeroDurationWireCompatibility() {
+        var body = (tools.jackson.databind.node.ObjectNode) json.valueToTree(configuration);
+        body.remove("maxAttempts");
+        var legacy = call("POST", "", body.toString(), user());
+        assertEquals(201, legacy.status);
+        assertEquals(
+                1,
+                json.readTree(legacy.body)
+                        .path("configuration")
+                        .path("maxAttempts")
+                        .asInt());
+        for (int maximum : List.of(0, 1, 10)) {
+            body.put("maxAttempts", maximum);
+            body.put("durationMinutes", 0);
+            var accepted = call("POST", "", body.toString(), user());
+            assertEquals(201, accepted.status);
+            var resource = json.readTree(accepted.body);
+            assertEquals(
+                    maximum, resource.path("configuration").path("maxAttempts").asInt());
+            UUID id = UUID.fromString(resource.path("publicationId").asString());
+            assertEquals(200, call("POST", "/" + id + "/open", "{\"expectedRevision\":0}", user()).status);
+            assertEquals(0, store.owned(actor, id).configuration().durationMinutes());
+            assertEquals(
+                    409,
+                    call(
+                                    "PUT",
+                                    "/" + id,
+                                    json.writeValueAsString(
+                                            Map.of("expectedRevision", 1, "configuration", configuration)),
+                                    user())
+                            .status);
+            assertEquals(
+                    400,
+                    call(
+                                    "PATCH",
+                                    "/" + id + "/schedule",
+                                    json.writeValueAsString(Map.of(
+                                            "expectedRevision",
+                                            1,
+                                            "endAt",
+                                            configuration.endAt().plusSeconds(60),
+                                            "durationMinutes",
+                                            5)),
+                                    user())
+                            .status);
+            assertEquals(
+                    200,
+                    call(
+                                    "PATCH",
+                                    "/" + id + "/schedule",
+                                    json.writeValueAsString(Map.of(
+                                            "expectedRevision",
+                                            1,
+                                            "endAt",
+                                            configuration.endAt().plusSeconds(60),
+                                            "durationMinutes",
+                                            0)),
+                                    user())
+                            .status);
+        }
+        body.put("durationMinutes", 30);
+        for (String invalid : List.of("null", "-1", "11", "1.5", "\"1\"")) {
+            body.set("maxAttempts", json.readTree(invalid));
+            assertEquals(400, call("POST", "", body.toString(), user()).status, invalid);
+        }
+    }
+
+    @Test
+    void unlimitedDurationMustBeExplicitAndClassMonitoringDisabled() {
+        var body = (tools.jackson.databind.node.ObjectNode) json.valueToTree(configuration);
+        body.remove("durationMinutes");
+        assertEquals(400, call("POST", "", body.toString(), user()).status);
+        for (String invalid : List.of("null", "-1", "1", "2", "3", "4", "241", "0.5", "\"0\"")) {
+            body.set("durationMinutes", json.readTree(invalid));
+            assertEquals(400, call("POST", "", body.toString(), user()).status, invalid);
+        }
+        body.put("audience", "CLASS");
+        body.put("classroomId", UUID.randomUUID().toString());
+        body.put("durationMinutes", 0);
+        body.put("monitoringChoice", "ENABLED");
+        assertEquals(400, call("POST", "", body.toString(), user()).status);
+        body.put("monitoringChoice", "DISABLED");
+        var accepted = call("POST", "", body.toString(), user());
+        assertEquals(201, accepted.status);
+        String id = json.readTree(accepted.body).path("publicationId").asString();
+        assertEquals(200, call("POST", "/" + id + "/open", "{\"expectedRevision\":0}", user()).status);
+    }
+
+    @Test
+    void legacyOpenJsonAndCreationReceiptRemainCompatible() {
+        var p = create();
+        var legacy = (tools.jackson.databind.node.ObjectNode) json.valueToTree(configuration);
+        legacy.remove("maxAttempts");
+        db.update(
+                "UPDATE publications SET configuration=?::jsonb,revision=revision+1 WHERE id=?",
+                legacy.toString(),
+                p.id());
+        String key = UUID.randomUUID().toString();
+        db.update(
+                "INSERT INTO publication_creations VALUES(?,?,?,?)",
+                actor,
+                com.quizopia.assessment.persistence.JdbcPublicationStore.digest(key),
+                com.quizopia.assessment.persistence.JdbcPublicationStore.digest(legacy.toString()),
+                p.id());
+        assertEquals(
+                p.id(), service.create(actor, key, configuration, "evidence").id());
+        assertEquals(1, store.owned(actor, p.id()).configuration().maxAttempts());
+        service.open(actor, p.id(), 1, "evidence");
+        var before = json.readTree(
+                db.queryForObject("SELECT configuration::text FROM publications WHERE id=?", String.class, p.id()));
+        service.extend(actor, p.id(), 2, configuration.endAt().plusSeconds(60), 31);
+        var after = json.readTree(
+                db.queryForObject("SELECT configuration::text FROM publications WHERE id=?", String.class, p.id()));
+        assertFalse(after.has("maxAttempts"));
+        var expected = (tools.jackson.databind.node.ObjectNode) before;
+        expected.put("endAt", configuration.endAt().plusSeconds(60).toString());
+        expected.put("durationMinutes", 31);
+        assertEquals(expected, after);
+        var changed = new PublicationConfiguration(
+                configuration.title(),
+                configuration.description(),
+                configuration.quizId(),
+                configuration.quizVersionId(),
+                configuration.versionNumber(),
+                configuration.audience(),
+                configuration.classroomId(),
+                configuration.startAt(),
+                configuration.endAt(),
+                configuration.durationMinutes(),
+                configuration.monitoringChoice(),
+                0);
+        assertEquals(
+                409,
+                assertThrows(PublicationFailure.class, () -> service.create(actor, key, changed, "evidence"))
+                        .status());
+    }
+
+    @Test
+    void draftMaxAttemptsCanChangeButOpenCannot() {
+        var p = create();
+        var next = new PublicationConfiguration(
+                configuration.title(),
+                configuration.description(),
+                configuration.quizId(),
+                configuration.quizVersionId(),
+                configuration.versionNumber(),
+                configuration.audience(),
+                configuration.classroomId(),
+                configuration.startAt(),
+                configuration.endAt(),
+                configuration.durationMinutes(),
+                configuration.monitoringChoice(),
+                10);
+        assertEquals(
+                10,
+                service.update(actor, p.id(), 0, next, "evidence")
+                        .configuration()
+                        .maxAttempts());
+        service.open(actor, p.id(), 1, "evidence");
+        assertEquals(
+                409,
+                assertThrows(
+                                PublicationFailure.class,
+                                () -> service.update(actor, p.id(), 2, configuration, "evidence"))
+                        .status());
+    }
+
     record Response(int status, String body, String cache) {}
 
     Response call(String method, String path, String body, String token) {

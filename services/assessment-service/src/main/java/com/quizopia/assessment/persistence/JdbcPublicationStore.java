@@ -99,7 +99,14 @@ public class JdbcPublicationStore implements PublicationStore {
                     actor,
                     digest(key));
             if (rows.isEmpty()) return null;
-            if (!digest(encode(c)).equals(rows.getFirst().get("request_digest")))
+            String recorded = (String) rows.getFirst().get("request_digest");
+            // Pre-V3 creation receipts hashed the record without maxAttempts. Accept that
+            // spelling only for the historically equivalent finite default of one.
+            var legacy = (tools.jackson.databind.node.ObjectNode) json.readTree(encode(c));
+            legacy.remove("maxAttempts");
+            if (!digest(encode(c)).equals(recorded)
+                    && !(c.maxAttempts() == 1
+                            && digest(json.writeValueAsString(legacy)).equals(recorded)))
                 throw new PublicationFailure(409, "IDEMPOTENCY_CONFLICT");
             return owned(actor, (UUID) rows.getFirst().get("publication_id"));
         });
@@ -113,7 +120,7 @@ public class JdbcPublicationStore implements PublicationStore {
             String locator = locator(c, null);
             Instant now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
             db.update(
-                    "INSERT INTO publications(id,owner_id,configuration,quiz_id,quiz_version_id,version_number,audience,classroom_id,start_at,end_at,duration_minutes,monitoring_choice,state,revision,private_locator,locator_digest,created_at) VALUES (?,?,?::jsonb,?,?,?,?,?,?,?,?,?,'DRAFT',0,?,?,?)",
+                    "INSERT INTO publications(id,owner_id,configuration,quiz_id,quiz_version_id,version_number,audience,classroom_id,start_at,end_at,duration_minutes,monitoring_choice,max_attempts,state,revision,private_locator,locator_digest,created_at) VALUES (?,?,?::jsonb,?,?,?,?,?,?,?,?,?,?,'DRAFT',0,?,?,?)",
                     id,
                     actor,
                     encode(c),
@@ -126,6 +133,7 @@ public class JdbcPublicationStore implements PublicationStore {
                     Timestamp.from(c.endAt()),
                     c.durationMinutes(),
                     c.monitoringChoice().name(),
+                    c.maxAttempts(),
                     locator,
                     locator == null ? null : digest(locator),
                     Timestamp.from(now));
@@ -159,7 +167,7 @@ public class JdbcPublicationStore implements PublicationStore {
     private void replace(Publication p, PublicationConfiguration c) {
         String locator = locator(c, p);
         db.update(
-                "UPDATE publications SET configuration=?::jsonb,quiz_id=?,quiz_version_id=?,version_number=?,audience=?,classroom_id=?,start_at=?,end_at=?,duration_minutes=?,monitoring_choice=?,private_locator=?,locator_digest=?,revision=revision+1 WHERE id=?",
+                "UPDATE publications SET configuration=?::jsonb,quiz_id=?,quiz_version_id=?,version_number=?,audience=?,classroom_id=?,start_at=?,end_at=?,duration_minutes=?,monitoring_choice=?,max_attempts=?,private_locator=?,locator_digest=?,revision=revision+1 WHERE id=?",
                 encode(c),
                 c.quizId(),
                 c.quizVersionId(),
@@ -170,6 +178,7 @@ public class JdbcPublicationStore implements PublicationStore {
                 Timestamp.from(c.endAt()),
                 c.durationMinutes(),
                 c.monitoringChoice().name(),
+                c.maxAttempts(),
                 locator,
                 locator == null ? null : digest(locator),
                 p.id());
@@ -213,21 +222,17 @@ public class JdbcPublicationStore implements PublicationStore {
             if (endAt == null
                     || endAt.getNano() % 1000 != 0
                     || endAt.isBefore(c.endAt())
-                    || duration < c.durationMinutes()
+                    || (c.durationMinutes() == 0 ? duration != 0 : duration < c.durationMinutes())
                     || duration > 240) throw new PublicationFailure(400, "INVALID_REQUEST");
-            var next = new PublicationConfiguration(
-                    c.title(),
-                    c.description(),
-                    c.quizId(),
-                    c.quizVersionId(),
-                    c.versionNumber(),
-                    c.audience(),
-                    c.classroomId(),
-                    c.startAt(),
-                    endAt,
+            // Update only schedule keys. In particular, do not insert maxAttempts into
+            // immutable legacy OPEN JSON that omitted it; relational max_attempts stays 1.
+            db.update(
+                    "UPDATE publications SET configuration=jsonb_set(jsonb_set(configuration,'{endAt}',to_jsonb(?::text)),'{durationMinutes}',to_jsonb(?::integer)),end_at=?,duration_minutes=?,revision=revision+1 WHERE id=?",
+                    endAt.toString(),
                     duration,
-                    c.monitoringChoice());
-            replace(p, next);
+                    Timestamp.from(endAt),
+                    duration,
+                    id);
             return owned(actor, id);
         });
     }
