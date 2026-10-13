@@ -4,6 +4,7 @@ import com.quizopia.gateway.security.QuizopiaJwtAuthenticationConverter;
 import com.quizopia.gateway.security.QuizopiaTokenClaims;
 import com.quizopia.gateway.security.admission.AdmissionRoutes;
 import com.quizopia.gateway.security.admission.IdentityAdmissionClient;
+import com.quizopia.gateway.security.admission.StudentAttemptSecurityErrors;
 import com.quizopia.gateway.security.admission.UserAdmissionWebFilter;
 import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -59,7 +60,8 @@ public class SecurityConfiguration {
             QuizopiaJwtAuthenticationConverter jwtAuthenticationConverter,
             IdentityAdmissionClient admissionClient,
             com.quizopia.gateway.security.admission.PublicationProperties publication,
-            CorsConfigurationSource corsConfigurationSource) {
+            CorsConfigurationSource corsConfigurationSource,
+            com.quizopia.gateway.security.admission.AttemptFeatureProperties attemptFeatures) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchanges -> exchanges
@@ -96,9 +98,15 @@ public class SecurityConfiguration {
                                     .defaultIfEmpty(new AuthorizationDecision(false));
                         }))
                 .addFilterAfter(
-                        new UserAdmissionWebFilter(admissionClient, publication), SecurityWebFiltersOrder.AUTHORIZATION)
+                        new UserAdmissionWebFilter(admissionClient, publication, attemptFeatures),
+                        SecurityWebFiltersOrder.AUTHORIZATION)
+                .exceptionHandling(
+                        errors -> errors.authenticationEntryPoint(StudentAttemptSecurityErrors.unauthenticated())
+                                .accessDeniedHandler(StudentAttemptSecurityErrors.denied()))
                 .oauth2ResourceServer(
-                        oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
+                        oauth2 -> oauth2.authenticationEntryPoint(StudentAttemptSecurityErrors.unauthenticated())
+                                .accessDeniedHandler(StudentAttemptSecurityErrors.denied())
+                                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .build();
     }
 

@@ -688,4 +688,107 @@ class AtomicFinalizationIntegrationTest {
         });
         unfinalized(id);
     }
+
+    @org.junit.jupiter.api.Test
+    void childArtifactWithoutParentMutationCannotCommit() {
+        var p = publication(0);
+        var id = active(p, 0);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class,
+                () -> db.update(
+                        "INSERT INTO submitted_answers VALUES(?,?,1,'[]',?,clock_timestamp())",
+                        java.util.UUID.randomUUID(),
+                        id,
+                        key));
+        unfinalized(id);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, () -> new TransactionTemplate(manager).execute(status -> {
+                    db.update("UPDATE attempts SET revision=1 WHERE id=?", id);
+                    db.update(
+                            "INSERT INTO attempt_finalization_audit(attempt_id,publication_id,reason,actor_kind,actor_id,finalized_at,grading_policy_version) VALUES(?,?,'STUDENT_ABANDON','USER',?,clock_timestamp(),1)",
+                            id,
+                            p.publication(),
+                            student.toString());
+                    return null;
+                }));
+        unfinalized(id);
+    }
+
+    @org.junit.jupiter.api.Test
+    void earlyConstraintCheckpointCannotPermitALateExtraGradeQuestion() {
+        var p = publication(0);
+        var id = active(p, 0);
+        var template = new org.springframework.jdbc.core.JdbcTemplate(source) {
+            @Override
+            public int update(String sql, Object... args) {
+                int changed = super.update(sql, args);
+                if (sql.startsWith("INSERT INTO attempt_operations")) {
+                    execute("SET CONSTRAINTS ALL IMMEDIATE");
+                    update("INSERT INTO grading_question_results SELECT result_id,5,0,1 FROM attempts WHERE id=?", id);
+                }
+                return changed;
+            }
+        };
+        failure("PERSISTENCE_UNAVAILABLE", () -> new com.quizopia.assessment.persistence.JdbcAttemptFinalization(
+                        template, manager)
+                .submit(manual(id, 0, GradingDocumentsTest.replacement())));
+        unfinalized(id);
+    }
+
+    @Test
+    void populatedV4UpgradePreservesHistoryAndGeneratesAnUnforgeableTypeLookup() {
+        schema = "upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        var flyway = Flyway.configure()
+                .dataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema);
+        flyway.target("4").load().migrate();
+        source = source("upgrade");
+        db = new JdbcTemplate(source);
+        manager = new JdbcTransactionManager(source);
+        core = new JdbcAttemptFinalization(db, manager);
+        var p = publication(0);
+        UUID id = active(p, 0);
+        var result = core.submit(manual(id, 0, GradingDocumentsTest.replacement()))
+                .result()
+                .orElseThrow();
+        String checksums = scalar(
+                "SELECT string_agg(checksum::text,',' ORDER BY installed_rank) FROM flyway_schema_history WHERE success");
+        String snapshot =
+                scalar("SELECT payload::text FROM publication_snapshots WHERE publication_id=?", p.publication());
+        Flyway.configure()
+                .dataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .load()
+                .migrate();
+        assertEquals(
+                checksums,
+                scalar(
+                        "SELECT string_agg(checksum::text,',' ORDER BY installed_rank) FROM flyway_schema_history WHERE version IN('1','2','3','4')"));
+        assertEquals(
+                snapshot,
+                scalar("SELECT payload::text FROM publication_snapshots WHERE publication_id=?", p.publication()));
+        assertEquals(result, core.result(new SelectedAttempt(id, student)).orElseThrow());
+        assertEquals(
+                "01020304",
+                scalar(
+                        "SELECT encode(question_type_codes,'hex') FROM publication_snapshots WHERE publication_id=?",
+                        p.publication()));
+        assertThrows(
+                RuntimeException.class,
+                () -> db.update(
+                        "UPDATE publication_snapshots SET question_type_codes=decode('04040404','hex') WHERE publication_id=?",
+                        p.publication()));
+        assertThrows(
+                RuntimeException.class,
+                () -> db.update(
+                        "UPDATE publication_snapshots SET payload=jsonb_set(payload,'{structuredContent,questions,0,type}','\"NUMERIC_FILL\"') WHERE publication_id=?",
+                        p.publication()));
+        assertEquals(
+                "01020304",
+                scalar(
+                        "SELECT encode(question_type_codes,'hex') FROM publication_snapshots WHERE publication_id=?",
+                        p.publication()));
+    }
 }

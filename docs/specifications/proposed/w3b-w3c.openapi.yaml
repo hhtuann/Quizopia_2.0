@@ -1,20 +1,19 @@
-# PROPOSED ONLY. No runtime routes are opened by this file.
+# Frozen contract pack. B2 implementation status is recorded per operation; B3 remains proposed.
 openapi: 3.1.0
 info:
-  title: PROPOSED W3-B/W3-C engineering contracts — NOT IMPLEMENTED
+  title: W3-B/W3-C engineering contracts — B2 implemented, B3 proposed
   version: 0.1.0-proposed
   description:
-    "Documentation-only proposal against W3-A PR #78. Every listed operation unimplemented/default
-    denied. Engineering direction APPROVED WITH CONDITIONS (EC79-01..04); independent security/runtime acceptance still required. No production activation. See sibling HTTP/lifecycle/closure/grading
+    "Frozen engineering contracts. Nine Student operations are implemented in W3-B2, default disabled and pending independent implementation review. Teacher closure/inbox and private recipient eligibility remain proposed/unimplemented. Engineering direction APPROVED WITH CONDITIONS (EC79-01..04); independent security/runtime acceptance still required. No production activation. See sibling HTTP/lifecycle/closure/grading
     contracts for semantic/time/security constraints beyond JSON Schema."
-x-contract-status: PROPOSED_UNIMPLEMENTED
+x-contract-status: MIXED_IMPLEMENTATION_SEE_OPERATIONS
 security:
   - userBearer: []
 paths:
   /api/assessments/publications/{publicationId}/attempts/start:
     post:
       operationId: startAttempt
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. PUBLIC
@@ -123,7 +122,7 @@ paths:
   /api/assessments/attempts/{attemptId}:
     get:
       operationId: readAttempt
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner/current
@@ -202,7 +201,7 @@ paths:
   /api/assessments/publications/{publicationId}/attempts/retake:
     post:
       operationId: retakeAttempt
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Prior
@@ -295,7 +294,7 @@ paths:
   /api/assessments/attempts/{attemptId}/questions/{questionNumber}/answer:
     post:
       operationId: saveQuestionAnswer
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Question-scoped
@@ -388,7 +387,7 @@ paths:
   /api/assessments/attempts/{attemptId}/submit:
     post:
       operationId: submitAttempt
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Optional
@@ -475,7 +474,7 @@ paths:
   /api/assessments/attempts/{attemptId}/abandon:
     post:
       operationId: abandonAttempt
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Explicit
@@ -561,7 +560,7 @@ paths:
   /api/assessments/attempts/{attemptId}/result:
     get:
       operationId: readAttemptResult
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner/current
@@ -639,7 +638,7 @@ paths:
   /api/assessments/publications/{publicationId}/aggregate-score:
     get:
       operationId: readPublicationAggregate
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Only
@@ -718,7 +717,7 @@ paths:
   /api/assessments/attempts/{attemptId}/review:
     get:
       operationId: reviewOwnAttempt
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B2_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Own

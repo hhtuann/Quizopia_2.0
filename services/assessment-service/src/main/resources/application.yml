@@ -63,6 +63,10 @@ springdoc:
 
 quizopia:
   assessment:
+    transactions:
+      timeout-seconds: ${ATTEMPT_TRANSACTION_TIMEOUT_SECONDS:15}
+      statement-millis: ${ATTEMPT_STATEMENT_TIMEOUT_MILLIS:3000}
+      lock-millis: ${ATTEMPT_LOCK_TIMEOUT_MILLIS:3000}
     features:
       attempts-enabled: ${ATTEMPTS_ENABLED:false}
       results-enabled: ${RESULTS_ENABLED:false}

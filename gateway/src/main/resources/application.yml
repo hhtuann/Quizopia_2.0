@@ -97,3 +97,9 @@ logging:
     org.springframework.web.HttpLogging: WARN
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
+
+# B2 independently gated at the edge and downstream. Closure remains unimplemented.
+quizopia.assessment.features:
+  attempts-enabled: ${ATTEMPTS_ENABLED:false}
+  results-enabled: ${RESULTS_ENABLED:false}
+  closure-enabled: ${CLOSURE_ENABLED:false}

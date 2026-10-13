@@ -86,4 +86,35 @@ class GatewayProductionRoutesTest {
                 .expectStatus()
                 .isForbidden();
     }
+
+    static java.util.List<String[]> studentRoutes() {
+        String a = "/api/assessments/attempts/" + ACTOR, p = "/api/assessments/publications/" + ACTOR;
+        return java.util.List.of(
+                new String[] {"POST", p + "/attempts/start"},
+                new String[] {"POST", p + "/attempts/retake"},
+                new String[] {"GET", a},
+                new String[] {"POST", a + "/questions/1/answer"},
+                new String[] {"POST", a + "/submit"},
+                new String[] {"POST", a + "/abandon"},
+                new String[] {"GET", a + "/result"},
+                new String[] {"GET", a + "/review"},
+                new String[] {"GET", p + "/aggregate-score"});
+    }
+
+    @Test
+    void everyStudentRouteIsDefaultDisabledAndFutureRoutesStayDenied() {
+        for (var op : studentRoutes()) {
+            WebTestClient.bindToServer()
+                    .baseUrl("http://127.0.0.1:" + port)
+                    .build()
+                    .method(org.springframework.http.HttpMethod.valueOf(op[0]))
+                    .uri(op[1])
+                    .headers(h -> h.setBearerAuth(user()))
+                    .exchange()
+                    .expectStatus()
+                    .isEqualTo(503)
+                    .expectHeader()
+                    .valueEquals("Cache-Control", "no-store");
+        }
+    }
 }

@@ -10,8 +10,15 @@ import reactor.core.publisher.Mono;
 public final class UserAdmissionWebFilter implements WebFilter {
     private final IdentityAdmissionClient admission;
     private final PublicationProperties publication;
+    private final AttemptFeatureProperties features;
 
     public UserAdmissionWebFilter(IdentityAdmissionClient admission, PublicationProperties publication) {
+        this(admission, publication, new AttemptFeatureProperties(false, false, false));
+    }
+
+    public UserAdmissionWebFilter(
+            IdentityAdmissionClient admission, PublicationProperties publication, AttemptFeatureProperties features) {
+        this.features = features;
         this.admission = admission;
         this.publication = publication;
     }
@@ -22,11 +29,13 @@ public final class UserAdmissionWebFilter implements WebFilter {
                 exchange.getRequest().getMethod().name(),
                 exchange.getRequest().getURI().getRawPath());
         if (required == null) return chain.filter(exchange);
-        if (PublicationRoutes.requiredRole(
-                                exchange.getRequest().getMethod().name(),
-                                exchange.getRequest().getURI().getRawPath())
-                        != null
-                && !publication.isEnabled()) return error(exchange, AdmissionFailure.unavailable());
+        String method = exchange.getRequest().getMethod().name();
+        String path = exchange.getRequest().getURI().getRawPath();
+        boolean student = StudentAttemptRoutes.matches(method, path);
+        if (student
+                ? !StudentAttemptRoutes.enabled(method, path, features.attemptsEnabled(), features.resultsEnabled())
+                : PublicationRoutes.requiredRole(method, path) != null && !publication.isEnabled())
+            return error(exchange, AdmissionFailure.unavailable());
         var auth = exchange.getRequest().getHeaders().get("Authorization");
         if (auth == null
                 || auth.size() != 1
@@ -43,7 +52,7 @@ public final class UserAdmissionWebFilter implements WebFilter {
                     });
                     return admission
                             .admit(token.getToken(), required)
-                            .thenReturn(Mono.defer(() -> chain.filter(exchange)));
+                            .thenReturn(Mono.defer(() -> StudentAttemptBodyFilter.forward(exchange, chain)));
                 })
                 .onErrorResume(failure -> Mono.just(error(
                         exchange,

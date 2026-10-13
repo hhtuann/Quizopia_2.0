@@ -1,12 +1,14 @@
 # W3-B1 persistence and configuration implementation
 
-Status: **Implemented for independent review; Leader merge approval and production
-activation are not granted.** Base: merged PR #79,
+Status: **Merged foundation at PR #80; production activation remains unauthorized.** Base: merged PR #79,
 `e7b2ec247da1b28ff6155c253653faeb06208236`. ADR-015 and EC79-01..04 remain
 authoritative. This document describes executable B1 code; the frozen
 [persistence design](w3b-w3c-persistence-concurrency-design.md) and
-[proposed HTTP contract](../specifications/proposed/w3b-w3c.openapi.yaml) remain
-future workflow design, not evidence of available Student APIs.
+[HTTP contract pack](../specifications/proposed/w3b-w3c.openapi.yaml) record frozen design.
+This document preserves the original B1 increment boundary. The later
+[B2 implementation](w3b2-student-attempt-implementation.md) supplies default-disabled
+Student APIs and the authorized additive V4.1 capacity correction. V1–V4 remain unchanged;
+B3 closure/inbox workflows and V5 remain deferred.
 
 ## Implemented boundary
 

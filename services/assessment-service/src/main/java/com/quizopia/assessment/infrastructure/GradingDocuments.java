@@ -91,7 +91,9 @@ public final class GradingDocuments {
                 }
                 case NUMERIC_FILL -> {
                     fields(node, "type", "value");
-                    yield new Numeric(textOrNull(node.path("value")));
+                    String raw = textOrNull(node.path("value"));
+                    if (raw != null && raw.length() > 64) throw GradingPolicy.invalid();
+                    yield new Numeric(raw);
                 }
             };
         } catch (RuntimeException e) {

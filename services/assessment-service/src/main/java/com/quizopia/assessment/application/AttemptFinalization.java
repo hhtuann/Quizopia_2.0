@@ -10,7 +10,11 @@ import java.util.*;
  * adapter or scheduler invokes this core in W3-C1. Call outside an existing database transaction.
  */
 public interface AttemptFinalization {
-    record SelectedAttempt(UUID attemptId, UUID studentId) {
+    record SelectedAttempt(UUID attemptId, UUID studentId, Instant expiresAt) {
+        public SelectedAttempt(UUID attemptId, UUID studentId) {
+            this(attemptId, studentId, null);
+        }
+
         public SelectedAttempt {
             Objects.requireNonNull(attemptId);
             Objects.requireNonNull(studentId);

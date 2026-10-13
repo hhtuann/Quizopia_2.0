@@ -12,7 +12,10 @@ import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.util.AccessPattern;
 
-@org.springframework.boot.context.properties.EnableConfigurationProperties(AssessmentFeatureProperties.class)
+@org.springframework.boot.context.properties.EnableConfigurationProperties({
+    AssessmentFeatureProperties.class,
+    AssessmentTransactionProperties.class
+})
 @Configuration(proxyBeanMethods = false)
 public class PublicationJsonConfiguration {
     @Bean

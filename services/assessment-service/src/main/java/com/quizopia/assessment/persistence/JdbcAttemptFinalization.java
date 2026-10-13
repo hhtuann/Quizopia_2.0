@@ -1,6 +1,7 @@
 package com.quizopia.assessment.persistence;
 
 import com.quizopia.assessment.application.*;
+import com.quizopia.assessment.configuration.AssessmentTransactionProperties;
 import com.quizopia.assessment.domain.PublicationConfiguration;
 import com.quizopia.assessment.domain.attempt.AttemptRecord;
 import com.quizopia.assessment.domain.grading.GradingPolicy;
@@ -22,14 +23,22 @@ import tools.jackson.databind.json.JsonMapper;
 public class JdbcAttemptFinalization implements AttemptFinalization {
     private final JdbcTemplate db;
     private final TransactionTemplate transaction;
+    private final AssessmentTransactionProperties limits;
     private final GradingDocuments documents = new GradingDocuments();
     private final GradingPolicy grader = new GradingPolicy();
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
 
     public JdbcAttemptFinalization(JdbcTemplate db, PlatformTransactionManager manager) {
+        this(db, manager, AssessmentTransactionProperties.defaults());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JdbcAttemptFinalization(
+            JdbcTemplate db, PlatformTransactionManager manager, AssessmentTransactionProperties limits) {
         this.db = db;
+        this.limits = limits;
         transaction = new TransactionTemplate(manager);
-        transaction.setTimeout(5);
+        transaction.setTimeout(limits.timeoutSeconds());
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
 
@@ -54,9 +63,12 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
             if (TransactionSynchronizationManager.isActualTransactionActive())
                 throw failure(503, "FINALIZATION_TRANSACTION_REQUIRED");
             return transaction.execute(status -> {
-                db.execute("SET LOCAL lock_timeout='3s'");
-                db.execute("SET LOCAL statement_timeout='3s'");
-                return work.get();
+                db.execute("SET LOCAL lock_timeout='" + limits.lockMillis() + "ms'");
+                db.execute("SET LOCAL statement_timeout='" + limits.statementMillis() + "ms'");
+                T outcome = work.get();
+                // Flush deferred work under an actual JDBC/server statement deadline, before COMMIT.
+                db.execute("SET CONSTRAINTS ALL IMMEDIATE");
+                return outcome;
             });
         });
     }
@@ -124,6 +136,10 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                 a.snapshot());
     }
 
+    private void checkExpiry(SelectedAttempt selected, Instant time) {
+        if (selected.expiresAt() != null && !time.isBefore(selected.expiresAt())) throw failure(401, "UNAUTHENTICATED");
+    }
+
     private Instant now() {
         return db.queryForObject(
                 "SELECT clock_timestamp()", (r, n) -> r.getTimestamp(1).toInstant());
@@ -182,11 +198,13 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                 || !request.keyDigest().matches("[0-9a-f]{64}")) throw failure(400, "INVALID_REQUEST");
         return tx(() -> {
             Locked a = lock(request.selected().attemptId(), request.selected().studentId());
+            checkExpiry(request.selected(), now());
             Snapshot snapshot = snapshot(a);
             List<Answer> replacement = request.replacementJson() == null
                     ? null
                     : documents.replacement(request.replacementJson(), snapshot);
             String digest = requestDigest(request, replacement);
+            checkExpiry(request.selected(), now());
             var receipts = db.queryForList(
                     "SELECT action,request_digest FROM attempt_operations WHERE attempt_id=? AND key_digest=?",
                     a.id(),
@@ -200,6 +218,7 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
             if (!a.state().equals("ACTIVE")) throw failure(409, "ATTEMPT_TERMINAL");
             // This is the linearization sample, after locks and full payload validation.
             Instant time = now();
+            checkExpiry(request.selected(), time);
             if (due(a.deadline(), time))
                 return new Outcome(
                         Kind.DEADLINE_REACHED,

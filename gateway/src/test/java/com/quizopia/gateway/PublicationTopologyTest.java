@@ -76,6 +76,7 @@ class PublicationTopologyTest {
         build("services/quiz-service");
         build("services/assessment-service");
         RSAKey key = AdmissionTestTokens.key();
+        identityKey = key;
         Files.writeString(
                 keys.resolve("private.pem"),
                 pem("PRIVATE KEY", key.toRSAPrivateKey().getEncoded()));
@@ -159,6 +160,8 @@ class PublicationTopologyTest {
                 assessment,
                 List.of(
                         "--quizopia.publication.enabled=true",
+                        "--quizopia.assessment.features.attempts-enabled=true",
+                        "--quizopia.assessment.features.results-enabled=true",
                         "--quizopia.publication.sources.enabled=true",
                         "--quizopia.publication.sources.quiz-base-url=" + quiz,
                         "--quizopia.publication.sources.classroom-base-url=" + classroom));
@@ -170,7 +173,9 @@ class PublicationTopologyTest {
                 "--IDENTITY_SERVICE_URL=" + identity,
                 "--ASSESSMENT_SERVICE_URL=" + assessment,
                 "--QUIZ_SERVICE_URL=" + quiz,
-                "--quizopia.publication.enabled=true"));
+                "--quizopia.publication.enabled=true",
+                "--quizopia.assessment.features.attempts-enabled=true",
+                "--quizopia.assessment.features.results-enabled=true"));
         gatewayArgs.addAll(admissionArgs("gateway"));
         gatewayContext = new SpringApplicationBuilder(GatewayApplication.class)
                 .profiles("test")
@@ -598,6 +603,530 @@ class PublicationTopologyTest {
                         .statusCode());
     }
 
+    static String b2Attempt, b2Publication;
+    static com.nimbusds.jose.jwk.RSAKey identityKey;
+
+    static List<String[]> b2Requests() {
+        return List.of(
+                new String[] {"POST", "/api/assessments/publications/" + b2Publication + "/attempts/start", "{}"},
+                new String[] {"POST", "/api/assessments/publications/" + b2Publication + "/attempts/retake", "{}"},
+                new String[] {"GET", "/api/assessments/attempts/" + b2Attempt, null},
+                new String[] {
+                    "POST",
+                    "/api/assessments/attempts/" + b2Attempt + "/questions/1/answer",
+                    "{\"expectedRevision\":\"0\",\"answer\":{\"type\":\"NUMERIC_FILL\",\"value\":null}}"
+                },
+                new String[] {
+                    "POST", "/api/assessments/attempts/" + b2Attempt + "/submit", "{\"expectedRevision\":\"0\"}"
+                },
+                new String[] {
+                    "POST", "/api/assessments/attempts/" + b2Attempt + "/abandon", "{\"expectedRevision\":\"0\"}"
+                },
+                new String[] {"GET", "/api/assessments/attempts/" + b2Attempt + "/result", null},
+                new String[] {"GET", "/api/assessments/attempts/" + b2Attempt + "/review", null},
+                new String[] {"GET", "/api/assessments/publications/" + b2Publication + "/aggregate-score", null});
+    }
+
+    static void b2Both(int status) throws Exception {
+        if (b2Attempt == null) return;
+        // The same issued USER is independently checked at the edge and direct Assessment.
+        for (String base : List.of(gateway, assessment)) {
+            var response = send("GET", base + "/api/assessments/attempts/" + b2Attempt, userToken, null, Map.of());
+            assertEquals(status, response.statusCode(), response.body());
+            assertEquals(
+                    "no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+        }
+    }
+
+    @Test
+    @Order(1)
+    void completeStudentLifecycleThroughRealGatewayAndCurrentClassroomAuthority() throws Exception {
+        var draft = send(
+                "POST",
+                quiz + "/api/quizzes",
+                userToken,
+                JSON.writeValueAsString(
+                        Map.of("title", "Student source", "description", "Description", "authoringSource", SOURCE)),
+                Map.of());
+        assertEquals(201, draft.statusCode(), draft.body());
+        String quizId = JSON.readTree(draft.body()).path("quizId").asString();
+        var versionResponse = send("POST", quiz + "/api/quizzes/" + quizId + "/versions", userToken, null, Map.of());
+        assertEquals(201, versionResponse.statusCode(), versionResponse.body());
+        String version = JSON.readTree(versionResponse.body()).path("id").asString();
+        var cls = send(
+                "POST",
+                gateway + "/classrooms",
+                userToken,
+                "{\"name\":\"Student class\",\"subject\":\"Subject\",\"grade\":\"Grade\"}",
+                Map.of());
+        assertEquals(201, cls.statusCode(), cls.body());
+        String classroomId = JSON.readTree(cls.body()).path("id").asString();
+        for (String classId : new String[] {classroomId, null}) {
+            var cfg = (tools.jackson.databind.node.ObjectNode) JSON.readTree(publicationBody(quizId, version, classId));
+            cfg.put("maxAttempts", 0);
+            cfg.put("durationMinutes", 0);
+            var publication = send(
+                    "POST",
+                    gateway + "/api/assessments/publications",
+                    userToken,
+                    cfg.toString(),
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            assertEquals(201, publication.statusCode(), publication.body());
+            var resource = JSON.readTree(publication.body());
+            String pub = resource.path("publicationId").asString(),
+                    locator = resource.path("privateLocator").asString();
+            if (classId == null) sensitiveLocators.add(locator);
+            String p = "/api/assessments/publications/" + pub;
+            assertEquals(
+                    200,
+                    send("POST", gateway + p + "/open", userToken, "{\"expectedRevision\":0}", Map.of())
+                            .statusCode());
+            String body = classId == null ? JSON.writeValueAsString(Map.of("locator", locator)) : "{}";
+            String startKey = UUID.randomUUID().toString();
+            if (classId != null) {
+                assertEquals(
+                        404,
+                        send(
+                                        "POST",
+                                        gateway + p + "/attempts/start",
+                                        userToken,
+                                        body,
+                                        Map.of("Idempotency-Key", startKey))
+                                .statusCode());
+                try (var c = DriverManager.getConnection(
+                        CLASSROOM_DB.getJdbcUrl(), CLASSROOM_DB.getUsername(), CLASSROOM_DB.getPassword())) {
+                    execute(
+                            c,
+                            "INSERT INTO classroom_memberships(id,classroom_id,user_id) VALUES(?,?,?)",
+                            UUID.randomUUID(),
+                            UUID.fromString(classId),
+                            ACTOR);
+                }
+            } else {
+                assertEquals(
+                        400,
+                        send(
+                                        "POST",
+                                        gateway + p + "/attempts/start",
+                                        userToken,
+                                        "{}",
+                                        Map.of("Idempotency-Key", startKey))
+                                .statusCode());
+                assertEquals(
+                        404,
+                        send(
+                                        "POST",
+                                        assessment + p + "/attempts/start",
+                                        userToken,
+                                        JSON.writeValueAsString(Map.of("locator", "z".repeat(43))),
+                                        Map.of("Idempotency-Key", startKey))
+                                .statusCode());
+            }
+            var start =
+                    send("POST", gateway + p + "/attempts/start", userToken, body, Map.of("Idempotency-Key", startKey));
+            assertEquals(201, start.statusCode(), start.body());
+            var view = JSON.readTree(start.body());
+            String id = view.path("attemptId").asString(), a = "/api/assessments/attempts/" + id;
+            b2Attempt = id;
+            b2Publication = pub;
+            assertTrue(view.path("deadlineAt").isNull());
+            assertEquals("0", view.path("revision").asString());
+            assertEquals("1", view.path("ordinal").asString());
+            assertEquals(
+                    200, send("GET", gateway + a, userToken, null, Map.of()).statusCode());
+            assertEquals(
+                    200, send("GET", assessment + a, userToken, null, Map.of()).statusCode());
+            assertEquals(
+                    200,
+                    send("POST", gateway + p + "/attempts/start", userToken, body, Map.of("Idempotency-Key", startKey))
+                            .statusCode());
+            assertEquals(
+                    409,
+                    send("GET", gateway + a + "/result", userToken, null, Map.of())
+                            .statusCode());
+            assertEquals(
+                    409,
+                    send("GET", gateway + a + "/review", userToken, null, Map.of())
+                            .statusCode());
+            String saveBody = "{\"expectedRevision\":\"0\",\"answer\":{\"type\":\"NUMERIC_FILL\",\"value\":\"0001\"}}",
+                    saveKey = UUID.randomUUID().toString();
+            var saved = send(
+                    "POST",
+                    gateway + a + "/questions/1/answer",
+                    userToken,
+                    saveBody,
+                    Map.of("Idempotency-Key", saveKey));
+            assertEquals(200, saved.statusCode(), saved.body());
+            assertEquals(
+                    saved.body(),
+                    send(
+                                    "POST",
+                                    assessment + a + "/questions/1/answer",
+                                    userToken,
+                                    saveBody,
+                                    Map.of("Idempotency-Key", saveKey))
+                            .body());
+            String submitKey = UUID.randomUUID().toString();
+            var submitted = send(
+                    "POST",
+                    gateway + a + "/submit",
+                    userToken,
+                    "{\"expectedRevision\":\"1\"}",
+                    Map.of("Idempotency-Key", submitKey));
+            assertEquals(200, submitted.statusCode(), submitted.body());
+            var result = JSON.readTree(submitted.body());
+            assertEquals("1", result.path("earnedWeight").asString());
+            assertEquals("100.00", result.path("percentageDisplay").asString());
+            assertEquals(
+                    submitted.body(),
+                    send(
+                                    "POST",
+                                    assessment + a + "/submit",
+                                    userToken,
+                                    "{\"expectedRevision\":\"1\"}",
+                                    Map.of("Idempotency-Key", submitKey))
+                            .body());
+            assertEquals(
+                    submitted.body(),
+                    send("GET", gateway + a + "/result", userToken, null, Map.of())
+                            .body());
+            var retake = send(
+                    "POST",
+                    gateway + p + "/attempts/retake",
+                    userToken,
+                    body,
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            assertEquals(201, retake.statusCode(), retake.body());
+            String next = JSON.readTree(retake.body()).path("attemptId").asString();
+            var abandoned = send(
+                    "POST",
+                    gateway + "/api/assessments/attempts/" + next + "/abandon",
+                    userToken,
+                    "{\"expectedRevision\":\"0\"}",
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            assertEquals(200, abandoned.statusCode(), abandoned.body());
+            assertEquals(
+                    "ABANDONED", JSON.readTree(abandoned.body()).path("state").asString());
+            var aggregate = send("GET", gateway + p + "/aggregate-score", userToken, null, Map.of());
+            assertEquals(200, aggregate.statusCode(), aggregate.body());
+            assertEquals(result, JSON.readTree(aggregate.body()).path("bestResult"));
+            for (var response : List.of(start, submitted, aggregate, saved, abandoned)) {
+                assertEquals(
+                        "no-store",
+                        response.headers().firstValue("Cache-Control").orElseThrow());
+                for (String forbidden : List.of(
+                        "numericAnswer",
+                        "explanationMarkdown",
+                        "correctAnswer",
+                        "sourceSnapshot",
+                        "submittedAnswersId",
+                        "studentId")) assertFalse(response.body().contains(forbidden), forbidden);
+            }
+            if (classId != null) {
+                try (var c = DriverManager.getConnection(
+                        CLASSROOM_DB.getJdbcUrl(), CLASSROOM_DB.getUsername(), CLASSROOM_DB.getPassword())) {
+                    execute(
+                            c,
+                            "DELETE FROM classroom_memberships WHERE classroom_id=? AND user_id=?",
+                            UUID.fromString(classId),
+                            ACTOR);
+                }
+                for (String base : List.of(gateway, assessment))
+                    for (var operation : b2Requests())
+                        assertEquals(
+                                404,
+                                send(
+                                                operation[0],
+                                                base + operation[1],
+                                                userToken,
+                                                operation[2],
+                                                Map.of(
+                                                        "Idempotency-Key",
+                                                        UUID.randomUUID().toString()))
+                                        .statusCode());
+                for (String base : List.of(gateway, assessment))
+                    for (String suffix : List.of("", "/result", "/review"))
+                        assertEquals(
+                                404,
+                                send("GET", base + a + suffix, userToken, null, Map.of())
+                                        .statusCode());
+            }
+        }
+    }
+
+    @Test
+    @Order(2)
+    void allStudentRoutesIndependentlyRejectServiceAndMissingIssuedRoleAndForgedHeaders() throws Exception {
+        for (String base : List.of(gateway, assessment))
+            for (var op : b2Requests()) {
+                var response = send(
+                        op[0],
+                        base + op[1],
+                        serviceToken,
+                        op[2],
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+                assertEquals(403, response.statusCode(), op[1] + response.body());
+                assertEquals("{\"code\":\"ACCESS_DENIED\"}", response.body());
+                assertEquals(
+                        "no-store",
+                        response.headers().firstValue("Cache-Control").orElseThrow());
+                assertEquals(
+                        400,
+                        send(
+                                        op[0],
+                                        base + op[1],
+                                        userToken,
+                                        op[2],
+                                        Map.of(
+                                                "Idempotency-Key",
+                                                UUID.randomUUID().toString(),
+                                                "X-User-Id",
+                                                ACTOR.toString()))
+                                .statusCode());
+            }
+        for (String base : List.of(gateway, assessment)) {
+            assertEquals(
+                    404,
+                    send("GET", base + "/api/assessments/attempts/" + UUID.randomUUID(), userToken, null, Map.of())
+                            .statusCode());
+            assertEquals(
+                    403,
+                    send("POST", base + "/api/assessments/attempts/" + b2Attempt + "/close", userToken, "{}", Map.of())
+                            .statusCode());
+            assertEquals(
+                    403,
+                    send("PUT", base + "/api/assessments/attempts/" + b2Attempt, userToken, "{}", Map.of())
+                            .statusCode());
+            assertEquals(
+                    400,
+                    send(
+                                    "POST",
+                                    base + "/api/assessments/attempts/" + b2Attempt + "/submit",
+                                    userToken,
+                                    "{\"expectedRevision\":\"0\",\"expectedRevision\":\"1\"}",
+                                    Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                            .statusCode());
+            assertEquals(
+                    400,
+                    send(
+                                    "GET",
+                                    base + "/api/assessments/attempts/" + b2Attempt + "?unknown=1",
+                                    userToken,
+                                    null,
+                                    Map.of())
+                            .statusCode());
+        }
+    }
+
+    static String additionalUser(String role) throws Exception {
+        UUID id = UUID.randomUUID();
+        String username = "b2" + id.toString().replace("-", "").substring(0, 16);
+        try (var c = identityDb()) {
+            execute(
+                    c,
+                    "INSERT INTO user_account(id,email,username,account_status,email_verified_at,created_at,updated_at) VALUES(?,?,?,'ACTIVE',now(),now(),now())",
+                    id,
+                    username + "@gmail.com",
+                    username);
+            execute(
+                    c,
+                    "INSERT INTO user_role(id,user_id,role,created_at) VALUES(?,?,?,now())",
+                    UUID.randomUUID(),
+                    id,
+                    role);
+            execute(
+                    c,
+                    "INSERT INTO local_credential(user_id,password_hash,created_at,updated_at) VALUES(?,?,now(),now())",
+                    id,
+                    PasswordEncoderFactories.createDelegatingPasswordEncoder().encode(PASSWORD));
+        }
+        redisConnection
+                .sync()
+                .set(
+                        "quizopia:identity:user-authority:v1:" + id,
+                        "1|" + id + "|PRESENT|VALUE:QUNUSVZF|VERIFIED|" + role + "|NONE");
+        var response = send(
+                "POST",
+                identity + "/api/auth/login",
+                null,
+                JSON.writeValueAsString(Map.of("identifier", username, "password", PASSWORD)),
+                Map.of());
+        assertEquals(200, response.statusCode(), response.body());
+        return JSON.readTree(response.body()).path("accessToken").asString();
+    }
+
+    @Test
+    @Order(2)
+    void actualOtherStudentAndSignedTeacherEvidenceCannotEnumerateOwnedResources() throws Exception {
+        String other = additionalUser("STUDENT");
+        // Existing Identity browser login requires STUDENT. Craft negative issued-role
+        // evidence with the actual fixture signing key; verification/admission stay real.
+        String teacher = AdmissionTestTokens.sign(
+                identityKey,
+                identity,
+                ACTOR.toString(),
+                "USER",
+                Map.of("roles", List.of("TEACHER")),
+                Instant.now().minusSeconds(5),
+                Instant.now().plusSeconds(300));
+        for (String base : List.of(gateway, assessment))
+            for (var op : b2Requests()) {
+                assertEquals(
+                        403,
+                        send(
+                                        op[0],
+                                        base + op[1],
+                                        teacher,
+                                        op[2],
+                                        Map.of(
+                                                "Idempotency-Key",
+                                                UUID.randomUUID().toString()))
+                                .statusCode());
+                if (!op[1].endsWith("/start") && !op[1].endsWith("/retake"))
+                    assertEquals(
+                            404,
+                            send(
+                                            op[0],
+                                            base + op[1],
+                                            other,
+                                            op[2],
+                                            Map.of(
+                                                    "Idempotency-Key",
+                                                    UUID.randomUUID().toString()))
+                                    .statusCode());
+            }
+        String expired = AdmissionTestTokens.sign(
+                identityKey,
+                identity,
+                ACTOR.toString(),
+                "USER",
+                Map.of("roles", List.of("STUDENT", "TEACHER")),
+                Instant.now().minusSeconds(600),
+                Instant.now().minusSeconds(300));
+        for (String base : List.of(gateway, assessment)) {
+            var expiredResponse = send("GET", base + "/api/assessments/attempts/" + b2Attempt, expired, null, Map.of());
+            assertEquals(401, expiredResponse.statusCode());
+            assertEquals("{\"code\":\"UNAUTHENTICATED\"}", expiredResponse.body());
+            assertEquals(
+                    401,
+                    send(
+                                    "GET",
+                                    base + "/api/assessments/attempts/" + b2Attempt,
+                                    userToken.substring(0, userToken.length() - 8) + "AAAAAAAA",
+                                    null,
+                                    Map.of())
+                            .statusCode());
+        }
+    }
+
+    @Test
+    @Order(2)
+    void bodyBudgetEnforcedForContentLengthAndChunkedAtBothBoundaries() throws Exception {
+        String prefix = "{\"expectedRevision\":\"0\"}",
+                exact = prefix + " ".repeat(2097152 - prefix.length()),
+                oversized = exact + " ";
+        long before;
+        try (var c = DriverManager.getConnection(
+                        ASSESSMENT_DB.getJdbcUrl(), ASSESSMENT_DB.getUsername(), ASSESSMENT_DB.getPassword());
+                var statement = c.createStatement();
+                var rows = statement.executeQuery("SELECT count(*) FROM attempt_operations")) {
+            rows.next();
+            before = rows.getLong(1);
+        }
+        for (String base : List.of(gateway, assessment)) {
+            String url = base + "/api/assessments/attempts/" + b2Attempt + "/submit";
+            assertEquals(
+                    409,
+                    send(
+                                    "POST",
+                                    url,
+                                    userToken,
+                                    exact,
+                                    Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                            .statusCode());
+            assertEquals(
+                    400,
+                    send(
+                                    "POST",
+                                    url,
+                                    userToken,
+                                    oversized,
+                                    Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                            .statusCode());
+            var chunked = HTTP.send(
+                    HttpRequest.newBuilder(URI.create(url))
+                            .timeout(Duration.ofSeconds(10))
+                            .header("Authorization", "Bearer " + userToken)
+                            .header("Content-Type", "application/json")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .POST(HttpRequest.BodyPublishers.ofInputStream(() -> new java.io.ByteArrayInputStream(
+                                    oversized.getBytes(java.nio.charset.StandardCharsets.UTF_8))))
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(400, chunked.statusCode(), chunked.body());
+            assertEquals("{\"code\":\"INVALID_REQUEST\"}", chunked.body());
+            assertEquals(
+                    "no-store", chunked.headers().firstValue("Cache-Control").orElseThrow());
+        }
+        try (var c = DriverManager.getConnection(
+                        ASSESSMENT_DB.getJdbcUrl(), ASSESSMENT_DB.getUsername(), ASSESSMENT_DB.getPassword());
+                var statement = c.createStatement();
+                var rows = statement.executeQuery("SELECT count(*) FROM attempt_operations")) {
+            rows.next();
+            assertEquals(before, rows.getLong(1));
+        }
+    }
+
+    @Test
+    @Order(2)
+    void studentRoleRemovalAndAccountDisableFailClosedWithActualPrimaryRedisEquality() throws Exception {
+        try {
+            try (var c = identityDb()) {
+                execute(c, "DELETE FROM user_role WHERE user_id=? AND role='STUDENT'", ACTOR);
+            }
+            b2Both(503);
+            redisConnection.sync().set(key(), projection.replace("STUDENT,TEACHER", "TEACHER"));
+            b2Both(401);
+        } finally {
+            try (var c = identityDb()) {
+                execute(
+                        c,
+                        "INSERT INTO user_role(id,user_id,role,created_at) VALUES(?,?,'STUDENT',now())",
+                        UUID.randomUUID(),
+                        ACTOR);
+            }
+            redisConnection.sync().set(key(), projection);
+        }
+        for (String state : List.of("disabled", "unverified"))
+            try {
+                try (var c = identityDb()) {
+                    execute(
+                            c,
+                            state.equals("disabled")
+                                    ? "UPDATE user_account SET account_status='DISABLED' WHERE id=?"
+                                    : "UPDATE user_account SET email_verified_at=NULL WHERE id=?",
+                            ACTOR);
+                }
+                b2Both(503);
+                redisConnection
+                        .sync()
+                        .set(
+                                key(),
+                                state.equals("disabled")
+                                        ? projection.replace("QUNUSVZF", "RElTQUJMRUQ")
+                                        : projection.replace("VERIFIED", "UNVERIFIED"));
+                b2Both(401);
+            } finally {
+                try (var c = identityDb()) {
+                    execute(
+                            c,
+                            "UPDATE user_account SET account_status='ACTIVE',email_verified_at=now() WHERE id=?",
+                            ACTOR);
+                }
+                redisConnection.sync().set(key(), projection);
+            }
+    }
+
     @Test
     @Order(2)
     void wrongClientScopeAndSecretAreRejectedByActualAuthorizationServerAndAdmission() throws Exception {
@@ -628,6 +1157,7 @@ class PublicationTopologyTest {
     @Test
     @Order(3)
     void currentRoleRemovalDeniesOldTokenAtGatewayAndDirectService() throws Exception {
+        sourceServiceToken = service("assessment-service", SECRET, "quiz.version-snapshot.read");
         try (var c = identityDb()) {
             execute(c, "DELETE FROM user_role WHERE user_id=? AND role='TEACHER'", ACTOR);
         }
@@ -647,13 +1177,16 @@ class PublicationTopologyTest {
     @Test
     @Order(4)
     void primaryRedisAndNetworkOutagesDenyWithoutSessionInvalidation() throws Exception {
+        sourceServiceToken = service("assessment-service", SECRET, "quiz.version-snapshot.read");
         long families = countFamilies();
         redisConnection.sync().del(key());
         both(503);
+        b2Both(503);
         redisConnection.sync().set(key(), projection);
         REDIS.getDockerClient().pauseContainerCmd(REDIS.getContainerId()).exec();
         try {
             both(503);
+            b2Both(503);
         } finally {
             REDIS.getDockerClient().unpauseContainerCmd(REDIS.getContainerId()).exec();
         }
@@ -663,6 +1196,7 @@ class PublicationTopologyTest {
                 .exec();
         try {
             both(503);
+            b2Both(503);
         } finally {
             IDENTITY_DB
                     .getDockerClient()
@@ -679,6 +1213,7 @@ class PublicationTopologyTest {
     @Test
     @Order(5)
     void committedRevocationWithStaleRedisNeverAdmits() throws Exception {
+        sourceServiceToken = service("assessment-service", SECRET, "quiz.version-snapshot.read");
         Instant cutoff;
         try (var c = identityDb()) {
             execute(
@@ -695,18 +1230,22 @@ class PublicationTopologyTest {
             }
         }
         both(503);
+        b2Both(503);
         redisConnection
                 .sync()
                 .set(key(), projection.replace("|NONE", "|AT:" + cutoff.getEpochSecond() + ":" + cutoff.getNano()));
         both(401);
+        b2Both(401);
     }
 
     @Test
     @Order(6)
     void unavailableIdentityFailsClosed() throws Exception {
+        sourceServiceToken = service("assessment-service", SECRET, "quiz.version-snapshot.read");
         PROCESSES.getFirst().destroy();
         assertTrue(PROCESSES.getFirst().waitFor(10, TimeUnit.SECONDS));
         both(503);
+        b2Both(503);
     }
 
     static void both(int status) throws Exception {

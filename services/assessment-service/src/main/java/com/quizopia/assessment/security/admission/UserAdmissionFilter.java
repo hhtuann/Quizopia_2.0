@@ -15,9 +15,23 @@ public final class UserAdmissionFilter extends OncePerRequestFilter {
     private final IdentityAdmissionClient admission;
     private final AdmissionProperties properties;
     private final PublicationProperties publication;
+    private final com.quizopia.assessment.configuration.AssessmentFeatureProperties features;
 
     public UserAdmissionFilter(
             IdentityAdmissionClient admission, AdmissionProperties properties, PublicationProperties publication) {
+        this(
+                admission,
+                properties,
+                publication,
+                new com.quizopia.assessment.configuration.AssessmentFeatureProperties(false, false, false));
+    }
+
+    public UserAdmissionFilter(
+            IdentityAdmissionClient admission,
+            AdmissionProperties properties,
+            PublicationProperties publication,
+            com.quizopia.assessment.configuration.AssessmentFeatureProperties features) {
+        this.features = features;
         this.admission = admission;
         this.properties = properties;
         this.publication = publication;
@@ -32,7 +46,13 @@ public final class UserAdmissionFilter extends OncePerRequestFilter {
             return;
         }
         response.setHeader("Cache-Control", "no-store");
-        if (!publication.isEnabled()) {
+        if (StudentAttemptRoutes.matches(request.getMethod(), request.getRequestURI())
+                ? !StudentAttemptRoutes.enabled(
+                        request.getMethod(),
+                        request.getRequestURI(),
+                        features.attemptsEnabled(),
+                        features.resultsEnabled())
+                : !publication.isEnabled()) {
             write(response, AdmissionFailure.unavailable());
             return;
         }
