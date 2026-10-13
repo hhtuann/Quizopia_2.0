@@ -38,11 +38,6 @@ class ArchitectureTest {
             .resideInAnyPackage("..persistence..", "org.springframework.jdbc..", "jakarta.persistence..");
 
     @ArchTest
-    static final com.tngtech.archunit.lang.ArchRule noLegacyBusinessTypesInScaffold = noClasses()
-            .should()
-            .haveSimpleName("User")
-            .orShould()
-            .haveSimpleName("Quiz")
-            .orShould()
-            .haveSimpleName("Attempt");
+    static final com.tngtech.archunit.lang.ArchRule noForeignBusinessTypes =
+            noClasses().should().haveSimpleName("User").orShould().haveSimpleName("Quiz");
 }

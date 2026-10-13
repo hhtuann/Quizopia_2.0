@@ -16,10 +16,19 @@ import org.springframework.security.oauth2.jwt.*;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+            "quizopia.assessment.features.attempts-enabled=true",
+            "quizopia.assessment.features.results-enabled=true",
+            "quizopia.assessment.features.closure-enabled=true"
+        })
 @ActiveProfiles("test")
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class ClosedBusinessBoundaryTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.AttemptPersistence attempts;
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.quizopia.assessment.application.PublicationStore store;
 

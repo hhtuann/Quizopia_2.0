@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: **Active after ADR-015 and EC79-01..04 conditional engineering freeze; runtime/release gates remain — v0.7 (2026-10-13)**
+Status: **Active after ADR-015 and EC79-01..04 conditional engineering freeze; runtime/release gates remain — v0.8 (2026-10-13)**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
@@ -22,8 +22,11 @@ resolves W3-B/C count/retake, unlimited individual duration, ABANDON, autosave,
 submit/timeout, numeric/display and delayed closure C1..C10 product decisions.
 [The integrated pack](architecture/w3b-w3c-contract-review-evidence.md) is
 APPROVED WITH CONDITIONS for engineering direction under EC79-01..04; future
-endpoints/migrations remain PROPOSED/UNIMPLEMENTED. Independent read-only amendment
-review, security/runtime acceptance and Leader implementation merge/release gates
+Attempt/closure/result endpoints remain PROPOSED/UNIMPLEMENTED.
+[W3-B1 implementation](architecture/w3b1-persistence-implementation.md) now supplies
+V3/V4 and Publication configuration changes, pending independent implementation
+review; the frozen proposed migration examples are design history.
+Security/runtime acceptance and Leader implementation merge/release gates
 remain. Production activation is NOT AUTHORIZED. Old
 recommendations superseded below are not active TBDs; operational release gates
 and unrelated product decisions remain open.
@@ -144,7 +147,8 @@ maxAttempts 0/unlimited or 1..10, existing default 1 and OPEN freeze; one ACTIVE
 Student/Publication, separate identity/ordinal, ordinary START resumes/returns
 latest terminal, explicit retry-safe RETAKE only while OPEN/window/eligible and
 entitled. ABANDON consumes finite entitlement but contributes no zero grade.
-Proposed partial uniqueness and Publication-row serialization are documented in
+W3-B1 implements partial uniqueness and Publication-row serialization in PostgreSQL;
+START/RETAKE runtime remains deferred. The full workflow is documented in
 the [lifecycle contract](specifications/w3-b-attempt-lifecycle-contract.md).
 
 **ASSESS-11.** Exact autosave revision/sequence, retry, and conflict contract?
@@ -441,8 +445,9 @@ The following are no longer open:
 
 - ADR-015 resolves W3-B/C product decisions and explicitly amends historical
   LD-01/LD-04. EC79-01..04 conditionally approve engineering direction; executable
-  artifacts remain proposed/unimplemented and real inbox, review, security/runtime
-  and operational gates remain;
+  workflow artifacts remain proposed/unimplemented; W3-B1 supplies real V3/V4
+  persistence/configuration pending implementation review. Real inbox, review,
+  security/runtime and operational gates remain;
 
 - true monorepo;
 - independent Maven project per service;
