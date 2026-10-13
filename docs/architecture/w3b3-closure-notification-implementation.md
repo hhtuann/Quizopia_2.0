@@ -321,11 +321,11 @@ context accumulation and retains every suite. Quiz and Classroom source are
 unchanged and rebuilt/exercised in the actual topology rather than reported as
 separately executed full-module verify runs.
 
-Final representative observations: 51-member capture **72.404 ms**; remaining
-49 finalizations after reconstructing the service **3250.346 ms**, completing the
+Final representative observations: 51-member capture **50.113 ms**; remaining
+49 finalizations after reconstructing the service **3255.095 ms**, completing the
 same key's 50-unit budget. Retained 1024-question snapshot/complete-answer sizes
-were **196756/72622 bytes**, with **770 ms** end-to-end fixture work. The 12613-question
-fixture used **2097086/909644 bytes**, **8833 ms** total fixture work and an actual
+were **196756/72622 bytes**, with **433 ms** end-to-end fixture work. The 12613-question
+fixture used **2097086/909644 bytes**, **4507 ms** total fixture work and an actual
 **909679-byte** complete HTTP request. Individual transaction/statement/socket
 budgets remained unchanged; these whole-fixture durations are not individual SQL
 latency or production throughput claims.
@@ -339,20 +339,33 @@ above. These failed observations are not hidden or treated as passes; final runs
 passed without excluding suites or increasing production budgets. Prolonged-outage,
 failover and production-load acceptance remain external release gates.
 
+The first [Backend CI run](https://github.com/hhtuann/Quizopia_2.0/actions/runs/38447157054)
+passed seven jobs but failed Assessment's unchanged 12613-question fixture at
+15924 ms. V5 now uses schema-qualified static SQL plans for child parent locks and
+answer validation, removing repeated per-row EXECUTE parsing. Every lock, type,
+identity, deadline and V4.1 consistency check remains active. SQL plans cache no
+authority facts or answers. The same fixture subsequently completed locally in
+4507 ms under unchanged budgets, and full Assessment/Gateway reruns passed.
+The cutoff crossing fixture now holds a stable volatile clock function and observes
+real PostgreSQL time pass the cutoff behind its lock barrier, rather than replacing
+a function during an executing statement. Sanitized capacity diagnostics print
+SQLSTATE/vendor code only. No question/payload reduction or suite exclusion was used.
+
 GitHub Actions is checked after the normal push/Draft PR creation. Its actual
 status belongs in the PR/final report; local results do not imply CI success.
 
 ## Focused author-review disposition
 
-| Severity | Finding and correction                                                                                                                                                               | Evidence                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| HIGH     | Raw Student writes could backdate past a confirmed cutoff; added post-lock V5 guards and rollback-marker reconciliation.                                                             | Raw-DML, crossing-save and SAVE/SUBMIT/ABANDON race cases                   |
-| HIGH     | A readiness attestation alone could miss a disabled edge inbox; added a bounded private technical readiness probe, actual recipient capability probe and real disabled-Gateway test. | Five-service disabled-inbox and normal notice journeys                      |
-| MEDIUM   | Stale workers could otherwise act on replacement requests; finalization now binds the exact request under locks.                                                                     | Cancellation/replacement/stale-worker cases                                 |
-| MEDIUM   | Per-key batching/recovery must survive concurrency and process loss; progress commits with each C1 unit and acknowledged 202 never resumes work.                                     | 51-member reconstructed-service budget and concurrent COMPLETE/worker cases |
-| MEDIUM   | Identity shared JDBC I/O lacked the explicit bounds used in admission fixtures; added pool/socket/login/cancellation defaults.                                                       | Complete Identity and real topology reruns                                  |
-| MEDIUM   | Teacher results must not add an undocumented OPEN-state restriction; retained owner-only access and explicit command state checks.                                                   | Owned DRAFT results/invalid CLOSE case                                      |
-| LOW      | V5 action/state widths, grading policy identifier, receipt projection order and secret/projection string redaction needed correction.                                                | Migration, exact DTO parity and HTTP replay cases                           |
+| Severity | Finding and correction                                                                                                                                                               | Evidence                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| HIGH     | CI exposed a near-budget full-answer regression; V5 guard SQL now uses static schema-qualified plans without relaxing validation or budgets.                                         | Unchanged near-2-MiB capacity fixture and complete Assessment/Gateway reruns |
+| HIGH     | Raw Student writes could backdate past a confirmed cutoff; added post-lock V5 guards and rollback-marker reconciliation.                                                             | Raw-DML, crossing-save and SAVE/SUBMIT/ABANDON race cases                    |
+| HIGH     | A readiness attestation alone could miss a disabled edge inbox; added a bounded private technical readiness probe, actual recipient capability probe and real disabled-Gateway test. | Five-service disabled-inbox and normal notice journeys                       |
+| MEDIUM   | Stale workers could otherwise act on replacement requests; finalization now binds the exact request under locks.                                                                     | Cancellation/replacement/stale-worker cases                                  |
+| MEDIUM   | Per-key batching/recovery must survive concurrency and process loss; progress commits with each C1 unit and acknowledged 202 never resumes work.                                     | 51-member reconstructed-service budget and concurrent COMPLETE/worker cases  |
+| MEDIUM   | Identity shared JDBC I/O lacked the explicit bounds used in admission fixtures; added pool/socket/login/cancellation defaults.                                                       | Complete Identity and real topology reruns                                   |
+| MEDIUM   | Teacher results must not add an undocumented OPEN-state restriction; retained owner-only access and explicit command state checks.                                                   | Owned DRAFT results/invalid CLOSE case                                       |
+| LOW      | V5 action/state widths, grading policy identifier, receipt projection order and secret/projection string redaction needed correction.                                                | Migration, exact DTO parity and HTTP replay cases                            |
 
 No confirmed BLOCKER/HIGH author-review finding remains. This is author evidence,
 not an independent review or Leader merge decision. Production/release gates above
@@ -360,7 +373,7 @@ remain open, including prolonged failure and durability acceptance.
 
 ## Exact changed-file inventory
 
-81 paths: Assessment 41, Gateway 17, Identity 11 and documentation 12. No frontend,
+82 paths: Assessment 42, Gateway 17, Identity 11 and documentation 12. No frontend,
 Classroom/Quiz runtime, historical migration, ADR-015 policy or production secret
 is changed. The complete inventory follows for independent baseline-to-final review.
 
@@ -435,6 +448,7 @@ services/assessment-service/src/test/java/com/quizopia/assessment/ClosureRouteTe
 services/assessment-service/src/test/java/com/quizopia/assessment/PublicationIntegrationTest.java
 services/assessment-service/src/test/java/com/quizopia/assessment/SnapshotAssociationIntegrationTest.java
 services/assessment-service/src/test/java/com/quizopia/assessment/StudentAttemptRouteTest.java
+services/assessment-service/src/test/java/com/quizopia/assessment/StudentCapacityIntegrationTest.java
 services/identity-service/.env.example
 services/identity-service/README.md
 services/identity-service/contracts/user-admission.openapi.yaml

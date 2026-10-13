@@ -893,9 +893,12 @@ class ClosureIntegrationTest {
         var request = request();
         confirmed(request);
         var cutoff = store.published(work(request, "NOTICE_PUBLISHED")).closureCutoffAt();
+        // Keep the function definition stable while the statement is executing.
+        // A real volatile clock crosses the boundary behind the observed advisory barrier.
+        long offsetMicros = Duration.between(f.now(), cutoff.minusSeconds(2)).toNanos() / 1000;
         f.db.execute(
-                "CREATE OR REPLACE FUNCTION assessment_time() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog,pg_temp AS $$ SELECT '"
-                        + cutoff.minusNanos(1000) + "'::timestamptz $$");
+                "CREATE OR REPLACE FUNCTION assessment_time() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog,pg_temp AS $$ SELECT clock_timestamp()+interval '"
+                        + offsetMicros + " microseconds' $$");
         f.db.execute(
                 "CREATE FUNCTION pause_answer_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(790031);RETURN NEW;END $$");
         f.db.execute(
@@ -927,9 +930,12 @@ class ClosureIntegrationTest {
                 }
             });
             f.waitLock("boundary");
-            f.db.execute(
-                    "CREATE OR REPLACE FUNCTION assessment_time() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog,pg_temp AS $$ SELECT '"
-                            + cutoff + "'::timestamptz $$");
+            long clockWait = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+            while (now().isBefore(cutoff)) {
+                assertTrue(System.nanoTime() < clockWait, "Authoritative clock did not reach cutoff");
+                java.util.concurrent.locks.LockSupport.parkNanos(
+                        Duration.ofMillis(5).toNanos());
+            }
             holder.commit();
             assertEquals("CLOSURE_CUTOFF_REACHED", mutation.get(20, TimeUnit.SECONDS));
         }

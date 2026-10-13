@@ -22,6 +22,12 @@ class StudentCapacityIntegrationTest {
     void acceptedSnapshotCanFinalize(int count) {
         var fixture = new AtomicFinalizationIntegrationTest();
         fixture.setup();
+        var translator = new org.springframework.jdbc.support.SQLStateSQLExceptionTranslator();
+        fixture.db.setExceptionTranslator((task, sql, failure) -> {
+            System.out.println(
+                    "B2 capacity SQLSTATE=" + failure.getSQLState() + " vendorCode=" + failure.getErrorCode());
+            return translator.translate(task, sql, failure);
+        });
         final int[] bytes = {0};
         var p = fixture.publication(0, root -> {
             var questions = (ArrayNode) root.path("structuredContent").path("questions");

@@ -461,21 +461,49 @@ CREATE INDEX closure_work_history ON closure_work_audit(closure_request_id,occur
 CREATE TRIGGER closure_work_immutable BEFORE UPDATE OR DELETE ON closure_work_audit FOR EACH ROW EXECUTE FUNCTION reject_assessment_mutation();
 CREATE TRIGGER closure_work_no_truncate BEFORE TRUNCATE ON closure_work_audit FOR EACH STATEMENT EXECUTE FUNCTION reject_assessment_mutation();
 
-CREATE OR REPLACE FUNCTION lock_assessment_parent() RETURNS trigger LANGUAGE plpgsql
- SET search_path=pg_catalog,pg_temp AS $$
+-- Cache SQL plans, never authority/data. Repeated EXECUTE parsing on every answer
+-- and question-grade row can consume the accepted full-answer transaction budget.
+-- Relations are bound to the owning migration schema, with no search-path lookup.
+DO $migration$ BEGIN EXECUTE format($ddl$
+CREATE OR REPLACE FUNCTION %1$I.lock_assessment_parent() RETURNS trigger LANGUAGE plpgsql
+ SET search_path=pg_catalog,pg_temp AS $body$
 DECLARE attempt_key uuid; publication_key uuid;
 BEGIN
  IF TG_TABLE_NAME='grading_question_results' THEN
-  EXECUTE format('SELECT attempt_id FROM %I.grading_results WHERE id=$1',TG_TABLE_SCHEMA) INTO attempt_key USING NEW.result_id;
+  SELECT attempt_id INTO attempt_key FROM %1$I.grading_results WHERE id=NEW.result_id;
  ELSE attempt_key:=NEW.attempt_id;
  END IF;
- EXECUTE format('SELECT publication_id FROM %I.attempts WHERE id=$1',TG_TABLE_SCHEMA) INTO publication_key USING attempt_key;
+ SELECT publication_id INTO publication_key FROM %1$I.attempts WHERE id=attempt_key;
  IF publication_key IS NULL THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Assessment parent is invalid'; END IF;
- EXECUTE format('SELECT id FROM %I.publications WHERE id=$1 FOR UPDATE',TG_TABLE_SCHEMA) USING publication_key;
- EXECUTE format('SELECT id FROM %I.closure_requests WHERE publication_id=$1 AND state IN (''PENDING'',''FINALIZING'') ORDER BY id FOR UPDATE',TG_TABLE_SCHEMA) USING publication_key;
- EXECUTE format('SELECT id FROM %I.attempts WHERE id=$1 FOR UPDATE',TG_TABLE_SCHEMA) USING attempt_key;
+ PERFORM id FROM %1$I.publications WHERE id=publication_key FOR UPDATE;
+ PERFORM id FROM %1$I.closure_requests WHERE publication_id=publication_key AND state IN ('PENDING','FINALIZING') ORDER BY id FOR UPDATE;
+ PERFORM id FROM %1$I.attempts WHERE id=attempt_key FOR UPDATE;
  RETURN NEW;
-END $$;
+END $body$ $ddl$,current_schema()); END $migration$;
+
+-- Preserve V4.1's generated type lookup and exact answer/time/identity checks.
+-- Static schema-qualified plans remove parsing cost, not per-write validation.
+DO $migration$ BEGIN EXECUTE format($ddl$
+CREATE OR REPLACE FUNCTION %1$I.guard_answer_write() RETURNS trigger LANGUAGE plpgsql
+ SET search_path=pg_catalog,pg_temp AS $body$
+DECLARE a record; kind text; valid boolean;
+BEGIN
+ IF TG_OP='DELETE' THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Use an unanswered value to clear an answer'; END IF;
+ IF TG_OP='UPDATE' AND ROW(NEW.attempt_id,NEW.question_number) IS DISTINCT FROM ROW(OLD.attempt_id,OLD.question_number) THEN
+  RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Answer identity is immutable';
+ END IF;
+ SELECT current_attempt.*,CASE WHEN NEW.question_number BETWEEN 1 AND octet_length(s.question_type_codes)
+  THEN CASE get_byte(s.question_type_codes,NEW.question_number-1)
+   WHEN 1 THEN 'SINGLE_CHOICE' WHEN 2 THEN 'MULTIPLE_CHOICE' WHEN 3 THEN 'TRUE_FALSE_MATRIX' WHEN 4 THEN 'NUMERIC_FILL' END END AS kind
+  INTO a FROM %1$I.attempts current_attempt JOIN %1$I.publication_snapshots s ON s.publication_id=current_attempt.snapshot_id WHERE current_attempt.id=NEW.attempt_id;
+ kind:=a.kind;
+ valid:=%1$I.assessment_answer_valid(NEW.answer,kind);
+ IF a.state<>'ACTIVE' OR valid IS DISTINCT FROM true OR NEW.saved_at<a.started_at
+  OR (a.deadline_at IS NOT NULL AND NEW.saved_at>=a.deadline_at) THEN
+  RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Answer state, reference or shape is invalid';
+ END IF;
+ RETURN NEW;
+END $body$ $ddl$,current_schema()); END $migration$;
 
 CREATE TRIGGER closure_request_write BEFORE INSERT OR UPDATE OR DELETE ON closure_requests FOR EACH ROW EXECUTE FUNCTION closure_request_guard();
 CREATE CONSTRAINT TRIGGER closure_capture AFTER INSERT ON closure_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION closure_capture_consistency();
