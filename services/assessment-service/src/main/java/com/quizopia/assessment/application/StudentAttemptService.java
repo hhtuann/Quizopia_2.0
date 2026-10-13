@@ -29,16 +29,30 @@ public class StudentAttemptService {
         for (int n = 0; n < 4; n++) {
             var step = work.get();
             if (step.dueAttempt() == null) return step;
-            finalizer.systemFinalize(step.dueAttempt(), Reason.BOUNDED_TIMEOUT);
+            finalizer.systemFinalize(step.dueAttempt(), step.reason());
         }
         throw new PublicationFailure(503, "PERSISTENCE_UNAVAILABLE");
     }
 
     private <T> T mutation(StudentAttemptStore.Step<T> step) {
         if (step.dueAttempt() == null) return step.value();
-        finalizer.systemFinalize(step.dueAttempt(), Reason.BOUNDED_TIMEOUT);
+        finalizer.systemFinalize(step.dueAttempt(), step.reason());
         // This conflict is outside the finalizer's committed transaction.
-        throw new PublicationFailure(409, "ATTEMPT_DEADLINE_REACHED");
+        throw new PublicationFailure(
+                409,
+                step.reason() == Reason.TEACHER_NOTICE_CUTOFF ? "CLOSURE_CUTOFF_REACHED" : "ATTEMPT_DEADLINE_REACHED");
+    }
+
+    private <T> T cutoffMutation(UUID id, Supplier<T> work) {
+        try {
+            return work.get();
+        } catch (PublicationFailure failure) {
+            if ("CLOSURE_CUTOFF_REACHED".equals(failure.code())) {
+                finalizer.systemFinalize(id, Reason.TEACHER_NOTICE_CUTOFF);
+                throw new PublicationFailure(409, "CLOSURE_CUTOFF_REACHED");
+            }
+            throw failure;
+        }
     }
 
     public StudentAttemptStore.Step<AttemptViews.View> start(
@@ -61,13 +75,13 @@ public class StudentAttemptService {
             String answer,
             String evidence) {
         authorize(actor, store.owned(actor, id), evidence);
-        return mutation(store.save(actor, id, question, revision, digest, answer));
+        return cutoffMutation(id, () -> mutation(store.save(actor, id, question, revision, digest, answer)));
     }
 
     public AttemptViews.AbandonAck abandon(
             StudentAttemptStore.Actor actor, UUID id, long revision, String digest, String evidence) {
         authorize(actor, store.owned(actor, id), evidence);
-        return mutation(store.abandon(actor, id, revision, digest));
+        return cutoffMutation(id, () -> mutation(store.abandon(actor, id, revision, digest)));
     }
 
     public AttemptViews.Result submit(
@@ -78,13 +92,17 @@ public class StudentAttemptService {
             String replacement,
             String evidence) {
         authorize(actor, store.owned(actor, id), evidence);
-        var outcome = finalizer.submit(new AttemptFinalization.Manual(
-                new AttemptFinalization.SelectedAttempt(id, actor.id(), actor.expiresAt()),
-                revision,
-                digest,
-                replacement));
+        var outcome = cutoffMutation(
+                id,
+                () -> finalizer.submit(new AttemptFinalization.Manual(
+                        new AttemptFinalization.SelectedAttempt(id, actor.id(), actor.expiresAt()),
+                        revision,
+                        digest,
+                        replacement)));
         if (outcome.kind() == AttemptFinalization.Kind.DEADLINE_REACHED)
             throw new PublicationFailure(409, "ATTEMPT_DEADLINE_REACHED");
+        if (outcome.kind() == AttemptFinalization.Kind.CLOSURE_CUTOFF_REACHED)
+            throw new PublicationFailure(409, "CLOSURE_CUTOFF_REACHED");
         return read(() -> store.result(actor, id)).value();
     }
 

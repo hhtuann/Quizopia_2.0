@@ -8,6 +8,12 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 class AssessmentServiceApplicationTests {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.ClosureStore closureStore;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.ClosureDependencies closureDependencies;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.quizopia.assessment.application.StudentAttemptStore studentStore;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean

@@ -33,7 +33,6 @@ class AssessmentFeaturePropertiesTest {
                     assertTrue(f.resultsEnabled());
                     assertTrue(f.closureEnabled());
                     for (String path : new String[] {
-                        "/api/assessments/publications/00000000-0000-0000-0000-000000000001/close",
                         "/internal/security/notice-recipients/00000000-0000-0000-0000-000000000001/eligibility"
                     }) assertNull(PublicationRoutes.requiredRole("POST", path));
                 });

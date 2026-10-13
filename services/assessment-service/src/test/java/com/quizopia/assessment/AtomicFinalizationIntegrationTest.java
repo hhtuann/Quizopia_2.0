@@ -363,7 +363,9 @@ class AtomicFinalizationIntegrationTest {
         assertEquals(
                 Kind.NOT_APPLICABLE,
                 core.systemFinalize(unlimited, Reason.BOUNDED_TIMEOUT).kind());
-        failure("FINALIZATION_NOT_AVAILABLE", () -> core.systemFinalize(unlimited, Reason.TEACHER_NOTICE_CUTOFF));
+        assertEquals(
+                Kind.NOT_DUE,
+                core.systemFinalize(unlimited, Reason.TEACHER_NOTICE_CUTOFF).kind());
         unfinalized(fresh);
         unfinalized(unlimited);
     }
@@ -735,23 +737,33 @@ class AtomicFinalizationIntegrationTest {
         unfinalized(id);
     }
 
-    @Test
-    void populatedV4UpgradePreservesHistoryAndGeneratesAnUnforgeableTypeLookup() {
+    @ParameterizedTest
+    @ValueSource(strings = {"4", "4.1"})
+    void populatedV4UpgradePreservesHistoryAndGeneratesAnUnforgeableTypeLookup(String target) throws Exception {
         schema = "upgrade_" + UUID.randomUUID().toString().replace("-", "");
         var flyway = Flyway.configure()
                 .dataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword())
                 .schemas(schema)
                 .defaultSchema(schema);
-        flyway.target("4").load().migrate();
+        flyway.target(target).load().migrate();
         source = source("upgrade");
         db = new JdbcTemplate(source);
         manager = new JdbcTransactionManager(source);
         core = new JdbcAttemptFinalization(db, manager);
-        var p = publication(0);
-        UUID id = active(p, 0);
-        var result = core.submit(manual(id, 0, GradingDocumentsTest.replacement()))
-                .result()
-                .orElseThrow();
+        // Seed through the historical SQL fixture; the B3 runtime requires V5 at startup.
+        var historical = new AttemptPersistenceIntegrationTest();
+        student = historical.student;
+        Seed p;
+        UUID id;
+        try (var connection = source.getConnection()) {
+            connection.setAutoCommit(false);
+            var publication = historical.publication(connection, 0, 0, false, false, true);
+            p = new Seed(publication.id(), publication.configuration());
+            id = historical.attempt(connection, p.publication(), student, 1, 0);
+            historical.submitted(connection, id, p.publication(), new java.math.BigDecimal("1.75"));
+            connection.commit();
+        }
+        var result = core.result(new SelectedAttempt(id, student)).orElseThrow();
         String checksums = scalar(
                 "SELECT string_agg(checksum::text,',' ORDER BY installed_rank) FROM flyway_schema_history WHERE success");
         String snapshot =
@@ -765,7 +777,8 @@ class AtomicFinalizationIntegrationTest {
         assertEquals(
                 checksums,
                 scalar(
-                        "SELECT string_agg(checksum::text,',' ORDER BY installed_rank) FROM flyway_schema_history WHERE version IN('1','2','3','4')"));
+                        "SELECT string_agg(checksum::text,',' ORDER BY installed_rank) FROM flyway_schema_history WHERE version::numeric<=?",
+                        new java.math.BigDecimal(target)));
         assertEquals(
                 snapshot,
                 scalar("SELECT payload::text FROM publication_snapshots WHERE publication_id=?", p.publication()));

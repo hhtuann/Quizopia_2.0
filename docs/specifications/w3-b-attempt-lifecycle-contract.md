@@ -1,14 +1,20 @@
 # W3-B — Attempt lifecycle contract
 
-Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); product policy APPROVED; executable runtime NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
+Status: **Leader product policy APPROVED; engineering direction APPROVED WITH CONDITIONS (EC79-01..04); B1/C1/B2 merged and B3 implemented default disabled, pending independent security/runtime review and Leader merge approval; production activation NOT AUTHORIZED.**
+
+Current runtime, exact routes, verification and rollout gates are recorded in the
+[W3-B3 implementation evidence](../architecture/w3b3-closure-notification-implementation.md). Historical baseline inspection and
+proposed SQL below describe the contract freeze; executable Flyway V1–V5 and the
+implemented service OpenAPI govern the delivered adapters. Accepted product policy
+and the indefinite blocked-recipient limitation are unchanged.
 
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) is the current policy.
 W3-A already implements Publication preparation/opening/entry and bounded schedule
-extension, not Attempts. All routes here are future proposals in the
+extension. B2/B3 now implement the accepted routes documented in the
 [HTTP contract](w3b-w3c-http-contract.md) and
 [OpenAPI 3.1 artifact](proposed/w3b-w3c.openapi.yaml).
 [Persistence/locks](../architecture/w3b-w3c-persistence-concurrency-design.md)
-are normative proposed implementation requirements. Practice/guest/shuffle and
+remain normative implementation requirements. Practice/guest/shuffle and
 monitoring runtime are deferred. Conditional engineering sign-off is in ADR-015;
 independent read-only amendment review, scoped implementation review/Leader merge
 approval, LD-05 provisioning/topology, security/runtime acceptance, capacity, time

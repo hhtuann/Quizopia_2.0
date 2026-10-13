@@ -51,6 +51,7 @@ public interface AttemptFinalization {
         SUBMITTED,
         REPLAY,
         DEADLINE_REACHED,
+        CLOSURE_CUTOFF_REACHED,
         NOT_DUE,
         NOT_APPLICABLE,
         ALREADY_TERMINAL
@@ -61,6 +62,16 @@ public interface AttemptFinalization {
     Outcome submit(Manual request);
 
     Outcome systemFinalize(UUID attemptId, AttemptRecord.Reason reason);
+
+    record CompletionUnit(UUID publicationId, UUID requestId, UUID actorId, String keyDigest, UUID attemptId) {}
+
+    default Outcome completeUnit(CompletionUnit unit) {
+        throw new PublicationFailure(503, "FINALIZATION_NOT_AVAILABLE");
+    }
+
+    default Outcome noticeFinalize(UUID attempt, UUID request) {
+        throw new PublicationFailure(503, "FINALIZATION_NOT_AVAILABLE");
+    }
 
     Optional<Result> result(SelectedAttempt selected);
 

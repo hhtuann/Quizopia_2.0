@@ -8,6 +8,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 public final class UserAdmissionWebFilter implements WebFilter {
+    private final boolean inboxEnabled;
     private final IdentityAdmissionClient admission;
     private final PublicationProperties publication;
     private final AttemptFeatureProperties features;
@@ -18,6 +19,15 @@ public final class UserAdmissionWebFilter implements WebFilter {
 
     public UserAdmissionWebFilter(
             IdentityAdmissionClient admission, PublicationProperties publication, AttemptFeatureProperties features) {
+        this(admission, publication, features, false);
+    }
+
+    public UserAdmissionWebFilter(
+            IdentityAdmissionClient admission,
+            PublicationProperties publication,
+            AttemptFeatureProperties features,
+            boolean inboxEnabled) {
+        this.inboxEnabled = inboxEnabled;
         this.features = features;
         this.admission = admission;
         this.publication = publication;
@@ -32,9 +42,13 @@ public final class UserAdmissionWebFilter implements WebFilter {
         String method = exchange.getRequest().getMethod().name();
         String path = exchange.getRequest().getURI().getRawPath();
         boolean student = StudentAttemptRoutes.matches(method, path);
-        if (student
-                ? !StudentAttemptRoutes.enabled(method, path, features.attemptsEnabled(), features.resultsEnabled())
-                : PublicationRoutes.requiredRole(method, path) != null && !publication.isEnabled())
+        if (ClosureRoutes.role(method, path) != null
+                ? !ClosureRoutes.enabled(
+                        method, path, features.resultsEnabled(), features.closureEnabled(), inboxEnabled)
+                : student
+                        ? !StudentAttemptRoutes.enabled(
+                                method, path, features.attemptsEnabled(), features.resultsEnabled())
+                        : PublicationRoutes.requiredRole(method, path) != null && !publication.isEnabled())
             return error(exchange, AdmissionFailure.unavailable());
         var auth = exchange.getRequest().getHeaders().get("Authorization");
         if (auth == null

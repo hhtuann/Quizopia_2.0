@@ -234,7 +234,7 @@ class AttemptPersistenceIntegrationTest {
         assertEquals(0, flyway(null).migrate().migrationsExecuted);
         try (var c = connection()) {
             assertEquals(
-                    "4.1",
+                    "5",
                     scalar(c, "SELECT max(version::numeric) FROM flyway_schema_history WHERE version IS NOT NULL"));
             assertEquals(
                     "8",
@@ -243,7 +243,7 @@ class AttemptPersistenceIntegrationTest {
                             "SELECT count(*) FROM information_schema.tables WHERE table_schema=? AND table_name IN('attempts','attempt_answers','attempt_creation_operations','submitted_answers','grading_results','grading_question_results','attempt_operations','attempt_finalization_audit')",
                             schema));
             assertEquals(
-                    "0",
+                    "3",
                     scalar(
                             c,
                             "SELECT count(*) FROM information_schema.tables WHERE table_schema=? AND table_name IN('closure_requests','closure_request_members','assessment_notifications')",
@@ -284,7 +284,7 @@ class AttemptPersistenceIntegrationTest {
                     c,
                     "SELECT string_agg(checksum::text,',' ORDER BY version) FROM flyway_schema_history WHERE version IN('1','2')");
         }
-        assertEquals(3, flyway(null).migrate().migrationsExecuted);
+        assertEquals(4, flyway(null).migrate().migrationsExecuted);
         try (var c = connection()) {
             assertEquals(
                     checksums,

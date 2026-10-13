@@ -8,6 +8,11 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({AdmissionProperties.class, PublicationProperties.class})
 public class AdmissionClientConfiguration {
     @Bean(destroyMethod = "close")
+    IdentityRecipientClient identityRecipientClient(AdmissionProperties properties) {
+        return new IdentityRecipientClient(properties);
+    }
+
+    @Bean(destroyMethod = "close")
     IdentityAdmissionClient identityAdmissionClient(AdmissionProperties properties) {
         return new IdentityAdmissionClient(properties);
     }

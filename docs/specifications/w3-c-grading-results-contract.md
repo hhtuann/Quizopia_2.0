@@ -1,12 +1,19 @@
 # W3-C — Deterministic grading, results and review
 
-Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); product policy APPROVED; internal W3-C1 implementation FOR REVIEW; Student/results/review HTTP runtime NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
+Status: **Leader product policy APPROVED; engineering direction APPROVED WITH CONDITIONS (EC79-01..04); B1/C1/B2 merged and B3 implemented default disabled, pending independent security/runtime review and Leader merge approval; production activation NOT AUTHORIZED.**
+
+Current runtime, exact routes, verification and rollout gates are recorded in the
+[W3-B3 implementation evidence](../architecture/w3b3-closure-notification-implementation.md). Historical baseline inspection and
+proposed SQL below describe the contract freeze; executable Flyway V1–V5 and the
+implemented service OpenAPI govern the delivered adapters. Accepted product policy
+and the indefinite blocked-recipient limitation are unchanged.
 
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) records Leader policy.
 W3-A pins grading_policy_version=1 on an immutable snapshot; merged W3-B1 supplies
 V4 storage. The [W3-C1 internal implementation](../architecture/w3c1-grading-finalization-implementation.md)
 now supplies actual grading/manual/timeout finalization for independent review.
-Student submission, results and detailed review HTTP APIs remain unavailable.
+B2 supplies Student submission/results/review, and B3 supplies actual CLOSED review
+and Teacher results. All remain default disabled pending release gates.
 The future HTTP portions of these contracts accompany the
 [lifecycle](w3-b-attempt-lifecycle-contract.md),
 [persistence](../architecture/w3b-w3c-persistence-concurrency-design.md) and

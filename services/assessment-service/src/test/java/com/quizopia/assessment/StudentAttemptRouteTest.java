@@ -35,7 +35,6 @@ class StudentAttemptRouteTest {
         assertTrue(StudentAttemptRoutes.enabled("GET", a + "/result", false, true));
         assertTrue(StudentAttemptRoutes.enabled("GET", a, true, false));
         for (String path : java.util.List.of(
-                p + "/close",
                 p + "/closure",
                 a + "/questions/0/answer",
                 a + "/questions/01/answer",

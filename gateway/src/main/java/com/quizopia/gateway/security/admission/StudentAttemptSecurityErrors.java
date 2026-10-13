@@ -14,8 +14,12 @@ public final class StudentAttemptSecurityErrors {
 
     private static boolean student(ServerWebExchange exchange) {
         return StudentAttemptRoutes.matches(
-                exchange.getRequest().getMethod().name(),
-                exchange.getRequest().getURI().getRawPath());
+                        exchange.getRequest().getMethod().name(),
+                        exchange.getRequest().getURI().getRawPath())
+                || ClosureRoutes.role(
+                                exchange.getRequest().getMethod().name(),
+                                exchange.getRequest().getURI().getRawPath())
+                        != null;
     }
 
     public static ServerAuthenticationEntryPoint unauthenticated() {

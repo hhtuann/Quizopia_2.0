@@ -6,6 +6,11 @@ Accepted product policy remains [ADR-015](../decisions/ADR-015-w3b-w3c-leader-po
 Engineering direction is APPROVED WITH CONDITIONS under EC79-01..04. This implementation
 and its local tests do not authorize production activation.
 
+This document records the original B2 increment boundary, now merged at PR #82.
+The later [B3 implementation](w3b3-closure-notification-implementation.md) supplies
+the default-disabled Teacher closure/inbox/Identity extension. Statements below
+about unavailable B3 routes describe the B2 baseline, not current branch availability.
+
 Assessment owns Attempts, answers, receipts, grading, results and lazy deadline
 reconciliation. Gateway owns edge admission/routing. Identity and Classroom remain
 the independent account/role and current CLASS membership authorities. No service

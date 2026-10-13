@@ -25,7 +25,8 @@ public class SecurityConfiguration {
             IdentityAdmissionClient admission,
             AdmissionProperties properties,
             PublicationProperties publication,
-            AssessmentFeatureProperties features)
+            AssessmentFeatureProperties features,
+            ClosureProperties closure)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -55,7 +56,7 @@ public class SecurityConfiguration {
                                     && authorities.contains("ROLE_" + role));
                         }))
                 .addFilterAfter(
-                        new UserAdmissionFilter(admission, properties, publication, features),
+                        new UserAdmissionFilter(admission, properties, publication, features, closure.inboxEnabled()),
                         AuthorizationFilter.class)
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(errors).accessDeniedHandler(errors))
                 .oauth2ResourceServer(oauth2 -> oauth2.authenticationEntryPoint(errors)

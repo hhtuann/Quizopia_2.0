@@ -98,8 +98,18 @@ logging:
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
 
-# B2 independently gated at the edge and downstream. Closure remains unimplemented.
+# B2 independently gated at the edge and downstream. B3 has independent closure/inbox controls.
 quizopia.assessment.features:
   attempts-enabled: ${ATTEMPTS_ENABLED:false}
   results-enabled: ${RESULTS_ENABLED:false}
   closure-enabled: ${CLOSURE_ENABLED:false}
+
+# B3 remains disabled until authenticated topology and recipient provisioning are verified.
+quizopia.assessment.closure:
+  inbox-enabled: ${ASSESSMENT_INBOX_ENABLED:false}
+
+# Readiness group exposes only a status, never account or notification data.
+management.endpoint.health.group.assessment-inbox:
+  include: assessmentInbox
+  show-details: never
+  show-components: never

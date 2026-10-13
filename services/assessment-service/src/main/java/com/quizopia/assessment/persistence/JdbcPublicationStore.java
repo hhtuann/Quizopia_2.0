@@ -217,6 +217,10 @@ public class JdbcPublicationStore implements PublicationStore {
     public Publication extend(UUID actor, UUID id, long revision, Instant endAt, int duration) {
         return tx(() -> {
             var p = lock(actor, id);
+            if (Boolean.TRUE.equals(db.queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM closure_requests WHERE publication_id=? AND state IN ('PENDING','FINALIZING'))",
+                    Boolean.class,
+                    id))) throw new PublicationFailure(409, "CLOSURE_PENDING");
             var c = p.configuration();
             if (p.state() != Publication.State.OPEN || p.revision() != revision) throw PublicationFailure.conflict();
             if (endAt == null

@@ -1,14 +1,14 @@
 openapi: 3.1.0
 info:
-  title: Assessment Publication and Student Attempt backend
-  version: 1.2.0
+  title: Assessment Publication, Attempt, closure and inbox backend
+  version: 1.3.0
   description:
-    Implemented W3-A, W3-B1/C1 and nine W3-B2 Student operations, pending independent implementation
-    review. PUBLICATION_ENABLED, ATTEMPTS_ENABLED and RESULTS_ENABLED default false independently at Gateway and
-    Assessment. SUBMIT requires both B2 flags. Current and issued STUDENT role plus fresh LD-05 admission, owner
-    and current CLASS membership required. Review additionally requires durable CLOSED; successful CLOSED topology
-    verification awaits B3. No Teacher CLOSE, closure, inbox or private Identity recipient routes implemented. No
-    production activation authorization.
+    Implemented W3-A/B1/C1/B2/B3, default disabled pending independent security/runtime review and Leader
+    merge approval. Gateway and Assessment independently enforce RS256 USER issued/current role and LD-05 admission.
+    Teacher commands/results require persisted ownership. Attempt operations retain current CLASS membership; inbox
+    requires recipient ownership without CLASS, locator, OPEN or ACTIVE predicates. Review requires durable CLOSED.
+    CLOSURE_ENABLED and ASSESSMENT_INBOX_ENABLED are independent default-false controls. No production activation
+    authorized.
 paths:
   /api/assessments/publications:
     post:
@@ -1364,6 +1364,1034 @@ paths:
                 $ref: "#/components/schemas/StudentError"
       x-required-feature-flags:
         - RESULTS_ENABLED
+  /api/assessments/publications/{publicationId}/results:
+    get:
+      operationId: readOwnedPublicationResults
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: TEACHER
+      description:
+        TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Persisted Publication
+        owner. UUID ascending Attempt cursor; ACTIVE/ABANDONED result null. No answers/keys.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1024
+          description: Opaque signed cursor bound to actor, resource and ordering. Invalid/foreign cursor 400.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeacherResults"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/assessments/publications/{publicationId}/close:
+    post:
+      operationId: closePublication
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: TEACHER
+      description:
+        TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Ordinary CLOSE
+        only all terminal after bounded reconciliation; sanitized 409 ACTIVE_ATTEMPTS, no identities/counts. Resolve
+        pending workflow if closing early. Successful matching retry returns stored acknowledgment.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosedPublication"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeacherCommand"
+  /api/assessments/publications/{publicationId}/closure-requests:
+    post:
+      operationId: requestPublicationClosure
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: TEACHER
+      description:
+        TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner, OPEN, serverNow>=endAt.
+        Matching replay 200 same request current view; no immediate unlimited finalization. Notices prepare asynchronously.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosureView"
+        "201":
+          description: Durable pending request and complete member capture committed, not CLOSED.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosureView"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeacherCommand"
+  /api/assessments/publications/{publicationId}/closure-requests/{closureRequestId}:
+    get:
+      operationId: readClosureRequest
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: TEACHER
+      description:
+        TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner-only workflow
+        progress; no Student list/count or cutoff disclosure.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: closureRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosureView"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/assessments/publications/{publicationId}/closure-requests/{closureRequestId}/cancel:
+    post:
+      operationId: cancelPublicationClosure
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: TEACHER
+      description:
+        TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Only before first
+        committed closure finalization. Stale workers fenced, replacement needs new notices. Matching key returns
+        original cancellation acknowledgment.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: closureRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosureView"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeacherCommand"
+  /api/assessments/publications/{publicationId}/closure-requests/{closureRequestId}/complete:
+    post:
+      operationId: completePublicationClosure
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: TEACHER
+      description:
+        TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Reconcile bounded/eligible
+        noticed unlimited work; only current authenticated Teacher completion may commit CLOSED. 409 CLOSURE_NOT_READY
+        if waiting on notices/cutoffs. Durable per-key budget resumes after crash.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: closureRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosureCompletion"
+        "202":
+          description:
+            Committed bounded progress, closed=false; matching key returns original acknowledgment. GET
+            request then new key to continue.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClosureCompletion"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeacherCommand"
+  /api/assessments/notifications:
+    get:
+      operationId: listOwnAssessmentNotifications
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Recipient-only
+        authenticated inbox. No current CLASS membership, locator, OPEN/ACTIVE or read receipt prerequisite. Ordered
+        publishedAt DESC, notificationId DESC.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1024
+          description: Opaque signed cursor bound to actor, resource and ordering. Invalid/foreign cursor 400.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/assessments/notifications/{notificationId}:
+    get:
+      operationId: readOwnAssessmentNotification
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Recipient-only
+        notification/status, including cancellation/outcome. No read acknowledgment or receipt prerequisite for cutoff.
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Sanitized deployment capacity throttle, entitlement unchanged. Retry same key after backoff.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency/persistence/grading unavailable. No refresh invalidation or fallback.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     userBearer:
@@ -2091,6 +3119,279 @@ components:
             - BOUNDED_TIMEOUT
             - TEACHER_NOTICE_CUTOFF
         finalizedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+    TeacherResults:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeacherResultRow"
+          maxItems: 100
+        nextCursor:
+          type:
+            - string
+            - "null"
+          maxLength: 1024
+    TeacherResultRow:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+        - studentId
+        - ordinal
+        - state
+        - result
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        studentId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        ordinal:
+          type: string
+          pattern: ^[1-9][0-9]{0,18}$
+          description: Positive signed-64-bit ordinal encoded as decimal string; reject overflow.
+        state:
+          type: string
+          enum:
+            - ACTIVE
+            - SUBMITTED
+            - ABANDONED
+        result:
+          anyOf:
+            - $ref: "#/components/schemas/Result"
+            - type: "null"
+    ClosedPublication:
+      type: object
+      additionalProperties: false
+      required:
+        - publicationId
+        - state
+        - revision
+        - closedAt
+      properties:
+        publicationId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        state:
+          const: CLOSED
+        revision:
+          type: integer
+          minimum: 0
+          maximum: 9223372036854775807
+          description: Existing W3-A Publication revision wire representation; compare without lossy conversion.
+        closedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+    TeacherCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+      properties:
+        expectedRevision:
+          type: integer
+          minimum: 0
+          maximum: 9223372036854775807
+          description: Existing W3-A Publication revision wire representation; compare without lossy conversion.
+    ClosureView:
+      type: object
+      additionalProperties: false
+      required:
+        - closureRequestId
+        - publicationId
+        - requestingTeacherId
+        - requestedAt
+        - state
+        - finalizationStartedAt
+        - resolvedAt
+        - publicationRevision
+      properties:
+        closureRequestId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        publicationId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        requestingTeacherId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        requestedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+        state:
+          type: string
+          enum:
+            - PENDING
+            - FINALIZING
+            - CANCELLED
+            - COMPLETED
+            - RESOLVED_EARLY
+        finalizationStartedAt:
+          anyOf:
+            - type: string
+              format: date-time
+              pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+              description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+            - type: "null"
+        resolvedAt:
+          anyOf:
+            - type: string
+              format: date-time
+              pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+              description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+            - type: "null"
+        publicationRevision:
+          type: integer
+          minimum: 0
+          maximum: 9223372036854775807
+          description: Existing W3-A Publication revision wire representation; compare without lossy conversion.
+    ClosureCompletion:
+      type: object
+      additionalProperties: false
+      required:
+        - closureRequestId
+        - publicationId
+        - closed
+        - publicationRevision
+      properties:
+        closureRequestId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        publicationId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        closed:
+          type: boolean
+        publicationRevision:
+          type: integer
+          minimum: 0
+          maximum: 9223372036854775807
+          description: Existing W3-A Publication revision wire representation; compare without lossy conversion.
+    NotificationPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - nextCursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+          maxItems: 100
+        nextCursor:
+          type:
+            - string
+            - "null"
+          maxLength: 1024
+    Notification:
+      type: object
+      additionalProperties: false
+      required:
+        - notificationId
+        - publicationId
+        - publicationTitle
+        - attemptId
+        - closureRequestId
+        - teacherInitiated
+        - contentVersion
+        - publishedAt
+        - confirmedNoticeAt
+        - closureCutoffAt
+        - warningHours
+        - noticeStatus
+        - message
+        - resultId
+        - serverNow
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        publicationId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        publicationTitle:
+          type: string
+          minLength: 1
+          maxLength: 300
+        attemptId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        closureRequestId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        teacherInitiated:
+          const: true
+        contentVersion:
+          const: 1
+        publishedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+        confirmedNoticeAt:
+          anyOf:
+            - type: string
+              format: date-time
+              pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+              description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+            - type: "null"
+        closureCutoffAt:
+          anyOf:
+            - type: string
+              format: date-time
+              pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+              description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+            - type: "null"
+        warningHours:
+          const: 48
+        noticeStatus:
+          type: string
+          enum:
+            - PREPARING
+            - NOTICE_CONFIRMED
+            - CUTOFF_REACHED
+            - CANCELLED
+            - SUBMITTED
+            - ABANDONED
+            - FINALIZED
+            - RESOLVED_EARLY
+        message:
+          type: string
+          minLength: 1
+        resultId:
+          anyOf:
+            - type: string
+              format: uuid
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+            - type: "null"
+        serverNow:
           type: string
           format: date-time
           pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$

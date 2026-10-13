@@ -1,6 +1,12 @@
-# W3-B/W3-C — Future HTTP and OpenAPI contract freeze proposal
+# W3-B/W3-C — HTTP and OpenAPI engineering contract
 
-Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); every future operation remains PROPOSED/UNIMPLEMENTED; production activation NOT AUTHORIZED.**
+Status: **Leader product policy APPROVED; engineering direction APPROVED WITH CONDITIONS (EC79-01..04); B1/C1/B2 merged and B3 implemented default disabled, pending independent security/runtime review and Leader merge approval; production activation NOT AUTHORIZED.**
+
+Current runtime, exact routes, verification and rollout gates are recorded in the
+[W3-B3 implementation evidence](../architecture/w3b3-closure-notification-implementation.md). Historical baseline inspection and
+proposed SQL below describe the contract freeze; executable Flyway V1–V5 and the
+implemented service OpenAPI govern the delivered adapters. Accepted product policy
+and the indefinite blocked-recipient limitation are unchanged.
 
 Leader product policy is accepted in [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md).
 Machine-readable DTOs/routes are [OpenAPI 3.1](proposed/w3b-w3c.openapi.yaml).
