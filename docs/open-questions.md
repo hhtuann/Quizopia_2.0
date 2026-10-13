@@ -22,12 +22,16 @@ resolves W3-B/C count/retake, unlimited individual duration, ABANDON, autosave,
 submit/timeout, numeric/display and delayed closure C1..C10 product decisions.
 [The integrated pack](architecture/w3b-w3c-contract-review-evidence.md) is
 APPROVED WITH CONDITIONS for engineering direction under EC79-01..04; future
-Attempt/closure/result endpoints remain PROPOSED/UNIMPLEMENTED.
+closure/inbox/Identity-recipient endpoints remain PROPOSED/UNIMPLEMENTED.
+[W3-B2 Student API implementation](architecture/w3b2-student-attempt-implementation.md)
+adds nine default-disabled Student operations, pending independent review and Leader
+merge approval. Its explicitly authorized additive V4.1 capacity correction preserves
+V1–V4 and reserves V5 for B3; production activation remains unauthorized.
 [W3-B1 implementation](architecture/w3b1-persistence-implementation.md) now supplies
 V3/V4 and Publication configuration changes (merged PR #80).
 [W3-C1 internal grading/finalization](architecture/w3c1-grading-finalization-implementation.md)
-is implemented for independent review; Student HTTP and closure/inbox integration
-remain unavailable. The frozen proposed migration examples are design history.
+is merged at PR #81. Student HTTP is supplied by the default-disabled B2 increment;
+closure/inbox integration remains unavailable. The frozen proposed migration examples are design history.
 Security/runtime acceptance and Leader implementation merge/release gates
 remain. Production activation is NOT AUTHORIZED. Old
 recommendations superseded below are not active TBDs; operational release gates

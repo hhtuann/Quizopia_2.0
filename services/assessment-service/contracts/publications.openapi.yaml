@@ -1,19 +1,21 @@
 openapi: 3.1.0
 info:
-  title: Assessment Publication backend
-  version: 1.1.0
+  title: Assessment Publication and Student Attempt backend
+  version: 1.2.0
   description:
-    Implemented W3-A plus W3-B1 Publication configuration, pending independent implementation
-    review. Default disabled. maxAttempts defaults to 1; duration 0 is unlimited. Current and issued role
-    plus independent LD-05 admission required at Gateway and Assessment. CLOSE/Attempts/results/review
-    remain denied; discovery is metadata only.
+    Implemented W3-A, W3-B1/C1 and nine W3-B2 Student operations, pending independent implementation
+    review. PUBLICATION_ENABLED, ATTEMPTS_ENABLED and RESULTS_ENABLED default false independently at Gateway and
+    Assessment. SUBMIT requires both B2 flags. Current and issued STUDENT role plus fresh LD-05 admission, owner
+    and current CLASS membership required. Review additionally requires durable CLOSED; successful CLOSED topology
+    verification awaits B3. No Teacher CLOSE, closure, inbox or private Identity recipient routes implemented. No
+    production activation authorization.
 paths:
   /api/assessments/publications:
     post:
       operationId: createPublication
       description:
-        TEACHER USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -37,9 +39,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -96,8 +96,8 @@ paths:
     get:
       operationId: get_publication
       description:
-        TEACHER USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -118,9 +118,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -169,8 +167,8 @@ paths:
     put:
       operationId: put_publication
       description:
-        TEACHER USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -191,9 +189,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -247,8 +243,8 @@ paths:
     post:
       operationId: post_publication_open
       description:
-        TEACHER USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -269,9 +265,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -325,8 +319,8 @@ paths:
     patch:
       operationId: patch_publication_schedule
       description:
-        TEACHER USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        TEACHER USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -347,9 +341,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -403,8 +395,8 @@ paths:
     post:
       operationId: post_entry
       description:
-        STUDENT USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        STUDENT USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -425,9 +417,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -476,8 +466,8 @@ paths:
     post:
       operationId: post_publication_entry
       description:
-        STUDENT USER required; owner check for management. Schedule supports nondecreasing
-        end/duration only; start fixed.
+        STUDENT USER required; owner check for management. Schedule supports nondecreasing end/duration
+        only; start fixed.
       security:
         - userBearer: []
       responses:
@@ -498,9 +488,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
-          description:
-            Invalid SERVICE authentication or independently invalid USER evidence; inspect
-            fixed code.
+          description: Invalid SERVICE authentication or independently invalid USER evidence; inspect fixed code.
           headers:
             Cache-Control: *id001
           content:
@@ -544,6 +532,838 @@ paths:
           in: path
           required: true
           schema: *id002
+  /api/assessments/publications/{publicationId}/attempts/start:
+    post:
+      operationId: startAttempt
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. PUBLIC locator
+        required in body and must resolve to path Publication; CLASS locator omitted. Existing selection does not
+        create a retake; matching replay returns original Attempt identity current view with 200.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id003
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptView"
+        "201":
+          description: First Attempt created atomically.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptView"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id003
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRequest"
+      x-required-feature-flags:
+        - ATTEMPTS_ENABLED
+  /api/assessments/attempts/{attemptId}:
+    get:
+      operationId: readAttempt
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner/current
+        CLASS membership. Resume reconciles due terminalization but never closes Publication. Stable redacted question/option
+        order and own complete answers.
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id004
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptView"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id004
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      x-required-feature-flags:
+        - ATTEMPTS_ENABLED
+  /api/assessments/publications/{publicationId}/attempts/retake:
+    post:
+      operationId: retakeAttempt
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Prior terminal
+        required; valid OPEN/window/entitlement/no pending closure. Matching key returns original Attempt current
+        view with 200; distinct concurrent key conflicts.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id005
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptView"
+        "201":
+          description: Explicit new retake created atomically.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttemptView"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id005
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRequest"
+      x-required-feature-flags:
+        - ATTEMPTS_ENABLED
+  /api/assessments/attempts/{attemptId}/questions/{questionNumber}/answer:
+    post:
+      operationId: saveQuestionAnswer
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Question-scoped
+        answer, Attempt-wide string revision. Exact receipt replay returns original 200 acknowledgment even after
+        terminalization; new late mutation reconciles and returns 409.
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: questionNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id006
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveAck"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id006
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveRequest"
+      x-required-feature-flags:
+        - ATTEMPTS_ENABLED
+  /api/assessments/attempts/{attemptId}/submit:
+    post:
+      operationId: submitAttempt
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Optional answers
+        is exactly one typed entry per snapshot question; omission uses committed answers. Atomic final answers/grade/result/terminalization.
+        Exact completed replay returns same result without regrading.
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id007
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id007
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitRequest"
+      x-required-feature-flags:
+        - ATTEMPTS_ENABLED
+        - RESULTS_ENABLED
+  /api/assessments/attempts/{attemptId}/abandon:
+    post:
+      operationId: abandonAttempt
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Explicit durable
+        ungraded terminalization, consumes entitlement; matching completed replay returns stored acknowledgment.
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{16,128}$
+          description: Exactly one durable operation identity; scope/digest/replay defined by HTTP contract.
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id008
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AbandonAck"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id008
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AbandonRequest"
+      x-required-feature-flags:
+        - ATTEMPTS_ENABLED
+  /api/assessments/attempts/{attemptId}/result:
+    get:
+      operationId: readAttemptResult
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner/current
+        CLASS membership; SUBMITTED only, otherwise RESULT_NOT_AVAILABLE. Total-only; never correctness/key/explanation.
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id009
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id009
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      x-required-feature-flags:
+        - RESULTS_ENABLED
+  /api/assessments/publications/{publicationId}/aggregate-score:
+    get:
+      operationId: readPublicationAggregate
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Only own graded
+        Attempts. PUBLIC requires at least one owned Attempt; CLASS current membership plus at least one owned Attempt.
+        No graded Attempts means null bestResult.
+      parameters:
+        - name: publicationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id010
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aggregate"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id010
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      x-required-feature-flags:
+        - RESULTS_ENABLED
+  /api/assessments/attempts/{attemptId}/review:
+    get:
+      operationId: reviewOwnAttempt
+      x-contract-status: IMPLEMENTED_DEFAULT_DISABLED_PENDING_REVIEW
+      x-required-user-role: STUDENT
+      description:
+        STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Own SUBMITTED
+        Attempt AND durably CLOSED Publication, current CLASS membership. Otherwise REVIEW_NOT_AVAILABLE; wrong
+        owner masked 404.
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Success or authorized durable replay; no-store.
+          headers: &id011
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Required for every success/error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          description: Malformed schema/reference/answer/query; no business mutation.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "401":
+          description: Missing/invalid/expired USER credentials or independently invalid USER evidence.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "403":
+          description: Wrong principal or missing issued/current role; never a SERVICE substitute.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "404":
+          description: Missing or inaccessible resource masked; ownership/member/locator checked before state.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "409":
+          description: Serialized revision, replay, eligibility or lifecycle conflict; fixed code, no identities/counts.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "429":
+          description: Reserved for a deployed operational throttle; this application increment does not install one. Entitlement unchanged. Retry the same key after backoff.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+        "503":
+          description:
+            Required authority/dependency/persistence/grading unavailable. No refresh invalidation or
+            fallback.
+          headers: *id011
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentError"
+      x-required-feature-flags:
+        - RESULTS_ENABLED
 components:
   securitySchemes:
     userBearer:
@@ -610,11 +1430,11 @@ components:
             - string
             - "null"
           format: uuid
-        startAt: &id003
+        startAt: &id012
           type: string
           format: date-time
           description: Explicit timezone offset; at most six fractional digits.
-        endAt: *id003
+        endAt: *id012
         durationMinutes:
           oneOf:
             - type: integer
@@ -623,8 +1443,8 @@ components:
               minimum: 5
               maximum: 240
           description:
-            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never
-            recalculate existing Attempt deadlines.
+            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never recalculate
+            existing Attempt deadlines.
         monitoringChoice:
           type: string
           enum:
@@ -637,12 +1457,12 @@ components:
           maximum: 10
           default: 1
           description:
-            Omission defaults to 1, including legacy JSON. Explicit null invalid. 0 unlimited;
-            1..10 finite. Mutable only in DRAFT; freezes OPEN.
+            Omission defaults to 1, including legacy JSON. Explicit null invalid. 0 unlimited; 1..10
+            finite. Mutable only in DRAFT; freezes OPEN.
       description:
-        PUBLIC requires monitoring DISABLED. Unlimited CLASS may remain UNCONFIGURED in DRAFT
-        but must choose DISABLED before OPEN; ENABLED is invalid. startAt<endAt required. New writes include
-        effective maxAttempts; legacy OPEN JSON is preserved.
+        PUBLIC requires monitoring DISABLED. Unlimited CLASS may remain UNCONFIGURED in DRAFT but must
+        choose DISABLED before OPEN; ENABLED is invalid. startAt<endAt required. New writes include effective maxAttempts;
+        legacy OPEN JSON is preserved.
     OwnerView:
       type: object
       additionalProperties: false
@@ -667,7 +1487,7 @@ components:
         revision:
           type: integer
           minimum: 0
-        createdAt: *id003
+        createdAt: *id012
         openedAt:
           type:
             - string
@@ -705,8 +1525,8 @@ components:
           enum:
             - CLASS
             - PUBLIC
-        startAt: *id003
-        endAt: *id003
+        startAt: *id012
+        endAt: *id012
         durationMinutes:
           oneOf:
             - type: integer
@@ -715,8 +1535,8 @@ components:
               minimum: 5
               maximum: 240
           description:
-            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never
-            recalculate existing Attempt deadlines.
+            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never recalculate
+            existing Attempt deadlines.
         monitoringRequired:
           type: boolean
         windowStatus:
@@ -732,7 +1552,7 @@ components:
         - expectedRevision
         - configuration
       properties:
-        expectedRevision: &id004
+        expectedRevision: &id013
           type: integer
           minimum: 0
         configuration:
@@ -743,7 +1563,7 @@ components:
       required:
         - expectedRevision
       properties:
-        expectedRevision: *id004
+        expectedRevision: *id013
     Schedule:
       type: object
       additionalProperties: false
@@ -752,8 +1572,8 @@ components:
         - endAt
         - durationMinutes
       properties:
-        expectedRevision: *id004
-        endAt: *id003
+        expectedRevision: *id013
+        endAt: *id012
         durationMinutes:
           oneOf:
             - type: integer
@@ -762,8 +1582,8 @@ components:
               minimum: 5
               maximum: 240
           description:
-            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never
-            recalculate existing Attempt deadlines.
+            0 unlimited; otherwise 5..240 minutes. OPEN mode cannot switch; extensions never recalculate
+            existing Attempt deadlines.
     Entry:
       type: object
       additionalProperties: false
@@ -773,3 +1593,505 @@ components:
         locator:
           type: string
           pattern: ^[A-Za-z0-9_-]{43}$
+    AttemptView:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+        - publicationId
+        - ordinal
+        - state
+        - startedAt
+        - deadlineAt
+        - durationMinutes
+        - revision
+        - serverNow
+        - questions
+        - answers
+        - closure
+      properties:
+        attemptId: &id014
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        publicationId: *id014
+        ordinal:
+          type: string
+          pattern: ^[1-9][0-9]{0,18}$
+          description: Positive signed-64-bit ordinal encoded as decimal string; reject overflow.
+        state:
+          type: string
+          enum:
+            - ACTIVE
+            - SUBMITTED
+            - ABANDONED
+        startedAt: &id015
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+        deadlineAt:
+          anyOf:
+            - *id015
+            - type: "null"
+        durationMinutes:
+          oneOf:
+            - const: 0
+            - type: integer
+              minimum: 5
+              maximum: 240
+        revision:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,18})$
+          description:
+            Canonical decimal signed-64-bit nonnegative value; parser rejects values above 9223372036854775807.
+            String prevents JavaScript precision loss.
+        serverNow: *id015
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+          minItems: 1
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnswerEntry"
+          minItems: 1
+        closure:
+          anyOf:
+            - $ref: "#/components/schemas/AttemptClosure"
+            - type: "null"
+    Question:
+      type: object
+      additionalProperties: false
+      required:
+        - number
+        - type
+        - stemMarkdown
+        - options
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum:
+            - SINGLE_CHOICE
+            - MULTIPLE_CHOICE
+            - TRUE_FALSE_MATRIX
+            - NUMERIC_FILL
+        stemMarkdown:
+          type: string
+          minLength: 1
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+          maxItems: 4
+    Option:
+      type: object
+      additionalProperties: false
+      required:
+        - label
+        - markdown
+      properties:
+        label:
+          type: string
+          enum:
+            - A
+            - B
+            - C
+            - D
+        markdown:
+          type: string
+          minLength: 1
+    SaveAck:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+        - questionNumber
+        - revision
+        - savedAt
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        questionNumber:
+          type: integer
+          minimum: 1
+        revision:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,18})$
+          description:
+            Canonical decimal signed-64-bit nonnegative value; parser rejects values above 9223372036854775807.
+            String prevents JavaScript precision loss.
+        savedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+    Aggregate:
+      type: object
+      additionalProperties: false
+      required:
+        - publicationId
+        - bestResult
+      properties:
+        publicationId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        bestResult:
+          anyOf:
+            - $ref: "#/components/schemas/Result"
+            - type: "null"
+    AnswerEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - questionNumber
+        - answer
+      properties:
+        questionNumber:
+          type: integer
+          minimum: 1
+        answer:
+          $ref: "#/components/schemas/Answer"
+    StartRequest:
+      type: object
+      additionalProperties: false
+      required: []
+      properties:
+        locator:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+    SubmitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+      properties:
+        expectedRevision:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,18})$
+          description:
+            Canonical decimal signed-64-bit nonnegative value; parser rejects values above 9223372036854775807.
+            String prevents JavaScript precision loss.
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnswerEntry"
+          minItems: 1
+    AbandonAck:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+        - state
+        - terminalReason
+        - revision
+        - finalizedAt
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        state:
+          const: ABANDONED
+        terminalReason:
+          const: STUDENT_ABANDON
+        revision:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,18})$
+          description:
+            Canonical decimal signed-64-bit nonnegative value; parser rejects values above 9223372036854775807.
+            String prevents JavaScript precision loss.
+        finalizedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+    SaveRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+        - answer
+      properties:
+        expectedRevision:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,18})$
+          description:
+            Canonical decimal signed-64-bit nonnegative value; parser rejects values above 9223372036854775807.
+            String prevents JavaScript precision loss.
+        answer:
+          $ref: "#/components/schemas/Answer"
+    StudentError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - UNAUTHENTICATED
+            - ACCESS_DENIED
+            - PUBLICATION_NOT_FOUND
+            - ATTEMPT_NOT_FOUND
+            - CLASSROOM_NOT_ACCESSIBLE
+            - PUBLICATION_CONFLICT
+            - IDEMPOTENCY_CONFLICT
+            - REVISION_CONFLICT
+            - WINDOW_NOT_STARTED
+            - WINDOW_ENDED
+            - ATTEMPTS_EXHAUSTED
+            - ACTIVE_ATTEMPT_EXISTS
+            - RETAKE_NOT_AVAILABLE
+            - ATTEMPT_TERMINAL
+            - ATTEMPT_DEADLINE_REACHED
+            - RESULT_NOT_AVAILABLE
+            - REVIEW_NOT_AVAILABLE
+            - AUTHORITY_UNAVAILABLE
+            - DEPENDENCY_UNAVAILABLE
+            - PERSISTENCE_UNAVAILABLE
+            - GRADING_UNAVAILABLE
+            - CAPACITY_EXCEEDED
+
+    Review:
+      type: object
+      additionalProperties: false
+      required:
+        - result
+        - questions
+      properties:
+        result:
+          $ref: "#/components/schemas/Result"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionReview"
+          minItems: 1
+    QuestionReview:
+      type: object
+      additionalProperties: false
+      required:
+        - question
+        - answer
+        - correctAnswer
+        - earnedWeight
+        - possibleWeight
+        - explanationMarkdown
+      properties:
+        question:
+          $ref: "#/components/schemas/Question"
+        answer:
+          $ref: "#/components/schemas/Answer"
+        correctAnswer:
+          $ref: "#/components/schemas/Answer"
+        earnedWeight:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)(\.[0-9]*[1-9])?$
+          description: Exact nonnegative plain decimal, no exponent or unnecessary trailing zeros.
+        possibleWeight:
+          const: "1"
+        explanationMarkdown:
+          type:
+            - string
+            - "null"
+    AbandonRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expectedRevision
+      properties:
+        expectedRevision:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,18})$
+          description:
+            Canonical decimal signed-64-bit nonnegative value; parser rejects values above 9223372036854775807.
+            String prevents JavaScript precision loss.
+    AttemptClosure:
+      type: object
+      additionalProperties: false
+      required:
+        - closureRequestId
+        - confirmedNoticeAt
+        - closureCutoffAt
+      properties:
+        closureRequestId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        confirmedNoticeAt:
+          anyOf:
+            - &id016
+              type: string
+              format: date-time
+              pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+              description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+            - type: "null"
+        closureCutoffAt:
+          anyOf:
+            - *id016
+            - type: "null"
+    Answer:
+      oneOf:
+        - $ref: "#/components/schemas/SingleAnswer"
+        - $ref: "#/components/schemas/MultipleAnswer"
+        - $ref: "#/components/schemas/MatrixAnswer"
+        - $ref: "#/components/schemas/NumericAnswer"
+      discriminator:
+        propertyName: type
+        mapping:
+          SINGLE_CHOICE: "#/components/schemas/SingleAnswer"
+          MULTIPLE_CHOICE: "#/components/schemas/MultipleAnswer"
+          TRUE_FALSE_MATRIX: "#/components/schemas/MatrixAnswer"
+          NUMERIC_FILL: "#/components/schemas/NumericAnswer"
+    NumericAnswer:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - value
+      properties:
+        type:
+          const: NUMERIC_FILL
+        value:
+          type:
+            - string
+            - "null"
+          maxLength: 64
+          description:
+            Null/ASCII-trimmed blank unanswered; otherwise exactly 4 characters matching full ADR-013
+            grammar (?:-?[0-9]+(?:[.][0-9]+)?|-[.][0-9]+). Outer ASCII whitespace only; preserve spelling. Semantic
+            validation required before mutation.
+          pattern: ^[\u0009-\u000d\u0020]*(?:[0-9]{4}|-[0-9]{3}|[0-9][.][0-9]{2}|[0-9]{2}[.][0-9]|-[0-9][.][0-9]|-[.][0-9]{2})?[\u0009-\u000d\u0020]*$
+    SingleAnswer:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - optionLabel
+      properties:
+        type:
+          const: SINGLE_CHOICE
+        optionLabel:
+          anyOf:
+            - type: string
+              enum:
+                - A
+                - B
+                - C
+                - D
+            - type: "null"
+    MultipleAnswer:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - optionLabels
+      properties:
+        type:
+          const: MULTIPLE_CHOICE
+        optionLabels:
+          type: array
+          items:
+            type: string
+            enum:
+              - A
+              - B
+              - C
+              - D
+          minItems: 0
+          maxItems: 4
+          uniqueItems: true
+    MatrixAnswer:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - judgments
+      properties:
+        type:
+          const: TRUE_FALSE_MATRIX
+        judgments:
+          type: object
+          additionalProperties: false
+          required:
+            - A
+            - B
+            - C
+            - D
+          properties:
+            A:
+              type:
+                - boolean
+                - "null"
+            B:
+              type:
+                - boolean
+                - "null"
+            C:
+              type:
+                - boolean
+                - "null"
+            D:
+              type:
+                - boolean
+                - "null"
+    Result:
+      type: object
+      additionalProperties: false
+      required:
+        - resultId
+        - attemptId
+        - publicationId
+        - ordinal
+        - earnedWeight
+        - possibleWeight
+        - percentageDisplay
+        - gradingPolicyVersion
+        - gradingPolicyId
+        - terminalReason
+        - finalizedAt
+      properties:
+        resultId: &id017
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        attemptId: *id017
+        publicationId: *id017
+        ordinal:
+          type: string
+          pattern: ^[1-9][0-9]{0,18}$
+          description: Positive signed-64-bit ordinal encoded as decimal string; reject overflow.
+        earnedWeight:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)(\.[0-9]*[1-9])?$
+          description: Exact nonnegative plain decimal, no exponent or unnecessary trailing zeros.
+        possibleWeight:
+          type: string
+          pattern: ^[1-9][0-9]*$
+          description: Positive integer question count, encoded as exact decimal string.
+        percentageDisplay:
+          type: string
+          pattern: ^(100\.00|(?:[0-9]|[1-9][0-9])\.[0-9]{2})$
+        gradingPolicyVersion:
+          const: 1
+        gradingPolicyId:
+          const: QUIZOPIA_GRADING_V1
+        terminalReason:
+          type: string
+          enum:
+            - MANUAL_SUBMIT
+            - BOUNDED_TIMEOUT
+            - TEACHER_NOTICE_CUTOFF
+        finalizedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.

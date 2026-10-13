@@ -1,11 +1,14 @@
 # W3-C1 atomic grading and finalization implementation
 
-Status: **Internal implementation for independent review; no Leader merge approval
-or production activation.** Base: merged W3-B1 PR #80,
+Status: **Merged foundation at PR #81; production activation remains unauthorized.** Base: merged W3-B1 PR #80,
 `22c7ff3104ca1230e601b3ee615e928d87a13a76`. ADR-015 and EC79-01..04 remain
 authoritative. The [grading contract](../specifications/w3-c-grading-results-contract.md)
 and [B1 implementation](w3b1-persistence-implementation.md) provide policy/schema
-context; the separate proposed OpenAPI still describes unavailable future APIs.
+context. This document records the original C1 increment boundary. The later
+[B2 implementation](w3b2-student-attempt-implementation.md) supplies Student HTTP,
+current authorization and the explicitly authorized additive V4.1 capacity/budget
+correction; see that amendment for current runtime limits. The contract pack now
+records availability per operation; B3 workflows remain proposed.
 
 ## Production boundary
 

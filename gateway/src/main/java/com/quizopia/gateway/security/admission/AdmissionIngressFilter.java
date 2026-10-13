@@ -22,10 +22,21 @@ public class AdmissionIngressFilter implements WebFilter {
                 || path.contains("//")
                 || path.contains(";")
                 || java.util.Arrays.stream(path.split("/")).anyMatch(part -> part.equals(".") || part.equals(".."))) {
+            if (path.startsWith("/api/assessments/")
+                    && (path.contains("/attempts/") || path.endsWith("/aggregate-score")))
+                return StudentAttemptBodyFilter.invalid(exchange);
             exchange.getResponse().setStatusCode(HttpStatus.BAD_REQUEST);
             exchange.getResponse().getHeaders().setCacheControl("no-store");
             return exchange.getResponse().setComplete();
         }
+        if (StudentAttemptRoutes.matches(exchange.getRequest().getMethod().name(), path)
+                && exchange.getRequest().getHeaders().headerNames().stream().anyMatch(name -> {
+                    String lower = name.toLowerCase(Locale.ROOT);
+                    return lower.startsWith("x-quizopia-")
+                            || lower.startsWith("x-authenticated-")
+                            || java.util.Set.of("x-user-id", "x-user-roles", "x-service-identity")
+                                    .contains(lower);
+                })) return StudentAttemptBodyFilter.invalid(exchange);
         // Browser evidence is never trusted or forwarded, even on existing out-of-scope routes.
         var sanitized = exchange.getRequest()
                 .mutate()

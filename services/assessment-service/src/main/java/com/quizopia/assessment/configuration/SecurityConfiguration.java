@@ -24,7 +24,8 @@ public class SecurityConfiguration {
             com.quizopia.assessment.security.SecurityErrorHandler errors,
             IdentityAdmissionClient admission,
             AdmissionProperties properties,
-            PublicationProperties publication)
+            PublicationProperties publication,
+            AssessmentFeatureProperties features)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -53,7 +54,9 @@ public class SecurityConfiguration {
                                     && authorities.contains("TOKEN_USER")
                                     && authorities.contains("ROLE_" + role));
                         }))
-                .addFilterAfter(new UserAdmissionFilter(admission, properties, publication), AuthorizationFilter.class)
+                .addFilterAfter(
+                        new UserAdmissionFilter(admission, properties, publication, features),
+                        AuthorizationFilter.class)
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(errors).accessDeniedHandler(errors))
                 .oauth2ResourceServer(oauth2 -> oauth2.authenticationEntryPoint(errors)
                         .accessDeniedHandler(errors)

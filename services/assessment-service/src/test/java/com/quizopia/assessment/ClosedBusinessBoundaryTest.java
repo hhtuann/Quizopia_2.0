@@ -19,13 +19,16 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
-            "quizopia.assessment.features.attempts-enabled=true",
-            "quizopia.assessment.features.results-enabled=true",
+            "quizopia.assessment.features.attempts-enabled=false",
+            "quizopia.assessment.features.results-enabled=false",
             "quizopia.assessment.features.closure-enabled=true"
         })
 @ActiveProfiles("test")
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class ClosedBusinessBoundaryTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.StudentAttemptStore studentStore;
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.quizopia.assessment.application.AttemptFinalization finalization;
 
@@ -121,6 +124,34 @@ class ClosedBusinessBoundaryTest {
                 .exchange()
                 .expectStatus()
                 .isUnauthorized();
+    }
+
+    static java.util.List<String[]> studentRoutes() {
+        String a = "/api/assessments/attempts/" + ACTOR, p = "/api/assessments/publications/" + ACTOR;
+        return java.util.List.of(
+                new String[] {"POST", p + "/attempts/start"},
+                new String[] {"POST", p + "/attempts/retake"},
+                new String[] {"GET", a},
+                new String[] {"POST", a + "/questions/1/answer"},
+                new String[] {"POST", a + "/submit"},
+                new String[] {"POST", a + "/abandon"},
+                new String[] {"GET", a + "/result"},
+                new String[] {"GET", a + "/review"},
+                new String[] {"GET", p + "/aggregate-score"});
+    }
+
+    @Test
+    void everyStudentRouteIsDefaultDisabledAndFutureRoutesStayDenied() {
+        for (var op : studentRoutes()) {
+            http().method(org.springframework.http.HttpMethod.valueOf(op[0]))
+                    .uri(op[1])
+                    .headers(h -> h.setBearerAuth(user()))
+                    .exchange()
+                    .expectStatus()
+                    .isEqualTo(503)
+                    .expectHeader()
+                    .valueEquals("Cache-Control", "no-store");
+        }
     }
 
     @TestConfiguration
