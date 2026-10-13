@@ -5,7 +5,7 @@ info:
   version: 0.1.0-proposed
   description:
     "Documentation-only proposal against W3-A PR #78. Every listed operation unimplemented/default
-    denied. No production activation or Leader engineering approval. See sibling HTTP/lifecycle/closure/grading
+    denied. Engineering direction APPROVED WITH CONDITIONS (EC79-01..04); independent security/runtime acceptance still required. No production activation. See sibling HTTP/lifecycle/closure/grading
     contracts for semantic/time/security constraints beyond JSON Schema."
 x-contract-status: PROPOSED_UNIMPLEMENTED
 security:

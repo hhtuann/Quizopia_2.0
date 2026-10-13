@@ -1,6 +1,6 @@
 # Wave 3 — Assessment Core and Grading Policy
 
-Status: **APPROVED product policy with ADR-015 amendments; W3-B/C engineering pack PROPOSED for review**
+Status: **APPROVED product policy; W3-B/C engineering direction APPROVED WITH CONDITIONS (EC79-01..04), runtime UNIMPLEMENTED**
 
 Recorded: **2026-10-09**, from the Leader's approved Wave 3 decision.
 
@@ -10,8 +10,9 @@ confirmed by the Leader. Local and fetched `origin/develop` were inspected at
 
 This specification records the accepted Wave 3 policy. It supersedes older
 assessment/grading TBD entries and illustrative configurable-policy examples
-for this milestone. It does not claim implementation, contract freeze, CI
-success, or Wave 3 completion. Unresolved contract and product choices below
+for this milestone. That initial policy record did not establish engineering
+freeze, implementation, CI success or Wave 3 completion; the current conditional
+engineering freeze is recorded separately in ADR-015. Unresolved choices below
 must be resolved before dependent implementation.
 
 The subsequent [approved W3-A Leader decision](w3-a-publication-scheduling-monitoring-policy.md)
@@ -32,8 +33,10 @@ is the later Leader-approved authority for maxAttempts 0/unlimited or 1..10,
 explicit retakes, duration 0/null deadline, ABANDON, strict four-character Student
 numeric input, exact decimal string scores/display to 2 places HALF_UP, timeout and C1..C10
 delayed closure. The [contract pack](../architecture/w3b-w3c-contract-review-evidence.md)
-proposes exact API/schema/locks/inbox details, awaiting independent review and
-Leader engineering sign-off. W3-A PR #78 already implements Publication/snapshot/
+records exact API/schema/locks/inbox direction now approved with conditions
+EC79-01..04. Future artifacts remain PROPOSED/UNIMPLEMENTED; independent read-only
+amendment review, security/runtime acceptance and Leader implementation merge
+gates remain. Production activation is not authorized. W3-A PR #78 implements Publication/snapshot/
 entry, no Attempts/CLOSE/grader/results/inbox. Historical audit sections below
 describe earlier checkpoints and do not override current amendments.
 

@@ -1,6 +1,6 @@
 # W3-B/W3-C — Contract review, delivery sequence and evidence
 
-Status: **PROPOSED engineering contract pack complete for independent review; no Leader engineering sign-off or feature implementation.**
+Status: **APPROVED WITH CONDITIONS — ENGINEERING CONTRACT FREEZE (EC79-01..04); independent read-only amendment review PENDING; executable W3-B/C implementation NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
 
 Recorded: 2026-10-13 (Asia/Bangkok). Product policy accepted in
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md).
@@ -8,6 +8,29 @@ Already implemented: merged W3-A PR #78 at `8777d484645117b910fd9735ec2f8b8fd4ee
 Deferred: Practice/guest/shuffle, generic inbox/email delivery, gradebook events,
 future grading, AI monitoring and unrelated frontend work. External gates are
 explicit below; documentation validation is not runtime evidence.
+
+## PR #79 conditional engineering sign-off coverage
+
+The Leader's subsequent authoritative directive, recorded 2026-10-13, approves
+the engineering direction subject to EC79-01..04. Reviewed old HEAD:
+`0ec889ee7dcd128c0506b53acac1f21ff6229dfe`; verified develop:
+`8777d484645117b910fd9735ec2f8b8fd4eee4df`. Product policy remains APPROVED;
+executable endpoints/migrations remain PROPOSED/UNIMPLEMENTED. Independent
+security review and REAL runtime acceptance remain required; production activation
+is NOT AUTHORIZED. This record is this agent's focused self-review, not independent
+verification or completion of the Leader merge-review gate.
+
+| Condition | Directive and verification                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| EC79-01   | Conditional narrow W3-B3 Identity route/scope approval. Checked SERVICE-only RS256, exact Assessment caller, no USER impersonation/Gateway/browser exposure, minimal Boolean+identity/time response, ACTIVE/verified/STUDENT, complete primary/Redis equality, fail-closed 503/no fallback/cache, bounded private HTTPS/capacity and independent security/REAL integration gates. Existing OpenAPI route/security/schema already satisfy the boundary and are preserved. |
+| EC79-02   | Indefinite blocked closure for ineligible/disabled/unverifiable recipient is ACCEPTED OPERATIONAL LIMITATION. No confirmed accessible notice means no cutoff/forced submission. Added explicit sanitized access-controlled observability/auditable recovery; no fabricated timestamp, auto-abandon, administrative force-close or silent bypass. Future remediation requires a NEW Leader product/security decision.                                                     |
+| EC79-03   | 2 MiB is INITIAL ENGINEERING BUDGET ONLY. Verify accepted snapshot/full-answer compatibility and expansion, resolve mismatch before accepting unusable content, reject oversize without mutation/truncation. Initial member capture remains atomic/complete or REQUEST rolls back. Real concurrency/batches/recovery/uncertain commit/failover/durability/timeouts/recovery authorization evidence remains required.                                                     |
+| EC79-04   | Approved B1→C1→B2→B3 sequence below, each scoped implementation PR with real tests, independent review and Leader merge approval. No public SUBMIT/grading-dependent route/delayed closure activation without actual authoritative implementation; no implementation PR opened here.                                                                                                                                                                                     |
+
+The Leader explicitly accepted all three MEDIUM considerations: narrow Identity
+dependency conditionally; potentially indefinite blocked closure; initial capacity
+budgets and atomic-capture trade-off. They are not undecided policy blockers.
+Independent read-only review of the sign-off amendments remains pending.
 
 ## Pack and source inspection
 
@@ -95,15 +118,19 @@ IDs are justified evidence, separate from ordinary logs and monitoring media.
 
 ## Dependency-aware implementation PR sequence
 
-Four coherent backend increments are proposed. Atomic grading is moved before
+EC79-04 approves these four coherent backend increments. Atomic grading stays before
 public Student routes: exposing autosave/start with no reliable timeout finalizer
-would leave deadline correctness incomplete. Each increment needs own tests,
-independent review, Leader merge and current develop rebase/merge review.
+would leave deadline correctness incomplete. Each increment requires its own
+appropriately scoped implementation PR, real tests, independent review, Leader
+merge approval and current develop synchronization review. No public SUBMIT,
+grading-dependent route or delayed-closure workflow may activate without the
+required actual authoritative implementations. This assignment opens no
+implementation PR.
 
 | Increment                                | Deliverable and activation boundary                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | W3-B1 — Persistence/configuration        | Proposed V3/V4, compatibility, strict max/duration, Attempt binding/guards/receipts/result schema and default-off flags. Existing W3-A compatibility/upgrade tests. No new Student route activation; no fake result/close.                                                                                                                  |
-| W3-C1 — Atomic grading/finalization core | Internal deterministic v1 grade, complete answer validator, submit/timeout shared transactional finalizer/result/aggregate/review projections and rollback/replay tests. Public adapters remain closed until Attempt core integrates all lifecycle authority/time invariants.                                                               |
+| W3-C1 — Atomic grading/finalization core | Internal deterministic v1 grade, complete answer validator, shared manual/timeout/closure finalization foundation, result/aggregate/review projections and concurrency/rollback/replay tests. Public adapters remain closed until Attempt core integrates all lifecycle authority/time invariants.                                          |
 | W3-B2 — Complete Student Attempt API     | START/read/RETAKE/SAVE/ABANDON plus integrated manual SUBMIT, bounded timeout and C1 score/aggregate/protected review routes; exact Gateway/downstream adapters; real PostgreSQL races and actual topology. Combined activation only after grader/finalizer present. Review cannot succeed until real closure exists, but cannot bypass it. |
 | W3-B3 — Closure and real inbox           | V5; authenticated inbox/notice proof before REQUEST activation; ordinary CLOSE, REQUEST/CANCEL/COMPLETE, exact 48-hour, batch recovery/audit and Teacher result list, narrow Identity recipient-eligibility scope/adapter, multi-instance/time races/topology. Never enable a fake CLOSE between increments.                                |
 
@@ -133,7 +160,7 @@ change is executed in this assignment.
 No new runtime tests were run for this documentation-only assignment. Historical
 W3-A reported test totals remain evidence of that earlier increment only.
 
-## Self-review findings and disposition
+## Historical initial-pack self-review findings and disposition
 
 Severity convention: BLOCKER prevents correct freeze/implementation; HIGH risks
 security/data/policy failure; MEDIUM leaves bounded ambiguity; LOW editorial;
@@ -174,7 +201,9 @@ real inbox/status and exact cutoff, Teacher request/cancel/complete separate con
 concrete backend SHA, feature/provisioning state, real topology URL and observed
 status before integration; UI must never assume mocks prove backend availability.
 
-Release gates remain: independent engineering review/Leader sign-off; Identity
+Conditional engineering freeze is recorded above. Remaining gates: independent
+read-only sign-off amendment review; scoped implementation review/Leader merge
+approval and independent security/runtime acceptance; Identity
 admission provisioning/reconciliation/fenced primary; all exact Gateway/downstream
 coverage and actual topology; inbox accessibility activation evidence; Assessment
 acknowledged-commit durability/failover; clock/latency/storage/rate capacity; TLS/
@@ -192,7 +221,7 @@ Repository validation excludes docs-only PRs; actual remote run status is report
 in the final handoff rather than inferred from local checks. No production tests,
 migrations, feature activation, merge or auto-merge are authorized here.
 
-Executed local checks (2026-10-13):
+Historical initial-pack checks at reviewed HEAD `0ec889e` (2026-10-13):
 
 - Repository Prettier binary over all 20 changed Markdown/YAML files: PASS.
 - openapi-spec-validator 0.7.2: PASS, 18 proposed operations (17 public/1 internal),
@@ -214,3 +243,75 @@ The system Python could not create a venv because ensurepip was absent; reusing
 isolated existing validator dependencies resolved this tooling issue. No repository
 package/dependency/configuration changes. Runtime acceptance tests above remain
 unexecuted, and remote CI status is reported separately after pushing.
+
+## Independent read-only coordinator review request
+
+Keep the existing PR #79 Draft. The Leader has issued conditional engineering
+sign-off; the separate coordinator must still review these amendments read-only
+and report findings before the Leader merge-review gate is presented. This
+agent's self-review and static checks do not satisfy independent review.
+
+Review inputs are the final pushed SHA in the finalization report and old HEAD
+`0ec889ee7dcd128c0506b53acac1f21ff6229dfe`. Pin the reported final SHA locally,
+verify it equals PR #79's head, then inspect exactly:
+
+```sh
+git diff --stat 0ec889ee7dcd128c0506b53acac1f21ff6229dfe HEAD
+git diff 0ec889ee7dcd128c0506b53acac1f21ff6229dfe HEAD -- docs/
+git merge-base HEAD origin/develop
+```
+
+Check EC79-01..04 coverage; exact Identity SERVICE caller/scope/no-Gateway/minimal
+response boundary; accepted indefinite closure limitation and absence of bypass;
+capacity/full-answer compatibility/atomic capture and additive migration safety;
+unchanged ASSESS/GRADE/C1..C10 product decisions and historical LD-01/04; executed
+validation evidence versus unexecuted runtime/release gates. OpenAPI paths,
+schemas, security and response headers must remain unchanged; only approval
+metadata requires correction. SQL design blocks must remain byte-identical.
+
+No new branch/worktree/PR, frontend #77 modification, backend implementation,
+merge, auto-merge or production activation belongs to these amendments.
+
+## Sign-off amendment validation and focused self-review
+
+Executed 2026-10-13 against reviewed old HEAD `0ec889e`, before committing the
+sign-off amendments:
+
+- `frontend/node_modules/.bin/prettier --check` with all 16 changed Markdown/YAML
+  paths: PASS.
+- `PYTHONPATH=gateway/target/w3a-evidence/openapi-python python3 -m openapi_spec_validator docs/specifications/proposed/w3b-w3c.openapi.yaml`:
+  PASS (existing validator 0.7.2).
+- `PYTHONPATH=gateway/target/w3a-evidence/openapi-python python3 -W ignore::DeprecationWarning /tmp/quizopia_ec79_validate.py`:
+  PASS. Replacement static checks using existing PyYAML/JSON Schema tooling
+  validate 18 future operations/32 schemas, 35 answer-schema cases, 152 local
+  links across the full 20-file pack and all local JSON references.
+- The same static check verifies all 14 Identity conditions are listed;
+  SERVICE-only security/exact scope/minimal response/no-store and the exact
+  proposed-only inventory remain intact. Parsed OpenAPI differs from old HEAD
+  only in info.description, with no path/schema/security/header redesign.
+- ASSESS/GRADE/C1..C10 policy block and historical LD-01/LD-04 are byte-identical;
+  LD-01/LD-04 also match develop. Attempt/grading behavior sections, SQL design
+  blocks, executable V1/V2, existing W3-A service OpenAPI and Gateway inventory
+  are unchanged. All 16 amendment paths are documentation-only; scoped scan
+  detected no private keys, GitHub credentials or JWT material.
+- `git diff --check`: PASS. Every changed path/diff and the unchanged
+  develop/branch baseline were inspected; no unrelated changes were present.
+
+Tooling limitation: the initial pack's temporary custom validator and /tmp SQL
+parser are no longer available. The replacement temporary check uses existing
+validator/JSON Schema dependencies; no packages/manifests were installed/changed.
+SQL blocks were compared byte-for-byte, not reparsed or executed in this pass.
+Historical SQL syntax results above remain historical evidence, not a rerun.
+No runtime, benchmark, security integration or database tests were executed.
+GitHub CI filtering/status is verified separately on the final pushed SHA.
+
+Focused self-review found and corrected obsolete approval status (LOW), the
+blanket public-USER/Gateway transport wording that could be misread as applying
+to the private Identity route (MEDIUM documentation ambiguity), and implicit
+notice/capacity limitations now requiring explicit accepted status (MEDIUM review
+considerations accepted by the Leader). The OpenAPI already overrode private
+security correctly; only its false no-approval description required change.
+No remaining BLOCKER/HIGH amendment defect was identified by this self-review.
+This is not independent verification: coordinator amendment review, independent
+security/REAL runtime acceptance, per-increment review and Leader merge/release
+gates remain open.

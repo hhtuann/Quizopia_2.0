@@ -1,6 +1,6 @@
 # W3-B/W3-C — Future HTTP and OpenAPI contract freeze proposal
 
-Status: **PROPOSED engineering contract; every operation below is UNIMPLEMENTED.**
+Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); every future operation remains PROPOSED/UNIMPLEMENTED; production activation NOT AUTHORIZED.**
 
 Leader product policy is accepted in [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md).
 Machine-readable DTOs/routes are [OpenAPI 3.1](proposed/w3b-w3c.openapi.yaml).
@@ -10,8 +10,10 @@ Semantics supplement JSON Schema in [lifecycle](w3-b-attempt-lifecycle-contract.
 [persistence](../architecture/w3b-w3c-persistence-concurrency-design.md).
 W3-A implemented routes remain in their service OpenAPI unchanged. Practice,
 public directory, guest, generic notification and read-ack APIs are deferred.
-External gates: independent contract review and Leader sign-off, exact route
-adapters/feature provisioning, real topology and capacity/security/rollout controls.
+External gates: independent read-only amendment review, scoped implementation
+review/Leader merge approval, exact route adapters/provisioning, independent
+security review, REAL integration and capacity/rollout controls. ADR-015 records
+conditional engineering sign-off; these gates remain unsatisfied by documentation.
 
 ## Source-truth route boundary
 
@@ -28,13 +30,13 @@ No prefix-wide authenticated fallback, aliases, alternate public service ports o
 
 ## Common transport, validation and credentials
 
-All operations: HTTPS through Gateway in deployment, exactly one Authorization
+Public operations: HTTPS through Gateway in deployment, exactly one Authorization
 Bearer USER JWT, RS256/issuer/expiry/ADR-014 verification independently at both
 boundaries, fresh primary Identity admission with complete Redis equality on each
 request. Token roles and current roles both required. Business responses and every
 error include `Cache-Control: no-store`; do not put result/review/inbox into CDN,
 service-worker persistent cache or logs. Request/response bodies are application/json.
-Mutations require Content-Type application/json and exactly one `Idempotency-Key`
+Public mutations require Content-Type application/json and exactly one `Idempotency-Key`
 matching `[A-Za-z0-9_-]{16,128}`. No cookies/CSRF credentials authorize business APIs;
 refresh remains separate. Existing CORS allows this header; add no USER evidence
 or identity assertion headers to browser CORS.
@@ -74,12 +76,18 @@ Successful matching replays still require current authority and resource ownersh
 Changed payload/action under existing/reserved key: 409 IDEMPOTENCY_CONFLICT.
 No retention TTL chosen for replay evidence.
 
-Proposed input body ceiling is 2 MiB uncompressed UTF-8 JSON, consistent with the
-current snapshot handoff transport budget; no arbitrary question-count product cap.
+EC79-03 accepts 2 MiB uncompressed UTF-8 JSON as the INITIAL ENGINEERING
+REQUEST-BODY BUDGET ONLY, not a permanent Quiz product restriction or arbitrary
+question-count cap. Existing W3-A handoff capacity limitations remain unchanged.
 Oversize is 400 INVALID_REQUEST before mutation. Capacity verification must include
 complete answer replacement and redacted delivery/review expansion for all snapshots
 accepted by W3-A; adjust this engineering ceiling in review if necessary, never
-truncate answers/content. The current handoff's accepted compatibility/capacity gap
+truncate answers/content. Before accepting a delivery snapshot in the future
+implementation, verify complete-answer submission is safe or explicitly resolve
+the mismatch; accepting unusable content and discovering failure only at SUBMIT
+is insufficient. Realistic full-answer request-size/expansion and sanitized,
+mutation-free oversize rejection tests are mandatory runtime evidence.
+The current handoff's accepted compatibility/capacity gap
 remains an external gate, not permission to change Quiz authoring validity.
 
 ## Proposed inventory and projections
@@ -114,6 +122,12 @@ period. Required noticeAccessibility is a durable server-side publish/confirm
 process under the closure contract. Student Attempt `closure` is null if no live
 membership; otherwise request ID and nullable confirmation/cutoff. Notification
 history retains cancelled/resolved status, owner-only outcome/result reference.
+EC79-02 accepts potentially indefinite closure blocking for ineligible, disabled
+or unverifiable recipients: no confirmed accessible notice means no cutoff and
+no closure-driven forced submission. No synthetic timestamp, auto-abandon, admin
+force-close or remediation bypass; future remediation needs a NEW Leader
+product/security decision. See the closure contract for sanitized operational
+observability and auditable recovery.
 
 StartRequest: PUBLIC requires locator and path association; CLASS omits locator
 (and rejects it if present). No client Student ID. Owned existing PUBLIC START
@@ -211,21 +225,27 @@ other private Identity/Classroom calls reuse W3-A scopes. Existing browser CORS
 Idempotency-Key suffices. Cursor-signing secret and operator flags are runtime
 only; no real environment files in Git.
 
-## Proposed internal Identity recipient accessibility dependency
+## EC79-01 — Conditionally approved future Identity recipient accessibility
 
 The existing dual-credential admission endpoint cannot check an offline recipient
 using a Teacher's USER evidence, and workers must not persist/impersonate Student
-tokens. Add a narrow **PROPOSED, UNIMPLEMENTED** direct internal Identity operation:
+tokens. EC79-01 conditionally approves a narrow future W3-B3 operation, still
+**PROPOSED/UNIMPLEMENTED** in this assignment:
 `POST /internal/security/notice-recipients/{studentId}/eligibility`, bodyless/no
 query/cookies, exactly one RS256 SERVICE Authorization, exact allowlisted Assessment
 client and scope `identity.notice-recipient.read`. Never Gateway-routed or browser
-accessible. It is a recipient eligibility check, not a USER admission grant.
+accessible. Independently verify RS256 SERVICE signature, issuer, timestamps,
+ADR-014 `principal_type=SERVICE`, exact allowlisted Assessment subject and required
+scope. Reject USER bearers; roles cannot substitute for the SERVICE scope. No
+USER impersonation, JWT-only fallback or generic account introspection authority.
+The public transport/USER/header rules above do not apply to this private,
+bodyless operation; its explicit SERVICE rules apply instead.
 
 Response 200 `{"studentId":"<matching UUID>","eligible":true,"checkedAt":"<UTC>"}`
 uses the same coherent fenced-primary/current complete Redis equality contract
 as LD-05. Match the requested UUID; eligible means present ACTIVE, verified and
 current STUDENT. Matching complete ineligible/missing authority returns eligible
-false without profile/email/roles/cutoff. Untrustworthy/missing/stale Redis or
+false without profile/email/password/complete roles/credentials/cutoff. Untrustworthy/missing/stale Redis or
 primary uncertainty returns 503 AUTHORITY_UNAVAILABLE, not a guessed false/true.
 The least-privilege caller may inspect only this Boolean; no scope authorizes
 Student business operations or gives workers credentials. No positive eligibility
@@ -241,7 +261,11 @@ cross-service in-flight limitation. If stale, release locks and repeat check;
 never make a network call while holding Publication locks. This check and the
 persisted inbox ACL/route-readiness proof jointly establish accessibility.
 
-Deploy/provision/test this dependency before notice confirmation activation. It
+Independent security review and REAL multi-service integration tests, including
+wrong client/scope/USER token, stale authority and recovery denials, are required
+before activation. Bounded private HTTPS/capacity controls remain mandatory.
+Deploy/provision/test this dependency within W3-B3 before notice confirmation
+activation. It
 adds one internal proposed operation to the 17 public operations, and needs its
 own exact Identity filter/scope/allowlist adapter. Existing Identity admission
 routes/credentials/USER authorization remain unchanged in this assignment.

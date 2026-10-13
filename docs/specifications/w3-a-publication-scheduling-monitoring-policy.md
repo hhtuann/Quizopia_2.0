@@ -8,8 +8,9 @@ maxAttempts, unlimited individual duration, ABANDON, numeric/display policy and
 C1..C10 delayed closure. The historical W3-A/LD-01..05 record below is preserved;
 its former unbounded/Attempt/numeric deferrals and blanket force-close exclusion
 are superseded only to that explicit scope. LD-02/03/05 and monitoring release
-gates remain. Implemented W3-A is PR #78; new W3-B/C engineering is PROPOSED,
-not runtime availability or Leader engineering approval.
+gates remain. Implemented W3-A is PR #78; W3-B/C engineering direction now has
+Leader approval with conditions EC79-01..04 in ADR-015. Future artifacts remain
+PROPOSED/UNIMPLEMENTED; production activation is not authorized.
 
 **Status:** APPROVED — Product direction and scope
 **Date:** 2026-10-09
@@ -620,6 +621,7 @@ tokens are exactly four ASCII characters, score display to 2 places HALF_UP only
 Historical LD-01/LD-04 wording above is unchanged and is not the current deferral.
 
 The [integrated contract pack](../architecture/w3b-w3c-contract-review-evidence.md)
-resolves those engineering gaps as reviewable proposals. Real inbox deployment,
-independent contract review and Leader sign-off precede feature activation;
-Practice/general inbox/monitoring privacy and operational release gates remain.
+defines the engineering direction conditionally approved in ADR-015. Independent
+read-only amendment review, real inbox deployment, implementation/Leader merge
+and security/runtime/release gates remain. Practice/general inbox scope and
+monitoring privacy/operational release gates are unchanged.

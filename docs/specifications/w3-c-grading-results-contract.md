@@ -1,6 +1,6 @@
 # W3-C — Deterministic grading, results and review
 
-Status: **PROPOSED engineering contract; GRADE-01..08 and visibility policy accepted.**
+Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); product policy APPROVED; executable runtime NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
 
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) records Leader policy.
 W3-A already pins grading_policy_version=1 on an immutable snapshot; it implements
@@ -9,8 +9,10 @@ no grader/results/review. These future contracts accompany the
 [persistence](../architecture/w3b-w3c-persistence-concurrency-design.md) and
 [proposed OpenAPI](proposed/w3b-w3c.openapi.yaml).
 Deferred: manual/AI grading, negative marking, configurable weights, new policies,
-retrospective regrading and gradebook events. External gates: independent review,
-Leader sign-off, exactness/security/topology tests and result/answer retention review.
+retrospective regrading and gradebook events. Conditional engineering sign-off
+is in ADR-015; independent read-only amendment review, scoped implementation
+review/Leader merge approval, exactness/security/topology tests and result/answer
+retention review remain required.
 
 ## Pinned policy and total computation
 

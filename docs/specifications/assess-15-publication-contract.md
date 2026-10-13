@@ -30,8 +30,10 @@ closure policy for future W3-B/C. The [engineering pack](../architecture/w3b-w3c
 proposes compatible maxAttempts default 1 without rewriting OPEN JSON/snapshots,
 duration 0/null deadlines, no post-OPEN mode switch and pending closure freeze.
 The duration5..240 and absent maxAttempts schema below describe implemented W3-A,
-not a contradictory future requirement. W3-B/C engineering awaits review; service
-OpenAPI and runtime are unchanged by these docs.
+not a contradictory future requirement. W3-B/C engineering direction is now
+approved with conditions EC79-01..04; independent read-only amendment review and
+security/runtime acceptance remain. Service OpenAPI/runtime are unchanged;
+production activation is not authorized.
 
 ## Internal source authority
 

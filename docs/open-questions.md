@@ -1,6 +1,6 @@
 # Open Questions
 
-Status: **Active after ADR-015 W3-B/C policy; proposed engineering review gates — v0.6 (2026-10-13)**
+Status: **Active after ADR-015 and EC79-01..04 conditional engineering freeze; runtime/release gates remain — v0.7 (2026-10-13)**
 
 The infrastructure/architecture questions required to scaffold are now largely accepted. The remaining items are feature-level, policy-level, or deployment-vendor choices unless explicitly marked otherwise.
 
@@ -21,9 +21,22 @@ The later [ADR-015](decisions/ADR-015-w3b-w3c-leader-policy.md) explicitly
 resolves W3-B/C count/retake, unlimited individual duration, ABANDON, autosave,
 submit/timeout, numeric/display and delayed closure C1..C10 product decisions.
 [The integrated pack](architecture/w3b-w3c-contract-review-evidence.md) is
-PROPOSED engineering awaiting independent review and Leader sign-off. Old
+APPROVED WITH CONDITIONS for engineering direction under EC79-01..04; future
+endpoints/migrations remain PROPOSED/UNIMPLEMENTED. Independent read-only amendment
+review, security/runtime acceptance and Leader implementation merge/release gates
+remain. Production activation is NOT AUTHORIZED. Old
 recommendations superseded below are not active TBDs; operational release gates
 and unrelated product decisions remain open.
+
+The Leader explicitly accepts the narrow Identity recipient dependency
+conditionally (EC79-01), potentially indefinite delayed-closure blocking for
+ineligible/disabled/unverifiable recipients (EC79-02), and initial capacity
+budgets/atomic-capture trade-off (EC79-03). These three MEDIUM considerations are
+not undecided product blockers. No confirmed accessible notice means no cutoff
+or closure-driven forced submission. Future remediation needs a NEW Leader
+product/security decision; no synthetic timestamp, auto-abandon or admin bypass.
+EC79-04 approves B1→C1→B2→B3 with separately tested/reviewed implementation PRs
+and Leader merge approval. The conditional freeze does not satisfy release gates.
 
 ## Identity
 
@@ -126,7 +139,7 @@ integration does not approve full Classroom orchestration or guest flows.
 
 **ASSESS-10.** Allowed Attempt count and start/resume/concurrent-start behavior?
 
-Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04)**.
 maxAttempts 0/unlimited or 1..10, existing default 1 and OPEN freeze; one ACTIVE per
 Student/Publication, separate identity/ordinal, ordinary START resumes/returns
 latest terminal, explicit retry-safe RETAKE only while OPEN/window/eligible and
@@ -136,14 +149,14 @@ the [lifecycle contract](specifications/w3-b-attempt-lifecycle-contract.md).
 
 **ASSESS-11.** Exact autosave revision/sequence, retry, and conflict contract?
 
-Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04)**.
 Question-scoped SAVE, Attempt-wide revision, durable operation identity, same
 payload replay acknowledgment, changed replay/stale 409 and terminal immutability.
 Exact typed DTOs, hashes and transaction order are proposed in the pack.
 
 **ASSESS-12.** Submission cutoff/deadline and timeout-finalization behavior?
 
-Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04)**.
 Duration0 gives null deadline;5..240 pins start-plus-duration. Manual eligibility
 uses serialized server time, no grace. At bounded deadline grade committed saved
 answers only, once, without timely-worker dependency; no window-end finalization.
@@ -152,7 +165,7 @@ cutoff/terminalization. Atomic submit/replay and explicit ungraded ABANDON accep
 
 **ASSESS-13.** Treatment of in-progress Attempts when a Publication closes?
 
-Status: **PRODUCT RESOLVED — LD-04 plus ADR-015 C1..C10; ENGINEERING PACK PROPOSED**.
+Status: **PRODUCT RESOLVED — LD-04 plus ADR-015 C1..C10; ENGINEERING DIRECTION APPROVED WITH CONDITIONS**.
 Ordinary CLOSE reconciles bounded expiry, checks persisted ACTIVE states and gives
 sanitized 409 ACTIVE_ATTEMPTS without counts/identities. Delayed owning-Teacher
 REQUEST after endAt establishes real durable authenticated notices; each cutoff is
@@ -165,7 +178,7 @@ Identity email capability. See [closure contract](specifications/w3-b-closure-no
 
 **ASSESS-14.** Wave 3 audience/eligibility/access and discovery contracts?
 
-Status: **PRODUCT RESOLVED — LD-03; W3-A access implemented; W3-B/C extension PROPOSED**.
+Status: **PRODUCT RESOLVED — LD-03; W3-A access implemented; W3-B/C engineering direction APPROVED WITH CONDITIONS; runtime UNIMPLEMENTED**.
 CLASS requires current evidence-derived membership; PUBLIC current USER+STUDENT
 and direct non-enumerable locator, no membership. No new owner self-participation
 rule. W3-A exact entry/source authorization is in ASSESS-15. Future Attempt
@@ -181,7 +194,7 @@ endpoint/scope, snapshot schema/atomic opening and security/configuration impact
 before coding. Accepted scope, ownership and atomic opening are not reopened.
 
 Status: **ENGINEERING CONTRACT IMPLEMENTED — LD78-01..04 ACCEPTED; FINAL REVIEW PENDING**, applying approved LD-01..05 policy;
-W3-B/C engineering is proposed in the pack; PROCTOR-10 and ID-05 operational
+W3-B/C engineering direction is approved with conditions in the pack; PROCTOR-10 and ID-05 operational
 gates remain. W3-A code is merged but independent review/production activation
 is not inferred. Recommendation: preserve the existing
 Gateway `/api/assessments/**` prefix, derive a trusted initiating Teacher from
@@ -206,7 +219,7 @@ endpoint inventory remains explicitly **PROPOSED**.
 contract, including concurrent autosave/submit, validation, replay responses,
 persisted submitted-answer/result identity, authorization projections, and errors?
 
-Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04)**.
 Atomic final answers/pinned deterministic grade/result/terminalization, complete
 optional final replacement with expectedRevision, successful identical retry from
 durable receipt without regrading; changed submit409. Exact typed answers/results,
@@ -214,7 +227,7 @@ masking, pagination and review gates are in the proposed HTTP/grading contracts.
 
 **ASSESS-17.** Detailed timing contract and future unbounded/practice scope?
 
-Status: **ASSESSMENT POLICY RESOLVED — LD-01 amended by ADR-015; ENGINEERING PROPOSED**.
+Status: **ASSESSMENT POLICY RESOLVED — LD-01 amended by ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS**.
 CLASS/PUBLIC keep startAt<endAt; new creation uses inclusive start/exclusive end.
 Individual duration 0 or 5..240, null or pinned positive deadline. Window end is not
 CLOSED, timeout or review permission. Preserve bounded OPEN configuration/deadlines,
@@ -228,14 +241,14 @@ GRADE-01..06 remain accepted exact equal-weight deterministic v1 policy.
 
 **GRADE-07.** Student numeric input/submission-validation format?
 
-Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04)**.
 Exactly four characters after outer ASCII-whitespace trim under ADR-013 grammar;
 blank/null unanswered; malformed nonblank 400 with no mutation; preserve spelling
 and exact decimal equality. The former variable-length recommendation is superseded.
 
 **GRADE-08.** Exact persistence/API and visible percentage format?
 
-Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING PACK PROPOSED FOR REVIEW**.
+Status: **PRODUCT RESOLVED — ADR-015; ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04)**.
 Exact earned/possible weights and no intermediate rounding. Student-visible
 values are decimal strings; percentage display two places HALF_UP only. Proposed
 QUIZOPIA_GRADING_V1 identifier, unconstrained finite numeric/quarter-v1 constraints,
@@ -427,8 +440,9 @@ The following are no longer open:
   AI behavior monitoring is deferred after Wave 3;
 
 - ADR-015 resolves W3-B/C product decisions and explicitly amends historical
-  LD-01/LD-04. The integrated engineering pack is proposed, not Leader-approved
-  implementation; real inbox, review and operational gates remain;
+  LD-01/LD-04. EC79-01..04 conditionally approve engineering direction; executable
+  artifacts remain proposed/unimplemented and real inbox, review, security/runtime
+  and operational gates remain;
 
 - true monorepo;
 - independent Maven project per service;

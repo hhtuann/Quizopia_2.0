@@ -1,6 +1,6 @@
 # W3-B — Durable notices and delayed Teacher closure
 
-Status: **PROPOSED engineering contract for accepted C1..C10 in ADR-015.**
+Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); C1..C10 product policy APPROVED; runtime PROPOSED/UNIMPLEMENTED, production activation NOT AUTHORIZED.**
 
 W3-A implements OPEN and schedule extension, no CLOSE/workflow/inbox. This design
 adds only Assessment closure notices under its existing Publication/Attempt
@@ -11,7 +11,9 @@ ownership. See [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md),
 Deferred: generic notifications, mandatory email, read acknowledgment, cross-service
 inbox and automatic Publication closure. External gates: deploy and verify actual
 authenticated inbox routes before request activation; durability/failover/clock,
-capacity, monitoring/alerts, retention/deletion and Leader engineering review.
+capacity, monitoring/alerts, retention/deletion, independent security/runtime
+acceptance and Leader implementation merge/release gates. Conditional engineering
+sign-off is recorded in ADR-015; independent read-only amendment review is pending.
 
 ## Ownership and accessibility
 
@@ -41,8 +43,9 @@ success by enqueueing email or setting an in-memory flag. Confirm accessibility
 using the same owner-scoped repository/projection used by the authenticated API,
 without impersonating USER credentials. Route access/security integration is
 verified in real topology before enablement; do not infer it from table existence.
-Before confirming notice, the worker additionally requires a fresh proposed
-Identity recipient-eligibility check, described in the HTTP contract. It verifies
+Before confirming notice, the worker additionally requires a fresh Identity
+recipient-eligibility check, conditionally approved but still unimplemented, as
+described in the HTTP contract. It verifies
 current ACTIVE/verified/STUDENT authority with complete Redis equality without
 borrowing a Student bearer token. Missing/disabled/role-removed recipient is not
 confirmed; outage/mismatch retries without a cutoff. This narrow SERVICE-only
@@ -54,6 +57,29 @@ Transient authentication infrastructure outages still fail closed under LD-05;
 this design promises published authenticated accessibility, not that a disabled
 account or an offline browser can read at every instant. No continuous-uptime
 period-reset rule is introduced by the policy.
+
+## EC79-02 — Accepted indefinite blocking and operational evidence
+
+The Leader accepts that an ineligible, disabled or unverifiable Student recipient
+can block delayed closure indefinitely. An unconfirmed notice has no valid cutoff;
+there can be no closure-driven forced submission of that Attempt. This accepted
+operational limitation is not a policy TBD and does not weaken C1 or the existing
+Student action/ordinary all-terminal closure rules.
+
+Preserve durable per-Attempt notice evidence and auditable retry/recovery decisions
+in restricted workflow audit. Proposed operational observability includes blocked
+notice/closure counts, oldest unresolved notice age and retry/recovery outcomes,
+using bounded categorical reasons (ineligible recipient, authority unavailable,
+inbox inaccessible). Metrics/alerts are access-controlled and contain no Student,
+Attempt or Publication identity, answer content or credentials; restricted durable
+workflow audit retains only the IDs/times/outcomes needed to explain recovery.
+Alert thresholds/capacity require implementation/operational review; no benchmark,
+SLA or successful delivery is inferred from a retry or health check.
+
+Never synthesize confirmedNoticeAt, auto-abandon, introduce administrative
+force-close or add a silent remediation bypass. Any future remediation requires
+a NEW Leader product/security decision. Missing notice keeps the relevant Attempt
+unfinalizable by this workflow, regardless of request age or retry count.
 
 ## Durable notice protocol (C1, C10)
 
@@ -109,7 +135,10 @@ Teacher ID, sampled time, increments Publication revision and captures **all the
 ACTIVE unlimited Attempts** as closure members with Student identity and pending
 notice state. This initial metadata-only INSERT SELECT is atomic; if capacity or
 statement timeout prevents capture, roll back request rather than report partial
-membership as complete. Actual answer/grading and notices use bounded batches.
+membership as complete. EC79-03 accepts this atomic-capture trade-off: no
+successfully created request may omit a member of the authoritative capture set.
+Capacity/transaction failure must roll back the whole REQUEST, not report partial
+capture as successful. Actual answer/grading and notices use bounded batches.
 Publication's pending workflow blocks all new creation and schedule extension,
 so later notice batches cannot miss a newly created Attempt. Bounded Attempts
 are not closure members; they retain deadline-based finalization.

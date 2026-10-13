@@ -194,6 +194,8 @@ explicit retake/ABANDON, strict numeric input and two-step delayed Teacher closu
 proposes Assessment-owned closure notices in a real authenticated inbox, atomic
 local grading/results and existing service authority boundaries. This scoped
 notice projection transfers no Classroom/Identity authority and adds no service.
-W3-A PR #78 is implemented; all W3-B/C routes/schema remain proposals for review.
+W3-A PR #78 is implemented. ADR-015 records W3-B/C engineering direction
+APPROVED WITH CONDITIONS (EC79-01..04); routes/schema remain PROPOSED/UNIMPLEMENTED.
+Independent amendment/security/runtime review remains; production is not authorized.
 Monitoring stays bounded CLASS-only; unlimited CLASS and PUBLIC cannot ENABLE.
 Practice/general inbox/gradebook events and operational/privacy release gates remain.

@@ -1,9 +1,10 @@
 # ADR-015: W3-B/W3-C Leader product policy and historical amendments
 
-Status: **Accepted product policy; proposed engineering contracts awaiting independent review and Leader sign-off.**
+Status: **LEADER PRODUCT POLICY: APPROVED. ENGINEERING CONTRACT DIRECTION: APPROVED WITH CONDITIONS — ENGINEERING CONTRACT FREEZE.**
 
 Recorded: 2026-10-13 (Asia/Bangkok), from the Leader-approved policy supplied in
-this assignment. No prior engineering approval or production activation is inferred.
+the initial contract assignment. The subsequent Leader directive below records
+conditional engineering sign-off; it authorizes no production activation.
 Baseline: merged W3-A PR #78, `8777d484645117b910fd9735ec2f8b8fd4eee4df`.
 
 ## Authority and scope
@@ -24,8 +25,10 @@ CLOSE, grading, result, review or authenticated notification inbox is implemente
 [persistence/concurrency](../architecture/w3b-w3c-persistence-concurrency-design.md),
 [HTTP/OpenAPI](../specifications/w3b-w3c-http-contract.md) and
 [review/sequence/evidence](../architecture/w3b-w3c-contract-review-evidence.md).
-Only policy in this ADR is accepted; technical choices in those documents are
-reviewable proposals. This assignment adds no executable migration or endpoint.
+The engineering direction in this pack is now approved subject to EC79-01..04
+below. Its endpoints/migrations remain PROPOSED/UNIMPLEMENTED artifacts; independent
+read-only amendment review, implementation review and runtime/security acceptance
+remain required. This assignment adds no executable migration or endpoint.
 
 ## Accepted decisions
 
@@ -76,6 +79,104 @@ now explicitly approved; it is not general force-close or timer closure.
 | C9     | Closure finalization is a graded terminal submission from committed answers, included in highest-score aggregation and post-CLOSED submitted-owner review. ABANDON remains ungraded/ineligible.                                                                                                                                                                                                                                                          |
 | C10    | Owner-specific notice/status shows Publication, Teacher initiation, exact cutoff, 48-hour warning, pre-cutoff SAVE/RESUME/SUBMIT rights, unsaved-work exclusion, consequences and eventual result. Authorized information only; countdown informational.                                                                                                                                                                                                 |
 
+## PR #79 Leader engineering sign-off — EC79-01 through EC79-04
+
+Recorded: 2026-10-13 (Asia/Bangkok), from the Leader's authoritative
+**APPROVED WITH CONDITIONS — ENGINEERING CONTRACT FREEZE** directive following
+reviewed HEAD `0ec889ee7dcd128c0506b53acac1f21ff6229dfe`.
+
+| Boundary                                                | Current status                                              |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| Leader product policy in this ADR                       | APPROVED; existing ASSESS/GRADE/C1..C10 decisions unchanged |
+| Engineering contract direction                          | APPROVED WITH CONDITIONS — EC79-01..04                      |
+| Executable W3-B/W3-C backend implementation             | NOT YET IMPLEMENTED                                         |
+| Independent security review and real runtime acceptance | STILL REQUIRED                                              |
+| Production activation                                   | NOT AUTHORIZED                                              |
+
+The approved direction covers START/RESUME/RETAKE, maxAttempts 0..10, duration 0
+or 5..240, durable question SAVE, ABANDON, coherent SUBMIT/TIMEOUT, synchronous
+exact grading/GRADE-07/08, protected results/review, ordinary CLOSE, Teacher
+REQUEST/CANCEL/COMPLETE, the real Assessment inbox, individual 48-hour cutoffs,
+additive PostgreSQL migrations and Publication-first concurrency.
+
+### EC79-01 — Conditional narrow Identity recipient eligibility approval
+
+The future W3-B3 operation
+`POST /internal/security/notice-recipients/{studentId}/eligibility`, requiring
+`identity.notice-recipient.read`, is conditionally approved with all safeguards:
+
+1. SERVICE-only authentication; USER bearer never accepted.
+2. Exact allowlisted Assessment client identity.
+3. Independent RS256 SERVICE JWT verification, including accepted issuer,
+   timestamps and ADR-014 principal/scope validation.
+4. No Gateway or browser exposure.
+5. No USER impersonation or stored Student credentials.
+6. No profile, email, password, complete roles or credentials in the response.
+7. Only Boolean eligibility plus required studentId/time binding.
+8. Current ACTIVE, verified, STUDENT eligibility.
+9. Complete PostgreSQL-primary/Redis equality under accepted LD-05 semantics.
+10. Fail-closed 503 when authority cannot be trusted.
+11. No JWT-only fallback.
+12. No positive eligibility cache.
+13. Bounded private HTTPS transport and capacity controls.
+14. Independent security review and REAL multi-service integration tests before
+    activation.
+
+This is a narrowly approved future Identity dependency within W3-B3, not generic
+account introspection authority and not an endpoint implemented by PR #79.
+
+### EC79-02 — Accepted operational limitation of notice delivery
+
+An ineligible, disabled or unverifiable recipient can block delayed closure
+**indefinitely**. This is an **ACCEPTED OPERATIONAL LIMITATION**, not an unresolved
+Leader product decision. Missing confirmed accessible notice means no 48-hour
+cutoff and no closure-driven forced submission of that Attempt. Preserve C1,
+Student-specific inbox accessibility, durable per-Attempt evidence, fail-closed
+checks and auditable retry/recovery. Sanitized, access-controlled operational
+metrics/alerts must expose neither Student identity nor answers.
+
+Never fabricate delivery timestamps, auto-abandon work, add administrative
+force-close or silently introduce a remediation bypass. Any future remediation
+requires a **NEW Leader product/security decision**. Existing authorized Student
+terminalization and ordinary all-terminal closure rules remain unchanged.
+
+### EC79-03 — Initial capacity budgets and atomic capture accepted
+
+The 2 MiB request-body ceiling is an **INITIAL ENGINEERING BUDGET ONLY**, not a
+permanent Quiz product restriction. Future implementation must verify compatibility
+with all accepted delivery snapshots and complete answer payloads, including
+realistic sizing/expansion tests. Never truncate valid answers or accept a snapshot
+that cannot be safely submitted without explicitly resolving the capacity mismatch.
+Oversized rejection must be sanitized and mutation-free. Existing W3-A handoff
+capacity limitations remain documented until separately resolved.
+
+Initial closure membership capture is atomic and complete. A successful request
+must omit no member of its authoritative eligible capture set (then ACTIVE
+unlimited Attempts). If capacity/transaction limits prevent complete capture,
+REQUEST rolls back; partial membership is never successful. Required evidence
+includes real PostgreSQL concurrency, full-answer sizing, bounded finalization
+batches, multi-instance recovery, uncertain-commit retry, DB failover/durability,
+lock/statement timeouts and security/authorization during recovery. Documentation
+validation or invented benchmarks cannot satisfy these runtime gates.
+
+### EC79-04 — Approved implementation sequence
+
+**W3-B1 Persistence/Configuration → W3-C1 Atomic Grading/Finalization Core →
+W3-B2 Complete Student Attempt API → W3-B3 Closure/Inbox/Identity Integration.**
+The existing [increment scopes](../architecture/w3b-w3c-contract-review-evidence.md#dependency-aware-implementation-pr-sequence)
+are approved, including legacy OPEN compatibility/default-disabled features,
+shared manual/timeout/closure finalization, real Student SUBMIT/results/review,
+and the narrow W3-B3 Identity adapter. Each increment requires its own scoped
+implementation PR, real tests, independent review and Leader merge approval.
+No public SUBMIT, grading-dependent route or delayed-closure workflow may activate
+without its actual authoritative implementations. No implementation PR is opened
+by this finalization assignment.
+
+The Leader explicitly accepts all three MEDIUM review considerations: the narrow
+Identity dependency conditionally; potentially indefinite blocked closure; and
+initial capacity budgets/atomic-capture trade-off. They are accepted engineering
+trade-offs subject to the stated safeguards, not undecided policy blockers.
+
 ## Deferred functionality and external gates
 
 Practice persistence, anonymous participation, passwords, shuffle, new grading
@@ -84,7 +185,10 @@ platform, AI monitoring and media recording remain deferred. Assessment owns
 only its closure notices; it does not take Classroom announcements or Identity
 OTP ownership. Any broader inbox ownership transfer requires a separate ADR.
 
-Independent contract review and Leader engineering sign-off precede implementation.
+Conditional engineering sign-off is recorded above. Independent read-only review
+of these amendments and the Leader merge-review gate remain pending; this agent
+does not mark either complete. Each implementation increment still needs its own
+independent review and Leader merge approval.
 Runtime activation additionally requires tested LD-05 adapters/topology, authentic
 inbox availability, capacity/clock/failover/durability/TLS/redaction/rollout controls
 and reviewed answer/result/notice/audit retention and deletion. Existing monitoring

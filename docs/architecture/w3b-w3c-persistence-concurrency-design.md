@@ -1,6 +1,6 @@
 # W3-B/W3-C — PostgreSQL persistence and concurrency design
 
-Status: **PROPOSED engineering contract; not executable migrations or implemented runtime.**
+Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); schema/migrations remain PROPOSED, not executable or implemented; production activation NOT AUTHORIZED.**
 
 Leader-approved policy is [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md).
 W3-A V1/V2 and JdbcPublicationStore already exist; this additive proposal preserves
@@ -9,8 +9,32 @@ their snapshot association. See [lifecycle](../specifications/w3-b-attempt-lifec
 [grading](../specifications/w3-c-grading-results-contract.md) and
 [HTTP](../specifications/w3b-w3c-http-contract.md). Practice/guest/general inbox,
 external email and gradebook events are deferred. External gates: independent
-review/Leader sign-off, real PostgreSQL concurrency/upgrade tests, primary durability,
+read-only amendment review, implementation review/Leader merge approval, independent
+security and real PostgreSQL concurrency/upgrade tests, primary durability,
 time synchronization, measured lock/transaction capacity and retention review.
+
+## EC79-03 — Accepted capacity and recovery requirements
+
+The initial 2 MiB request budget and atomic initial closure capture trade-off are
+Leader-accepted engineering considerations, not unresolved policy blockers. The
+budget is not a permanent Quiz restriction. Verify every accepted delivery
+snapshot against complete-answer submission sizes/expansion before accepting
+unusable content; explicitly resolve any mismatch, never truncate valid answers.
+Oversized rejection must be sanitized and mutation-free; W3-A's documented
+handoff limitations remain until separately resolved.
+
+Under the Publication-first protocol, REQUEST captures the complete authoritative
+set of then ACTIVE unlimited Attempts atomically. No successful request may omit
+an eligible capture member. If capacity, lock/statement or transaction limits
+prevent full capture, roll back REQUEST and its membership writes together.
+Later bounded notice/finalization batches do not permit partial initial capture.
+
+Future acceptance evidence must include real PostgreSQL concurrency, full-answer
+sizing/expansion, bounded finalization batches, multi-instance recovery, retries
+after uncertain commit, database failover/acknowledged-write durability, lock and
+statement timeouts, and authentication/authorization during recovery. Static
+syntax/schema validation does not prove these runtime gates; no benchmark is
+claimed. Existing additive migration/legacy/V1/V2 safeguards below remain unchanged.
 
 ## Existing constraints and proposed upgrade
 

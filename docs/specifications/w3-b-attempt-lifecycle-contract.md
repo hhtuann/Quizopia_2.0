@@ -1,6 +1,6 @@
 # W3-B — Attempt lifecycle contract
 
-Status: **PROPOSED engineering contract; Leader product policy accepted in ADR-015.**
+Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); product policy APPROVED; executable runtime NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
 
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) is the current policy.
 W3-A already implements Publication preparation/opening/entry and bounded schedule
@@ -9,8 +9,10 @@ extension, not Attempts. All routes here are future proposals in the
 [OpenAPI 3.1 artifact](proposed/w3b-w3c.openapi.yaml).
 [Persistence/locks](../architecture/w3b-w3c-persistence-concurrency-design.md)
 are normative proposed implementation requirements. Practice/guest/shuffle and
-monitoring runtime are deferred. External gates: independent review, Leader
-sign-off, LD-05 provisioning/topology, capacity, time and durable failover controls.
+monitoring runtime are deferred. Conditional engineering sign-off is in ADR-015;
+independent read-only amendment review, scoped implementation review/Leader merge
+approval, LD-05 provisioning/topology, security/runtime acceptance, capacity, time
+and durable failover controls remain required.
 
 ## Configuration and identity
 
