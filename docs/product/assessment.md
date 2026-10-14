@@ -1,8 +1,9 @@
 # Assessment
 
-Status: **Leader product policy APPROVED; engineering direction APPROVED WITH CONDITIONS (EC79-01..04); B1/C1/B2 merged and B3 implemented default disabled, pending independent security/runtime review and Leader merge approval; production activation NOT AUTHORIZED.**
+Status: **W3-A/B/C backend merged through PR #83; feature defaults disabled. Integrated acceptance/hardening is under review; external release gates remain open. Production activation NOT AUTHORIZED.**
 
-Current runtime, exact routes, verification and rollout gates are recorded in the
+Current merged-baseline acceptance and remaining gates are recorded in the
+[W3-FINAL evidence](../architecture/w3-final-assessment-acceptance.md). Historical increment runtime, exact routes, verification and rollout gates are recorded in the
 [W3-B3 implementation evidence](../architecture/w3b3-closure-notification-implementation.md). Historical baseline inspection and
 proposed SQL below describe the contract freeze; executable Flyway V1–V5 and the
 implemented service OpenAPI govern the delivered adapters. Accepted product policy
@@ -17,9 +18,10 @@ Attempt/CLOSE/grading/inbox runtime. The
 [W3-B/C engineering pack](../architecture/w3b-w3c-contract-review-evidence.md)
 has Leader engineering approval with conditions EC79-01..04. Merged W3-B1 supplies real persistence/configuration;
 [W3-C1](../architecture/w3c1-grading-finalization-implementation.md) adds internal
-grading/finalization. Merged B2 supplies Student submission/results/review; B3 now
-supplies closure/inbox and narrow Identity integration for independent review. Real security/runtime acceptance and Leader
-implementation merge/release gates remain.
+grading/finalization. Merged B2 supplies Student submission/results/review; merged B3
+supplies closure/inbox and narrow Identity integration. W3-FINAL records integrated
+verification and scoped hardening; independent security/runtime review and Leader
+release gates remain.
 Production activation is not authorized.
 
 Publication lifecycle is DRAFT→OPEN→CLOSED, immutable self-contained snapshot and

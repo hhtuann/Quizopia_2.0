@@ -37,6 +37,12 @@ remain. Production activation is NOT AUTHORIZED. Old
 recommendations superseded below are not active TBDs; operational release gates
 and unrelated product decisions remain open.
 
+Current status amendment (2026-10-14): B2 and B3 are merged through PR #83 at
+`4a75be8f446493ad3dd5025a3930b42639cafecb`. Earlier pending-merge statements above
+are increment history. [W3-FINAL acceptance](architecture/w3-final-assessment-acceptance.md)
+records fresh verification, scoped hardening and remaining external gates; neither
+merge nor these tests authorize production activation.
+
 The Leader explicitly accepts the narrow Identity recipient dependency
 conditionally (EC79-01), potentially indefinite delayed-closure blocking for
 ineligible/disabled/unverifiable recipients (EC79-02), and initial capacity

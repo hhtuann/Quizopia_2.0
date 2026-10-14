@@ -115,3 +115,12 @@ quizopia.identity.notice-recipients:
   require-secure-transport: ${IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT:true}
   assessment-client-id: ${IDENTITY_NOTICE_RECIPIENTS_ASSESSMENT_CLIENT_ID:assessment-service}
   max-concurrent: ${IDENTITY_NOTICE_RECIPIENTS_MAX_CONCURRENT:8}
+
+# Suppress raw HTTP credential/body dumps even under diagnostic root logging.
+logging:
+  level:
+    org.apache.coyote.http11: WARN
+    # Hibernate factory diagnostics dump configuration; bind diagnostics dump values.
+    org.hibernate.orm.factory: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.springframework.jdbc.core: WARN

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Read-only B3 contract audit. Uses existing PyYAML, jsonschema and openapi-spec-validator tooling."""
 from pathlib import Path
-import yaml, re, subprocess, os
+import yaml, re, subprocess, os, argparse
 from openapi_spec_validator import validate_spec
 from jsonschema import Draft202012Validator
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--w3-final', action='store_true', help='Permit only Quiz/Classroom logging configuration in integrated acceptance')
+arguments = parser.parse_args()
 root = Path(__file__).resolve().parents[3]
 os.chdir(root)
 baseline = '5db5d41008ded12c8abdd27a2307d77f43dfdbd8'
@@ -75,7 +78,8 @@ for name in protected:
     assert old == Path(name).read_bytes(), name
 print('PASS historical ADR-015 and V1-V4.1 byte preservation:', len(protected), 'files')
 changed = set(subprocess.check_output(['git', 'diff', '--name-only', baseline], text=True).splitlines()) | set(subprocess.check_output(['git', 'ls-files', '--others', '--exclude-standard'], text=True).splitlines())
-assert all((name.startswith(('gateway/', 'services/assessment-service/', 'services/identity-service/', 'docs/')) for name in changed))
+extra = {'services/quiz-service/src/main/resources/application.yml', 'services/classroom-service/src/main/resources/application.yml'} if arguments.w3_final else set()
+assert all((name.startswith(('gateway/', 'services/assessment-service/', 'services/identity-service/', 'docs/')) or name in extra for name in changed))
 assert not any((name.startswith('frontend/') or Path(name).name == '.env' for name in changed))
 failures = []
 for name in sorted(changed):

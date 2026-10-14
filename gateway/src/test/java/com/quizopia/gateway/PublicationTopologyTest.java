@@ -46,6 +46,9 @@ class PublicationTopologyTest {
             .build();
     static final JsonMapper JSON = JsonMapper.builder().build();
     static final List<Process> PROCESSES = new ArrayList<>();
+    static final Map<String, List<String>> processArguments = new HashMap<>();
+    static final Map<String, Path> processArtifacts = new HashMap<>();
+    static final Map<String, Process> namedProcesses = new HashMap<>();
     static final List<String> sensitiveLocators = new ArrayList<>();
     static final UUID ACTOR = UUID.fromString("00000000-0000-0000-0000-000000000001");
     static final String PASSWORD = "topology-fixture-only", SECRET = "topology-service-fixture";
@@ -64,6 +67,13 @@ class PublicationTopologyTest {
     static io.lettuce.core.api.StatefulRedisConnection<String, String> redisConnection;
     static Path root, logs, keys;
     static String projection = "1|" + ACTOR + "|PRESENT|VALUE:QUNUSVZF|VERIFIED|STUDENT,TEACHER|NONE";
+
+    @BeforeEach
+    void freshServiceCredentialForCurrentOperation() throws Exception {
+        // Keep the real one-minute SERVICE TTL; long acceptance drills must not reuse expired evidence.
+        if (namedProcesses.get("identity").isAlive())
+            serviceToken = service("gateway", SECRET, "identity.user-admission");
+    }
 
     @BeforeAll
     static void start() throws Exception {
@@ -1855,11 +1865,33 @@ class PublicationTopologyTest {
                 "-jar",
                 jar.toString()));
         command.addAll(args);
-        PROCESSES.add(new ProcessBuilder(command)
+        var process = new ProcessBuilder(command)
                 .directory(root.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(logs.resolve(name + ".log").toFile())
-                .start());
+                .start();
+        PROCESSES.add(process);
+        processArguments.put(name, List.copyOf(args));
+        processArtifacts.put(name, jar);
+        namedProcesses.put(name, process);
+    }
+
+    @Test
+    @Order(2)
+    void acceptanceDefaultDisabledRuntimeAtAllFiveBoundaries() throws Exception {
+        Wave3AcceptanceJourneys.defaultDisabled();
+    }
+
+    @Test
+    @Order(2)
+    void acceptanceRealSecondAssessmentProcessRestartAndConcurrentComplete() throws Exception {
+        Wave3AcceptanceJourneys.twoProcesses();
+    }
+
+    @Test
+    @Order(2)
+    void acceptancePrivateIdentityHttpsAndDiagnosticLogRedaction() throws Exception {
+        Wave3AcceptanceJourneys.https();
     }
 
     static void awaitHttp(String url) throws Exception {

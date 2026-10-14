@@ -73,6 +73,12 @@ quizopia:
 # Dedicated credential clients must remain redacted even when root logging is DEBUG/TRACE.
 logging:
   level:
+    # Tomcat HTTP decoder DEBUG/TRACE includes complete credential headers and bodies.
+    org.apache.coyote.http11: WARN
+    # Hibernate factory diagnostics dump configuration; bind diagnostics dump values.
+    org.hibernate.orm.factory: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.springframework.jdbc.core: WARN
     org.springframework.web.reactive.function.client: WARN
     org.springframework.http.codec: WARN
     org.springframework.core.codec: WARN
