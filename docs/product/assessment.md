@@ -1,6 +1,9 @@
 # Assessment
 
-Status: **W3-A/B/C backend merged through PR #83; feature defaults disabled. Integrated acceptance/hardening is under review; external release gates remain open. Production activation NOT AUTHORIZED.**
+Status: **W3-A/B/C backend and integrated acceptance/hardening merged through PR #84; feature defaults disabled. External release gates remain open. Production activation NOT AUTHORIZED.**
+
+The separate [production release overlay](../development/w3-production-release-acceptance.md)
+tracks the 11 inherited open gates; merge does not establish production acceptance.
 
 Current merged-baseline acceptance and remaining gates are recorded in the
 [W3-FINAL evidence](../architecture/w3-final-assessment-acceptance.md). Historical increment runtime, exact routes, verification and rollout gates are recorded in the

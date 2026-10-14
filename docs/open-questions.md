@@ -43,6 +43,14 @@ are increment history. [W3-FINAL acceptance](architecture/w3-final-assessment-ac
 records fresh verification, scoped hardening and remaining external gates; neither
 merge nor these tests authorize production activation.
 
+Release workstream amendment (2026-10-14): W3-FINAL PR #84 is merged at
+`e615764613b661f8503de5fb5494fc7ea5224ba3`. The separate
+[production release acceptance overlay](development/w3-production-release-acceptance.md)
+tracks the 11 inherited open gates without replacing the historical 59-gate matrix.
+Named DRIs and release/security approvals remain unassigned or unprovided;
+production remains **NO-GO**. Merged-SHA CI observations do not certify deployed
+transport, durability, capacity, privacy or release authorization.
+
 The Leader explicitly accepts the narrow Identity recipient dependency
 conditionally (EC79-01), potentially indefinite delayed-closure blocking for
 ineligible/disabled/unverifiable recipients (EC79-02), and initial capacity
