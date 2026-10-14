@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 recorded_on: "2026-10-14"
 baseline:
   commit: e615764613b661f8503de5fb5494fc7ea5224ba3
@@ -76,6 +76,8 @@ evidence_contract:
     Only NOTICE-04 may become NOT APPLICABLE in this overlay, following a written Leader/Security
     soak waiver identifying decision maker, authority, risk, scope and expiry/review conditions. Both
     authority approvals and actual waiver evidence are required; no self-approved HIGH-impact waiver.
+    D3-05 currently selects mandatory real elapsed-time soak; no waiver is selected. Any future change
+    needs a new explicit decision and all existing formal safeguards.
   trust_limit:
     Schema validation screens completeness, not truth or approval authority. The independent
     reviewer must retrieve evidence, verify integrity/source and confirm the decision maker has authority.
@@ -182,12 +184,16 @@ gates:
     independent_reviewer: Independent repository reviewer
     approval_authority: Repository policy owner; Leader selects the release candidate
     prerequisites:
-      - Leader identifies the exact release-candidate commit; do not infer approval from merged develop.
-      - Repository owner supplies actual required workflow/job policy and classic/ruleset protections.
+      - Formally accept the nominated release-candidate SHA and artifact scope recorded in the decision pack;
+        nomination and merged CI observations do not constitute approval.
+      - Repository owner confirms exact release-register-validation status context, docs-only behavior, merge
+        policy and effective required checks/classic protections/rulesets; making this job required is proposed,
+        not configured.
     target_environment: GitHub repository Actions and branch-policy metadata; no deployment
     procedure:
-      - 'Record git rev-parse origin/develop and git show --no-patch --format=fuller "$W3_RELEASE_SHA"; reconcile
-        merge provenance to PR #84 or any later approved changes.'
+      - 'Record git rev-parse origin/develop and git show --no-patch --format=fuller "$W3_RELEASE_SHA" for
+        the formally approved candidate; reconcile PR #85 merge provenance and later approved changes without
+        replacing the separately recorded nomination automatically.'
       - With authorized repository tooling, paginate all-event Actions runs filtered to W3_RELEASE_SHA; retrieve
         every required run and job with checked SHA, event, conclusion and timestamps. Public run links already
         observed are partial evidence.
@@ -225,15 +231,18 @@ gates:
       - Required workflow/job or branch-policy changes
       - New rerun supersedes recorded evidence
     blocker:
-      Exact merged-SHA successful runs are observed, but approved RC and effective required-check/protection
-      policy evidence are unavailable.
+      Nominated candidate and successful merge CI are recorded in the decision pack, but formal RC/artifact
+      approval and effective required-check/protection policy acceptance remain unavailable; required release-validation
+      status is proposed, not configured.
     ownership_status: PROPOSED
+    coordination_dri_role: DEV1_BACKEND
   - id: NOTICE-04
     inherited_status: NOT VERIFIED
     status: NOT VERIFIED
     objective:
-      Resolve the real 48-hour soak decision and, when mandated, verify actual authenticated notice
-      accessibility and cutoff behavior over the approved wall-clock window.
+      Verify the selected mandatory actual wall-clock soak of at least 48 elapsed hours, authenticated
+      notice accessibility and individual cutoff behavior under formally accepted interruption/completeness
+      treatment.
     severity: HIGH
     release_blocking: true
     proposed_owner: Operations + Security
@@ -244,8 +253,8 @@ gates:
       Independent Security for completed-soak acceptance; prior Leader/Security requirement/observation
       decision; both authorities for any waiver
     prerequisites:
-      - Written Leader/Security decision whether real elapsed-time soak is mandatory; approved treatment of
-        dependency interruptions.
+      - D3-05 selects mandatory genuine elapsed-time observation; formal Leader/Security confirmation and
+        interruption/completeness treatment must be recorded before starting. No current waiver is selected.
       - Authenticated inbox, exact recipient eligibility, durable notices and cutoffs ready in approved staging;
         synthetic isolated test actors only.
       - Other dependencies accepted; production notifications and backdated confirmation forbidden.
@@ -253,9 +262,10 @@ gates:
       Authorized deployment-like staging with real time, authenticated owner inbox and
       retained availability telemetry
     procedure:
-      - Record the requirement decision before testing. If waived, attach written decision maker/authority,
-        risk, scope, expiry/review conditions and both approvals; propose NOT APPLICABLE, never PASS.
-      - If required, obtain a bounded staging test authorization; record RC, service digests, sanitized configuration,
+      - Record D3-05 mandatory real-soak selection and obtain required formal confirmation plus approved interruption/completeness
+        treatment before testing. A future change requires a new explicit decision and the existing full written
+        Leader/Security waiver safeguards; time cost is not a waiver.
+      - Obtain a bounded staging test authorization; record RC, service digests, sanitized configuration,
         real UTC clock source, start/end plan and approved interruption treatment.
       - Create an authorized isolated Teacher request after endAt; observe committed PUBLISH and actual accessibility
         CONFIRM. Capture confirmedNoticeAt and closureCutoffAt from authenticated owner/read evidence and
@@ -269,8 +279,8 @@ gates:
       - Have Security independently review the entire observation window and any interruptions against the
         explicit accepted treatment; preserve actual dates and evidence.
     pass_criteria:
-      - Written Leader/Security soak decision exists; if required, actual elapsed end minus confirmedNoticeAt
-        is at least 48 hours.
+      - Formal written requirement/interruption/completeness acceptance exists and actual elapsed end minus
+        confirmedNoticeAt is at least 48 hours; controlled clock advancement cannot satisfy D3-05.
       - Authentic owner notice is accessible throughout the approved observation window under the explicitly
         approved interruption treatment, with complete telemetry and exception history.
       - Individual cutoff equals confirmedNoticeAt plus exactly 48 elapsed hours; missing confirmation has
@@ -278,11 +288,12 @@ gates:
       - Cutoff/Teacher COMPLETE/CLOSED review semantics match ADR-015 C1–C10; independent evidence review
         and authorized gate approval complete.
     minimum_evidence:
-      - Written soak decision and approved interruption/observation treatment
+      - D3-05 planning selection plus formal soak/interruption/completeness acceptance
       - Actual UTC confirmation, cutoff and start/end timestamps with elapsed calculation
       - Authenticated availability telemetry and complete exception history
       - Sanitized PUBLISH/CONFIRM/finalization/COMPLETE audit and negative outcomes
-      - Independent Security review; formal waiver record and both authority approvals if N/A
+      - Independent Security review; no current waiver, and any future N/A requires a new explicit decision
+        with full formal waiver record and both authority approvals
     evidence: []
     approvals: []
     dependencies:
@@ -305,15 +316,17 @@ gates:
       - Availability controls or approved interruption policy changes
       - Observation history incomplete or waiver expires/scope changes
     blocker:
-      No written soak requirement/waiver decision, authorized staging observation window or actual
-      48-hour evidence.
+      Mandatory real 48-hour soak is selected but not executed; formal interruption/completeness
+      acceptance, authorized staging, actual notice/telemetry timeline and independent review remain unavailable.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER
   - id: RECOVERY-05
     inherited_status: BLOCKED
     status: BLOCKED
     objective:
-      Fenced multi-node partition/promotion recovery preserves acknowledged Assessment writes and
-      trusted Identity authority within approved durability/RPO requirements.
+      Fenced multi-node partition/promotion recovery demonstrates the selected zero-loss objective
+      for acknowledged committed Assessment writes and Identity authority, with independently accepted architecture
+      and failure assumptions.
     severity: HIGH
     release_blocking: true
     proposed_owner: Platform/SRE + Security
@@ -323,35 +336,40 @@ gates:
     approval_authority: Platform change authority and Security; Leader approves durability/RPO criteria
     prerequisites:
       - Authorized multi-node topology, supported fencing/promotion mechanism and isolated fault domain.
-      - Approved acknowledged-write durability/RPO requirements for Assessment and Identity; restore and fencing
-        runbooks.
+      - D3-02 selects zero loss of acknowledged committed writes across saved answers, results, receipts,
+        Publication/closure transitions, notice confirmation/cutoffs and Identity authority; Platform/DBA
+        must propose and independently validate replication/commit/fencing/recovery architecture without weakening
+        that objective. RTO remains undecided.
     target_environment:
       Authorized multi-node deployment-like staging with real replication, primary fencing
       and network partition controls
     procedure:
-      - Record RC/images/configuration, topology/replication settings, approved RPO and acknowledged-write
-        manifest for both separately owned databases. Seed synthetic receipts, results, notices/cutoffs and
-        current Identity authority.
+      - Record RC/images/configuration, topology/replication/commit acknowledgment rules, selected zero-acknowledged-write-loss
+        objective and actual pre-fault acknowledged-write manifest for both separate databases. State failure
+        assumptions and availability/latency trade-offs; seed only synthetic evidence.
       - Using the approved fault-injection mechanism, partition the primary, demonstrate fencing before promotion,
         and retain independent cluster/network/operator timelines. Test attempted writes by the old primary
         and bypass-capable old binaries.
       - Exercise submissions/notice acknowledgments across failure, including an uncertain commit; re-establish
         trusted Identity primary/Redis equality and retry the exact durable key/payload rather than assuming
         rollback.
-      - Promote and recover under the runbook; reconcile acknowledged answer/result identity, receipts, notice/cutoff
-        evidence and Identity security authority to the pre-fault manifest within approved requirements.
+      - Promote and recover under the runbook; reconcile saved answers, submitted results, durable receipts,
+        Publication/closure transitions, notice confirmation/cutoffs, audits and Identity security authority
+        to the pre-fault manifest with zero loss of acknowledged committed writes under accepted failure assumptions.
       - Test stale authority, lagging restore, old-writer reconnect and unauthorized recovery access; confirm
         fail-closed behavior. Independently review complete fault/recovery logs and final invariants.
     pass_criteria:
       - Actual network partition and promotion occurred; old primary/old binaries cannot regain writes until
         explicitly safe.
-      - All acknowledged Assessment and Identity authority writes satisfy approved durability/RPO; uncertain
-        commits reconcile to one durable outcome.
+      - All acknowledged committed Assessment and Identity authority writes preserve the selected zero-loss
+        objective under formally accepted failure assumptions; uncertain commits reconcile to one durable
+        outcome. Ordinary backups/asynchronous replication alone are not proof.
       - No duplicate terminalization, lost acknowledged results/receipts/cutoffs or stale-authority admission;
         restored Redis equals trusted current primary facts.
       - Actual negative fault cases, recovery timing and independent review are complete.
     minimum_evidence:
-      - Approved durability/RPO and fault authorization
+      - Formal acceptance of the selected zero-loss acknowledged-write objective and fault authorization;
+        any RPO specification must preserve that objective
       - Topology, replication and fencing/promotion evidence
       - Pre/post acknowledged-write integrity manifests and uncertain-commit replay
       - Negative stale-authority/old-writer results
@@ -368,16 +386,19 @@ gates:
       Named Platform change authority, DBA and Security authorize exact staging nodes,
       fault mechanism, window, stop conditions and recovery operators. No production faults authorized.
     final_signoff:
-      Independent Security/DBA accept the reconciled drill; Platform confirms approved RPO/durability
-      and recovery controls.
+      Independent Security/DBA accept the reconciled drill; Platform confirms zero loss of acknowledged
+      committed writes under accepted failure assumptions and recovery controls. Formal RPO acceptance
+      cannot weaken D3-02.
     revalidate_on:
       - Database replication/fencing/promotion configuration changes
       - Database version, RC, runtime privilege or authority-recovery logic changes
       - Durability/RPO requirements change
     blocker:
-      No authorized multi-node fault environment, approved durability criteria, operators or independently
-      reviewed failover artifacts.
+      Zero loss of acknowledged committed writes is selected, but feasible independently accepted
+      architecture/failure assumptions, authorized multi-node target/operators and actual failover evidence
+      are unavailable; RTO remains undecided.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER
   - id: DB-05
     inherited_status: NOT VERIFIED
     status: NOT VERIFIED
@@ -448,12 +469,14 @@ gates:
       No approved target-size dataset, resource thresholds, operator window or target-scale migration
       measurements.
     ownership_status: PROPOSED
+    coordination_dri_role: DEV1_BACKEND
   - id: DB-08
     inherited_status: BLOCKED
     status: BLOCKED
     objective:
-      Authorized encrypted backup and isolated restore meet approved RPO/RTO while preserving authoritative
-      Assessment and Identity integrity and access restrictions.
+      Authorized encrypted backup/isolated restore and recovery architecture preserve the selected
+      zero-loss acknowledged-write objective and meet an explicitly approved recovery-time objective once
+      decided, with integrity and restricted access.
     severity: HIGH
     release_blocking: true
     proposed_owner: DBA/SRE + Security
@@ -463,33 +486,42 @@ gates:
     approval_authority: DBA/SRE backup owner and Security; Leader accepts RPO/RTO
     prerequisites:
       - Approved backup system, encrypted storage/key custody/access and backup retention policy.
-      - Approved Assessment/Identity RPO/RTO and acknowledged-write durability requirements; isolated restore
-        destination.
+      - D3-02 selects zero loss of acknowledged committed Assessment/Identity writes; backup/replication/recovery
+        architecture must demonstrate it. D3-03 leaves RTO undecided pending operational assessment, measured
+        staging recovery, cost/readiness/impact and formal acceptance; isolated restore target remains required.
     target_environment:
       Authorized backup platform and isolated deployment-like restore targets for separately
       owned Assessment and Identity databases
     procedure:
-      - Record target topology, RC/images/configuration, database versions, backup schedule/coverage, encryption/access/retention
-        controls and approved RPO/RTO. Keep keys, dumps and confidential database content out of Git.
-      - Record a sanitized manifest of acknowledged submissions/results/notices/receipts/audits and Identity
-        authority evidence; execute a real backup through the approved system with provenance and integrity
-        metadata.
+      - Record target topology, RC/images/configuration, versions, backup schedule/coverage, encryption/access/retention
+        controls and selected zero-acknowledged-write-loss objective. Obtain formal architecture/RPO acceptance
+        and an explicit RTO decision before gate acceptance; do not invent a recovery time or treat ordinary
+        backups as zero-loss proof. Keep keys/dumps out of Git.
+      - Record a sanitized manifest covering saved answers, submitted results, durable idempotency receipts,
+        Publication/closure transitions, published notices and confirmation/cutoff evidence, audits and Identity
+        authoritative security changes; execute a real backup through the approved system with provenance
+        and integrity metadata.
       - Restore actual backups into isolated verified destinations using restricted operators/roles; measure
         recovery point and elapsed recovery time, and independently verify storage/key/secret access restrictions.
-      - Compare restored authoritative Assessment and Identity integrity to the manifest within approved durability/RPO;
-        verify audit, answer/result identity, notification/cutoff and retry evidence. Reconstruct Redis from
-        trusted current primary, never treat stale projection as authority.
+      - Compare restored authoritative Assessment and Identity integrity to the full manifest with zero loss
+        of acknowledged committed writes under accepted failure assumptions; verify saved answers, submitted
+        results, receipts, Publication/closure transitions, notice confirmation/cutoffs, audits and security
+        changes. Reconstruct Redis from trusted current primary, never treat stale projection as authority.
       - Execute and review the recovery runbook including failed restore/corrupt backup/unauthorized access
         cases; preserve restricted logs and sanitized report.
     pass_criteria:
       - Actual authorized backup/restore system, encryption, retention and least-privilege access controls
         verified.
-      - Measured recovery point/time meet explicitly approved RPO/RTO and acknowledged-write requirements.
-      - Authoritative submissions/results/notification evidence/receipts/audits and Identity authority reconcile;
-        restricted restore roles and secret controls proven.
+      - Actual restore/recovery evidence preserves the selected zero-loss acknowledged-write objective within
+        formally accepted failure assumptions; measured recovery time meets the subsequently explicit approved
+        RTO. No RTO is currently selected.
+      - Saved answers, submitted results, durable receipts, Publication/closure transitions, notice confirmation/cutoffs,
+        audits and Identity authority reconcile without losing acknowledged committed writes; restricted restore
+        roles and secret controls proven.
       - Independent DBA/Security accept an executed recoverable runbook; local pg_dump alone is insufficient.
     minimum_evidence:
-      - Approved RPO/RTO, backup/retention policy and isolated execution authorization
+      - Formal zero-loss acknowledged-write preservation acceptance, an explicitly approved RTO after assessment,
+        backup/retention policy and isolated execution authorization; no RPO allowance may weaken D3-02
       - Backup identity/time/encryption/access and integrity manifest
       - Actual isolated restore timeline and measured RPO/RTO
       - Assessment/Identity pre/post integrity comparison and negative controls
@@ -506,15 +538,18 @@ gates:
       Backup owner, DBA/SRE and Security authorize source backup access, exact isolated
       destinations, dataset/privacy controls, restore roles and stop conditions; no production restore authorized.
     final_signoff:
-      Independent DBA/Security accept restore integrity, access and measured RPO/RTO; authorized
-      policy owners approve thresholds.
+      Independent DBA/Security accept full-scope restore integrity, zero loss of acknowledged committed
+      writes and restricted access; measured recovery time meets the subsequently approved RTO. Authorized
+      policy acceptance cannot weaken D3-02.
     revalidate_on:
       - Backup schedules/storage/encryption/retention/access or restore mechanism changes
       - Database versions, schema, RC or durability/RPO/RTO requirements change
     blocker:
-      No authorized backup platform/restore target, approved RPO/RTO, policy or real operational
-      restore evidence.
+      Zero acknowledged-write loss is selected but unverified; no authorized backup/restore target,
+      accepted preservation architecture, approved retention/access policy or operational restore evidence;
+      RTO remains undecided.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER
   - id: TLS-02
     inherited_status: BLOCKED
     status: BLOCKED
@@ -586,12 +621,14 @@ gates:
       No authorized deployed private endpoints/certificates/trust/network manifest or actual-topology
       transport review.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER
   - id: CAPACITY-04
     inherited_status: NOT VERIFIED
     status: NOT VERIFIED
     objective:
-      Accepted complete snapshot/answer payloads and closure operations remain correct under approved
-      target concurrency, latency/error budgets and resource headroom.
+      At the selected initial scale of 100 concurrent active Students, accepted complete snapshots/answers
+      and closure operations remain correct under subsequently approved profile, latency/error budgets and
+      resource headroom.
     severity: HIGH
     release_blocking: true
     proposed_owner: Backend Performance Owner + Platform
@@ -602,17 +639,19 @@ gates:
       Leader/Platform approve workload and latency/error/resource criteria; engineering
       authority approves any budget change
     prerequisites:
-      - Written target workload/concurrency, representative data, test duration, latency/error budgets and
-        resource/headroom thresholds.
+      - D3-04 selects 100 concurrent active Students, not 100 requests per second. Dev 1/Platform must supply
+        realistic think-time/operation mix, warm-up/steady/recovery durations, representative data and proposed
+        latency/error/resource thresholds for approval; performance SLO is not yet approved.
       - Target-like staging hardware/JVM/JDBC/database/network limits and monitoring; retain the unchanged
         12,613-question fixture.
     target_environment:
       Authorized isolated deployment-like load environment with target resources and fault
       controls
     procedure:
-      - Record RC/digests/configuration/versions and approved workload, duration, thresholds and dataset distributions.
-        Retain the 12,613-question fixture and test all accepted full-answer sizes and encoding/expansion
-        cases.
+      - Record RC/digests/configuration/versions and the selected 100-concurrent-Student scale; obtain approved
+        realistic profile/durations/latency/error/resource thresholds before execution. Measure actual request
+        rate rather than assuming 100 RPS. Retain the unchanged 12,613-question fixture and complete answer
+        sizing/expansion cases.
       - Measure complete delivery and final answer HTTP body size against the initial 2 MiB engineering budget;
         verify no truncation, sanitized mutation-free oversize rejection and explicit resolution before accepting
         a snapshot that cannot safely submit. Preserve W3-A handoff limitations.
@@ -625,8 +664,9 @@ gates:
       - Review raw measurement provenance and full results against approved budgets. Do not invent an SLA/P95/P99
         or alter timeouts; any correction needs engineering evidence and explicit authorization before retest.
     pass_criteria:
-      - Repeated approved target load meets written latency/error/resource/headroom budgets with reviewed
-        test data and duration.
+      - Repeated 100-concurrent-Student initial load meets subsequently explicit approved latency/error/resource/headroom
+        budgets with reviewed realistic think time, operation mix, data and duration; concurrency alone cannot
+        PASS.
       - All accepted snapshots safely deliver and complete answer payloads submit without truncation; oversize
         rejection sanitized and mutation-free; 12,613-question fixture retained.
       - SAVE/SUBMIT and bounded closure throughput measured with heap/GC/JDBC/acquire/CPU/lock/failure/retry/timeout
@@ -657,8 +697,12 @@ gates:
       - RC/images, accepted payload shapes/sizes or capacity limits change
       - JVM/JDBC/database/hardware/timeout configuration changes
       - Approved workload, latency/error budgets or duration changes
-    blocker: No approved workload/SLA/error/resource budgets, target resources or repeated target-load measurement.
+    blocker:
+      Initial scale of 100 concurrent active Students is selected, but realistic profile/duration
+      and performance SLO/error/resource budgets remain unapproved; authorized target resources and repeated
+      measurements are unavailable.
     ownership_status: PROPOSED
+    coordination_dri_role: DEV1_BACKEND
   - id: OBSERVE-02
     inherited_status: BLOCKED
     status: BLOCKED
@@ -731,6 +775,7 @@ gates:
       No approved deployed telemetry/alert access, thresholds, escalation owners or actual sink redaction
       exercise.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER
   - id: PRIVACY-02
     inherited_status: BLOCKED
     status: BLOCKED
@@ -745,15 +790,19 @@ gates:
     independent_reviewer: Independent Privacy/Security reviewer
     approval_authority: Leader and Privacy/Security policy authority
     prerequisites:
-      - Authorized decision makers and inventory of authoritative data categories/ownership.
+      - D3-06 selects Leader drafting and independent Privacy/Security review before implementation acceptance;
+        actual authorized humans, nine-category inventory and draft/approved periods/access/erasure decisions
+        are still required.
       - Immutable grading/result/audit and notice/cutoff obligations identified; backup and restricted access
         inventory.
     target_environment:
       Policy review plus authorized isolated control-validation environment; no real data
       deletion in this workstream
     procedure:
-      - Inventory answers, immutable delivery snapshots/results, notification history, closure/cutoff evidence,
-        receipts/audits, Identity authority, logs and backups with owners/access and integrity obligations.
+      - "Leader drafts the nine-category checklist from the decision pack: answers, snapshots, results, operation
+        receipts, notification history, audit records, Redis authority, operational logs and backups, including
+        explicit notice/cutoff obligations. Record owners/purpose/access/integrity; invent no period, TTL,
+        backup expiry or legal basis."
       - Obtain written authorized retention periods and erasure/anonymization behavior by category, including
         backup retention, legal/privacy authority, exceptions and audit preservation; no arbitrary TTL or
         invented duration.
@@ -794,9 +843,11 @@ gates:
       - Retention/erasure/access/backup policy or legal scope changes
       - Data categories, schema, immutable obligations or implementing controls change
     blocker:
-      No approved periods, erasure/anonymization decisions, category ownership or matching implementation/control
-      sign-off.
+      Leader-draft/external Privacy/Security review workflow is selected, but no actual approved
+      category periods, erasure/access/backup policy, named reviewers or matching implementation/control
+      sign-off exists.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER
   - id: DEPLOY-02
     inherited_status: NOT VERIFIED
     status: NOT VERIFIED
@@ -811,9 +862,11 @@ gates:
     independent_reviewer: Independent Backend/Security deployment reviewer
     approval_authority: Platform change authority and Security; Leader approves staging scope and candidate
     prerequisites:
-      - Exact approved release-candidate SHA, service image digests and sanitized configuration/flag manifest.
-      - Authorized staging, actual dependency credentials held by operators, backup/migration/transport/privacy
-        prerequisites and old-instance inventory.
+      - Formally accepted nominated candidate/artifacts and sanitized configuration/flag manifest; nomination
+        alone is not release approval.
+      - D3-01 selects isolated production-like staging, not yet provisioned or authorized. Require separate
+        identities/databases, private transport, synthetic or separately authorized sanitized data, operators/secret
+        custody, backup/migration/privacy readiness and old-instance inventory; no production credentials.
       - Reviewed runbook including stop conditions, mixed-version strategy and named rollback/incident owners.
     target_environment:
       Authorized deployment-like staging, separate service databases, actual private ingress
@@ -875,9 +928,10 @@ gates:
       - Migration/drain/mixed-version/recovery procedure changes
       - Identity/Redis/cursor-key provisioning changes
     blocker:
-      No named approved RC/images, authorized staging rollout/operator window or executed drain/recovery
-      evidence.
+      Dedicated staging direction is selected but not provisioned/authorized; formal RC/images/configuration,
+      provider/topology/budget, actual operators and executed drain/recovery evidence remain unavailable.
     ownership_status: PROPOSED
+    coordination_dri_role: DEV1_BACKEND
   - id: APPROVAL-01
     inherited_status: BLOCKED
     status: BLOCKED
@@ -895,8 +949,9 @@ gates:
       - All mandatory technical gates PASS or carry explicit authorized scoped risk dispositions; no silent
         waiver.
       - Actual RC/digests/configuration/topology, integrity evidence and open defect inventory available.
-      - Named independent Security reviewer, Leader, rollback/incident owners and restricted final evidence
-        pack.
+      - D3-07 selects a qualified identifiable independent Security reviewer outside the current Leader/Dev
+        1/Dev 2 team; actual appointment/authority/scope, distinct Leader release approver, rollback/incident
+        owners and restricted evidence pack remain required.
     target_environment:
       Release decision against the actual reviewed candidate and proposed environment;
       governance step only
@@ -957,6 +1012,8 @@ gates:
       - Technical gate evidence expires/is invalidated, defect/risk changes or approval scope expires
       - Release environment or incident/rollback ownership changes
     blocker:
-      Technical gates remain open; no independent Security approval, approved release candidate or
-      explicit Leader production GO exists.
+      Outside-team Security review model is selected, but no reviewer is appointed; technical gates
+      remain open and no actual independent approval, formal release candidate or explicit Leader production
+      GO exists.
     ownership_status: PROPOSED
+    coordination_dri_role: LEADER

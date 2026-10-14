@@ -2,8 +2,10 @@
 """Synthetic in-memory validator fixtures; no runtime gate is executed or closed."""
 
 from copy import deepcopy
+from contextlib import redirect_stderr, redirect_stdout
 from fnmatch import fnmatchcase
 import importlib.util
+import io
 from pathlib import Path
 import sys
 import tempfile
@@ -91,6 +93,16 @@ def notice_waiver_fixture():
         "release_candidate_sha": "a" * 40, "decided_at": "2026-01-01T12:00:00Z",
     }
     gate["approvals"] = [approval("LEADER"), approval("INDEPENDENT_SECURITY")]
+    return document
+
+
+def coordination_fixture(document=None):
+    """Version 2 planning roles, without verified human assignments or approvals."""
+    document = fixture() if document is None else document
+    document["schema_version"] = 2
+    backend = {"BUILD-02", "DB-05", "CAPACITY-04", "DEPLOY-02"}
+    for gate in document["gates"]:
+        gate["coordination_dri_role"] = "DEV1_BACKEND" if gate["id"] in backend else "LEADER"
     return document
 
 
@@ -442,6 +454,7 @@ class RegisterSafetyTests(unittest.TestCase):
             "docs/development/w3-production-release-acceptance.md",
             "docs/development/w3-production-release-gates.md",
             "docs/development/w3-production-evidence-handoff.md",
+            "docs/development/w3-production-release-decision-pack.md",
             "services/assessment-service/contracts/validate-w3-production-release.py",
             "services/assessment-service/contracts/test-w3-production-release.py",
             "docs/architecture/w3-final-acceptance-matrix.md",
@@ -481,6 +494,113 @@ class RegisterSafetyTests(unittest.TestCase):
             self.assertNotIn("if", matching_steps[0])
             self.assertNotIn("continue-on-error", matching_steps[0])
         self.assertNotIn("secrets.", workflow_path.read_text())
+
+    def test_schema_two_exact_coordination_mapping_and_counts_preserved(self):
+        self.document = coordination_fixture()
+        self.assertEqual([], self.errors())
+        roles = [gate["coordination_dri_role"] for gate in self.document["gates"]]
+        self.assertEqual(4, roles.count("DEV1_BACKEND"))
+        self.assertEqual(7, roles.count("LEADER"))
+        self.assertEqual(0, roles.count("DEV2_FRONTEND"))
+        for gate in self.document["gates"]:
+            self.assertEqual(validator.UNASSIGNED, gate["dri"])
+            self.assertEqual("PROPOSED", gate["ownership_status"])
+            self.assertEqual(validator.INHERITED[gate["id"]], gate["status"])
+            self.assertEqual([], gate["evidence"])
+            self.assertEqual([], gate["approvals"])
+        self.assertIsNone(self.document["release_candidate_sha"])
+
+    def test_schema_two_coordination_role_missing_at_any_gate_rejected(self):
+        for index in range(11):
+            with self.subTest(gate=index):
+                self.document = coordination_fixture()
+                del self.document["gates"][index]["coordination_dri_role"]
+                self.assertRejected("missing coordination_dri_role")
+
+    def test_schema_two_coordination_unknown_or_wrong_type_rejected(self):
+        for role in ["BACKEND", "DEV1_BACKEND ", None, True, 1, [], {}]:
+            with self.subTest(role=role):
+                self.document = coordination_fixture()
+                self.document["gates"][0]["coordination_dri_role"] = role
+                self.assertRejected("coordination_dri_role")
+
+    def test_schema_two_dev2_and_unassigned_coordination_cannot_replace_selected_role(self):
+        for role in ["DEV2_FRONTEND", "UNASSIGNED"]:
+            with self.subTest(role=role):
+                self.document = coordination_fixture()
+                self.document["gates"][0]["coordination_dri_role"] = role
+                self.assertRejected("selected coordination role")
+
+    def test_schema_two_coordination_wrong_counts_rejected(self):
+        self.document = coordination_fixture()
+        self.document["gates"][0]["coordination_dri_role"] = "LEADER"
+        self.assertRejected("coordination role counts")
+
+    def test_schema_two_correct_role_counts_do_not_hide_gate_reassignment(self):
+        self.document = coordination_fixture()
+        self.document["gates"][0]["coordination_dri_role"] = "LEADER"
+        self.document["gates"][1]["coordination_dri_role"] = "DEV1_BACKEND"
+        errors = self.errors()
+        self.assertTrue(any("selected coordination role" in item for item in errors), errors)
+        self.assertFalse(any("coordination role counts" in item for item in errors), errors)
+
+    def test_schema_one_legacy_fixture_remains_valid_and_rejects_new_coordination_fields(self):
+        self.assertEqual(1, self.document["schema_version"])
+        self.assertEqual([], self.errors())
+        self.document = coordination_fixture()
+        self.document["schema_version"] = 1
+        self.assertRejected("unknown field coordination_dri_role")
+
+    def test_schema_version_requires_supported_integer_and_not_boolean(self):
+        for version in [0, 3, "2", None, True]:
+            with self.subTest(version=version):
+                self.document = fixture()
+                self.document["schema_version"] = version
+                self.assertRejected("schema_version")
+
+    def test_coordination_role_labels_cannot_be_verified_human_dri(self):
+        for version in [1, 2]:
+            for role in ["Leader", "Dev 1", "DEV1_BACKEND", "DEV2_FRONTEND", " LEADER ", "dev 2 — frontend"]:
+                with self.subTest(version=version, role=role):
+                    self.document = fixture() if version == 1 else coordination_fixture()
+                    gate = close_gate(self.document)
+                    gate["dri"] = role
+                    self.assertRejected("DRI must identify an individual")
+        gate["dri"] = "Leader Alice"
+        self.assertEqual([], self.errors())
+
+    def test_schema_two_coordination_does_not_satisfy_evidence_or_approval_requirements(self):
+        self.document = coordination_fixture()
+        gate = close_gate(self.document)
+        gate["evidence"] = []
+        gate["approvals"] = []
+        self.assertRejected("actual execution evidence")
+        self.assertRejected("recorded approval")
+        self.document = coordination_fixture()
+        gate = close_gate(self.document)
+        gate["approvals"][0]["reviewer"] = "DEV1_BACKEND"
+        self.assertRejected("individual, not a role-only label")
+
+    def test_current_register_cli_rejects_legacy_downgrade_and_malformed_documents(self):
+        for arguments in [[], [str(validator.ROOT / validator.DEFAULT_REGISTER)]]:
+            for document in [fixture(), None, [], True]:
+                with self.subTest(arguments=arguments, document_type=type(document).__name__):
+                    output = io.StringIO()
+                    with patch.object(validator, "load_register", return_value=document), \
+                            patch.object(sys, "argv", ["validate-w3-production-release.py", *arguments]), \
+                            redirect_stderr(output), redirect_stdout(io.StringIO()):
+                        self.assertEqual(1, validator.main())
+                    self.assertIn("schema 2 coordination contract is required", output.getvalue())
+
+    def test_cli_current_schema_two_and_legacy_custom_archive_remain_valid(self):
+        for arguments, document in [([], coordination_fixture()), (["archived-release-register.yaml"], fixture())]:
+            with self.subTest(arguments=arguments):
+                output = io.StringIO()
+                with patch.object(validator, "load_register", return_value=document), \
+                        patch.object(sys, "argv", ["validate-w3-production-release.py", *arguments]), \
+                        redirect_stdout(output), redirect_stderr(io.StringIO()):
+                    self.assertEqual(0, validator.main())
+                self.assertIn("pinned 59-gate history", output.getvalue())
 
 
 if __name__ == "__main__":

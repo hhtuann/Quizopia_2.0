@@ -7,6 +7,7 @@ on:
       - docs/development/w3-production-release-acceptance.md
       - docs/development/w3-production-release-gates.md
       - docs/development/w3-production-evidence-handoff.md
+      - docs/development/w3-production-release-decision-pack.md
       - services/assessment-service/contracts/validate-w3-production-release.py
       - services/assessment-service/contracts/test-w3-production-release.py
       - docs/architecture/w3-final-acceptance-matrix.md
@@ -18,6 +19,7 @@ on:
       - docs/development/w3-production-release-acceptance.md
       - docs/development/w3-production-release-gates.md
       - docs/development/w3-production-evidence-handoff.md
+      - docs/development/w3-production-release-decision-pack.md
       - services/assessment-service/contracts/validate-w3-production-release.py
       - services/assessment-service/contracts/test-w3-production-release.py
       - docs/architecture/w3-final-acceptance-matrix.md

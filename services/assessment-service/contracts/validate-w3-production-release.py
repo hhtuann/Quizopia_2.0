@@ -41,6 +41,17 @@ INHERITED_SEVERITIES = {
     "DB-05": "HIGH", "DB-08": "HIGH", "TLS-02": "HIGH", "CAPACITY-04": "HIGH",
     "OBSERVE-02": "HIGH", "PRIVACY-02": "HIGH", "DEPLOY-02": "HIGH", "APPROVAL-01": "HIGH",
 }
+COORDINATION_ROLES = {"DEV1_BACKEND", "LEADER", "DEV2_FRONTEND", "UNASSIGNED"}
+COORDINATION_DRI_ROLES = {
+    "BUILD-02": "DEV1_BACKEND", "NOTICE-04": "LEADER", "RECOVERY-05": "LEADER",
+    "DB-05": "DEV1_BACKEND", "DB-08": "LEADER", "TLS-02": "LEADER",
+    "CAPACITY-04": "DEV1_BACKEND", "OBSERVE-02": "LEADER", "PRIVACY-02": "LEADER",
+    "DEPLOY-02": "DEV1_BACKEND", "APPROVAL-01": "LEADER",
+}
+ROLE_ONLY_DRIS = {role.casefold() for role in COORDINATION_ROLES} | {
+    "dev1", "dev 1", "dev1 backend", "dev 1 backend", "dev 1 — backend", "dev 1 - backend",
+    "dev2", "dev 2", "dev2 frontend", "dev 2 frontend", "dev 2 — frontend", "dev 2 - frontend",
+}
 COUNTS = {"PASS": 46, "FAIL": 0, "BLOCKED": 6, "NOT VERIFIED": 5, "NOT APPLICABLE": 2}
 STATUSES = set(COUNTS)
 SHA = re.compile(r"[0-9a-f]{40}\Z")
@@ -50,7 +61,7 @@ ROLE_ONLY_REVIEWERS = {
     "leader", "security", "security reviewer", "independent security",
     "independent security reviewer", "independent_security", "gate approver",
     "gate_approver", "reviewer",
-}
+} | ROLE_ONLY_DRIS
 DEPLOYED_GATES = set(INHERITED) - {"BUILD-02", "PRIVACY-02"}
 REQUIRED_APPROVALS = {
     "BUILD-02": {"GATE_APPROVER"}, "NOTICE-04": {"INDEPENDENT_SECURITY"},
@@ -226,8 +237,12 @@ def validate_register(document, root=ROOT, verify_baseline=True):
     optional_top = {"observations", "evidence_contract", "stages", "recorded_on", "scope", "ownership_status"}
     if not mapping(document, required_top, optional_top, "register"):
         return errors
-    if type(document.get("schema_version")) is not int or document.get("schema_version") != 1:
-        error("schema_version", "must be integer 1")
+    schema_version = document.get("schema_version")
+    if type(schema_version) is not int or schema_version not in (1, 2):
+        error("schema_version", "must be supported integer 1 or 2")
+    # Version 1 remains an unambiguous historical contract. Planning-role
+    # metadata is required only in version 2 and is unknown in version 1.
+    gate_keys = GATE_KEYS | {"coordination_dri_role"} if schema_version == 2 else GATE_KEYS
     baseline = document.get("baseline")
     if mapping(baseline, {"commit", "matrix", "counts"}, set(), "baseline"):
         if baseline.get("commit") != BASELINE or baseline.get("matrix") != MATRIX:
@@ -271,10 +286,15 @@ def validate_register(document, root=ROOT, verify_baseline=True):
     if len(ids) != len(set(ids)):
         error("gates", "duplicate gate IDs")
     by_id = {gate["id"]: gate for gate in gates if isinstance(gate, dict) and isinstance(gate.get("id"), str)}
+    if schema_version == 2:
+        coordination_counts = Counter(gate.get("coordination_dri_role") for gate in gates
+                                      if isinstance(gate, dict) and isinstance(gate.get("coordination_dri_role"), str))
+        if coordination_counts != {"DEV1_BACKEND": 4, "LEADER": 7}:
+            error("gates", "coordination role counts must remain 4 DEV1_BACKEND, 7 LEADER, 0 DEV2_FRONTEND/UNASSIGNED")
 
     for index, gate in enumerate(gates):
         where = f"gates[{index}]"
-        if not mapping(gate, GATE_KEYS, {"waiver"}, where):
+        if not mapping(gate, gate_keys, {"waiver"}, where):
             continue
         gate_id = gate.get("id")
         if isinstance(gate_id, str):
@@ -285,6 +305,12 @@ def validate_register(document, root=ROOT, verify_baseline=True):
             strings(gate.get(key), f"{where}.{key}", allow_empty=key == "dependencies")
         if not isinstance(gate_id, str) or gate_id not in INHERITED:
             continue
+        if schema_version == 2:
+            role = gate.get("coordination_dri_role")
+            if not isinstance(role, str) or role not in COORDINATION_ROLES:
+                error(where, "coordination_dri_role must be a controlled coordination role")
+            elif role != COORDINATION_DRI_ROLES[gate_id]:
+                error(where, f"selected coordination role must remain {COORDINATION_DRI_ROLES[gate_id]}")
         if gate.get("inherited_status") != INHERITED[gate_id]:
             error(where, "inherited status differs from the authoritative matrix")
         status = gate.get("status")
@@ -301,6 +327,8 @@ def validate_register(document, root=ROOT, verify_baseline=True):
             error(where, "proposed ownership must use the exact UNASSIGNED DRI marker")
         if ownership == "ASSIGNED":
             identity(gate.get("dri"), f"{where}.dri")
+            if normalized_identity(gate.get("dri")) in ROLE_ONLY_DRIS:
+                error(where, "DRI must identify an individual, not a coordination role label")
         dependencies = gate.get("dependencies")
         if isinstance(dependencies, list):
             if any(not isinstance(dep, str) or dep not in INHERITED or dep == gate_id for dep in dependencies):
@@ -437,8 +465,12 @@ def main():
     parser.add_argument("register", nargs="?", default=DEFAULT_REGISTER)
     args = parser.parse_args()
     try:
-        document = load_register(ROOT / args.register)
+        register_path = (ROOT / args.register).resolve()
+        document = load_register(register_path)
         errors = validate_register(document)
+        if register_path == (ROOT / DEFAULT_REGISTER).resolve() and (
+                not isinstance(document, dict) or document.get("schema_version") != 2):
+            errors.append("current release register: schema 2 coordination contract is required; schema 1 is only supported for archives")
     except (OSError, ValueError, yaml.YAMLError) as exc:
         print(f"FAIL release register: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
@@ -448,6 +480,8 @@ def main():
         return 1
     counts = dict(sorted(Counter(gate["status"] for gate in document["gates"]).items()))
     print(f"PASS release-register structure, pinned 59-gate history, exact eleven-gate overlay: {counts}")
+    if document["schema_version"] == 2:
+        print("PASS schema 2 coordination mapping: 4 DEV1_BACKEND, 7 LEADER, 0 DEV2_FRONTEND; human identity/approval requirements remain separate.")
     print("Production NO-GO preserved. Structural validation does not prove artifact authenticity, independent review, or release approval.")
     return 0
 
