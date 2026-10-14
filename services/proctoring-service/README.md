@@ -1,24 +1,36 @@
 # Proctoring Service
 
-Independent Spring Boot 4.1.1 / Java 21 project for the Quizopia 2.0 platform scaffold.
+Independent Spring Boot 4.1.1 / Java 21 service. The current W3-M1 increment adds
+Proctoring-owned PostgreSQL/Flyway session, activity evidence and access-audit
+persistence, five exact USER endpoints and narrow Assessment authority integration.
+See the [M1 contract](../../docs/specifications/w3-m-proctoring-contract.md),
+[implemented OpenAPI](contracts/monitoring.openapi.yaml) and
+[checkpoint](../../docs/architecture/w3m-backend-implementation.md).
 
-Run independently from this directory:
+Run `./mvnw verify` (Windows: `mvnw.cmd verify`). PostgreSQL integration tests use
+owned Testcontainers. Default local port is 8086; `.env.example` lists configuration.
 
-- Windows: `mvnw.cmd test` or `mvnw.cmd verify`
-- Unix-like shells: `./mvnw test` or `./mvnw verify`
+`PROCTORING_ENABLED=false` closes the business adapters. Enabled local synthetic
+integration also requires this service's own Identity Client Credentials admission
+client and `PROCTORING_ASSESSMENT_BASE_URL`, with the narrow
+`assessment.proctoring-authority.read` scope. Assessment must separately allowlist
+that exact caller. Each request requires current USER and resource authority;
+Gateway approval or JWT signature alone never substitutes for downstream admission.
+HTTP exceptions are explicit loopback-only local test settings; use private HTTPS
+with validated hostname/trust for deployment.
 
-The project contains technical health/metrics and OpenAPI configuration only. No Quizopia business endpoints, entities, repositories, migrations, or event classes are implemented.
+Production-profile enablement remains closed until actual M2 bundle integration
+and product/privacy/security acceptance. M1 is not an Activity-only product mode.
+No default retention period exists. The owner-controlled `monitoring_purge_expired`
+function has no PUBLIC execution grant or scheduler and only deletes already-expired
+evidence/audit rows. Runtime roles must not own tables/functions, disable guards or
+receive that retention privilege. Session-binding erasure and final policy/control
+parity still require an approved policy and reviewed implementation.
 
-Default local port: 8086. See `.env.example` and the root development documentation for configuration.
-
-## LD-05 admission boundary
-
-See the [exact protected-route inventory and deployment gates](../../docs/architecture/ld05-enforcement.md).
-Admission is independently disabled by default; selected Classroom operations
-fail closed while disabled/unconfigured. Assessment and Proctoring business
-routes remain denied until exact reviewed adapters exist. Provision this
-deployment's own least-privilege SERVICE client and runtime secret. No Wave 3
-business feature or Identity activation is enabled by this prerequisite.
-
-Do not route activated protected traffic to bypass-capable older Gateway or
-downstream instances. Drain/block old instances before activation or rollback.
+M2 media orchestration and the authoritative Assessment answer-change event adapter
+are separate remaining work. Browser answer-change observations are untrusted;
+this service cannot alter answers, grades, deadlines or Attempt state. No recordings,
+clipboard, URLs, keystrokes, answer content or academic sanctions are implemented.
+Drain/block bypass-capable older Gateway/downstream instances before any future
+separately authorized activation. Deployment/independent review is not inferred
+from local tests or a source merge.

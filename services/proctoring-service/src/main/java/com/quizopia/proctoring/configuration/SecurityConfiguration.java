@@ -18,7 +18,10 @@ public class SecurityConfiguration {
             HttpSecurity http,
             QuizopiaJwtAuthenticationConverter converter,
             Environment environment,
-            com.quizopia.proctoring.security.SecurityErrorHandler errors)
+            com.quizopia.proctoring.security.SecurityErrorHandler errors,
+            com.quizopia.proctoring.security.admission.IdentityAdmissionClient admission,
+            com.quizopia.proctoring.security.admission.AdmissionProperties bounds,
+            MonitoringProperties monitoring)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -34,7 +37,23 @@ public class SecurityConfiguration {
                                         || request.getRequestURI().startsWith("/swagger-ui/")))
                         .permitAll()
                         .anyRequest()
-                        .denyAll())
+                        .access((authentication, context) -> {
+                            String role = com.quizopia.proctoring.security.admission.ProctoringRoutes.role(
+                                    context.getRequest().getMethod(),
+                                    context.getRequest().getRequestURI());
+                            var caller = authentication.get();
+                            var authorities = caller.getAuthorities().stream()
+                                    .map(Object::toString)
+                                    .toList();
+                            return new org.springframework.security.authorization.AuthorizationDecision(role != null
+                                    && caller.isAuthenticated()
+                                    && authorities.contains("TOKEN_USER")
+                                    && authorities.contains("ROLE_" + role));
+                        }))
+                .addFilterAfter(
+                        new com.quizopia.proctoring.security.admission.MonitoringAdmissionFilter(
+                                admission, bounds, monitoring),
+                        org.springframework.security.web.access.intercept.AuthorizationFilter.class)
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(errors).accessDeniedHandler(errors))
                 .oauth2ResourceServer(oauth2 -> oauth2.authenticationEntryPoint(errors)
                         .accessDeniedHandler(errors)

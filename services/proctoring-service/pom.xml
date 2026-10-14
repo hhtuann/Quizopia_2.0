@@ -4,7 +4,7 @@
   <artifactId>quizopia-proctoring</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <name>Quizopia proctoring</name>
-  <description>Quizopia 2.0 technical scaffold for proctoring</description>
+  <description>Quizopia 2.0 durable monitoring evidence service</description>
 
   <properties>
     <java.version>21</java.version>
@@ -47,7 +47,7 @@
     <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-tracing-bridge-otel</artifactId></dependency>
     <dependency><groupId>io.opentelemetry</groupId><artifactId>opentelemetry-exporter-otlp</artifactId></dependency>
     <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
-    <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-flyway</artifactId></dependency>
     <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId><scope>runtime</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
 
