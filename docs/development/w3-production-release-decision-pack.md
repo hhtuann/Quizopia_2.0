@@ -25,6 +25,13 @@ approval requirements. This pack is the source for the selected planning decisio
 [gate inventory](w3-production-release-gates.md) and
 [operator handoff](w3-production-evidence-handoff.md) apply those selections.
 
+Rounds 4–5 are recorded in the [Approval & Operator Readiness Pack](w3-production-release-approval-operator-readiness.md):
+the same requester-supplied `hhtuann` holds Dev 1/Leader as one proposed human,
+managed-cloud HA staging and synchronous-durability/fencing evaluation are selected,
+RTO/performance baselines precede quantitative criteria, and strict continuous
+≥48-hour eligible observation is selected. Formal appointments, permissions and
+acceptance remain pending; the nomination and register states are unchanged.
+
 ## Round 1 — RC nomination and coordination model
 
 `nominated_rc_sha: 10615f4a9cb73ceb4bce7728f23bf210d0bc99a2`
@@ -85,9 +92,11 @@ W3-M1/M2 acceptance remain outside this backend release pack.
 
 For each gate distinguish the selected coordination role, actual named DRI,
 execution/operator role, independent reviewer and final approval authority. No
-human names or GitHub identities were supplied. The future outside Security
+human names or GitHub identities were supplied in rounds 1–3. D4-02/D5-01 later
+supply `hhtuann` for both Dev 1 and Leader, as one proposed human; actual appointment
+remains unverified. The future outside Security
 reviewer must be identifiable, qualified, appropriately authorized, independent of
-the three-person team and different from the Leader release approver. Existing
+the current Leader/Dev 1/Dev 2 team and different from the Leader release approver. Existing
 normalized identity, DRI/executor separation and exact-artifact approval rules remain.
 
 ## Round 3 — Eight selected decisions
@@ -113,7 +122,10 @@ RTO is a separate undecided time objective; no 30-, 60- or 120-minute value is a
 D3-05 selects mandatory real-time observation now. Controlled database clocks,
 backdated confirmation and real Student accounts are excluded. Formal interruption
 and completeness treatment must be agreed before the soak starts; do not invent
-an uptime rule or reset existing cutoff rights. No waiver is selected. Any future
+an uptime rule or reset existing cutoff rights. D5-04 further selects strict
+continuous eligible observation; exact interruption/completeness rules still need
+formal acceptance. An invalidated observation must fail/be incomplete and be
+repeated after remediation without editing actual confirmation or cutoff history. No waiver is selected. Any future
 change requires a new explicit decision and the existing written Leader/Security
 waiver authority, risk, scope and expiry/review conditions; time cost alone is no
 reason to waive. NOTICE-04 remains NOT VERIFIED.
@@ -123,7 +135,11 @@ reason to waive. NOTICE-04 remains NOT VERIFIED.
 **PROPOSED profile, not an approved performance SLO or executed benchmark.**
 Dev 1 and Platform must turn the selected 100 concurrent Students into a reviewed
 traffic/data profile, authorize its staging resources and duration, and obtain
-latency/error/resource thresholds before CAPACITY-04 execution. No request rate,
+latency/error/resource thresholds before formal CAPACITY-04 acceptance execution.
+D5-03 permits a separately authorized bounded staging feasibility baseline before
+quantitative SLO selection; it is not execution of the register's formal acceptance
+procedure and cannot PASS an unstated target. See the readiness pack for the
+baseline → target approval/freeze → formal acceptance sequence. No request rate,
 think-time value, phase duration, P95/P99 acceptance number or production SLA is
 selected here.
 
