@@ -27,8 +27,43 @@ final class Wave3AcceptanceJourneys {
         args.add("--server.port=" + URI.create(origin).getPort());
         args.addAll(extra);
         startProcess(label, processArtifacts.get(original), args);
-        awaitHttp(origin + "/actuator/health");
+        // Aggregate Identity health also includes optional SMTP, which this topology
+        // deliberately does not provision. Match the original Identity bootstrap.
+        awaitPeer(label, origin, HTTP, original.equals("identity") ? "/oauth2/jwks" : "/actuator/health");
         return origin;
+    }
+
+    static void awaitPeer(String label, String origin, HttpClient client, String path) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        int status = 0;
+        String transport = "NONE";
+        while (System.nanoTime() < deadline && namedProcesses.get(label).isAlive()) {
+            try {
+                status = client.send(
+                                HttpRequest.newBuilder(URI.create(origin + path))
+                                        .timeout(Duration.ofSeconds(3))
+                                        .GET()
+                                        .build(),
+                                HttpResponse.BodyHandlers.discarding())
+                        .statusCode();
+                if (status == 200) return;
+            } catch (java.io.IOException unavailable) {
+                transport = unavailable.getClass().getSimpleName();
+            }
+            Thread.sleep(50);
+        }
+        var process = namedProcesses.get(label);
+        String log = Files.readString(logs.resolve(label + ".log"));
+        var causes = java.util.regex.Pattern.compile("Caused by: ([A-Za-z0-9_.$]+(?:Exception|Error))")
+                .matcher(log);
+        var types = new TreeSet<String>();
+        while (causes.find()) types.add(causes.group(1));
+        // Only fixed status/exit values and exception type names, never log text,
+        // command-line properties, headers, credentials or response payloads.
+        System.out.println("W3FINAL peer_start label=" + label + " path=" + path
+                + " alive=" + process.isAlive() + " exit=" + (process.isAlive() ? "RUNNING" : process.exitValue())
+                + " http_status=" + status + " transport=" + transport + " cause_types=" + types);
+        fail("Isolated peer readiness failed; sanitized diagnostic emitted for " + label);
     }
 
     static void stopPeer(String label) throws Exception {
@@ -116,7 +151,13 @@ final class Wave3AcceptanceJourneys {
         for (String name : List.of("identity", "quiz", "classroom")) {
             String label = "acceptance-default-" + name;
             try {
-                String origin = peer(name, label, Wave3AcceptanceJourneys::futureFlag, List.of());
+                String origin = peer(
+                        name,
+                        label,
+                        Wave3AcceptanceJourneys::futureFlag,
+                        name.equals("identity")
+                                ? List.of("--spring.mail.host=127.0.0.1", "--spring.mail.port=" + port())
+                                : List.of());
                 String path = name.equals("identity")
                         ? "/internal/security/notice-recipients/" + ACTOR + "/eligibility"
                         : name.equals("quiz")
@@ -379,28 +420,22 @@ final class Wave3AcceptanceJourneys {
                 "--server.ssl.key-store-type=PKCS12",
                 "--server.ssl.key-store-password=" + password,
                 "--quizopia.identity.notice-recipients.require-secure-transport=true",
+                "--spring.mail.host=127.0.0.1",
+                "--spring.mail.port=" + port(),
                 "--logging.level.root=TRACE"));
         String token = service("assessment-service", SECRET, "identity.notice-recipient.read");
         try {
             startProcess("acceptance-identity-https", processArtifacts.get("identity"), args);
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
-            boolean up = false;
-            while (System.nanoTime() < deadline) {
-                try {
-                    up = client.send(
-                                            HttpRequest.newBuilder(URI.create(origin + "/actuator/health"))
-                                                    .timeout(Duration.ofSeconds(3))
-                                                    .GET()
-                                                    .build(),
-                                            HttpResponse.BodyHandlers.discarding())
-                                    .statusCode()
-                            == 200;
-                    if (up) break;
-                } catch (Exception unavailable) {
-                }
-                Thread.sleep(50);
-            }
-            assertTrue(up, "HTTPS Identity did not start");
+            awaitPeer("acceptance-identity-https", origin, client, "/oauth2/jwks");
+            var aggregate = client.send(
+                    HttpRequest.newBuilder(URI.create(origin + "/actuator/health"))
+                            .timeout(Duration.ofSeconds(3))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(
+                    503, aggregate.statusCode(), "Unavailable fixture SMTP must remain visible in aggregate health");
+            assertEquals("DOWN", JSON.readTree(aggregate.body()).path("status").asString());
             String path = "/internal/security/notice-recipients/" + ACTOR + "/eligibility";
             var response = client.send(
                     HttpRequest.newBuilder(URI.create(origin + path))

@@ -25,6 +25,13 @@ insecure-loopback overrides into deployment examples. Provision credentials thro
 existing controlled service registration, not a new public administration API.
 Required scopes are not a blanket introspection or USER impersonation capability.
 
+Identity aggregate health also includes SMTP. Its approved mail provisioning belongs
+to Identity's release controls; Assessment notice confirmation does not use email as
+proof. The isolated harness uses JWKS for Identity process startup and then tests the
+authenticated capability. That does not establish aggregate deployment health. Do
+not suppress required production health indicators or declare a deployment healthy
+merely because JWKS responds.
+
 ## Preflight, migration and traffic drain
 
 1. Obtain named authorization, target environment identity and database host/primary

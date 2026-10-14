@@ -105,6 +105,23 @@ the corrected topology focused run passed all three cases. Full final execution
 and repeated capacity samples are recorded below. Focused cases
 overlap final module counts and must not be added to them again.
 
+The first [candidate CI run](https://github.com/hhtuann/Quizopia_2.0/actions/runs/38501246051)
+passed seven backend jobs, including 339 Assessment and 427 Identity tests, but
+Gateway failed to start two additional Identity peers according to its selected
+readiness criterion. The new peers had incorrectly required aggregate Identity
+health UP, which includes SMTP not provisioned in this topology; the original
+Identity bootstrap already uses JWKS. The correction uses JWKS startup followed
+by actual authenticated capability checks, with unchanged 60-second startup and
+HTTP deadlines. A controlled unavailable loopback SMTP fixture now proves aggregate
+health remains DOWN/503 while JWKS and recipient eligibility work; mail health is
+not disabled or falsely reported healthy. All three focused cases passed this
+reproduction. Peer failures emit only status/exit values and exception type names,
+never raw logs, command-line secrets or payloads. The complete Gateway rerun passed **103 tests**, including all **21** topology
+journeys, with zero failures/errors/skips. Corrected candidate CI is recorded in
+the PR/final report. The unchanged large
+fixture also passed the first CI run in **10196 ms** (one CI observation, separate
+from the three local samples).
+
 ## Exercised runtime and security behavior
 
 The retained suites execute CLASS/PUBLIC preparation/opening, immutable delivery,
