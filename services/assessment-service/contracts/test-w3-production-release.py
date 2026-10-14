@@ -2,11 +2,13 @@
 """Synthetic in-memory validator fixtures; no runtime gate is executed or closed."""
 
 from copy import deepcopy
+from fnmatch import fnmatchcase
 import importlib.util
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location(
@@ -24,7 +26,7 @@ def fixture():
         gate.update({key: ["Required condition"] for key in validator.GATE_LISTS})
         gate.update({
             "id": gate_id, "inherited_status": status, "status": status,
-            "severity": "HIGH", "proposed_owner": "Accountable role",
+            "severity": "MEDIUM" if gate_id == "BUILD-02" else "HIGH", "proposed_owner": "Accountable role",
             "dri": validator.UNASSIGNED, "ownership_status": "PROPOSED",
             "release_blocking": True, "dependencies": [], "evidence": [], "approvals": [],
         })
@@ -39,8 +41,10 @@ def fixture():
 
 
 def approval(kind="GATE_APPROVER"):
+    # Distinct test-only identities, never real assignments or approval evidence.
+    reviewers = {"GATE_APPROVER": "Fixture reviewer A", "LEADER": "Fixture reviewer B", "INDEPENDENT_SECURITY": "Fixture reviewer C"}
     return {
-        "kind": kind, "authority": "Authorized gate authority", "reviewer": "Assigned reviewer",
+        "kind": kind, "authority": "Authorized gate authority", "reviewer": reviewers[kind],
         "decided_at": "2026-01-01T12:00:00Z", "release_candidate_sha": "a" * 40,
         "reference": "https://github.com/hhtuann/Quizopia_2.0/pull/84", "decision": "APPROVED",
         "artifact_digest": "c" * 64, "configuration_fingerprint": "d" * 64,
@@ -63,6 +67,31 @@ def close_gate(document, gate_id="BUILD-02"):
     }]
     gate["approvals"] = [approval()]
     return gate
+
+
+def complete_approval_fixture():
+    """In-memory complete graph for structural tests, never real gate closure."""
+    document = fixture()
+    for gate_id in validator.INHERITED:
+        gate = close_gate(document, gate_id)
+        gate["approvals"] = [approval(kind) for kind in sorted(validator.REQUIRED_APPROVALS[gate_id])]
+    return document
+
+
+def notice_waiver_fixture():
+    """An illustrative waiver with independent labels and no runtime claim."""
+    document = fixture()
+    gate = close_gate(document, "NOTICE-04")
+    gate.update({"status": "NOT APPLICABLE", "evidence": [], "dependencies": ["TLS-02"]})
+    gate["waiver"] = {
+        "decision_maker": "Fixture decision makers B and C", "authority": "Release decision authority",
+        "risk": "Recorded risk acceptance", "scope": "Approved backend candidate",
+        "review_conditions": "Revisit when the scoped candidate changes",
+        "reference": "https://github.com/hhtuann/Quizopia_2.0/pull/84",
+        "release_candidate_sha": "a" * 40, "decided_at": "2026-01-01T12:00:00Z",
+    }
+    gate["approvals"] = [approval("LEADER"), approval("INDEPENDENT_SECURITY")]
+    return document
 
 
 class RegisterSafetyTests(unittest.TestCase):
@@ -275,6 +304,183 @@ class RegisterSafetyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             errors = validator.validate_register(self.document, root=Path(directory))
             self.assertTrue(any("cannot verify pinned matrix" in item for item in errors), errors)
+
+    def test_all_eleven_correct_inherited_severities_preserved(self):
+        actual = {gate["id"]: gate["severity"] for gate in self.document["gates"]}
+        expected = {gate_id: "MEDIUM" if gate_id == "BUILD-02" else "HIGH" for gate_id in validator.INHERITED}
+        self.assertEqual(expected, actual)
+        self.assertEqual([], self.errors())
+
+    def test_inherited_high_severity_cannot_be_downgraded(self):
+        for gate in self.document["gates"]:
+            if gate["id"] != "BUILD-02":
+                with self.subTest(gate=gate["id"]):
+                    previous = gate["severity"]
+                    gate["severity"] = "MEDIUM"
+                    self.assertRejected("inherited severity")
+                    gate["severity"] = previous
+
+    def test_inherited_high_severity_cannot_be_changed_to_blocker(self):
+        self.document["gates"][5]["severity"] = "BLOCKER"
+        self.assertRejected("inherited severity")
+
+    def test_inherited_medium_severity_cannot_be_upgraded(self):
+        self.document["gates"][0]["severity"] = "HIGH"
+        self.assertRejected("inherited severity")
+
+    def test_missing_or_invalid_inherited_severity_rejected(self):
+        for severity in [None, "CRITICAL", "high", True, []]:
+            with self.subTest(severity=severity):
+                self.document = fixture()
+                self.document["gates"][0]["severity"] = severity
+                self.assertRejected("severity")
+        del self.document["gates"][0]["severity"]
+        self.assertRejected("missing severity")
+
+    def test_severity_constant_is_checked_against_pinned_historical_authority(self):
+        historical = (validator.ROOT / validator.MATRIX).read_bytes()
+        altered = historical.replace(b"MEDIUM / repository owner", b"HIGH / repository owner")
+        self.assertNotEqual(historical, altered)
+        with patch.object(validator.subprocess, "check_output", return_value=altered):
+            errors = validator.validate_register(self.document)
+        self.assertTrue(any("inherited severity authority mismatch" in item for item in errors), errors)
+
+    def test_malformed_historical_severity_cell_rejected(self):
+        historical = (validator.ROOT / validator.MATRIX).read_text()
+        malformed = historical.replace("MEDIUM / repository owner", " / repository owner")
+        with self.assertRaises(ValueError):
+            validator.matrix_severities(malformed)
+
+    def test_complete_final_approval_fixture_with_distinct_reviewers_is_structurally_valid(self):
+        self.document = complete_approval_fixture()
+        self.assertEqual([], self.errors())
+
+    def test_final_approval_same_person_under_both_authorities_rejected(self):
+        self.document = complete_approval_fixture()
+        gate = self.document["gates"][-1]
+        gate["approvals"][1]["reviewer"] = gate["approvals"][0]["reviewer"]
+        self.assertRejected("Leader and independent Security reviewers must be distinct")
+
+    def test_final_approval_identity_case_and_whitespace_collision_rejected(self):
+        self.document = complete_approval_fixture()
+        gate = self.document["gates"][-1]
+        gate["approvals"][0]["reviewer"] = "  Fixture   Reviewer C  "
+        gate["approvals"][1]["reviewer"] = "fixture reviewer c"
+        self.assertRejected("Leader and independent Security reviewers must be distinct")
+
+    def test_notice_waiver_same_person_under_both_authorities_rejected(self):
+        self.document = notice_waiver_fixture()
+        gate = self.document["gates"][1]
+        gate["approvals"][0]["reviewer"] = " Fixture Reviewer C "
+        gate["approvals"][1]["reviewer"] = "fixture reviewer c"
+        self.assertRejected("Leader and independent Security reviewers must be distinct")
+
+    def test_notice_waiver_distinct_reviewers_is_structurally_valid(self):
+        self.document = notice_waiver_fixture()
+        self.assertEqual([], self.errors())
+
+    def test_final_approval_and_notice_waiver_require_both_authorities(self):
+        for make_fixture, gate_index in [(complete_approval_fixture, -1), (notice_waiver_fixture, 1)]:
+            for missing_kind in ["LEADER", "INDEPENDENT_SECURITY"]:
+                with self.subTest(gate=gate_index, missing=missing_kind):
+                    self.document = make_fixture()
+                    gate = self.document["gates"][gate_index]
+                    gate["approvals"] = [item for item in gate["approvals"] if item["kind"] != missing_kind]
+                    self.assertRejected("required approval" if gate_index == -1 else "Leader and independent-security")
+
+    def test_all_approval_entries_checked_for_cross_authority_identity_collision(self):
+        for make_fixture, gate_index in [(complete_approval_fixture, -1), (notice_waiver_fixture, 1)]:
+            with self.subTest(gate=gate_index):
+                self.document = make_fixture()
+                gate = self.document["gates"][gate_index]
+                extra = approval("INDEPENDENT_SECURITY")
+                extra["reviewer"] = " fixture REVIEWER b "
+                gate["approvals"].append(extra)
+                self.assertRejected("Leader and independent Security reviewers must be distinct")
+
+    def test_existing_independent_reviewer_dri_and_executor_checks_normalized(self):
+        for kind in ["GATE_APPROVER", "INDEPENDENT_SECURITY"]:
+            for source in ["dri", "executor"]:
+                with self.subTest(kind=kind, source=source):
+                    self.document = fixture()
+                    gate = close_gate(self.document, "TLS-02")
+                    gate["dri"] = "Fixture DRI"
+                    gate["evidence"][0]["executor"] = "Fixture Executor"
+                    gate["approvals"] = [approval(), approval("INDEPENDENT_SECURITY")]
+                    reviewer = next(item for item in gate["approvals"] if item["kind"] == kind)
+                    reviewer["reviewer"] = "  FIXTURE   " + ("dri" if source == "dri" else "executor") + "  "
+                    self.assertRejected("independent of")
+
+    def test_final_approval_leader_can_be_dri_with_separate_security_reviewer(self):
+        self.document = complete_approval_fixture()
+        gate = self.document["gates"][-1]
+        leader = next(item for item in gate["approvals"] if item["kind"] == "LEADER")
+        leader["reviewer"] = gate["dri"]
+        self.assertEqual([], self.errors())
+
+    def test_distinct_role_titles_are_not_proof_of_distinct_approval_individuals(self):
+        for make_fixture, gate_index in [(complete_approval_fixture, -1), (notice_waiver_fixture, 1)]:
+            with self.subTest(gate=gate_index):
+                self.document = make_fixture()
+                gate = self.document["gates"][gate_index]
+                for item in gate["approvals"]:
+                    item["reviewer"] = " LEADER " if item["kind"] == "LEADER" else "INDEPENDENT_SECURITY"
+                self.assertRejected("individual, not a role-only label")
+                for item in gate["approvals"]:
+                    # Named labels are illustrative test data, not actual people
+                    # or evidence. A role prefix must not impose a name format.
+                    item["reviewer"] = "Leader Alice" if item["kind"] == "LEADER" else "Security Bob"
+                self.assertEqual([], self.errors())
+
+    def test_release_workflow_triggers_on_each_docs_only_and_governance_change(self):
+        # BaseLoader preserves GitHub's YAML "on" key rather than treating it as
+        # the YAML 1.1 Boolean True; trigger/filter semantics are asserted below.
+        workflow_path = validator.ROOT / ".github/workflows/w3-production-release-validation.yml"
+        workflow = validator.yaml.load(workflow_path.read_text(), Loader=validator.yaml.BaseLoader)
+        expected_paths = {
+            "docs/development/w3-production-evidence-register.yaml",
+            "docs/development/w3-production-release-acceptance.md",
+            "docs/development/w3-production-release-gates.md",
+            "docs/development/w3-production-evidence-handoff.md",
+            "services/assessment-service/contracts/validate-w3-production-release.py",
+            "services/assessment-service/contracts/test-w3-production-release.py",
+            "docs/architecture/w3-final-acceptance-matrix.md",
+            ".github/workflows/w3-production-release-validation.yml",
+        }
+        self.assertEqual({"pull_request", "push"}, set(workflow["on"]))
+        for event in ["pull_request", "push"]:
+            triggers = workflow["on"][event]
+            self.assertNotIn("paths-ignore", triggers)
+            self.assertTrue(all(not pattern.startswith("!") for pattern in triggers["paths"]))
+            for single_changed_file in expected_paths:
+                with self.subTest(event=event, only_changed_file=single_changed_file):
+                    self.assertTrue(any(fnmatchcase(single_changed_file, pattern) for pattern in triggers["paths"]))
+        self.assertEqual({"develop", "main"}, set(workflow["on"]["push"]["branches"]))
+
+    def test_release_workflow_is_read_only_fetches_history_and_executes_both_checks(self):
+        workflow_path = validator.ROOT / ".github/workflows/w3-production-release-validation.yml"
+        workflow = validator.yaml.load(workflow_path.read_text(), Loader=validator.yaml.BaseLoader)
+        self.assertEqual({"contents": "read"}, workflow["permissions"])
+        self.assertNotIn("pull_request_target", workflow["on"])
+        job = workflow["jobs"]["release-register-validation"]
+        self.assertNotIn("if", job)
+        self.assertNotIn("continue-on-error", job)
+        self.assertNotIn("permissions", job)
+        steps = job["steps"]
+        checkout = next(step for step in steps if step.get("uses", "").startswith("actions/checkout@"))
+        self.assertEqual("0", checkout["with"]["fetch-depth"])
+        self.assertEqual("false", checkout["with"]["persist-credentials"])
+        setup = next(step for step in steps if step.get("uses", "").startswith("actions/setup-python@"))
+        self.assertEqual("3.13", setup["with"]["python-version"])
+        commands = [step["run"].strip() for step in steps if "run" in step]
+        self.assertIn("python3 -m pip install --disable-pip-version-check --no-input PyYAML==6.0.3", commands)
+        for filename in ["validate-w3-production-release.py", "test-w3-production-release.py"]:
+            command = f"python3 services/assessment-service/contracts/{filename}"
+            matching_steps = [step for step in steps if step.get("run", "").strip() == command]
+            self.assertEqual(1, len(matching_steps), command)
+            self.assertNotIn("if", matching_steps[0])
+            self.assertNotIn("continue-on-error", matching_steps[0])
+        self.assertNotIn("secrets.", workflow_path.read_text())
 
 
 if __name__ == "__main__":

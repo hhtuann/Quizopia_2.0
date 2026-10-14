@@ -127,8 +127,40 @@ approved restricted storage and commit only sanitized manifests and actual safe
 references. Readiness of this register preserves **PRODUCTION NO-GO** until the
 required external evidence and real approvals exist.
 
-## Executed local workstream checks
+## PR #85 validator hardening
 
+The validator pins each inherited severity to the historical matrix: BUILD-02 is
+MEDIUM and the other ten open gates are HIGH. Missing, invalid, downgraded or
+otherwise changed severities are rejected; the pinned historical Git-object check
+remains authoritative.
+
+APPROVAL-01 PASS and NOTICE-04 NOT APPLICABLE require different human reviewers
+for LEADER and INDEPENDENT_SECURITY approvals. Identity comparison trims surrounding
+whitespace and ignores case, preventing trivial spelling variations from satisfying
+separation. Independent Security must also differ from the evidence executor and
+gate DRI. A Leader may remain the accountable DRI for a governance gate; role titles
+alone do not establish different people. Existing candidate, waiver, artifact and
+configuration binding requirements remain enforced.
+
+The dedicated [W3 Production Release Validation workflow](../../.github/workflows/w3-production-release-validation.yml)
+is configured for relevant `pull_request` changes and `push` changes to develop/main,
+including register-only Markdown/YAML changes. Its path filters cover these four
+release documents, both Python validator/test scripts, the workflow itself and the
+historical matrix. It uses Python 3.13, pinned PyYAML 6.0.3, read-only repository
+contents permission and checkout with full history for the pinned Git object;
+checkout does not persist credentials. Its dedicated job runs both Python CLIs and
+fails if either fails. It performs no deployment, uses no production/SERVICE secrets
+and makes no feature, approval or branch-protection changes.
+
+Workflow configuration alone does not prove CI execution. The corrected-HEAD run
+URL, checked SHA, job conclusion and executed safety-test count must be verified
+and recorded in the existing Draft PR #85 and final hardening report. The historical
+results below do not substitute for that run or close any external release gate.
+
+## Original executed local workstream checks
+
+The following records initial PR #85 construction; its 28-test count and scope
+remain historical evidence, not the count of the subsequent hardening regressions.
 Executed 2026-10-14 in the local development checkout using Python 3.14.4 and
 the existing repository verification packages; no dependency was installed.
 These are package checks, not external gate execution or independent security

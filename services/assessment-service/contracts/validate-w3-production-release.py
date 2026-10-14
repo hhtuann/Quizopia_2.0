@@ -35,11 +35,22 @@ INHERITED = {
     "DEPLOY-02": "NOT VERIFIED",
     "APPROVAL-01": "BLOCKED",
 }
+# This accepted mapping is also checked against the pinned historical Git object.
+INHERITED_SEVERITIES = {
+    "BUILD-02": "MEDIUM", "NOTICE-04": "HIGH", "RECOVERY-05": "HIGH",
+    "DB-05": "HIGH", "DB-08": "HIGH", "TLS-02": "HIGH", "CAPACITY-04": "HIGH",
+    "OBSERVE-02": "HIGH", "PRIVACY-02": "HIGH", "DEPLOY-02": "HIGH", "APPROVAL-01": "HIGH",
+}
 COUNTS = {"PASS": 46, "FAIL": 0, "BLOCKED": 6, "NOT VERIFIED": 5, "NOT APPLICABLE": 2}
 STATUSES = set(COUNTS)
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 DIGEST = re.compile(r"(?:sha256:)?[0-9a-f]{64}\Z")
 PLACEHOLDER = re.compile(r"\b(?:TODO|TBD|placeholder|unassigned)\b", re.I)
+ROLE_ONLY_REVIEWERS = {
+    "leader", "security", "security reviewer", "independent security",
+    "independent security reviewer", "independent_security", "gate approver",
+    "gate_approver", "reviewer",
+}
 DEPLOYED_GATES = set(INHERITED) - {"BUILD-02", "PRIVACY-02"}
 REQUIRED_APPROVALS = {
     "BUILD-02": {"GATE_APPROVER"}, "NOTICE-04": {"INDEPENDENT_SECURITY"},
@@ -100,6 +111,30 @@ def matrix_rows(content):
                 raise ValueError(f"duplicate inherited matrix ID: {gate_id}")
             rows[gate_id] = cells[5]
     return rows
+
+
+def matrix_severities(content):
+    """Read the severity column without changing the historical status parser."""
+    severities = {}
+    for line in content.splitlines():
+        cells = [cell.strip() for cell in line.split("|")]
+        if len(cells) > 5 and cells[5] in STATUSES:
+            if len(cells) != 10 or not cells[1]:
+                raise ValueError("malformed historical gate row")
+            gate_id = cells[1].split()[0]
+            severity, separator, owner = cells[6].partition("/")
+            severity = severity.strip()
+            if severity not in {"MEDIUM", "HIGH", "BLOCKER"} or not separator or not owner.strip():
+                raise ValueError(f"malformed historical severity: {gate_id}")
+            if gate_id in severities:
+                raise ValueError(f"duplicate historical severity: {gate_id}")
+            severities[gate_id] = severity
+    return severities
+
+
+def normalized_identity(value):
+    """Compare labels deterministically; this cannot prove human identity."""
+    return " ".join(value.split()).casefold() if isinstance(value, str) else None
 
 
 def validate_register(document, root=ROOT, verify_baseline=True):
@@ -206,12 +241,15 @@ def validate_register(document, root=ROOT, verify_baseline=True):
             pinned = subprocess.check_output(["git", "show", f"{BASELINE}:{MATRIX}"], cwd=root, stderr=subprocess.DEVNULL)
             current = (root / MATRIX).read_bytes()
             rows = matrix_rows(pinned.decode("utf-8"))
+            severities = matrix_severities(pinned.decode("utf-8"))
             if current != pinned:
                 error("baseline.matrix", "historical 59-gate matrix differs from the pinned merged version")
             if len(rows) != 59 or dict(Counter(rows.values())) != {key: value for key, value in COUNTS.items() if value}:
                 error("baseline.matrix", "pinned matrix row/count mismatch")
             if {key: value for key, value in rows.items() if value in {"BLOCKED", "NOT VERIFIED"}} != INHERITED:
                 error("baseline.matrix", "pinned inherited open-gate set/status mismatch")
+            if set(severities) != set(rows) or {key: severities.get(key) for key in INHERITED} != INHERITED_SEVERITIES:
+                error("baseline.matrix", "inherited severity authority mismatch with pinned historical matrix")
         except (OSError, ValueError, subprocess.CalledProcessError) as exc:
             error("baseline.matrix", f"cannot verify pinned matrix ({type(exc).__name__})")
     candidate = document.get("release_candidate_sha")
@@ -252,8 +290,8 @@ def validate_register(document, root=ROOT, verify_baseline=True):
         status = gate.get("status")
         if not isinstance(status, str) or status not in STATUSES:
             error(where, "invalid status")
-        if not isinstance(gate.get("severity"), str) or gate.get("severity") not in {"MEDIUM", "HIGH", "BLOCKER"}:
-            error(where, "severity must be MEDIUM, HIGH or BLOCKER")
+        if gate.get("severity") != INHERITED_SEVERITIES[gate_id]:
+            error(where, f"inherited severity must remain {INHERITED_SEVERITIES[gate_id]}")
         if gate.get("release_blocking") is not True:
             error(where, "all inherited open gates must retain release_blocking: true")
         ownership = gate.get("ownership_status")
@@ -309,6 +347,7 @@ def validate_register(document, root=ROOT, verify_baseline=True):
                 for key in ["artifact_digest", "configuration_fingerprint"]:
                     digest(receipt.get(key), f"{receipt_where}.{key}")
         kinds = set()
+        authority_reviewers = {"LEADER": set(), "INDEPENDENT_SECURITY": set()}
         for approval_index, approval in enumerate(approvals):
             approval_where = f"{where}.approvals[{approval_index}]"
             if not mapping(approval, APPROVAL_KEYS, {"artifact_digest", "configuration_fingerprint"}, approval_where):
@@ -321,15 +360,19 @@ def validate_register(document, root=ROOT, verify_baseline=True):
                 error(approval_where, "invalid approval kind")
             elif isinstance(kind, str):
                 kinds.add(kind)
+                if kind in authority_reviewers and isinstance(approval.get("reviewer"), str):
+                    authority_reviewers[kind].add(normalized_identity(approval["reviewer"]))
             if approval.get("decision") != "APPROVED":
                 error(approval_where, "approval decision must be APPROVED")
             if approval.get("release_candidate_sha") != candidate or candidate is None:
                 error(approval_where, "approval SHA must bind to the exact selected release candidate")
             timestamp(approval.get("decided_at"), f"{approval_where}.decided_at")
             reference(approval.get("reference"), f"{approval_where}.reference")
-            reviewer = approval.get("reviewer")
-            executors = {receipt.get("executor") for receipt in evidence if isinstance(receipt, dict) and isinstance(receipt.get("executor"), str)}
-            if kind in ("INDEPENDENT_SECURITY", "GATE_APPROVER") and isinstance(reviewer, str) and (reviewer == gate.get("dri") or reviewer in executors):
+            reviewer = normalized_identity(approval.get("reviewer"))
+            if reviewer in ROLE_ONLY_REVIEWERS:
+                error(approval_where, "approval reviewer must identify an individual, not a role-only label")
+            executors = {normalized_identity(receipt["executor"]) for receipt in evidence if isinstance(receipt, dict) and isinstance(receipt.get("executor"), str)}
+            if kind in ("INDEPENDENT_SECURITY", "GATE_APPROVER") and reviewer is not None and (reviewer == normalized_identity(gate.get("dri")) or reviewer in executors):
                 error(approval_where, "reviewer must be independent of the DRI and evidence executor")
             if status == "PASS" and gate_id in DEPLOYED_GATES:
                 for key in ["artifact_digest", "configuration_fingerprint"]:
@@ -340,6 +383,10 @@ def validate_register(document, root=ROOT, verify_baseline=True):
                     error(approval_where, "approval artifact/configuration binding must match tested deployment evidence")
         if closed and not REQUIRED_APPROVALS[gate_id] <= kinds:
             error(where, "required approval kinds: " + ", ".join(sorted(REQUIRED_APPROVALS[gate_id])))
+        if ((gate_id == "APPROVAL-01" and status == "PASS")
+                or (gate_id == "NOTICE-04" and status == "NOT APPLICABLE")):
+            if authority_reviewers["LEADER"] & authority_reviewers["INDEPENDENT_SECURITY"]:
+                error(where, "Leader and independent Security reviewers must be distinct individuals")
         if status == "NOT APPLICABLE":
             waiver = gate.get("waiver")
             if mapping(waiver, WAIVER_KEYS, set(), f"{where}.waiver"):
