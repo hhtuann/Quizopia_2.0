@@ -1,6 +1,12 @@
 # W3-B/W3-C — Contract review, delivery sequence and evidence
 
-Status: **APPROVED WITH CONDITIONS — ENGINEERING CONTRACT FREEZE (EC79-01..04); independent read-only amendment review PENDING; executable W3-B/C implementation NOT YET IMPLEMENTED; production activation NOT AUTHORIZED.**
+Status: **Leader product policy APPROVED; engineering direction APPROVED WITH CONDITIONS (EC79-01..04); B1/C1/B2 merged and B3 implemented default disabled, pending independent security/runtime review and Leader merge approval; production activation NOT AUTHORIZED.**
+
+Current runtime, exact routes, verification and rollout gates are recorded in the
+[W3-B3 implementation evidence](w3b3-closure-notification-implementation.md). Historical baseline inspection and
+proposed SQL below describe the contract freeze; executable Flyway V1–V5 and the
+implemented service OpenAPI govern the delivered adapters. Accepted product policy
+and the indefinite blocked-recipient limitation are unchanged.
 
 Recorded: 2026-10-13 (Asia/Bangkok). Product policy accepted in
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md).

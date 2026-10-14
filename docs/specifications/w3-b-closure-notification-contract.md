@@ -1,9 +1,15 @@
 # W3-B — Durable notices and delayed Teacher closure
 
-Status: **ENGINEERING DIRECTION APPROVED WITH CONDITIONS (EC79-01..04); C1..C10 product policy APPROVED; runtime PROPOSED/UNIMPLEMENTED, production activation NOT AUTHORIZED.**
+Status: **Leader product policy APPROVED; engineering direction APPROVED WITH CONDITIONS (EC79-01..04); B1/C1/B2 merged and B3 implemented default disabled, pending independent security/runtime review and Leader merge approval; production activation NOT AUTHORIZED.**
 
-W3-A implements OPEN and schedule extension, no CLOSE/workflow/inbox. This design
-adds only Assessment closure notices under its existing Publication/Attempt
+Current runtime, exact routes, verification and rollout gates are recorded in the
+[W3-B3 implementation evidence](../architecture/w3b3-closure-notification-implementation.md). Historical baseline inspection and
+proposed SQL below describe the contract freeze; executable Flyway V1–V5 and the
+implemented service OpenAPI govern the delivered adapters. Accepted product policy
+and the indefinite blocked-recipient limitation are unchanged.
+
+W3-A implements OPEN and schedule extension; B3 implements CLOSE/workflow/inbox.
+This contract adds only Assessment closure notices under its existing Publication/Attempt
 ownership. See [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md),
 [HTTP/OpenAPI](w3b-w3c-http-contract.md),
 [grading](w3-c-grading-results-contract.md) and
@@ -18,8 +24,8 @@ sign-off is recorded in ADR-015; independent read-only amendment review is pendi
 ## Ownership and accessibility
 
 Repository inspection finds only Identity verification-email infrastructure; it
-has no authenticated durable Student inbox. Do not reuse OTP delivery state as
-notice evidence. Proposed `assessment_notifications` lives in Assessment's own
+had no authenticated durable Student inbox at the freeze baseline. B3 now supplies
+one; OTP delivery state is never notice evidence. `assessment_notifications` lives in Assessment's own
 PostgreSQL database, owned by the Attempt Student and joined to durable closure
 membership. This is a projection of Assessment's workflow, not ownership of
 Classroom announcements or a new service. A general inbox in another service
@@ -44,7 +50,7 @@ using the same owner-scoped repository/projection used by the authenticated API,
 without impersonating USER credentials. Route access/security integration is
 verified in real topology before enablement; do not infer it from table existence.
 Before confirming notice, the worker additionally requires a fresh Identity
-recipient-eligibility check, conditionally approved but still unimplemented, as
+recipient-eligibility check, conditionally approved and implemented default disabled in B3, as
 described in the HTTP contract. It verifies
 current ACTIVE/verified/STUDENT authority with complete Redis equality without
 borrowing a Student bearer token. Missing/disabled/role-removed recipient is not

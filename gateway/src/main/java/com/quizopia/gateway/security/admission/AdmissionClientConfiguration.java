@@ -5,7 +5,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({AdmissionProperties.class, PublicationProperties.class, AttemptFeatureProperties.class})
+@EnableConfigurationProperties({
+    AdmissionProperties.class,
+    PublicationProperties.class,
+    InboxProperties.class,
+    AttemptFeatureProperties.class
+})
 public class AdmissionClientConfiguration {
     @Bean(destroyMethod = "close")
     IdentityAdmissionClient identityAdmissionClient(AdmissionProperties properties) {

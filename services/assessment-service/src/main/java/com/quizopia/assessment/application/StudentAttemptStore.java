@@ -15,7 +15,23 @@ public interface StudentAttemptStore {
 
     record Resource(UUID publicationId, PublicationConfiguration configuration) {}
 
-    record Step<T>(T value, UUID dueAttempt, boolean created) {
+    record Step<T>(
+            T value,
+            UUID dueAttempt,
+            boolean created,
+            com.quizopia.assessment.domain.attempt.AttemptRecord.Reason reason) {
+        public Step(T value, UUID dueAttempt, boolean created) {
+            this(
+                    value,
+                    dueAttempt,
+                    created,
+                    com.quizopia.assessment.domain.attempt.AttemptRecord.Reason.BOUNDED_TIMEOUT);
+        }
+
+        public static <T> Step<T> due(UUID id, com.quizopia.assessment.domain.attempt.AttemptRecord.Reason reason) {
+            return new Step<>(null, id, false, reason);
+        }
+
         public static <T> Step<T> done(T value) {
             return new Step<>(value, null, false);
         }

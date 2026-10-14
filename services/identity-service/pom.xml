@@ -7,6 +7,7 @@
   <description>Quizopia 2.0 technical scaffold for identity</description>
 
   <properties>
+    <quizopia.build.directory>${project.basedir}/target</quizopia.build.directory>
     <java.version>21</java.version>
     <spring-boot.version>4.1.1</spring-boot.version>
     <spring-cloud.version>2025.1.2</spring-cloud.version>
@@ -61,6 +62,7 @@
   </dependencies>
 
   <build>
+    <directory>${quizopia.build.directory}</directory>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId>

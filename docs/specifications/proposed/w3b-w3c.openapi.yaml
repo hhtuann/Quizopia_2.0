@@ -1,11 +1,13 @@
-# Frozen contract pack. B2 implementation status is recorded per operation; B3 remains proposed.
+# Frozen contract pack. Implementation status is recorded per operation; production activation is unauthorized.
 openapi: 3.1.0
 info:
-  title: W3-B/W3-C engineering contracts — B2 implemented, B3 proposed
-  version: 0.1.0-proposed
+  title: W3-B/W3-C engineering contracts — B2/B3 implemented, default disabled
+  version: 1.0.0-default-disabled
   description:
-    "Frozen engineering contracts. Nine Student operations are implemented in W3-B2, default disabled and pending independent implementation review. Teacher closure/inbox and private recipient eligibility remain proposed/unimplemented. Engineering direction APPROVED WITH CONDITIONS (EC79-01..04); independent security/runtime acceptance still required. No production activation. See sibling HTTP/lifecycle/closure/grading
-    contracts for semantic/time/security constraints beyond JSON Schema."
+    Leader-approved frozen engineering contracts; B2 and B3 operations implemented, default disabled
+    pending independent implementation/security/runtime review. Engineering direction APPROVED WITH CONDITIONS EC79-01..04.
+    Existing product policy unchanged. Production activation NOT AUTHORIZED. See B3 implementation evidence and
+    sibling HTTP/lifecycle/closure/grading contracts.
 x-contract-status: MIXED_IMPLEMENTATION_SEE_OPERATIONS
 security:
   - userBearer: []
@@ -796,7 +798,7 @@ paths:
   /api/assessments/publications/{publicationId}/results:
     get:
       operationId: readOwnedPublicationResults
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
       description:
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Persisted
@@ -892,7 +894,7 @@ paths:
   /api/assessments/publications/{publicationId}/close:
     post:
       operationId: closePublication
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
       description:
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Ordinary
@@ -978,7 +980,7 @@ paths:
   /api/assessments/publications/{publicationId}/closure-requests:
     post:
       operationId: requestPublicationClosure
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
       description:
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner,
@@ -1071,7 +1073,7 @@ paths:
   /api/assessments/publications/{publicationId}/closure-requests/{closureRequestId}:
     get:
       operationId: readClosureRequest
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
       description:
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Owner-only
@@ -1153,7 +1155,7 @@ paths:
   /api/assessments/publications/{publicationId}/closure-requests/{closureRequestId}/cancel:
     post:
       operationId: cancelPublicationClosure
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
       description:
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Only
@@ -1243,7 +1245,7 @@ paths:
   /api/assessments/publications/{publicationId}/closure-requests/{closureRequestId}/complete:
     post:
       operationId: completePublicationClosure
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
       description:
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Reconcile
@@ -1343,7 +1345,7 @@ paths:
   /api/assessments/notifications:
     get:
       operationId: listOwnAssessmentNotifications
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Recipient-only
@@ -1420,7 +1422,7 @@ paths:
   /api/assessments/notifications/{notificationId}:
     get:
       operationId: readOwnAssessmentNotification
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: STUDENT
       description:
         STUDENT USER, independent JWT/current LD-05 admission at Gateway and Assessment. Recipient-only
@@ -1499,11 +1501,11 @@ paths:
   /internal/security/notice-recipients/{studentId}/eligibility:
     post:
       operationId: checkNoticeRecipientEligibility
-      x-contract-status: PROPOSED_UNIMPLEMENTED
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-owning-service: IDENTITY
       x-required-service-scope: identity.notice-recipient.read
       description:
-        PROPOSED internal Identity dependency. Bodyless/no query/cookies, exact Assessment
+        Implemented private Identity dependency, default disabled. Bodyless/no query/cookies, exact Assessment
         SERVICE allowlist, complete primary/Redis equality. Boolean recipient eligibility only, never
         USER admission or a Student bearer. Not Gateway-routed. Missing/ineligible matching authority
         false; uncertain/stale authority 503. No positive cache.

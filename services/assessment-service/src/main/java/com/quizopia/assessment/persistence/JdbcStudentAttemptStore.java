@@ -51,6 +51,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
         } catch (GradingPolicy.Failure e) {
             throw error(e.unavailable() ? 503 : 400, e.getMessage());
         } catch (RuntimeException e) {
+            if (ClosureCutoffConflict.matches(e)) throw error(409, "CLOSURE_CUTOFF_REACHED");
             throw error(503, "PERSISTENCE_UNAVAILABLE");
         }
     }
@@ -71,7 +72,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
 
     private Instant now() {
         return db.queryForObject(
-                "SELECT clock_timestamp()", (r, n) -> r.getTimestamp(1).toInstant());
+                "SELECT assessment_time()", (r, n) -> r.getTimestamp(1).toInstant());
     }
 
     private Instant authorizedNow(Actor actor) {
@@ -158,11 +159,52 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     private Attempt lock(Actor actor, UUID id) {
         var a = attempt(actor, id, false);
         pub(a.publication(), true);
+        lockRequests(a.publication());
         return attempt(actor, id, true);
     }
 
     private boolean due(Attempt a, Instant time) {
-        return a.state().equals("ACTIVE") && JdbcAttemptFinalization.due(a.deadline(), time);
+        return a.state().equals("ACTIVE") && (JdbcAttemptFinalization.due(a.deadline(), time) || cutoff(a.id(), time));
+    }
+
+    private void lockRequests(UUID publication) {
+        db.query(
+                "SELECT id FROM closure_requests WHERE publication_id=? AND state IN ('PENDING','FINALIZING') ORDER BY id FOR UPDATE",
+                (r, n) -> r.getObject(1, UUID.class),
+                publication);
+    }
+
+    private boolean cutoff(UUID attempt, Instant time) {
+        return Boolean.TRUE.equals(db.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM closure_request_members m JOIN closure_requests c ON c.id=m.closure_request_id WHERE m.attempt_id=? AND c.state IN ('PENDING','FINALIZING') AND m.state='NOTICE_CONFIRMED' AND m.closure_cutoff_at<=?)",
+                Boolean.class,
+                attempt,
+                Timestamp.from(time)));
+    }
+
+    private <T> Step<T> dueStep(UUID id) {
+        var bounded = db.queryForObject("SELECT deadline_at IS NOT NULL FROM attempts WHERE id=?", Boolean.class, id);
+        return Step.due(
+                id,
+                Boolean.TRUE.equals(bounded)
+                        ? com.quizopia.assessment.domain.attempt.AttemptRecord.Reason.BOUNDED_TIMEOUT
+                        : com.quizopia.assessment.domain.attempt.AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF);
+    }
+
+    private Closure closure(UUID attempt) {
+        var rows = db.query(
+                "SELECT c.id,m.confirmed_notice_at,m.closure_cutoff_at FROM closure_requests c JOIN closure_request_members m ON m.closure_request_id=c.id WHERE m.attempt_id=? AND c.state IN ('PENDING','FINALIZING')",
+                (r, n) -> new Closure(
+                        r.getObject(1, UUID.class),
+                        r.getTimestamp(2) == null ? null : r.getTimestamp(2).toInstant(),
+                        r.getTimestamp(3) == null ? null : r.getTimestamp(3).toInstant()),
+                attempt);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    private PublicationFailure terminal(UUID id) {
+        String reason = db.queryForObject("SELECT terminal_reason FROM attempts WHERE id=?", String.class, id);
+        return error(409, "TEACHER_NOTICE_CUTOFF".equals(reason) ? "CLOSURE_CUTOFF_REACHED" : "ATTEMPT_TERMINAL");
     }
 
     private record Protected(JsonNode root, GradingPolicy.Snapshot grading) {
@@ -249,7 +291,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                 authorizedNow(actor),
                 questions(s),
                 entries,
-                null);
+                closure(a.id()));
     }
 
     private String digest(Map<String, Object> request) {
@@ -282,6 +324,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     public Step<View> start(Actor actor, UUID id, String action, String locator, String key) {
         return tx(() -> {
             Pub p = pub(id, true);
+            lockRequests(id);
             locator(p, locator);
             authorizedNow(actor);
             var request = new TreeMap<String, Object>();
@@ -299,9 +342,9 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                 if (!action.equals(receipt.get("action")) || !hash.equals(receipt.get("request_digest")))
                     throw error(409, "IDEMPOTENCY_CONFLICT");
                 Attempt a = attempt(actor, (UUID) receipt.get("attempt_id"), true);
-                if (due(a, authorizedNow(actor))) return Step.due(a.id());
+                if (due(a, authorizedNow(actor))) return dueStep(a.id());
                 var v = view(actor, a, p);
-                if (due(a, v.serverNow())) return Step.due(a.id());
+                if (due(a, v.serverNow())) return dueStep(a.id());
                 return Step.done(v);
             }
             var history = db.query(
@@ -310,10 +353,10 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                     id,
                     actor.id());
             Attempt latest = history.isEmpty() ? null : history.getFirst();
-            if (latest != null && due(latest, authorizedNow(actor))) return Step.due(latest.id());
+            if (latest != null && due(latest, authorizedNow(actor))) return dueStep(latest.id());
             if (action.equals("START") && latest != null) {
                 var v = view(actor, latest, p);
-                if (due(latest, v.serverNow())) return Step.due(latest.id());
+                if (due(latest, v.serverNow())) return dueStep(latest.id());
                 db.update(
                         "INSERT INTO attempt_creation_operations VALUES(?,?,?,?,?,?,?)",
                         id,
@@ -329,6 +372,10 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                 if (latest == null) throw error(409, "RETAKE_NOT_AVAILABLE");
                 if (latest.state().equals("ACTIVE")) throw error(409, "ACTIVE_ATTEMPT_EXISTS");
             }
+            if (Boolean.TRUE.equals(db.queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM closure_requests WHERE publication_id=? AND state IN ('PENDING','FINALIZING'))",
+                    Boolean.class,
+                    id))) throw error(409, "CLOSURE_PENDING");
             if (!p.state().equals("OPEN")) throw error(409, "PUBLICATION_CONFLICT");
             if (p.max() != 0 && (latest == null ? 0 : latest.ordinal()) >= p.max())
                 throw error(409, "ATTEMPTS_EXHAUSTED");
@@ -369,9 +416,9 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     public Step<View> resume(Actor actor, UUID id) {
         return tx(() -> {
             Attempt a = lock(actor, id);
-            if (due(a, authorizedNow(actor))) return Step.due(id);
+            if (due(a, authorizedNow(actor))) return dueStep(id);
             var v = view(actor, a, pub(a.publication(), false));
-            if (due(a, v.serverNow())) return Step.due(id);
+            if (due(a, v.serverNow())) return dueStep(id);
             return Step.done(v);
         });
     }
@@ -417,9 +464,9 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                 authorizedNow(actor);
                 return Step.done(json.readValue(receipt.response(), SaveAck.class));
             }
-            if (!a.state().equals("ACTIVE")) throw error(409, "ATTEMPT_TERMINAL");
+            if (!a.state().equals("ACTIVE")) throw terminal(a.id());
             Instant time = authorizedNow(actor);
-            if (due(a, time)) return Step.due(id);
+            if (due(a, time)) return dueStep(id);
             if (a.revision() != revision) throw error(409, "REVISION_CONFLICT");
             long next = Math.addExact(revision, 1);
             db.update("UPDATE attempts SET revision=? WHERE id=?", next, id);
@@ -456,9 +503,9 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                 matches(receipt, "ABANDON", hash);
                 return Step.done(json.readValue(receipt.response(), AbandonAck.class));
             }
-            if (!a.state().equals("ACTIVE")) throw error(409, "ATTEMPT_TERMINAL");
+            if (!a.state().equals("ACTIVE")) throw terminal(a.id());
             Instant time = authorizedNow(actor);
-            if (due(a, time)) return Step.due(id);
+            if (due(a, time)) return dueStep(id);
             if (a.revision() != revision) throw error(409, "REVISION_CONFLICT");
             long next = Math.addExact(revision, 1);
             db.update(
@@ -520,7 +567,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     public Step<Result> result(Actor actor, UUID id) {
         return tx(() -> {
             var a = lock(actor, id);
-            if (due(a, authorizedNow(actor))) return Step.due(id);
+            if (due(a, authorizedNow(actor))) return dueStep(id);
             return Step.done(requireResult(actor, a));
         });
     }
@@ -532,7 +579,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
             Instant time = authorizedNow(actor);
             var rows = history(actor, id);
             if (rows.isEmpty()) throw error(404, "PUBLICATION_NOT_FOUND");
-            if (due(rows.getFirst(), time)) return Step.due(rows.getFirst().id());
+            if (due(rows.getFirst(), time)) return dueStep(rows.getFirst().id());
             var best = finalizer.best(id, actor.id());
             return Step.done(new Aggregate(
                     id,
@@ -549,7 +596,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     public Step<Review> review(Actor actor, UUID id) {
         return tx(() -> {
             Attempt a = lock(actor, id);
-            if (due(a, authorizedNow(actor))) return Step.due(id);
+            if (due(a, authorizedNow(actor))) return dueStep(id);
             Pub p = pub(a.publication(), false);
             var r = finalizer.result(new AttemptFinalization.SelectedAttempt(id, actor.id(), actor.expiresAt()));
             requireReview(p.state(), a.state(), r.isPresent());

@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.web.filter.OncePerRequestFilter;
 
 public final class UserAdmissionFilter extends OncePerRequestFilter {
+    private final boolean inboxEnabled;
     private final IdentityAdmissionClient admission;
     private final AdmissionProperties properties;
     private final PublicationProperties publication;
@@ -31,6 +32,16 @@ public final class UserAdmissionFilter extends OncePerRequestFilter {
             AdmissionProperties properties,
             PublicationProperties publication,
             com.quizopia.assessment.configuration.AssessmentFeatureProperties features) {
+        this(admission, properties, publication, features, false);
+    }
+
+    public UserAdmissionFilter(
+            IdentityAdmissionClient admission,
+            AdmissionProperties properties,
+            PublicationProperties publication,
+            com.quizopia.assessment.configuration.AssessmentFeatureProperties features,
+            boolean inboxEnabled) {
+        this.inboxEnabled = inboxEnabled;
         this.features = features;
         this.admission = admission;
         this.properties = properties;
@@ -46,13 +57,20 @@ public final class UserAdmissionFilter extends OncePerRequestFilter {
             return;
         }
         response.setHeader("Cache-Control", "no-store");
-        if (StudentAttemptRoutes.matches(request.getMethod(), request.getRequestURI())
-                ? !StudentAttemptRoutes.enabled(
+        if (ClosureRoutes.role(request.getMethod(), request.getRequestURI()) != null
+                ? !ClosureRoutes.enabled(
                         request.getMethod(),
                         request.getRequestURI(),
-                        features.attemptsEnabled(),
-                        features.resultsEnabled())
-                : !publication.isEnabled()) {
+                        features.resultsEnabled(),
+                        features.closureEnabled(),
+                        inboxEnabled)
+                : StudentAttemptRoutes.matches(request.getMethod(), request.getRequestURI())
+                        ? !StudentAttemptRoutes.enabled(
+                                request.getMethod(),
+                                request.getRequestURI(),
+                                features.attemptsEnabled(),
+                                features.resultsEnabled())
+                        : !publication.isEnabled()) {
             write(response, AdmissionFailure.unavailable());
             return;
         }

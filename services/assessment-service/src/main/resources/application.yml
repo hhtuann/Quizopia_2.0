@@ -101,3 +101,16 @@ logging:
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
     org.springframework.web.servlet.mvc.method.annotation: WARN
+
+# B3 remains disabled until authenticated topology and recipient provisioning are verified.
+quizopia.assessment.closure:
+  inbox-enabled: ${ASSESSMENT_INBOX_ENABLED:false}
+  worker-enabled: ${ASSESSMENT_CLOSURE_WORKER_ENABLED:false}
+  edge-inbox-verified: ${ASSESSMENT_EDGE_INBOX_VERIFIED:false}
+  recipient-enabled: ${ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED:false}
+  unit-budget: ${ASSESSMENT_CLOSURE_UNIT_BUDGET:50}
+  scan-limit: ${ASSESSMENT_CLOSURE_SCAN_LIMIT:50}
+  cursor-active-key: ${ASSESSMENT_CURSOR_ACTIVE_KEY:v1}
+  cursor-keys:
+    v1: ${ASSESSMENT_CURSOR_KEY_V1:}
+  edge-base-url: ${ASSESSMENT_EDGE_BASE_URL:}

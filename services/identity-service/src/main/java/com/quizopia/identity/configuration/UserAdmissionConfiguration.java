@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.util.Collections;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,14 +26,15 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(UserAdmissionProperties.class)
+@EnableConfigurationProperties({UserAdmissionProperties.class, NoticeRecipientProperties.class})
 public class UserAdmissionConfiguration {
     public static final String PATH = "/internal/security/user-admissions";
     public static final String SCOPE = "identity.user-admission";
     public static final String USER_HEADER = "X-Quizopia-User-Evidence";
 
     @Bean
-    @ConditionalOnProperty(prefix = "quizopia.identity.user-admission", name = "enabled", havingValue = "true")
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnExpression(
+            "${quizopia.identity.user-admission.enabled:false} or ${quizopia.identity.notice-recipients.enabled:false}")
     AdmissionTokenVerifier admissionTokenVerifier(
             @Qualifier("identitySigningJwk") RSAKey key,
             AuthorizationServerProperties properties,
@@ -48,10 +48,14 @@ public class UserAdmissionConfiguration {
     SecurityFilterChain userAdmissionChain(
             HttpSecurity http,
             UserAdmissionProperties properties,
+            NoticeRecipientProperties recipients,
+            org.springframework.core.env.Environment environment,
             ObjectProvider<AdmissionTokenVerifier> verifier,
             QuizopiaJwtAuthenticationConverter converter)
             throws Exception {
         properties.validate();
+        if (environment.matchesProfiles("prod") && recipients.enabled() && !recipients.requireSecureTransport())
+            throw new IllegalStateException("Private recipient HTTPS is required in production");
         http.securityMatcher("/internal/security/**")
                 .csrf(csrf -> csrf.disable())
                 .requestCache(cache -> cache.disable())
@@ -67,8 +71,13 @@ public class UserAdmissionConfiguration {
                                     HttpServletRequest request, HttpServletResponse response, FilterChain chain)
                                     throws ServletException, IOException {
                                 response.setHeader("Cache-Control", "no-store");
-                                if (!properties.isEnabled()
-                                        || (properties.isRequireSecureTransport() && !request.isSecure())) {
+                                boolean recipient =
+                                        request.getRequestURI().startsWith("/internal/security/notice-recipients/");
+                                boolean enabled = recipient ? recipients.enabled() : properties.isEnabled();
+                                boolean secure = recipient
+                                        ? recipients.requireSecureTransport()
+                                        : properties.isRequireSecureTransport();
+                                if (!enabled || (secure && !request.isSecure())) {
                                     AdmissionErrors.write(response, 503, "AUTHORITY_UNAVAILABLE");
                                     return;
                                 }
@@ -76,7 +85,7 @@ public class UserAdmissionConfiguration {
                             }
                         },
                         UsernamePasswordAuthenticationFilter.class);
-        if (properties.isEnabled()) {
+        if (properties.isEnabled() || recipients.enabled()) {
             http.oauth2ResourceServer(oauth -> oauth.authenticationEntryPoint((request, response, exception) ->
                             AdmissionErrors.write(response, 401, "SERVICE_AUTHENTICATION_INVALID"))
                     .accessDeniedHandler((request, response, exception) ->
@@ -92,10 +101,21 @@ public class UserAdmissionConfiguration {
                 var caller = authentication.get();
                 var authorities =
                         caller.getAuthorities().stream().map(Object::toString).toList();
-                return new AuthorizationDecision(caller.isAuthenticated()
-                        && authorities.contains("TOKEN_SERVICE")
+                var request = context.getRequest();
+                String path = request.getRequestURI();
+                boolean admission = "POST".equals(request.getMethod())
+                        && PATH.equals(path)
+                        && properties.isEnabled()
                         && authorities.contains("SCOPE_" + SCOPE)
-                        && properties.getAllowedClients().contains(caller.getName()));
+                        && properties.getAllowedClients().contains(caller.getName());
+                boolean recipient = "POST".equals(request.getMethod())
+                        && recipients.enabled()
+                        && path.matches(
+                                "/internal/security/notice-recipients/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/eligibility")
+                        && authorities.contains("SCOPE_identity.notice-recipient.read")
+                        && recipients.assessmentClientId().equals(caller.getName());
+                return new AuthorizationDecision(
+                        caller.isAuthenticated() && authorities.contains("TOKEN_SERVICE") && (admission || recipient));
             }));
         } else http.authorizeHttpRequests(authorize -> authorize.anyRequest().denyAll());
         return http.build();

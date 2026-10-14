@@ -6,6 +6,13 @@ spring:
   main:
     web-application-type: servlet
   datasource:
+    hikari:
+      connection-timeout: ${IDENTITY_DB_CONNECTION_TIMEOUT_MILLIS:3000}
+      validation-timeout: ${IDENTITY_DB_VALIDATION_TIMEOUT_MILLIS:1000}
+      data-source-properties:
+        socketTimeout: ${IDENTITY_DB_SOCKET_TIMEOUT_SECONDS:3}
+        loginTimeout: ${IDENTITY_DB_LOGIN_TIMEOUT_SECONDS:3}
+        cancelSignalTimeout: ${IDENTITY_DB_CANCEL_TIMEOUT_SECONDS:1}
     url: ${DB_URL:jdbc:postgresql://localhost:5432/identity_db}
     username: ${DB_USERNAME:identity}
     password: ${DB_PASSWORD:identity_local_only}
@@ -102,3 +109,9 @@ quizopia:
         kid: ${IDENTITY_SIGNING_KEY_KID:}
         private-key-path: ${IDENTITY_SIGNING_KEY_PRIVATE_KEY_PATH:}
         public-key-path: ${IDENTITY_SIGNING_KEY_PUBLIC_KEY_PATH:}
+
+quizopia.identity.notice-recipients:
+  enabled: ${IDENTITY_NOTICE_RECIPIENTS_ENABLED:false}
+  require-secure-transport: ${IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT:true}
+  assessment-client-id: ${IDENTITY_NOTICE_RECIPIENTS_ASSESSMENT_CLIENT_ID:assessment-service}
+  max-concurrent: ${IDENTITY_NOTICE_RECIPIENTS_MAX_CONCURRENT:8}

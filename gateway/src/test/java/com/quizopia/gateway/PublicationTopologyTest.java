@@ -59,6 +59,7 @@ class PublicationTopologyTest {
             sourcePath,
             sourceServiceToken;
     static ConfigurableApplicationContext gatewayContext;
+    static List<String> gatewayArguments;
     static RedisClient redis;
     static io.lettuce.core.api.StatefulRedisConnection<String, String> redisConnection;
     static Path root, logs, keys;
@@ -87,10 +88,12 @@ class PublicationTopologyTest {
         classroom = "http://127.0.0.1:" + port();
         quiz = "http://127.0.0.1:" + port();
         assessment = "http://127.0.0.1:" + port();
+        gateway = "http://127.0.0.1:" + port();
         String encryption = Base64.getEncoder().encodeToString(new byte[32]);
         startProcess(
                 "identity",
-                root.resolve("services/identity-service/target/quizopia-identity-0.1.0-SNAPSHOT.jar"),
+                root.resolve(
+                        "services/identity-service/target/publication-topology-build/quizopia-identity-0.1.0-SNAPSHOT.jar"),
                 List.of(
                         "--server.port=" + URI.create(identity).getPort(),
                         "--spring.profiles.active=local",
@@ -106,6 +109,10 @@ class PublicationTopologyTest {
                         "--quizopia.identity.security.signing-key.kid=" + key.getKeyID(),
                         "--quizopia.identity.security.signing-key.private-key-path=" + keys.resolve("private.pem"),
                         "--quizopia.identity.security.signing-key.public-key-path=" + keys.resolve("public.pem"),
+                        "--quizopia.identity.notice-recipients.enabled=true",
+                        "--quizopia.identity.notice-recipients.require-secure-transport=false",
+                        // Controlled 48h DB-time progression only; production TTL remains five minutes.
+                        "--quizopia.identity.security.authorization-server.user-access-token-ttl=PT96H",
                         "--quizopia.identity.user-admission.enabled=true",
                         "--quizopia.identity.user-admission.require-secure-transport=false",
                         "--quizopia.identity.user-admission.allowed-clients=gateway,classroom-service,quiz-service,assessment-service",
@@ -162,11 +169,19 @@ class PublicationTopologyTest {
                         "--quizopia.publication.enabled=true",
                         "--quizopia.assessment.features.attempts-enabled=true",
                         "--quizopia.assessment.features.results-enabled=true",
+                        "--quizopia.assessment.features.closure-enabled=true",
+                        "--quizopia.assessment.closure.inbox-enabled=true",
+                        "--quizopia.assessment.closure.worker-enabled=true",
+                        "--quizopia.assessment.closure.poll-millis=200",
+                        "--quizopia.assessment.closure.edge-inbox-verified=true",
+                        "--quizopia.assessment.closure.edge-base-url=" + gateway,
+                        "--quizopia.assessment.closure.recipient-enabled=true",
+                        "--quizopia.assessment.closure.cursor-keys.v1=" + encryption,
                         "--quizopia.publication.sources.enabled=true",
                         "--quizopia.publication.sources.quiz-base-url=" + quiz,
                         "--quizopia.publication.sources.classroom-base-url=" + classroom));
         var gatewayArgs = new ArrayList<String>(List.of(
-                "--server.port=0",
+                "--server.port=" + URI.create(gateway).getPort(),
                 "--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + identity,
                 "--spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + identity + "/oauth2/jwks",
                 "--CLASSROOM_SERVICE_URL=" + classroom,
@@ -175,8 +190,11 @@ class PublicationTopologyTest {
                 "--QUIZ_SERVICE_URL=" + quiz,
                 "--quizopia.publication.enabled=true",
                 "--quizopia.assessment.features.attempts-enabled=true",
-                "--quizopia.assessment.features.results-enabled=true"));
+                "--quizopia.assessment.features.results-enabled=true",
+                "--quizopia.assessment.features.closure-enabled=true",
+                "--quizopia.assessment.closure.inbox-enabled=true"));
         gatewayArgs.addAll(admissionArgs("gateway"));
+        gatewayArguments = List.copyOf(gatewayArgs);
         gatewayContext = new SpringApplicationBuilder(GatewayApplication.class)
                 .profiles("test")
                 .run(gatewayArgs.toArray(String[]::new));
@@ -378,7 +396,7 @@ class PublicationTopologyTest {
                             .statusCode());
             redisConnection.sync().set(key(), projection);
             assertEquals(
-                    403,
+                    400,
                     send(
                                     "POST",
                                     assessment + "/api/assessments/publications/" + id + "/close",
@@ -822,6 +840,17 @@ class PublicationTopologyTest {
                         "submittedAnswersId",
                         "studentId")) assertFalse(response.body().contains(forbidden), forbidden);
             }
+            var closed = send(
+                    "POST",
+                    gateway + p + "/close",
+                    userToken,
+                    "{\"expectedRevision\":1}",
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            assertEquals(200, closed.statusCode(), closed.body());
+            assertEquals(
+                    200,
+                    send("GET", gateway + a + "/review", userToken, null, Map.of())
+                            .statusCode());
             if (classId != null) {
                 try (var c = DriverManager.getConnection(
                         CLASSROOM_DB.getJdbcUrl(), CLASSROOM_DB.getUsername(), CLASSROOM_DB.getPassword())) {
@@ -851,6 +880,458 @@ class PublicationTopologyTest {
                                 send("GET", base + a + suffix, userToken, null, Map.of())
                                         .statusCode());
             }
+        }
+    }
+
+    static String b3Publication, b3Request, b3Notification, formerClassPublication;
+
+    static List<String[]> b3Requests() {
+        String p = "/api/assessments/publications/" + b3Publication, c = p + "/closure-requests/" + b3Request;
+        return List.of(
+                new String[] {"GET", p + "/results", null},
+                new String[] {"POST", p + "/close", "{\"expectedRevision\":5}"},
+                new String[] {"POST", p + "/closure-requests", "{\"expectedRevision\":5}"},
+                new String[] {"GET", c, null},
+                new String[] {"POST", c + "/cancel", "{\"expectedRevision\":5}"},
+                new String[] {"POST", c + "/complete", "{\"expectedRevision\":5}"},
+                new String[] {"GET", "/api/assessments/notifications", null},
+                new String[] {"GET", "/api/assessments/notifications/" + b3Notification, null});
+    }
+
+    static void b3Both(int status) throws Exception {
+        if (b3Publication == null) return;
+        // Probe every operation during the same outage with bounded concurrency.
+        // Avoid serially extending a paused-primary fixture beyond token/pool lifetimes.
+        try (var probes = java.util.concurrent.Executors.newFixedThreadPool(4)) {
+            var checks = new ArrayList<java.util.concurrent.Future<?>>();
+            for (String base : List.of(gateway, assessment))
+                for (var op : b3Requests())
+                    checks.add(probes.submit(() -> {
+                        try {
+                            var response = send(
+                                    op[0],
+                                    base + op[1],
+                                    userToken,
+                                    op[2],
+                                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+                            assertEquals(status, response.statusCode(), op[1] + " " + response.body());
+                            assertEquals(
+                                    "no-store",
+                                    response.headers()
+                                            .firstValue("Cache-Control")
+                                            .orElseThrow());
+                        } catch (Exception e) {
+                            throw new IllegalStateException("Boundary probe failed: " + op[0] + " " + base + op[1], e);
+                        }
+                    }));
+            for (var check : checks) check.get(20, TimeUnit.SECONDS);
+        }
+    }
+
+    static void assessmentTime(long seconds) throws Exception {
+        try (var c = DriverManager.getConnection(
+                ASSESSMENT_DB.getJdbcUrl(), ASSESSMENT_DB.getUsername(), ASSESSMENT_DB.getPassword())) {
+            execute(
+                    c,
+                    "CREATE OR REPLACE FUNCTION assessment_time() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog,pg_temp AS $$ SELECT clock_timestamp()+interval '"
+                            + seconds + " seconds' $$");
+        }
+    }
+
+    static tools.jackson.databind.JsonNode awaitNotice(String request) throws Exception {
+        long until = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+        while (System.nanoTime() < until) {
+            var response = send("GET", gateway + "/api/assessments/notifications", userToken, null, Map.of());
+            assertEquals(200, response.statusCode(), response.body());
+            for (var item : JSON.readTree(response.body()).path("items"))
+                if (item.path("closureRequestId").asString().equals(request)
+                        && !item.path("confirmedNoticeAt").isNull()) return item;
+            Thread.sleep(100);
+        }
+        fail("Committed notice accessibility was not confirmed");
+        return null;
+    }
+
+    @Test
+    @Order(1)
+    void realDelayedClosureIdentityInboxCancelReplacementCutoffAndClosedReview() throws Exception {
+        var draft = send(
+                "POST",
+                quiz + "/api/quizzes",
+                userToken,
+                JSON.writeValueAsString(
+                        Map.of("title", "Closure source", "description", "Description", "authoringSource", SOURCE)),
+                Map.of());
+        assertEquals(201, draft.statusCode(), draft.body());
+        String quizId = JSON.readTree(draft.body()).path("quizId").asString();
+        var version = send("POST", quiz + "/api/quizzes/" + quizId + "/versions", userToken, null, Map.of());
+        assertEquals(201, version.statusCode(), version.body());
+        var cfg = (tools.jackson.databind.node.ObjectNode) JSON.readTree(
+                publicationBody(quizId, JSON.readTree(version.body()).path("id").asString(), null));
+        cfg.put("maxAttempts", 0);
+        cfg.put("durationMinutes", 0);
+        Instant end = Instant.now().plusSeconds(5).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        cfg.put("endAt", end.toString());
+        var created = send(
+                "POST",
+                gateway + "/api/assessments/publications",
+                userToken,
+                cfg.toString(),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(201, created.statusCode(), created.body());
+        var resource = JSON.readTree(created.body());
+        String pub = resource.path("publicationId").asString(),
+                locator = resource.path("privateLocator").asString();
+        sensitiveLocators.add(locator);
+        String p = "/api/assessments/publications/" + pub;
+        assertEquals(
+                200,
+                send("POST", gateway + p + "/open", userToken, "{\"expectedRevision\":0}", Map.of())
+                        .statusCode());
+        var start = send(
+                "POST",
+                gateway + p + "/attempts/start",
+                userToken,
+                JSON.writeValueAsString(Map.of("locator", locator)),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(201, start.statusCode(), start.body());
+        String attempt = JSON.readTree(start.body()).path("attemptId").asString(),
+                a = "/api/assessments/attempts/" + attempt;
+        assertEquals(
+                409,
+                send(
+                                "POST",
+                                gateway + p + "/close",
+                                userToken,
+                                "{\"expectedRevision\":1}",
+                                Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                        .statusCode());
+        // Real participation end, followed by committed notice publication and real Identity eligibility.
+        while (Instant.now().isBefore(end)) Thread.sleep(25);
+        String requestKey = UUID.randomUUID().toString();
+        var requested = send(
+                "POST",
+                gateway + p + "/closure-requests",
+                userToken,
+                "{\"expectedRevision\":1}",
+                Map.of("Idempotency-Key", requestKey));
+        assertEquals(201, requested.statusCode(), requested.body());
+        assertEquals(
+                requested.body(),
+                send(
+                                "POST",
+                                assessment + p + "/closure-requests",
+                                userToken,
+                                "{\"expectedRevision\":1}",
+                                Map.of("Idempotency-Key", requestKey))
+                        .body());
+        String first = JSON.readTree(requested.body()).path("closureRequestId").asString();
+        var firstNotice = awaitNotice(first);
+        assertEquals(
+                Duration.ofHours(48),
+                Duration.between(
+                        Instant.parse(firstNotice.path("confirmedNoticeAt").asString()),
+                        Instant.parse(firstNotice.path("closureCutoffAt").asString())));
+        var saved = send(
+                "POST",
+                gateway + a + "/questions/1/answer",
+                userToken,
+                "{\"expectedRevision\":\"0\",\"answer\":{\"type\":\"NUMERIC_FILL\",\"value\":\"0001\"}}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(200, saved.statusCode(), saved.body());
+        assertEquals(
+                200,
+                send(
+                                "POST",
+                                gateway + p + "/closure-requests/" + first + "/cancel",
+                                userToken,
+                                "{\"expectedRevision\":2}",
+                                Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                        .statusCode());
+        var old = send(
+                "GET",
+                assessment + "/api/assessments/notifications/"
+                        + firstNotice.path("notificationId").asString(),
+                userToken,
+                null,
+                Map.of());
+        assertEquals(200, old.statusCode(), old.body());
+        assertEquals("CANCELLED", JSON.readTree(old.body()).path("noticeStatus").asString());
+        var replacement = send(
+                "POST",
+                gateway + p + "/closure-requests",
+                userToken,
+                "{\"expectedRevision\":3}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(201, replacement.statusCode(), replacement.body());
+        String request =
+                JSON.readTree(replacement.body()).path("closureRequestId").asString();
+        var notice = awaitNotice(request);
+        b3Publication = pub;
+        b3Request = request;
+        b3Notification = notice.path("notificationId").asString();
+        assertTrue(Instant.parse(notice.path("closureCutoffAt").asString())
+                .isAfter(Instant.parse(firstNotice.path("closureCutoffAt").asString())));
+        for (String base : List.of(gateway, assessment)) {
+            var inbox = send(
+                    "GET",
+                    base + "/api/assessments/notifications/"
+                            + notice.path("notificationId").asString(),
+                    userToken,
+                    null,
+                    Map.of());
+            assertEquals(200, inbox.statusCode(), inbox.body());
+            for (String forbidden :
+                    List.of("privateLocator", "correctAnswer", "numericAnswer", "explanationMarkdown", "studentId"))
+                assertFalse(inbox.body().contains(forbidden), forbidden);
+            assertEquals(
+                    409,
+                    send("GET", base + a + "/review", userToken, null, Map.of()).statusCode());
+            assertEquals(
+                    200,
+                    send("GET", base + p + "/results?limit=1", userToken, null, Map.of())
+                            .statusCode());
+            assertEquals(
+                    400,
+                    send("GET", base + "/api/assessments/notifications?limit=101", userToken, null, Map.of())
+                            .statusCode());
+            assertEquals(
+                    403,
+                    send("GET", base + "/api/assessments/notifications", serviceToken, null, Map.of())
+                            .statusCode());
+        }
+        String eligibility = service("assessment-service", SECRET, "identity.notice-recipient.read");
+        String internal = "/internal/security/notice-recipients/" + ACTOR + "/eligibility";
+        assertEquals(
+                200,
+                send("POST", identity + internal, eligibility, null, Map.of()).statusCode());
+        assertEquals(
+                403,
+                send("POST", identity + internal, userToken, null, Map.of()).statusCode());
+        assertEquals(
+                403,
+                send("POST", identity + internal, serviceToken, null, Map.of()).statusCode());
+        assertEquals(
+                403,
+                send("POST", gateway + internal, eligibility, null, Map.of()).statusCode());
+        try {
+            assessmentTime(172801);
+            var complete = send(
+                    "POST",
+                    gateway + p + "/closure-requests/" + request + "/complete",
+                    userToken,
+                    "{\"expectedRevision\":4}",
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            assertEquals(200, complete.statusCode(), complete.body());
+            var result = send("GET", gateway + a + "/result", userToken, null, Map.of());
+            assertEquals(200, result.statusCode(), result.body());
+            assertEquals(
+                    "TEACHER_NOTICE_CUTOFF",
+                    JSON.readTree(result.body()).path("terminalReason").asString());
+            assertEquals(
+                    "100.00",
+                    JSON.readTree(result.body()).path("percentageDisplay").asString());
+            var review = send("GET", gateway + a + "/review", userToken, null, Map.of());
+            assertEquals(200, review.statusCode(), review.body());
+            assertTrue(review.body().contains("correctAnswer"));
+            assertEquals(
+                    409,
+                    send(
+                                    "POST",
+                                    gateway + p + "/closure-requests/" + request + "/cancel",
+                                    userToken,
+                                    "{\"expectedRevision\":5}",
+                                    Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                            .statusCode());
+        } finally {
+            assessmentTime(0);
+        }
+    }
+
+    @Test
+    @Order(1)
+    void formerClassMemberRetainsRealAuthenticatedNoticeHistory() throws Exception {
+        var draft = send(
+                "POST",
+                quiz + "/api/quizzes",
+                userToken,
+                JSON.writeValueAsString(Map.of(
+                        "title", "Class closure source", "description", "Description", "authoringSource", SOURCE)),
+                Map.of());
+        assertEquals(201, draft.statusCode(), draft.body());
+        String quizId = JSON.readTree(draft.body()).path("quizId").asString();
+        var version = send("POST", quiz + "/api/quizzes/" + quizId + "/versions", userToken, null, Map.of());
+        assertEquals(201, version.statusCode());
+        var cls = send(
+                "POST",
+                gateway + "/classrooms",
+                userToken,
+                "{\"name\":\"Notice class\",\"subject\":\"Subject\",\"grade\":\"Grade\"}",
+                Map.of());
+        assertEquals(201, cls.statusCode(), cls.body());
+        String classId = JSON.readTree(cls.body()).path("id").asString();
+        try (var c = DriverManager.getConnection(
+                CLASSROOM_DB.getJdbcUrl(), CLASSROOM_DB.getUsername(), CLASSROOM_DB.getPassword())) {
+            execute(
+                    c,
+                    "INSERT INTO classroom_memberships(id,classroom_id,user_id) VALUES(?,?,?)",
+                    UUID.randomUUID(),
+                    UUID.fromString(classId),
+                    ACTOR);
+        }
+        var cfg = (tools.jackson.databind.node.ObjectNode) JSON.readTree(
+                publicationBody(quizId, JSON.readTree(version.body()).path("id").asString(), classId));
+        cfg.put("durationMinutes", 0);
+        cfg.put("maxAttempts", 0);
+        Instant end = Instant.now().plusSeconds(5).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        cfg.put("endAt", end.toString());
+        var created = send(
+                "POST",
+                gateway + "/api/assessments/publications",
+                userToken,
+                cfg.toString(),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(201, created.statusCode(), created.body());
+        String pub = JSON.readTree(created.body()).path("publicationId").asString(),
+                p = "/api/assessments/publications/" + pub;
+        formerClassPublication = pub;
+        assertEquals(
+                200,
+                send("POST", gateway + p + "/open", userToken, "{\"expectedRevision\":0}", Map.of())
+                        .statusCode());
+        var start = send(
+                "POST",
+                gateway + p + "/attempts/start",
+                userToken,
+                "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(201, start.statusCode(), start.body());
+        String attempt = JSON.readTree(start.body()).path("attemptId").asString();
+        while (Instant.now().isBefore(end)) Thread.sleep(25);
+        var requested = send(
+                "POST",
+                gateway + p + "/closure-requests",
+                userToken,
+                "{\"expectedRevision\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertEquals(201, requested.statusCode(), requested.body());
+        String request =
+                JSON.readTree(requested.body()).path("closureRequestId").asString();
+        var notice = awaitNotice(request);
+        try (var c = DriverManager.getConnection(
+                CLASSROOM_DB.getJdbcUrl(), CLASSROOM_DB.getUsername(), CLASSROOM_DB.getPassword())) {
+            execute(
+                    c,
+                    "DELETE FROM classroom_memberships WHERE classroom_id=? AND user_id=?",
+                    UUID.fromString(classId),
+                    ACTOR);
+        }
+        for (String base : List.of(gateway, assessment)) {
+            assertEquals(
+                    404,
+                    send("GET", base + "/api/assessments/attempts/" + attempt, userToken, null, Map.of())
+                            .statusCode());
+            var own = send(
+                    "GET",
+                    base + "/api/assessments/notifications/"
+                            + notice.path("notificationId").asString(),
+                    userToken,
+                    null,
+                    Map.of());
+            assertEquals(200, own.statusCode(), own.body());
+        }
+        assertEquals(
+                200,
+                send(
+                                "POST",
+                                gateway + p + "/closure-requests/" + request + "/cancel",
+                                userToken,
+                                "{\"expectedRevision\":2}",
+                                Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                        .statusCode());
+        var history = send(
+                "GET",
+                gateway + "/api/assessments/notifications/"
+                        + notice.path("notificationId").asString(),
+                userToken,
+                null,
+                Map.of());
+        assertEquals(200, history.statusCode(), history.body());
+        assertEquals(
+                "CANCELLED", JSON.readTree(history.body()).path("noticeStatus").asString());
+    }
+
+    @Test
+    @Order(2)
+    void everyClosureInboxRouteHasIndependentRoleOwnerHeaderAndInputBoundaries() throws Exception {
+        assertNotNull(b3Publication);
+        String other = additionalUser("STUDENT,TEACHER");
+        for (String base : List.of(gateway, assessment))
+            for (var op : b3Requests()) {
+                var headers = Map.of("Idempotency-Key", UUID.randomUUID().toString());
+                var service = send(op[0], base + op[1], serviceToken, op[2], headers);
+                assertEquals(403, service.statusCode(), service.body());
+                assertEquals("{\"code\":\"ACCESS_DENIED\"}", service.body());
+                var anonymous = send(op[0], base + op[1], null, op[2], headers);
+                assertEquals(401, anonymous.statusCode(), anonymous.body());
+                assertEquals("{\"code\":\"UNAUTHENTICATED\"}", anonymous.body());
+                assertEquals(
+                        400,
+                        send(
+                                        op[0],
+                                        base + op[1],
+                                        userToken,
+                                        op[2],
+                                        Map.of(
+                                                "Idempotency-Key",
+                                                UUID.randomUUID().toString(),
+                                                "X-User-Id",
+                                                ACTOR.toString()))
+                                .statusCode());
+                int expected = op[1].equals("/api/assessments/notifications") ? 200 : 404;
+                assertEquals(
+                        expected,
+                        send(op[0], base + op[1], other, op[2], headers).statusCode());
+            }
+        for (String base : List.of(gateway, assessment)) {
+            for (String query : List.of(
+                    "?limit=0",
+                    "?limit=101",
+                    "?limit=1&limit=2",
+                    "?cursor=bogus",
+                    "?recipient=" + ACTOR,
+                    "?limit=1&unknown=x"))
+                assertEquals(
+                        400,
+                        send("GET", base + "/api/assessments/notifications" + query, userToken, null, Map.of())
+                                .statusCode());
+            for (String body : List.of(
+                    "{}",
+                    "{\"expectedRevision\":\"5\"}",
+                    "{\"expectedRevision\":null}",
+                    "{\"expectedRevision\":5,\"expectedRevision\":5}",
+                    "{\"expectedRevision\":5,\"recipientId\":\"ignored\"}",
+                    "{\"expectedRevision\":9223372036854775808}"))
+                assertEquals(
+                        400,
+                        send(
+                                        "POST",
+                                        base + "/api/assessments/publications/" + b3Publication + "/close",
+                                        userToken,
+                                        body,
+                                        Map.of(
+                                                "Idempotency-Key",
+                                                UUID.randomUUID().toString()))
+                                .statusCode());
+            assertEquals(
+                    400,
+                    send(
+                                    "POST",
+                                    base + "/api/assessments/publications/" + b3Publication + "/close",
+                                    userToken,
+                                    "{\"expectedRevision\":5}" + " ".repeat(2097152),
+                                    Map.of("Idempotency-Key", UUID.randomUUID().toString()))
+                            .statusCode());
         }
     }
 
@@ -928,12 +1409,13 @@ class PublicationTopologyTest {
                     id,
                     username + "@gmail.com",
                     username);
-            execute(
-                    c,
-                    "INSERT INTO user_role(id,user_id,role,created_at) VALUES(?,?,?,now())",
-                    UUID.randomUUID(),
-                    id,
-                    role);
+            for (String issuedRole : role.split(","))
+                execute(
+                        c,
+                        "INSERT INTO user_role(id,user_id,role,created_at) VALUES(?,?,?,now())",
+                        UUID.randomUUID(),
+                        id,
+                        issuedRole);
             execute(
                     c,
                     "INSERT INTO local_credential(user_id,password_hash,created_at,updated_at) VALUES(?,?,now(),now())",
@@ -1085,8 +1567,10 @@ class PublicationTopologyTest {
                 execute(c, "DELETE FROM user_role WHERE user_id=? AND role='STUDENT'", ACTOR);
             }
             b2Both(503);
+            b3Both(503);
             redisConnection.sync().set(key(), projection.replace("STUDENT,TEACHER", "TEACHER"));
             b2Both(401);
+            b3Both(401);
         } finally {
             try (var c = identityDb()) {
                 execute(
@@ -1108,6 +1592,7 @@ class PublicationTopologyTest {
                             ACTOR);
                 }
                 b2Both(503);
+                b3Both(503);
                 redisConnection
                         .sync()
                         .set(
@@ -1116,6 +1601,7 @@ class PublicationTopologyTest {
                                         ? projection.replace("QUNUSVZF", "RElTQUJMRUQ")
                                         : projection.replace("VERIFIED", "UNVERIFIED"));
                 b2Both(401);
+                b3Both(401);
             } finally {
                 try (var c = identityDb()) {
                     execute(
@@ -1155,6 +1641,43 @@ class PublicationTopologyTest {
     }
 
     @Test
+    @Order(2)
+    void disabledActualGatewayInboxBlocksNewRequestAtAssessment() throws Exception {
+        assertNotNull(formerClassPublication);
+        var disabled = gatewayArguments.stream()
+                .map(arg -> arg.equals("--quizopia.assessment.closure.inbox-enabled=true")
+                        ? "--quizopia.assessment.closure.inbox-enabled=false"
+                        : arg)
+                .toArray(String[]::new);
+        gatewayContext.close();
+        gatewayContext = new SpringApplicationBuilder(GatewayApplication.class)
+                .profiles("test")
+                .run(disabled);
+        try {
+            var health = send("GET", gateway + "/actuator/health/assessment-inbox", null, null, Map.of());
+            assertEquals(200, health.statusCode(), health.body());
+            assertEquals("UNKNOWN", JSON.readTree(health.body()).path("status").asString());
+            assertEquals(
+                    503,
+                    send("GET", gateway + "/api/assessments/notifications", userToken, null, Map.of())
+                            .statusCode());
+            var request = send(
+                    "POST",
+                    assessment + "/api/assessments/publications/" + formerClassPublication + "/closure-requests",
+                    userToken,
+                    "{\"expectedRevision\":3}",
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            assertEquals(503, request.statusCode(), request.body());
+            assertEquals("{\"code\":\"DEPENDENCY_UNAVAILABLE\"}", request.body());
+        } finally {
+            gatewayContext.close();
+            gatewayContext = new SpringApplicationBuilder(GatewayApplication.class)
+                    .profiles("test")
+                    .run(gatewayArguments.toArray(String[]::new));
+        }
+    }
+
+    @Test
     @Order(3)
     void currentRoleRemovalDeniesOldTokenAtGatewayAndDirectService() throws Exception {
         sourceServiceToken = service("assessment-service", SECRET, "quiz.version-snapshot.read");
@@ -1162,8 +1685,10 @@ class PublicationTopologyTest {
             execute(c, "DELETE FROM user_role WHERE user_id=? AND role='TEACHER'", ACTOR);
         }
         both(503);
+        b3Both(503);
         redisConnection.sync().set(key(), projection.replace("STUDENT,TEACHER", "STUDENT"));
         both(401);
+        b3Both(401);
         try (var c = identityDb()) {
             execute(
                     c,
@@ -1182,11 +1707,13 @@ class PublicationTopologyTest {
         redisConnection.sync().del(key());
         both(503);
         b2Both(503);
+        b3Both(503);
         redisConnection.sync().set(key(), projection);
         REDIS.getDockerClient().pauseContainerCmd(REDIS.getContainerId()).exec();
         try {
             both(503);
             b2Both(503);
+            b3Both(503);
         } finally {
             REDIS.getDockerClient().unpauseContainerCmd(REDIS.getContainerId()).exec();
         }
@@ -1197,6 +1724,7 @@ class PublicationTopologyTest {
         try {
             both(503);
             b2Both(503);
+            b3Both(503);
         } finally {
             IDENTITY_DB
                     .getDockerClient()
@@ -1231,11 +1759,13 @@ class PublicationTopologyTest {
         }
         both(503);
         b2Both(503);
+        b3Both(503);
         redisConnection
                 .sync()
                 .set(key(), projection.replace("|NONE", "|AT:" + cutoff.getEpochSecond() + ":" + cutoff.getNano()));
         both(401);
         b2Both(401);
+        b3Both(401);
     }
 
     @Test
@@ -1246,6 +1776,7 @@ class PublicationTopologyTest {
         assertTrue(PROCESSES.getFirst().waitFor(10, TimeUnit.SECONDS));
         both(503);
         b2Both(503);
+        b3Both(503);
     }
 
     static void both(int status) throws Exception {
@@ -1304,8 +1835,7 @@ class PublicationTopologyTest {
 
     static void build(String project) throws Exception {
         var command = new ArrayList<String>(List.of("bash", "mvnw", "-B", "-DskipTests", "package"));
-        if (!project.contains("identity"))
-            command.add("-Dquizopia.build.directory=" + root.resolve(project + "/target/publication-topology-build"));
+        command.add("-Dquizopia.build.directory=" + root.resolve(project + "/target/publication-topology-build"));
         var process = new ProcessBuilder(command)
                 .directory(root.resolve(project).toFile())
                 .redirectErrorStream(true)
@@ -1437,6 +1967,7 @@ class PublicationTopologyTest {
                         ? List.of(
                                 "identity.user-admission",
                                 "quiz.version-snapshot.read",
+                                "identity.notice-recipient.read",
                                 "classroom.teacher-authority.read",
                                 "classroom.membership.read")
                         : (client.equals("wrong-client")

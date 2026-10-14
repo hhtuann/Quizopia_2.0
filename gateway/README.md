@@ -61,3 +61,13 @@ business feature or Identity activation is enabled by this prerequisite.
 
 Do not route activated protected traffic to bypass-capable older Gateway or
 downstream instances. Drain/block old instances before activation or rollback.
+
+## W3-B3 exact boundary
+
+The eight implemented closure/results/inbox operations require independent
+issued/current role admission at Gateway and Assessment. Teacher operations
+require persisted ownership downstream. Inbox access is recipient-only and
+does not require current CLASS membership. `CLOSURE_ENABLED=false`,
+`RESULTS_ENABLED=false` and `ASSESSMENT_INBOX_ENABLED=false` gate their exact
+operations independently. No private Identity eligibility route is proxied.
+See [B3 evidence and Dev 2 handoff](../docs/architecture/w3b3-closure-notification-implementation.md).

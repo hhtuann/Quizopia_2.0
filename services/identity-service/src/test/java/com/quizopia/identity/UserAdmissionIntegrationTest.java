@@ -95,6 +95,8 @@ class UserAdmissionIntegrationTest {
                 .toString());
         registry.add("quizopia.identity.security.signing-key.public-key-path", () -> KEYS.publicKeyPath()
                 .toString());
+        registry.add("quizopia.identity.notice-recipients.enabled", () -> true);
+        registry.add("quizopia.identity.notice-recipients.require-secure-transport", () -> false);
         registry.add("quizopia.identity.user-admission.enabled", () -> true);
         registry.add("quizopia.identity.user-admission.require-secure-transport", () -> false);
         registry.add("quizopia.identity.user-admission.allowed-clients", () -> "assessment-service,quiz-service");
@@ -166,9 +168,11 @@ class UserAdmissionIntegrationTest {
     ServiceClientRegistration wrongClient;
 
     void registerClients() {
-        allowed = clients.register("assessment-service", Set.of(UserAdmissionConfiguration.SCOPE));
+        allowed = clients.register(
+                "assessment-service", Set.of(UserAdmissionConfiguration.SCOPE, "identity.notice-recipient.read"));
         wrongScope = clients.register("quiz-service", Set.of("quiz.read"));
-        wrongClient = clients.register("untrusted-service", Set.of(UserAdmissionConfiguration.SCOPE));
+        wrongClient = clients.register(
+                "untrusted-service", Set.of(UserAdmissionConfiguration.SCOPE, "identity.notice-recipient.read"));
     }
 
     @BeforeEach
@@ -806,6 +810,122 @@ class UserAdmissionIntegrationTest {
         accounts.saveAndFlush(user);
         roles.saveAndFlush(new UserRoleEntity(user, UserRole.STUDENT));
         return user;
+    }
+
+    ResponseEntity<String> recipient(UUID id, String token, Map<String, String> extra) {
+        var headers = headers(token, null);
+        extra.forEach(headers::set);
+        return http.exchange(
+                url("/internal/security/notice-recipients/" + id + "/eligibility"),
+                HttpMethod.POST,
+                new HttpEntity<>(null, headers),
+                String.class);
+    }
+
+    @Test
+    @Order(1)
+    void noticeEligibilityMinimalRealServiceAndPrimaryRedisEquality() {
+        var user = actor();
+        projection.publish(primary.read(user.getId()));
+        var token = service(allowed);
+        var response = recipient(user.getId(), token, Map.of());
+        assertEquals(200, response.getStatusCode().value(), response.getBody());
+        var body = mapper.readTree(response.getBody());
+        assertEquals(3, body.size());
+        assertEquals(user.getId().toString(), body.path("studentId").asText());
+        assertTrue(body.path("eligible").asBoolean());
+        assertFalse(Instant.parse(body.path("checkedAt").asText()).isAfter(Instant.now()));
+        assertEquals("no-store", response.getHeaders().getCacheControl());
+        jdbc.update("UPDATE user_account SET account_status='DISABLED' WHERE id=?", user.getId());
+        assertError(recipient(user.getId(), token, Map.of()), 503, "AUTHORITY_UNAVAILABLE");
+        projection.publish(primary.read(user.getId()));
+        assertFalse(mapper.readTree(recipient(user.getId(), token, Map.of()).getBody())
+                .path("eligible")
+                .asBoolean());
+        var missing = UUID.randomUUID();
+        projection.publish(primary.read(missing));
+        assertFalse(mapper.readTree(recipient(missing, token, Map.of()).getBody())
+                .path("eligible")
+                .asBoolean());
+    }
+
+    @Test
+    @Order(1)
+    void noticeRequiresExactAssessmentScopeServiceAndRejectsUserEvidence() {
+        var user = actor();
+        projection.publish(primary.read(user.getId()));
+        assertError(recipient(user.getId(), service(wrongClient), Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(recipient(user.getId(), service(wrongScope), Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(
+                recipient(user.getId(), issuer.issue(user.getId()).value(), Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(recipient(user.getId(), null, Map.of()), 401, "SERVICE_AUTHENTICATION_INVALID");
+        assertError(
+                recipient(user.getId(), corrupt(service(allowed)), Map.of()), 401, "SERVICE_AUTHENTICATION_INVALID");
+        assertError(
+                recipient(
+                        user.getId(),
+                        service(allowed),
+                        Map.of(
+                                UserAdmissionConfiguration.USER_HEADER,
+                                issuer.issue(user.getId()).value())),
+                400,
+                "INVALID_INTERNAL_REQUEST");
+        String missingScope = signed(
+                "assessment-service",
+                "SERVICE",
+                Map.of("scope", List.of(UserAdmissionConfiguration.SCOPE)),
+                ISSUER,
+                Instant.now().minusSeconds(1),
+                Instant.now().plusSeconds(120));
+        assertError(recipient(user.getId(), missingScope, Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(
+                recipient(
+                        user.getId(),
+                        service(allowed),
+                        Map.of("X-User-Id", user.getId().toString())),
+                400,
+                "INVALID_INTERNAL_REQUEST");
+    }
+
+    @Test
+    @Order(1)
+    void noticeUnverifiedRemovedRoleAndMissingRedisFailClosed() {
+        var user = actor();
+        var token = service(allowed);
+        assertError(recipient(user.getId(), token, Map.of()), 503, "AUTHORITY_UNAVAILABLE");
+        jdbc.update("UPDATE user_account SET email_verified_at=NULL WHERE id=?", user.getId());
+        projection.publish(primary.read(user.getId()));
+        assertFalse(mapper.readTree(recipient(user.getId(), token, Map.of()).getBody())
+                .path("eligible")
+                .asBoolean());
+        jdbc.update("UPDATE user_account SET email_verified_at=now() WHERE id=?", user.getId());
+        jdbc.update("DELETE FROM user_role WHERE user_id=?", user.getId());
+        projection.publish(primary.read(user.getId()));
+        assertFalse(mapper.readTree(recipient(user.getId(), token, Map.of()).getBody())
+                .path("eligible")
+                .asBoolean());
+    }
+
+    @Test
+    @Order(1)
+    void noticeBodyQueryAndCookieAreSanitizedAndMutationFree() {
+        var user = actor();
+        projection.publish(primary.read(user.getId()));
+        String token = service(allowed);
+        String path = "/internal/security/notice-recipients/" + user.getId() + "/eligibility";
+        var body =
+                http.exchange(url(path), HttpMethod.POST, new HttpEntity<>("{}", headers(token, null)), String.class);
+        assertError(body, 400, "INVALID_INTERNAL_REQUEST");
+        var query = http.exchange(
+                url(path + "?recipient=other"),
+                HttpMethod.POST,
+                new HttpEntity<>(null, headers(token, null)),
+                String.class);
+        assertError(query, 400, "INVALID_INTERNAL_REQUEST");
+        assertError(
+                recipient(user.getId(), token, Map.of("Cookie", "session=invalid")), 400, "INVALID_INTERNAL_REQUEST");
+        assertEquals(
+                200, recipient(user.getId(), token, Map.of()).getStatusCode().value());
     }
 
     String signedUser(UUID id, List<String> roles) {

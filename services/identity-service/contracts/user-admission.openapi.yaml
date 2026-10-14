@@ -1,20 +1,19 @@
 openapi: 3.1.0
 info:
-  title: Identity internal USER admission
-  version: 1.0.0
-  description: >-
-    LD-05 Identity prerequisite only. Private authenticated encrypted transport
-    and exact caller/destination allowlists are deployment requirements.
-    This endpoint is excluded from browser-facing Swagger and public Gateway routes.
+  title: Identity private admission and notice recipient eligibility
+  version: 1.1.0
+  description:
+    LD-05 Identity prerequisite only. Private authenticated encrypted transport and exact caller/destination
+    allowlists are deployment requirements. This endpoint is excluded from browser-facing Swagger and public Gateway
+    routes.
 paths:
   /internal/security/user-admissions:
     post:
       operationId: admitInitiatingUser
-      description: >-
-        Bodyless request. No query parameters or cookies are accepted. Exactly one
-        caller Authorization header and one initiating USER evidence header are
-        required; duplicate or ambiguous presentations are rejected. Success is
-        valid only for the current request and is not a reusable assertion.
+      description:
+        Bodyless request. No query parameters or cookies are accepted. Exactly one caller Authorization
+        header and one initiating USER evidence header are required; duplicate or ambiguous presentations are rejected.
+        Success is valid only for the current request and is not a reusable assertion.
       security:
         - serviceCredentials:
             - identity.user-admission
@@ -41,6 +40,67 @@ paths:
         "503":
           description: Authority absent, unavailable, stale, malformed, disabled or untrustworthy; AUTHORITY_UNAVAILABLE.
           $ref: "#/components/responses/Error"
+  /internal/security/notice-recipients/{studentId}/eligibility:
+    post:
+      operationId: checkNoticeRecipientEligibility
+      x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
+      x-owning-service: IDENTITY
+      x-required-service-scope: identity.notice-recipient.read
+      description:
+        Implemented private Identity dependency, default disabled. Bodyless/no query/cookies, exact Assessment
+        SERVICE allowlist, complete primary/Redis equality. Boolean recipient eligibility only, never USER admission
+        or a Student bearer. Not Gateway-routed. Missing/ineligible matching authority false; uncertain/stale authority
+        503. No positive cache.
+      security:
+        - serviceBearer: []
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      responses:
+        "200":
+          description: Current coherent recipient eligibility, no profile/roles/credentials.
+          headers: &id001
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipientEligibility"
+        "400":
+          description: INVALID_INTERNAL_REQUEST
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+        "401":
+          description: SERVICE_AUTHENTICATION_INVALID
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+        "403":
+          description: SERVICE_CALLER_FORBIDDEN
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
+        "503":
+          description: AUTHORITY_UNAVAILABLE
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalError"
 components:
   securitySchemes:
     serviceCredentials:
@@ -56,6 +116,12 @@ components:
       in: header
       name: X-Quizopia-User-Evidence
       description: Sensitive original compact Identity-issued USER JWT; no Bearer prefix; independently verified.
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat:
+        Quizopia RS256 SERVICE JWT; exact Assessment client and identity.notice-recipient.read scope;
+        no USER impersonation
   headers:
     NoStore:
       schema:
@@ -76,7 +142,9 @@ components:
     Admission:
       type: object
       additionalProperties: false
-      required: [actorId, roles]
+      required:
+        - actorId
+        - roles
       properties:
         actorId:
           type: string
@@ -89,11 +157,15 @@ components:
           description: Complete current global roles, in lexical order; STUDENT is required for admission.
           items:
             type: string
-            enum: [ADMIN, STUDENT, TEACHER]
+            enum:
+              - ADMIN
+              - STUDENT
+              - TEACHER
     Error:
       type: object
       additionalProperties: false
-      required: [code]
+      required:
+        - code
       properties:
         code:
           type: string
@@ -102,4 +174,36 @@ components:
             - SERVICE_AUTHENTICATION_INVALID
             - SERVICE_CALLER_FORBIDDEN
             - USER_EVIDENCE_INVALID
+            - AUTHORITY_UNAVAILABLE
+    RecipientEligibility:
+      type: object
+      additionalProperties: false
+      required:
+        - studentId
+        - eligible
+        - checkedAt
+      properties:
+        studentId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+        eligible:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
+          description: Finite instant, explicit offset, at most microseconds; responses normalized to UTC Z.
+    InternalError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_INTERNAL_REQUEST
+            - SERVICE_AUTHENTICATION_INVALID
+            - SERVICE_CALLER_FORBIDDEN
             - AUTHORITY_UNAVAILABLE

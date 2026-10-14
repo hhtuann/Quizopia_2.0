@@ -61,7 +61,8 @@ public class SecurityConfiguration {
             IdentityAdmissionClient admissionClient,
             com.quizopia.gateway.security.admission.PublicationProperties publication,
             CorsConfigurationSource corsConfigurationSource,
-            com.quizopia.gateway.security.admission.AttemptFeatureProperties attemptFeatures) {
+            com.quizopia.gateway.security.admission.AttemptFeatureProperties attemptFeatures,
+            com.quizopia.gateway.security.admission.InboxProperties inbox) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchanges -> exchanges
@@ -98,7 +99,7 @@ public class SecurityConfiguration {
                                     .defaultIfEmpty(new AuthorizationDecision(false));
                         }))
                 .addFilterAfter(
-                        new UserAdmissionWebFilter(admissionClient, publication, attemptFeatures),
+                        new UserAdmissionWebFilter(admissionClient, publication, attemptFeatures, inbox.inboxEnabled()),
                         SecurityWebFiltersOrder.AUTHORIZATION)
                 .exceptionHandling(
                         errors -> errors.authenticationEntryPoint(StudentAttemptSecurityErrors.unauthenticated())

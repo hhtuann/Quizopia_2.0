@@ -8,7 +8,8 @@ context. This document records the original C1 increment boundary. The later
 [B2 implementation](w3b2-student-attempt-implementation.md) supplies Student HTTP,
 current authorization and the explicitly authorized additive V4.1 capacity/budget
 correction; see that amendment for current runtime limits. The contract pack now
-records availability per operation; B3 workflows remain proposed.
+records availability per operation; [B3 closure/inbox integration](w3b3-closure-notification-implementation.md)
+now supplies the default-disabled workflow extension for independent review.
 
 ## Production boundary
 

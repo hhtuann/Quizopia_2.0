@@ -13,6 +13,7 @@ import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.util.AccessPattern;
 
 @org.springframework.boot.context.properties.EnableConfigurationProperties({
+    ClosureProperties.class,
     AssessmentFeatureProperties.class,
     AssessmentTransactionProperties.class
 })

@@ -460,7 +460,7 @@ class PublicationIntegrationTest {
                 Instant.now().minusSeconds(5),
                 Instant.now().plusSeconds(300));
         assertEquals(403, call("POST", "", "{}", token).status);
-        assertEquals(403, call("POST", "/" + UUID.randomUUID() + "/close", "{}", user()).status);
+        assertEquals(503, call("POST", "/" + UUID.randomUUID() + "/close", "{}", user()).status);
         assertEquals(403, call("POST", "/entry/nested", "{}", user()).status);
     }
 

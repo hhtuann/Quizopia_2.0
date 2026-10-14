@@ -22,6 +22,17 @@ class StudentCapacityIntegrationTest {
     void acceptedSnapshotCanFinalize(int count) {
         var fixture = new AtomicFinalizationIntegrationTest();
         fixture.setup();
+        var translator = new org.springframework.jdbc.support.SQLStateSQLExceptionTranslator();
+        fixture.db.setExceptionTranslator((task, sql, failure) -> {
+            String phase = sql.startsWith("SET CONSTRAINTS")
+                    ? "CONSTRAINT_FLUSH"
+                    : sql.startsWith("INSERT INTO attempt_answers")
+                            ? "ANSWERS"
+                            : sql.startsWith("INSERT INTO grading_question_results") ? "QUESTION_RESULTS" : "OTHER";
+            System.out.println("B2 capacity phase=" + phase + " SQLSTATE=" + failure.getSQLState() + " vendorCode="
+                    + failure.getErrorCode());
+            return translator.translate(task, sql, failure);
+        });
         final int[] bytes = {0};
         var p = fixture.publication(0, root -> {
             var questions = (ArrayNode) root.path("structuredContent").path("questions");

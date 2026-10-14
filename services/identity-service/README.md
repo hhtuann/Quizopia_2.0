@@ -185,3 +185,19 @@ Identity capability is present.
 
 The service-local [internal OpenAPI contract](contracts/user-admission.openapi.yaml)
 records this dual-credential endpoint separately from browser-facing Swagger.
+
+## Narrow closure recipient eligibility
+
+B3 adds default-disabled `POST /internal/security/notice-recipients/{studentId}/eligibility`.
+It independently verifies RS256 SERVICE credentials, exact Assessment client and
+`identity.notice-recipient.read`; USER evidence is forbidden. It returns only
+studentId/eligible/checkedAt after complete primary/Redis equality, with no
+positive cache or JWT fallback. Trusted ineligibility is false; uncertainty is 503. Private HTTPS, scope provisioning, bounded capacity and independent security
+acceptance are required before enablement. See the [private contract](contracts/user-admission.openapi.yaml)
+and [B3 evidence](../../docs/architecture/w3b3-closure-notification-implementation.md).
+
+Identity's shared JDBC pool now defaults to 3-second acquisition/socket/login
+bounds, 1-second validation and 1-second cancellation transport. These protect
+authority/recipient and SERVICE-token work during primary outages; configure and
+measure migration/transaction compatibility before deployment. This changes
+transport budgets, not LD-05 fact comparison or account policy.

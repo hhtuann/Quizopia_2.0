@@ -59,6 +59,8 @@ public final class AttemptViews {
         }
     }
 
+    public record Closure(UUID closureRequestId, Instant confirmedNoticeAt, Instant closureCutoffAt) {}
+
     public record View(
             UUID attemptId,
             UUID publicationId,
@@ -71,7 +73,7 @@ public final class AttemptViews {
             Instant serverNow,
             List<Question> questions,
             List<Entry> answers,
-            Void closure) {
+            Closure closure) {
         public View {
             questions = List.copyOf(questions);
             answers = List.copyOf(answers);

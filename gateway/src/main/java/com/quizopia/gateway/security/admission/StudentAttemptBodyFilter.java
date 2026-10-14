@@ -22,9 +22,13 @@ final class StudentAttemptBodyFilter {
     static Mono<Void> forward(ServerWebExchange exchange, WebFilterChain chain) {
         var request = exchange.getRequest();
         if (!StudentAttemptRoutes.matches(
-                request.getMethod().name(), request.getURI().getRawPath())) return chain.filter(exchange);
-        if (request.getURI().getRawQuery() != null || request.getHeaders().getContentLength() > 2097152)
-            return invalid(exchange);
+                        request.getMethod().name(), request.getURI().getRawPath())
+                && ClosureRoutes.role(
+                                request.getMethod().name(), request.getURI().getRawPath())
+                        == null) return chain.filter(exchange);
+        if ((!ClosureRoutes.paged(request.getURI().getRawPath())
+                        && request.getURI().getRawQuery() != null)
+                || request.getHeaders().getContentLength() > 2097152) return invalid(exchange);
         var encoding = request.getHeaders().get("Content-Encoding");
         if (encoding != null && (encoding.size() != 1 || !encoding.getFirst().equalsIgnoreCase("identity")))
             return invalid(exchange);

@@ -54,6 +54,7 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
         } catch (GradingPolicy.Failure e) {
             throw failure(e.unavailable() ? 503 : 400, e.getMessage());
         } catch (RuntimeException e) {
+            if (ClosureCutoffConflict.matches(e)) throw failure(409, "CLOSURE_CUTOFF_REACHED");
             throw failure(503, "PERSISTENCE_UNAVAILABLE");
         }
     }
@@ -99,6 +100,10 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                 "SELECT configuration::text FROM publications WHERE id=? FOR UPDATE",
                 String.class,
                 publications.getFirst());
+        db.query(
+                "SELECT id FROM closure_requests WHERE publication_id=? AND state IN ('PENDING','FINALIZING') ORDER BY id FOR UPDATE",
+                (r, n) -> r.getObject(1, UUID.class),
+                publications.getFirst());
         var locked = db.query(
                 "SELECT * FROM attempts WHERE id=? FOR UPDATE",
                 (r, n) -> new Locked(
@@ -142,7 +147,7 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
 
     private Instant now() {
         return db.queryForObject(
-                "SELECT clock_timestamp()", (r, n) -> r.getTimestamp(1).toInstant());
+                "SELECT assessment_time()", (r, n) -> r.getTimestamp(1).toInstant());
     }
 
     public static boolean due(Instant deadline, Instant now) {
@@ -215,7 +220,12 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                     throw failure(409, "IDEMPOTENCY_CONFLICT");
                 return new Outcome(Kind.REPLAY, Optional.of(requireResult(a.id())));
             }
-            if (!a.state().equals("ACTIVE")) throw failure(409, "ATTEMPT_TERMINAL");
+            if (!a.state().equals("ACTIVE")) {
+                String reason =
+                        db.queryForObject("SELECT terminal_reason FROM attempts WHERE id=?", String.class, a.id());
+                throw failure(
+                        409, "TEACHER_NOTICE_CUTOFF".equals(reason) ? "CLOSURE_CUTOFF_REACHED" : "ATTEMPT_TERMINAL");
+            }
             // This is the linearization sample, after locks and full payload validation.
             Instant time = now();
             checkExpiry(request.selected(), time);
@@ -229,6 +239,18 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                                 null,
                                 time,
                                 AttemptRecord.Reason.BOUNDED_TIMEOUT,
+                                null,
+                                null)));
+            if (closure(a.id(), time) != null)
+                return new Outcome(
+                        Kind.CLOSURE_CUTOFF_REACHED,
+                        Optional.of(persist(
+                                a,
+                                snapshot,
+                                saved(a, snapshot),
+                                null,
+                                time,
+                                AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF,
                                 null,
                                 null)));
             if (a.revision() != request.expectedRevision()) throw failure(409, "REVISION_CONFLICT");
@@ -247,21 +269,111 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
         });
     }
 
+    private record Notice(
+            UUID request, UUID teacher, UUID notification, Instant confirmed, Instant cutoff, int version) {}
+
+    private Notice closure(UUID attempt, Instant time) {
+        var rows = db.query(
+                "SELECT c.id,c.requesting_teacher_id,m.notification_id,m.confirmed_notice_at,m.closure_cutoff_at,m.accessibility_version FROM closure_requests c JOIN closure_request_members m ON m.closure_request_id=c.id WHERE c.state IN ('PENDING','FINALIZING') AND m.attempt_id=? AND m.state='NOTICE_CONFIRMED' AND m.closure_cutoff_at<=? FOR UPDATE OF m",
+                (r, n) -> new Notice(
+                        r.getObject(1, UUID.class),
+                        r.getObject(2, UUID.class),
+                        r.getObject(3, UUID.class),
+                        r.getTimestamp(4).toInstant(),
+                        r.getTimestamp(5).toInstant(),
+                        r.getInt(6)),
+                attempt,
+                Timestamp.from(time));
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     @Override
     public Outcome systemFinalize(UUID id, AttemptRecord.Reason reason) {
-        if (reason != AttemptRecord.Reason.BOUNDED_TIMEOUT) throw failure(503, "FINALIZATION_NOT_AVAILABLE");
-        if (id == null) throw failure(400, "INVALID_REQUEST");
+        if (id == null
+                || reason != AttemptRecord.Reason.BOUNDED_TIMEOUT
+                        && reason != AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF) throw failure(400, "INVALID_REQUEST");
+        return tx(() -> finalizeLocked(lock(id, null), reason, null));
+    }
+
+    @Override
+    public Outcome noticeFinalize(UUID id, UUID request) {
         return tx(() -> {
-            Locked a = lock(id, null);
-            if (!a.state().equals("ACTIVE")) return new Outcome(Kind.ALREADY_TERMINAL, readResult(id));
-            Snapshot snapshot = snapshot(a);
-            Instant time = now();
+            var publications = db.query(
+                    "SELECT publication_id FROM attempts WHERE id=?", (r, n) -> r.getObject(1, UUID.class), id);
+            if (publications.isEmpty()) return new Outcome(Kind.NOT_APPLICABLE, Optional.empty());
+            if (db.query(
+                            "SELECT id FROM publications WHERE id=? AND state='OPEN' FOR UPDATE SKIP LOCKED",
+                            (r, n) -> r.getObject(1, UUID.class),
+                            publications.getFirst())
+                    .isEmpty()) return new Outcome(Kind.NOT_APPLICABLE, Optional.empty());
+            return finalizeLocked(lock(id, null), AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF, request);
+        });
+    }
+
+    @Override
+    public Outcome completeUnit(CompletionUnit unit) {
+        return tx(() -> {
+            // Publication -> request -> Attempt -> member; command progress shares this root transaction.
+            var owner = db.query(
+                    "SELECT owner_id FROM publications WHERE id=? FOR UPDATE",
+                    (r, n) -> r.getObject(1, UUID.class),
+                    unit.publicationId());
+            if (owner.size() != 1 || !owner.getFirst().equals(unit.actorId()))
+                throw failure(404, "PUBLICATION_NOT_FOUND");
+            var operations = db.queryForList(
+                    "SELECT * FROM publication_operations WHERE publication_id=? AND actor_id=? AND key_digest=?",
+                    unit.publicationId(),
+                    unit.actorId(),
+                    unit.keyDigest());
+            if (operations.size() != 1) throw failure(409, "IDEMPOTENCY_CONFLICT");
+            var op = operations.getFirst();
+            if (!"COMPLETE".equals(op.get("action")) || !unit.requestId().equals(op.get("closure_request_id")))
+                throw failure(409, "IDEMPOTENCY_CONFLICT");
+            if (!"IN_PROGRESS".equals(op.get("state"))
+                    || ((Number) op.get("processed_units")).intValue() >= ((Number) op.get("unit_budget")).intValue())
+                return new Outcome(Kind.NOT_APPLICABLE, Optional.empty());
+            var a = lock(unit.attemptId(), null);
+            if (!a.publication().equals(unit.publicationId())) throw failure(409, "CLOSURE_RESOLVED");
+            var states = db.queryForList(
+                    "SELECT state FROM closure_requests WHERE id=? AND publication_id=?",
+                    unit.requestId(),
+                    unit.publicationId());
+            if (states.size() != 1
+                    || !Set.of("PENDING", "FINALIZING")
+                            .contains(states.getFirst().get("state")))
+                return new Outcome(Kind.NOT_APPLICABLE, Optional.empty());
+            var outcome = finalizeLocked(
+                    a,
+                    a.deadline() == null
+                            ? AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF
+                            : AttemptRecord.Reason.BOUNDED_TIMEOUT,
+                    unit.requestId());
+            if (outcome.kind() == Kind.SUBMITTED)
+                db.update(
+                        "UPDATE publication_operations SET processed_units=processed_units+1 WHERE publication_id=? AND actor_id=? AND key_digest=?",
+                        unit.publicationId(),
+                        unit.actorId(),
+                        unit.keyDigest());
+            return outcome;
+        });
+    }
+
+    private Outcome finalizeLocked(Locked a, AttemptRecord.Reason reason, UUID expectedRequest) {
+        if (!a.state().equals("ACTIVE")) return new Outcome(Kind.ALREADY_TERMINAL, readResult(a.id()));
+        var time = now();
+        if (reason == AttemptRecord.Reason.BOUNDED_TIMEOUT) {
             if (a.deadline() == null) return new Outcome(Kind.NOT_APPLICABLE, Optional.empty());
             if (!due(a.deadline(), time)) return new Outcome(Kind.NOT_DUE, Optional.empty());
-            return new Outcome(
-                    Kind.SUBMITTED,
-                    Optional.of(persist(a, snapshot, saved(a, snapshot), null, time, reason, null, null)));
-        });
+        } else {
+            var notice = closure(a.id(), time);
+            if (a.deadline() != null
+                    || notice == null
+                    || expectedRequest != null && !expectedRequest.equals(notice.request()))
+                return new Outcome(Kind.NOT_DUE, Optional.empty());
+        }
+        var snapshot = snapshot(a);
+        return new Outcome(
+                Kind.SUBMITTED, Optional.of(persist(a, snapshot, saved(a, snapshot), null, time, reason, null, null)));
     }
 
     private Result persist(
@@ -273,6 +385,14 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
             AttemptRecord.Reason reason,
             String key,
             String requestDigest) {
+        Notice notice = reason == AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF ? closure(a.id(), time) : null;
+        if (reason == AttemptRecord.Reason.TEACHER_NOTICE_CUTOFF) {
+            if (notice == null || a.deadline() != null) throw failure(409, "CLOSURE_NOT_READY");
+            db.update(
+                    "UPDATE closure_requests SET state='FINALIZING',finalization_started_at=? WHERE id=? AND state='PENDING'",
+                    Timestamp.from(time),
+                    notice.request());
+        }
         List<Answer> answers = finalAnswers.values();
         Score score = grader.grade(snapshot, answers);
         long revision = Math.addExact(a.revision(), 1);
@@ -321,16 +441,32 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
         db.batchUpdate(
                 "INSERT INTO grading_question_results(result_id,question_number,earned_weight,possible_weight) VALUES(?,?,?,1)",
                 weights);
-        db.update(
-                "INSERT INTO attempt_finalization_audit(attempt_id,publication_id,reason,actor_kind,actor_id,finalized_at,grading_policy_version,result_id) VALUES(?,?,?,?,?,?,?,?)",
-                a.id(),
-                a.publication(),
-                reason.name(),
-                reason == AttemptRecord.Reason.MANUAL_SUBMIT ? "USER" : "SYSTEM",
-                reason == AttemptRecord.Reason.MANUAL_SUBMIT ? a.student().toString() : "assessment-timeout",
-                Timestamp.from(time),
-                a.policy(),
-                result);
+        if (notice == null)
+            db.update(
+                    "INSERT INTO attempt_finalization_audit(attempt_id,publication_id,reason,actor_kind,actor_id,finalized_at,grading_policy_version,result_id) VALUES(?,?,?,?,?,?,?,?)",
+                    a.id(),
+                    a.publication(),
+                    reason.name(),
+                    reason == AttemptRecord.Reason.MANUAL_SUBMIT ? "USER" : "SYSTEM",
+                    reason == AttemptRecord.Reason.MANUAL_SUBMIT ? a.student().toString() : "assessment-timeout",
+                    Timestamp.from(time),
+                    a.policy(),
+                    result);
+        else
+            db.update(
+                    "INSERT INTO attempt_finalization_audit(attempt_id,publication_id,reason,actor_kind,actor_id,finalized_at,grading_policy_version,result_id,closure_request_id,requesting_teacher_id,notification_id,confirmed_notice_at,closure_cutoff_at,accessibility_version) VALUES(?,?,?,'SYSTEM','assessment-closure',?,?,?,?,?,?,?,?,?)",
+                    a.id(),
+                    a.publication(),
+                    reason.name(),
+                    Timestamp.from(time),
+                    a.policy(),
+                    result,
+                    notice.request(),
+                    notice.teacher(),
+                    notice.notification(),
+                    Timestamp.from(notice.confirmed()),
+                    Timestamp.from(notice.cutoff()),
+                    notice.version());
         if (db.update(
                         "UPDATE attempts SET state='SUBMITTED',terminal_reason=?,finalized_at=?,revision=?,submitted_answers_id=?,result_id=? WHERE id=? AND state='ACTIVE' AND revision=?",
                         reason.name(),
@@ -341,6 +477,12 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                         a.id(),
                         a.revision())
                 != 1) throw failure(503, "PERSISTENCE_UNAVAILABLE");
+        if (notice != null)
+            db.update(
+                    "UPDATE closure_request_members SET state='FINALIZED',resolved_at=? WHERE closure_request_id=? AND attempt_id=?",
+                    Timestamp.from(time),
+                    notice.request(),
+                    a.id());
         Result summary = new Result(
                 a.id(),
                 result,
