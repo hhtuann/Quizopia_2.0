@@ -1,6 +1,11 @@
-# W3-M backend implementation checkpoint and resumption
+# W3-M1 historical implementation checkpoint and resumption
 
-Status: **M1 POLICY-NEUTRAL CORE IMPLEMENTED, DEFAULT DISABLED; functional M1
+Historical scope: M1 increment at `430dbdf` / Draft PR #89. The
+[current M2 checkpoint](w3m2-backend-implementation.md) records subsequent dependent
+media work; this file's M2 absence and test observations describe M1's scope, not
+the latest working branch. Preserve the historical executed evidence below.
+
+Status at that checkpoint: **M1 POLICY-NEUTRAL CORE IMPLEMENTED, DEFAULT DISABLED; functional M1
 still PARTIAL (authoritative answer-change adapter pending); M2 NOT IMPLEMENTED.
 Engineering acceptance NOT READY; PRODUCTION NO-GO.** Local verification below is
 executed evidence, not independent approval or deployed release acceptance.

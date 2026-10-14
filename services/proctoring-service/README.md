@@ -27,8 +27,17 @@ evidence/audit rows. Runtime roles must not own tables/functions, disable guards
 receive that retention privilege. Session-binding erasure and final policy/control
 parity still require an approved policy and reviewed implementation.
 
-M2 media orchestration and the authoritative Assessment answer-change event adapter
-are separate remaining work. Browser answer-change observations are untrusted;
+The dependent M2 increment adds [four bodyless media-grant operations](contracts/media.openapi.yaml),
+durable room/grant intent and bounded recovery through the official LiveKit JVM SDK.
+See the [M2 contract](../../docs/specifications/w3-m2-media-contract.md).
+`PROCTORING_MEDIA_ENABLED=false` and `PROCTORING_MEDIA_WORKER_ENABLED=false` remain
+independent defaults. `UNVERIFIED` mode denies issuance/renewal; explicit non-production
+qualification configuration is a synthetic operator attestation, not provider
+approval. Enabled production media is unconditionally rejected. App `leaseUntil`
+is not an SFU hard expiry; self-hosted removal cannot revoke an old token. Never
+store/log the returned bearer; actual Cloud/refresh/clock-bound revocation and
+privacy acceptance remain open. The authoritative Assessment answer-change event
+adapter is separate remaining work. Browser answer-change observations are untrusted;
 this service cannot alter answers, grades, deadlines or Attempt state. No recordings,
 clipboard, URLs, keystrokes, answer content or academic sanctions are implemented.
 Drain/block bypass-capable older Gateway/downstream instances before any future

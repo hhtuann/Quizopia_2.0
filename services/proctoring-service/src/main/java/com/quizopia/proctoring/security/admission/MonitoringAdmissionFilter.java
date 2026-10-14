@@ -13,9 +13,19 @@ public final class MonitoringAdmissionFilter extends OncePerRequestFilter {
     private final IdentityAdmissionClient admission;
     private final AdmissionProperties bounds;
     private final MonitoringProperties monitoring;
+    private final com.quizopia.proctoring.media.MediaProperties media;
 
     public MonitoringAdmissionFilter(
             IdentityAdmissionClient admission, AdmissionProperties bounds, MonitoringProperties monitoring) {
+        this(admission, bounds, monitoring, new com.quizopia.proctoring.media.MediaProperties());
+    }
+
+    public MonitoringAdmissionFilter(
+            IdentityAdmissionClient admission,
+            AdmissionProperties bounds,
+            MonitoringProperties monitoring,
+            com.quizopia.proctoring.media.MediaProperties media) {
+        this.media = media;
         this.admission = admission;
         this.bounds = bounds;
         this.monitoring = monitoring;
@@ -31,7 +41,8 @@ public final class MonitoringAdmissionFilter extends OncePerRequestFilter {
         }
         response.setHeader("Cache-Control", "no-store");
         try {
-            if (!monitoring.isEnabled()) {
+            if (!monitoring.isEnabled()
+                    || MediaRoutes.matches(request.getMethod(), request.getRequestURI()) && !media.isEnabled()) {
                 error(response, 503, "AUTHORITY_UNAVAILABLE");
                 return;
             }
@@ -73,7 +84,9 @@ public final class MonitoringAdmissionFilter extends OncePerRequestFilter {
                 error(response, 400, "INVALID_REQUEST");
                 return;
             }
-            boolean body = request.getMethod().equals("POST") && !path.endsWith("/reconcile");
+            boolean body = request.getMethod().equals("POST")
+                    && !path.endsWith("/reconcile")
+                    && !MediaRoutes.matches(request.getMethod(), path);
             if (body
                     && (Collections.list(request.getHeaders("Content-Type")).size() != 1
                             || request.getContentType() == null

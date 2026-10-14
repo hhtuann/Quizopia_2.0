@@ -229,3 +229,22 @@ frontend journeys should cover complete mutations, conflicts, uncertain retries,
 result/review redaction and per-recipient inbox/closure behavior against the actual
 multi-service backend. W3-M1/M2 endpoints and camera-grid browser acceptance remain
 separate workstreams. All eleven production release gates remain open.
+
+## Dependent M2 integration boundary
+
+The [M2 media contract](../specifications/w3-m2-media-contract.md) and
+[media OpenAPI](../../services/proctoring-service/contracts/media.openapi.yaml)
+add four bodyless, query-free exact grant adapters on a separate dependent branch.
+They retain independent Gateway/downstream current admission and actor/resource
+checks. Own grants return a scoped bearer only under explicitly configured synthetic
+qualification; default UNVERIFIED mode denies issuance/renewal. No production or
+qualified Cloud-provider acceptance is supplied. Hold any returned token in browser
+memory only, with no logs/storage/query/analytics exposure.
+
+`GRANT_ISSUED` is technical credential state, not camera permission/capture proof.
+Student grants allow camera-only publishing and no peer subscription; Teacher grants
+subscribe only to authorized per-session rooms. App `leaseUntil` is not a provider-
+enforced hard deadline during outage, and self-hosted removal does not revoke old
+tokens. M2 privacy/refusal policy, provider refresh/revocation/clock acceptance and
+real browser camera-grid E2E remain separate blockers. These backend mechanics do
+not mark frontend PR #77 accepted or alter its existing browser-executor evidence.

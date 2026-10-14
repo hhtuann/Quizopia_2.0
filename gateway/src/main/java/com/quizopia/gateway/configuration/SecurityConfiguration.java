@@ -64,7 +64,9 @@ public class SecurityConfiguration {
             com.quizopia.gateway.security.admission.AttemptFeatureProperties attemptFeatures,
             com.quizopia.gateway.security.admission.InboxProperties inbox,
             @org.springframework.beans.factory.annotation.Value("${quizopia.proctoring.enabled:false}")
-                    boolean proctoringEnabled) {
+                    boolean proctoringEnabled,
+            @org.springframework.beans.factory.annotation.Value("${quizopia.proctoring.media.enabled:false}")
+                    boolean mediaEnabled) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeExchange(exchanges -> exchanges
@@ -102,7 +104,12 @@ public class SecurityConfiguration {
                         }))
                 .addFilterAfter(
                         new UserAdmissionWebFilter(
-                                admissionClient, publication, attemptFeatures, inbox.inboxEnabled(), proctoringEnabled),
+                                admissionClient,
+                                publication,
+                                attemptFeatures,
+                                inbox.inboxEnabled(),
+                                proctoringEnabled,
+                                mediaEnabled),
                         SecurityWebFiltersOrder.AUTHORIZATION)
                 .exceptionHandling(
                         errors -> errors.authenticationEntryPoint(StudentAttemptSecurityErrors.unauthenticated())
