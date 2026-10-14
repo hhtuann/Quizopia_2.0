@@ -2,11 +2,17 @@
 
 Status: **REGISTER READY FOR LEADER REVIEW — PRODUCTION NO-GO.** Recorded
 2026-10-14. This is a release governance/evidence overlay for the merged Assessment
-backend with governance merged through PR #85. The historical matrix remains pinned
+backend with governance merged through PR #86. The historical matrix remains pinned
 to `e615764613b661f8503de5fb5494fc7ea5224ba3`; the current nomination and verified
 PR #85 merge CI are recorded in the [decision pack](w3-production-release-decision-pack.md).
 No approved release candidate, named DRI, staging execution authorization,
 independent security approval or Leader production GO is recorded.
+
+The [Approval & Operator Readiness Pack](w3-production-release-approval-operator-readiness.md) records rounds 4–5,
+including the requester-supplied single-human Dev 1/Leader linkage, managed-cloud HA
+staging, provider-specific synchronous durability/fencing review, measurement-first
+RTO/SLO decisions and strict continuous eligible ≥48-hour observation. These remain
+planning/proposed identity assertions, not authenticated appointments or permissions.
 
 ## Scope and authority
 
@@ -46,7 +52,9 @@ actual people and their authority; execution operators and independent reviewers
 must be distinct. Selected HYBRID COORDINATION assigns four gates to Dev 1 — Backend
 and seven to Leader through the register's `coordination_dri_role`; no backend gate
 is assigned to Dev 2 — Frontend. These role selections never replace named humans,
-specialist operators or final approval authority. A backend implementer cannot approve privacy policy, production
+specialist operators or final approval authority. D4-02/D5-01 identify the same
+proposed `hhtuann` behind both roles; no independent review can be inferred from
+the two role names. Actual DRIs remain unassigned. A backend implementer cannot approve privacy policy, production
 TLS or release GO by virtue of implementing the service.
 
 Before any external drill, the assigned owner must bind the register procedure to
@@ -92,6 +100,20 @@ actual matching controls are reviewed before PRIVACY-02 closes. Operators may
 prepare plans, collect baseline telemetry and rehearse components under bounded
 staging authorization while final gates remain open. Failed high-impact security
 or integrity prerequisites must never be bypassed to activate dependent traffic.
+
+Separately authorized staging recovery/performance feasibility baselines may
+precede quantitative RTO/SLO selection. They are outside formal gate acceptance
+execution: approve their target, operators, safety/resource/time limits and stop/
+recovery plan first, label measured results as baselines, then freeze actual
+quantitative criteria before formal acceptance. The register's approved-threshold
+requirements apply to its formal acceptance procedures; this distinction changes
+neither register evidence requirements nor gate states. A baseline cannot become
+retrospective PASS against an unstated objective.
+
+D5-04 selects strict continuous eligible observation. Exact interruption/completeness
+criteria require formal Leader/Security review before starting. An invalidated
+observation is failed/incomplete and repeated after remediation; observation restart
+never resets actual confirmation, individual cutoff or earlier evidence/deadlines.
 
 ## Evidence currently available
 
@@ -158,8 +180,8 @@ configuration binding requirements remain enforced.
 
 The dedicated [W3 Production Release Validation workflow](../../.github/workflows/w3-production-release-validation.yml)
 is configured for relevant `pull_request` changes and `push` changes to develop/main,
-including register-only Markdown/YAML changes. Its path filters cover the five
-release documents including the decision pack, both Python validator/test scripts, the workflow itself and the
+including register-only Markdown/YAML changes. Its path filters cover the six
+release documents including the decision and operator-readiness packs, both Python validator/test scripts, the workflow itself and the
 historical matrix. It uses Python 3.13, pinned PyYAML 6.0.3, read-only repository
 contents permission and checkout with full history for the pinned Git object;
 checkout does not persist credentials. Its dedicated job runs both Python CLIs and

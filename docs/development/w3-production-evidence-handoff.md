@@ -10,6 +10,14 @@ Leader handles the other seven. Dev 2 has no backend gate. Specialist teams rema
 proposed and must return actual appointments and authorization before any
 deployment, restore, fault injection, load or notice exercise.
 
+The [Approval & Operator Readiness Pack](w3-production-release-approval-operator-readiness.md) refines these requests:
+Dev 1 and Leader are the same supplied proposed human, `hhtuann`, without verified
+appointment; actual register DRIs remain unassigned. Managed-cloud HA/synchronous
+durability/fencing direction needs provider-specific review. Recovery/load
+feasibility baselines need separate bounded authorization before quantitative
+RTO/SLO freeze, and cannot satisfy formal acceptance. Strict soak invalidation/
+restart rules need formal agreement; restart never edits actual confirmation/cutoff.
+
 ## Selected directions and remaining formal decisions
 
 1. Formally accept the exact nomination/artifact scope in the decision pack; obtain
@@ -23,15 +31,19 @@ deployment, restore, fault injection, load or notice exercise.
    and independently verify feasible durability/fencing/recovery architecture.
    RTO remains UNDECIDED pending operational assessment, measurements and cost/readiness/impact.
 3. Dev 1/Platform turn the selected 100 concurrent active Students into a realistic
-   profile (not 100 RPS), with proposed think time, mix, warm-up/steady/recovery duration,
-   latency/error/resource budgets and stop conditions for formal approval. No SLO exists yet.
-4. Mandatory genuine ≥48-hour soak is selected. Obtain formal interruption and
+   profile (not 100 RPS), with proposed think time, mix, warm-up/steady/recovery duration
+   and approved baseline safety/resource/time/stop limits. Separately authorize baseline
+   measurements, then approve/freeze quantitative latency/error/resource criteria before
+   formal CAPACITY-04 acceptance. No SLO exists yet and a baseline is not PASS.
+4. Mandatory genuine ≥48-hour strict continuous eligible observation is selected. Obtain formal interruption and
    completeness acceptance before starting; then authorized synthetic staging actors,
    actual authenticated inbox/PUBLISH/CONFIRM/cutoff and full telemetry/outage history.
    No current waiver is selected; any future change needs a new explicit decision
    and existing formal Leader/Security safeguards, never a shortcut because time elapses.
-5. Develop the selected isolated production-like staging direction into a provider/
-   topology/budget/operator proposal: separate identities/databases/private transport,
+   Classify invalidating interruptions as failed/incomplete, remediate and repeat
+   eligible observation without changing actual confirmation/cutoff or earlier history.
+5. Develop the selected dedicated managed-cloud HA staging direction into a provider/
+   topology/budget/operator proposal with verified synchronous durability/fencing: separate identities/databases/private transport,
    synthetic or separately authorized sanitized data, multi-node/fencing capability,
    restricted roles, cursor/secret custody, backup/restore and actual telemetry.
    No provisioning, production credentials/data use or live fault injection is authorized.

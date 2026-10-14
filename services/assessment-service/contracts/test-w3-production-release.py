@@ -455,6 +455,7 @@ class RegisterSafetyTests(unittest.TestCase):
             "docs/development/w3-production-release-gates.md",
             "docs/development/w3-production-evidence-handoff.md",
             "docs/development/w3-production-release-decision-pack.md",
+            "docs/development/w3-production-release-approval-operator-readiness.md",
             "services/assessment-service/contracts/validate-w3-production-release.py",
             "services/assessment-service/contracts/test-w3-production-release.py",
             "docs/architecture/w3-final-acceptance-matrix.md",
@@ -469,6 +470,20 @@ class RegisterSafetyTests(unittest.TestCase):
                 with self.subTest(event=event, only_changed_file=single_changed_file):
                     self.assertTrue(any(fnmatchcase(single_changed_file, pattern) for pattern in triggers["paths"]))
         self.assertEqual({"develop", "main"}, set(workflow["on"]["push"]["branches"]))
+
+    def test_operator_readiness_markdown_alone_triggers_release_validation(self):
+        workflow_path = validator.ROOT / ".github/workflows/w3-production-release-validation.yml"
+        workflow = validator.yaml.load(workflow_path.read_text(), Loader=validator.yaml.BaseLoader)
+        only_changed_file = "docs/development/w3-production-release-approval-operator-readiness.md"
+        for event in ["pull_request", "push"]:
+            for branch in ["develop", "main"]:
+                with self.subTest(event=event, branch=branch, only_changed_file=only_changed_file):
+                    trigger = workflow["on"][event]
+                    self.assertNotIn("paths-ignore", trigger)
+                    self.assertNotIn("branches-ignore", trigger)
+                    self.assertTrue(any(fnmatchcase(only_changed_file, pattern) for pattern in trigger["paths"]))
+                    if "branches" in trigger:
+                        self.assertTrue(any(fnmatchcase(branch, pattern) for pattern in trigger["branches"]))
 
     def test_release_workflow_is_read_only_fetches_history_and_executes_both_checks(self):
         workflow_path = validator.ROOT / ".github/workflows/w3-production-release-validation.yml"
