@@ -321,11 +321,11 @@ context accumulation and retains every suite. Quiz and Classroom source are
 unchanged and rebuilt/exercised in the actual topology rather than reported as
 separately executed full-module verify runs.
 
-Final representative observations: 51-member capture **50.113 ms**; remaining
-49 finalizations after reconstructing the service **3255.095 ms**, completing the
+Final representative observations: 51-member capture **52.508 ms**; remaining
+49 finalizations after reconstructing the service **3207.367 ms**, completing the
 same key's 50-unit budget. Retained 1024-question snapshot/complete-answer sizes
-were **196756/72622 bytes**, with **433 ms** end-to-end fixture work. The 12613-question
-fixture used **2097086/909644 bytes**, **4507 ms** total fixture work and an actual
+were **196756/72622 bytes**, with **342 ms** end-to-end fixture work. The 12613-question
+fixture used **2097086/909644 bytes**, **3165 ms** total fixture work and an actual
 **909679-byte** complete HTTP request. Individual transaction/statement/socket
 budgets remained unchanged; these whole-fixture durations are not individual SQL
 latency or production throughput claims.
@@ -341,15 +341,24 @@ failover and production-load acceptance remain external release gates.
 
 The first [Backend CI run](https://github.com/hhtuann/Quizopia_2.0/actions/runs/38447157054)
 passed seven jobs but failed Assessment's unchanged 12613-question fixture at
-15924 ms. V5 now uses schema-qualified static SQL plans for child parent locks and
-answer validation, removing repeated per-row EXECUTE parsing. Every lock, type,
-identity, deadline and V4.1 consistency check remains active. SQL plans cache no
-authority facts or answers. The same fixture subsequently completed locally in
-4507 ms under unchanged budgets, and full Assessment/Gateway reruns passed.
-The cutoff crossing fixture now holds a stable volatile clock function and observes
+15924 ms. Static parent-lock and answer-validation plans reduced the local fixture
+to 4507 ms, but the [second CI run](https://github.com/hhtuann/Quizopia_2.0/actions/runs/38451200542)
+still failed Assessment with SQLSTATE 57014 (statement cancellation) at 9735 ms;
+the other seven jobs passed again. V5 now also prepares schema-qualified static
+plans for the deferred child/full-parent consistency validator. Every V4.1 child
+and full-parent check, parent-write requirement, lock, type, identity, digest,
+coverage, total and deadline validation remains active. SQL plans cache no authority
+facts or answers, and no deferred events are skipped. The final full local reruns
+passed all 331 Assessment and 100 Gateway tests; the unchanged large fixture took
+3165 ms. Production transaction, statement and socket limits are unchanged.
+
+The cutoff crossing fixture holds a stable volatile clock function and observes
 real PostgreSQL time pass the cutoff behind its lock barrier, rather than replacing
-a function during an executing statement. Sanitized capacity diagnostics print
-SQLSTATE/vendor code only. No question/payload reduction or suite exclusion was used.
+a function during an executing statement. Sanitized capacity diagnostics print a
+fixed SQL phase label, SQLSTATE and vendor code only, without SQL text or payloads.
+No question/payload reduction or suite exclusion was used. Independent review must
+compare the V5 static validator with unchanged V4.1; local passes do not resolve the
+GitHub CI gate until the new HEAD's run completes successfully.
 
 GitHub Actions is checked after the normal push/Draft PR creation. Its actual
 status belongs in the PR/final report; local results do not imply CI success.
@@ -358,7 +367,7 @@ status belongs in the PR/final report; local results do not imply CI success.
 
 | Severity | Finding and correction                                                                                                                                                               | Evidence                                                                     |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| HIGH     | CI exposed a near-budget full-answer regression; V5 guard SQL now uses static schema-qualified plans without relaxing validation or budgets.                                         | Unchanged near-2-MiB capacity fixture and complete Assessment/Gateway reruns |
+| HIGH     | CI exposed a near-budget full-answer regression; V5 guard and deferred consistency SQL now use static schema-qualified plans without relaxing validation or budgets.                 | Unchanged near-2-MiB capacity fixture and complete Assessment/Gateway reruns |
 | HIGH     | Raw Student writes could backdate past a confirmed cutoff; added post-lock V5 guards and rollback-marker reconciliation.                                                             | Raw-DML, crossing-save and SAVE/SUBMIT/ABANDON race cases                    |
 | HIGH     | A readiness attestation alone could miss a disabled edge inbox; added a bounded private technical readiness probe, actual recipient capability probe and real disabled-Gateway test. | Five-service disabled-inbox and normal notice journeys                       |
 | MEDIUM   | Stale workers could otherwise act on replacement requests; finalization now binds the exact request under locks.                                                                     | Cancellation/replacement/stale-worker cases                                  |

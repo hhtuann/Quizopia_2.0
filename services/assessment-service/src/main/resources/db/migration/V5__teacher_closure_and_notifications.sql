@@ -505,6 +505,104 @@ BEGIN
  RETURN NEW;
 END $body$ $ddl$,current_schema()); END $migration$;
 
+-- Preserve every V4.1 child/full-parent validation. Only SQL plan preparation
+-- changes; no data/authority cache or skipped deferred event is introduced.
+DO $migration$ BEGIN EXECUTE format($ddl$
+CREATE OR REPLACE FUNCTION %1$I.validate_attempt_consistency() RETURNS trigger LANGUAGE plpgsql
+ SET search_path=pg_catalog,pg_temp AS $body$
+DECLARE aid uuid; a record; s record; r record; audit record; answers record;
+ declarations integer; grades integer; audits integer; snapshot jsonb; expected jsonb;
+ earned numeric; possible numeric; valid boolean; current_answer record;
+BEGIN
+ IF TG_TABLE_NAME<>'attempts' THEN
+  IF TG_TABLE_NAME='grading_question_results' THEN
+   SELECT current_attempt.*,current_attempt.xmin AS write_transaction,result_row.possible_weight AS question_count
+    INTO a FROM %1$I.grading_results result_row JOIN %1$I.attempts current_attempt ON current_attempt.id=result_row.attempt_id WHERE result_row.id=NEW.result_id;
+  ELSE
+   SELECT current_attempt.*,current_attempt.xmin AS write_transaction INTO a FROM %1$I.attempts current_attempt WHERE current_attempt.id=NEW.attempt_id;
+  END IF;
+  IF a.id IS NULL THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Missing attempt'; END IF;
+  aid:=a.id;
+  IF a.write_transaction<>pg_current_xact_id()::xid THEN
+   RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Child mutation requires the parent transaction';
+  END IF;
+  IF TG_TABLE_NAME='attempt_answers' THEN
+   SELECT saved.* INTO current_answer FROM %1$I.attempt_answers saved WHERE saved.attempt_id=aid AND saved.question_number=NEW.question_number;
+   IF current_answer.saved_revision<>a.revision THEN
+    RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Answer revision does not match mutation';
+   END IF;
+  ELSIF TG_TABLE_NAME='attempt_operations' THEN
+   IF NEW.accepted_revision<>a.revision OR (NEW.action='SAVE' AND a.state<>'ACTIVE')
+    OR (NEW.action='SUBMIT' AND a.state<>'SUBMITTED') OR (NEW.action='ABANDON' AND a.state<>'ABANDONED') THEN
+    RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Operation acknowledgment is inconsistent';
+   END IF;
+  ELSIF TG_TABLE_NAME='attempt_finalization_audit' THEN
+   IF a.state NOT IN ('SUBMITTED','ABANDONED') THEN
+    RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Audit requires terminal parent';
+   END IF;
+  ELSIF TG_TABLE_NAME IN ('submitted_answers','grading_results','grading_question_results') THEN
+   IF a.state<>'SUBMITTED' THEN
+    RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Result artifact requires submitted parent';
+   END IF;
+   IF TG_TABLE_NAME='grading_question_results' THEN
+    possible:=a.question_count;
+    IF NEW.result_id IS DISTINCT FROM a.result_id OR possible IS NULL OR NEW.question_number>possible THEN
+     RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Grade question reference is invalid';
+    END IF;
+   END IF;
+  ELSE RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Unknown assessment child';
+  END IF;
+  RETURN NULL;
+ END IF;
+ aid:=NEW.id;
+ SELECT publication_id INTO s FROM %1$I.attempts WHERE id=aid;
+ IF s.publication_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Missing attempt'; END IF;
+ PERFORM id FROM %1$I.publications WHERE id=s.publication_id FOR UPDATE;
+ PERFORM id FROM %1$I.closure_requests WHERE publication_id=s.publication_id AND state IN ('PENDING','FINALIZING') ORDER BY id FOR UPDATE;
+ SELECT current_attempt.*,current_attempt.xmin AS write_transaction INTO a FROM %1$I.attempts current_attempt WHERE current_attempt.id=aid FOR UPDATE;
+ SELECT payload INTO snapshot FROM %1$I.publication_snapshots WHERE publication_id=a.snapshot_id;
+ SELECT count(*) INTO declarations FROM %1$I.submitted_answers WHERE attempt_id=aid;
+ SELECT count(*) INTO grades FROM %1$I.grading_results WHERE attempt_id=aid;
+ SELECT count(*) INTO audits FROM %1$I.attempt_finalization_audit WHERE attempt_id=aid;
+ IF a.state='ACTIVE' THEN
+  IF declarations<>0 OR grades<>0 OR audits<>0 THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Partial finalization is forbidden'; END IF;
+ ELSIF a.state='ABANDONED' THEN
+  IF declarations<>0 OR grades<>0 OR audits<>1 THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Abandonment must be ungraded and audited'; END IF;
+ ELSE
+  IF declarations<>1 OR grades<>1 OR audits<>1 THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Submission must have complete result and audit'; END IF;
+  SELECT * INTO answers FROM %1$I.submitted_answers WHERE attempt_id=aid;
+  SELECT * INTO r FROM %1$I.grading_results WHERE attempt_id=aid;
+  SELECT jsonb_agg(jsonb_build_object('questionNumber',q.value->'number','answer',coalesce(v.answer,%1$I.assessment_unanswered(q.value->>'type'))) ORDER BY q.n)
+   INTO expected FROM jsonb_array_elements(snapshot->'structuredContent'->'questions') WITH ORDINALITY q(value,n)
+   LEFT JOIN %1$I.attempt_answers v ON v.attempt_id=aid AND v.question_number=q.n;
+  IF expected IS NULL OR answers.canonical_answers IS DISTINCT FROM expected OR answers.id IS DISTINCT FROM a.submitted_answers_id
+   OR answers.answer_schema_version<>a.answer_schema_version OR answers.created_at<>a.finalized_at
+   OR r.id IS DISTINCT FROM a.result_id OR r.submitted_answers_id<>answers.id OR r.graded_at<>a.finalized_at THEN
+   RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Submitted identity or authoritative answers are inconsistent';
+  END IF;
+  valid:=encode(sha256(convert_to(%1$I.assessment_canonical_json(expected),'UTF8')),'hex')=answers.answer_digest;
+  IF valid IS DISTINCT FROM true THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Submitted answer digest is invalid'; END IF;
+  SELECT count(*),coalesce(sum(earned_weight),0),coalesce(sum(possible_weight),0) INTO declarations,earned,possible FROM %1$I.grading_question_results WHERE result_id=r.id;
+  IF declarations<>jsonb_array_length(expected) OR r.possible_weight<>jsonb_array_length(expected)
+   OR earned<>r.earned_weight OR possible<>r.possible_weight THEN
+   RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Exact result totals are inconsistent';
+  END IF;
+  SELECT EXISTS(SELECT 1 FROM %1$I.grading_question_results WHERE result_id=r.id AND question_number>jsonb_array_length(expected)) INTO valid;
+  IF valid THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Grade question reference is invalid'; END IF;
+ END IF;
+ IF a.state<>'ACTIVE' THEN
+  SELECT * INTO audit FROM %1$I.attempt_finalization_audit WHERE attempt_id=aid;
+  IF audit.publication_id<>a.publication_id OR audit.reason<>a.terminal_reason OR audit.finalized_at<>a.finalized_at
+   OR audit.result_id IS DISTINCT FROM a.result_id OR audit.grading_policy_version<>a.grading_policy_version
+   OR (audit.reason IN ('MANUAL_SUBMIT','STUDENT_ABANDON') AND (audit.actor_kind<>'USER' OR audit.actor_id<>a.student_id::text))
+   OR (audit.reason='BOUNDED_TIMEOUT' AND (audit.actor_kind<>'SYSTEM' OR a.deadline_at IS NULL OR a.finalized_at<a.deadline_at))
+   OR (audit.reason IN ('MANUAL_SUBMIT','STUDENT_ABANDON') AND a.deadline_at IS NOT NULL AND a.finalized_at>=a.deadline_at) THEN
+   RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='Finalization audit or deadline is inconsistent';
+  END IF;
+ END IF;
+ RETURN NULL;
+END $body$ $ddl$,current_schema()); END $migration$;
+
 CREATE TRIGGER closure_request_write BEFORE INSERT OR UPDATE OR DELETE ON closure_requests FOR EACH ROW EXECUTE FUNCTION closure_request_guard();
 CREATE CONSTRAINT TRIGGER closure_capture AFTER INSERT ON closure_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION closure_capture_consistency();
 CREATE CONSTRAINT TRIGGER closure_workflow AFTER INSERT OR UPDATE ON closure_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION closure_workflow_consistency();
