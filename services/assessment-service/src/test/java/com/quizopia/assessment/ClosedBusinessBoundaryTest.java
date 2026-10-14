@@ -21,11 +21,15 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         properties = {
             "quizopia.assessment.features.attempts-enabled=false",
             "quizopia.assessment.features.results-enabled=false",
-            "quizopia.assessment.features.closure-enabled=true"
+            "quizopia.assessment.features.closure-enabled=true",
+            "quizopia.assessment.proctoring-authority.client-id=proctoring"
         })
 @ActiveProfiles("test")
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class ClosedBusinessBoundaryTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.ProctoringAuthorityStore proctoringAuthorityStore;
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.quizopia.assessment.application.ClosureStore closureStore;
 
@@ -158,6 +162,27 @@ class ClosedBusinessBoundaryTest {
                     .expectHeader()
                     .valueEquals("Cache-Control", "no-store");
         }
+    }
+
+    @Test
+    void privateProctoringCapabilityRemainsDefaultDisabled() {
+        var now = Instant.now();
+        var service = sign(
+                KEY,
+                ISSUER,
+                "proctoring",
+                "SERVICE",
+                Map.of("scope", List.of("assessment.proctoring-authority.read")),
+                now.minusSeconds(5),
+                now.plusSeconds(300));
+        http().post()
+                .uri("/internal/proctoring/attempts/" + ACTOR + "/authority")
+                .headers(h -> h.setBearerAuth(service))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store");
     }
 
     @TestConfiguration

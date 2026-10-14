@@ -1,0 +1,169 @@
+openapi: 3.1.0
+info:
+  title: Assessment private Proctoring authority
+  version: 1.0.0
+  description: >-
+    Narrow implemented private capability, default disabled. Never routed through Gateway.
+    Independent RS256 SERVICE authentication requires the exact configured Proctoring client and
+    assessment.proctoring-authority.read. Original USER evidence is independently verified and
+    freshly admitted through Identity; current membership/Teacher assignment is Classroom-owned.
+    No response is a reusable positive authorization cache. Production activation is not authorized.
+paths:
+  /internal/proctoring/attempts/{attemptId}/authority:
+    post:
+      operationId: readProctoringAttemptAuthority
+      x-required-service-scope: assessment.proctoring-authority.read
+      x-required-service-client: exact configured Proctoring client identity
+      description: >-
+        Private HTTPS only, except explicitly enabled non-production literal-loopback integration.
+        At most eight concurrent authority checks per instance; request body is bounded to 256 bytes.
+        CLASS, ENABLED monitoring, bounded 5..240-minute real Attempts only. STUDENT requires exact
+        Attempt ownership and current Classroom membership. TEACHER requires owning Publication and
+        current Classroom assignment. Terminal/deadline/CLOSED state returns active=false for authorized
+        reconciliation/history; this read never finalizes an Attempt, grades or mutates deadlines.
+        Each result is an in-flight authority snapshot, not continuous distributed authorization.
+      security:
+        - serviceBearer: []
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        - in: header
+          name: X-Quizopia-User-Evidence
+          required: true
+          description: Original USER JWT, independently decoded; never a SERVICE token or impersonation grant.
+          schema:
+            type: string
+            maxLength: 16384
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [viewerRole]
+              properties:
+                viewerRole:
+                  type: string
+                  enum: [STUDENT, TEACHER]
+      responses:
+        "200":
+          description: Minimal current authorized metadata; no answers, quiz content, keys, locators or account profile.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Authority"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotAccessible"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+components:
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: RS256 SERVICE JWT
+  schemas:
+    Authority:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          actorId,
+          viewerRole,
+          attemptId,
+          publicationId,
+          classroomId,
+          studentId,
+          active,
+          deadlineAt,
+          checkedAt,
+        ]
+      properties:
+        actorId:
+          type: string
+          format: uuid
+        viewerRole:
+          type: string
+          enum: [STUDENT, TEACHER]
+        attemptId:
+          type: string
+          format: uuid
+        publicationId:
+          type: string
+          format: uuid
+        classroomId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          format: uuid
+        active:
+          type: boolean
+        deadlineAt:
+          type: string
+          format: date-time
+        checkedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum:
+            [
+              INVALID_REQUEST,
+              UNAUTHENTICATED,
+              USER_EVIDENCE_INVALID,
+              ACCESS_DENIED,
+              PROCTORING_NOT_ACCESSIBLE,
+              AUTHORITY_UNAVAILABLE,
+              PERSISTENCE_UNAVAILABLE,
+            ]
+  responses:
+    InvalidRequest:
+      description: Malformed/oversized body, duplicate headers/fields, spoofed identity headers or unexpected query/encoding.
+      headers: &errorHeaders
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content: &errorContent
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthenticated:
+      description: Invalid SERVICE bearer uses UNAUTHENTICATED; independently invalid original USER evidence uses USER_EVIDENCE_INVALID. Clients must map SERVICE authentication failure to dependency unavailability, never USER logout.
+      headers: *errorHeaders
+      content: *errorContent
+    Forbidden:
+      description: Wrong SERVICE client/scope, USER role or insecure private transport.
+      headers: *errorHeaders
+      content: *errorContent
+    NotAccessible:
+      description: Missing/nonmonitorable/nonowned Attempt or current Classroom authority denied; masked identity.
+      headers: *errorHeaders
+      content: *errorContent
+    Unavailable:
+      description: Disabled/unconfigured capability, untrusted authority/dependency, capacity or primary persistence failure.
+      headers: *errorHeaders
+      content: *errorContent
