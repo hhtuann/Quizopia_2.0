@@ -1,0 +1,48 @@
+name: W3 Production Release Validation
+
+on:
+  pull_request:
+    paths:
+      - docs/development/w3-production-evidence-register.yaml
+      - docs/development/w3-production-release-acceptance.md
+      - docs/development/w3-production-release-gates.md
+      - docs/development/w3-production-evidence-handoff.md
+      - services/assessment-service/contracts/validate-w3-production-release.py
+      - services/assessment-service/contracts/test-w3-production-release.py
+      - docs/architecture/w3-final-acceptance-matrix.md
+      - .github/workflows/w3-production-release-validation.yml
+  push:
+    branches: [develop, main]
+    paths:
+      - docs/development/w3-production-evidence-register.yaml
+      - docs/development/w3-production-release-acceptance.md
+      - docs/development/w3-production-release-gates.md
+      - docs/development/w3-production-evidence-handoff.md
+      - services/assessment-service/contracts/validate-w3-production-release.py
+      - services/assessment-service/contracts/test-w3-production-release.py
+      - docs/architecture/w3-final-acceptance-matrix.md
+      - .github/workflows/w3-production-release-validation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  release-register-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install pinned validation dependency
+        run: python3 -m pip install --disable-pip-version-check --no-input PyYAML==6.0.3
+      - name: Validate release register and pinned historical matrix
+        run: python3 services/assessment-service/contracts/validate-w3-production-release.py
+      - name: Run release-register safety tests
+        run: python3 services/assessment-service/contracts/test-w3-production-release.py

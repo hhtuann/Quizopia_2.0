@@ -1,0 +1,962 @@
+schema_version: 1
+recorded_on: "2026-10-14"
+baseline:
+  commit: e615764613b661f8503de5fb5494fc7ea5224ba3
+  matrix: docs/architecture/w3-final-acceptance-matrix.md
+  counts:
+    PASS: 46
+    FAIL: 0
+    BLOCKED: 6
+    NOT VERIFIED: 5
+    NOT APPLICABLE: 2
+release_candidate_sha: null
+verdict: PRODUCTION NO-GO
+scope:
+  "11 inherited open Assessment backend release gates; frontend PR #77 and W3-M1/M2 retain separate
+  acceptance."
+ownership_status: PROPOSED
+evidence_contract:
+  required_receipt_fields:
+    - release_candidate_sha
+    - procedure
+    - executed_at
+    - environment
+    - executor
+    - tools
+    - expected_result
+    - actual_result
+    - reference
+    - integrity_sha256
+    - limitations
+    - independent_review_reference
+  environment_fields:
+    - name
+    - classification
+  deployment_receipt_fields:
+    - artifact_digest
+    - configuration_fingerprint
+  approval_fields:
+    - kind
+    - authority
+    - reviewer
+    - decided_at
+    - release_candidate_sha
+    - reference
+    - decision
+  approval_kinds:
+    - GATE_APPROVER
+    - INDEPENDENT_SECURITY
+    - LEADER
+  approval_decision: APPROVED
+  notice_waiver_fields:
+    - decision_maker
+    - authority
+    - risk
+    - scope
+    - review_conditions
+    - reference
+    - release_candidate_sha
+    - decided_at
+  integrity:
+    Use SHA-256 of the retained sanitized evidence manifest; record UTC execution timestamps
+    and actual tool versions. Deployment receipts bind service image digests and a secret-free configuration
+    fingerprint.
+  references:
+    Only actual retrievable HTTPS evidence URLs or existing repository-relative files. Never
+    present a template, example URL, empty receipt or planned procedure as verified evidence. Sensitive
+    evidence stays in approved restricted storage with a sanitized accessible reference.
+  approval:
+    Every PASS needs actual evidence and authorized gate approval. Independent review must be
+    attributable to a person other than the executor. APPROVAL-01 additionally requires both independent
+    security and Leader decisions for the exact candidate/environment/artifacts. Deployment approvals
+    bind the exact same artifact digest and configuration fingerprint as the receipt. Independent Security
+    and GATE_APPROVER reviewers must differ from the executor and assigned DRI; the Leader may also be
+    the accountable DRI but cannot replace independent review.
+  waiver:
+    Only NOTICE-04 may become NOT APPLICABLE in this overlay, following a written Leader/Security
+    soak waiver identifying decision maker, authority, risk, scope and expiry/review conditions. Both
+    authority approvals and actual waiver evidence are required; no self-approved HIGH-impact waiver.
+  trust_limit:
+    Schema validation screens completeness, not truth or approval authority. The independent
+    reviewer must retrieve evidence, verify integrity/source and confirm the decision maker has authority.
+  deployment_approval_fields:
+    - artifact_digest
+    - configuration_fingerprint
+  required_approval_kinds:
+    BUILD-02:
+      - GATE_APPROVER
+    NOTICE-04:
+      - INDEPENDENT_SECURITY
+    RECOVERY-05:
+      - GATE_APPROVER
+      - INDEPENDENT_SECURITY
+    DB-05:
+      - GATE_APPROVER
+    DB-08:
+      - GATE_APPROVER
+      - INDEPENDENT_SECURITY
+    TLS-02:
+      - GATE_APPROVER
+      - INDEPENDENT_SECURITY
+    CAPACITY-04:
+      - GATE_APPROVER
+    OBSERVE-02:
+      - GATE_APPROVER
+      - INDEPENDENT_SECURITY
+    PRIVACY-02:
+      - LEADER
+      - INDEPENDENT_SECURITY
+    DEPLOY-02:
+      - GATE_APPROVER
+      - INDEPENDENT_SECURITY
+    APPROVAL-01:
+      - INDEPENDENT_SECURITY
+      - LEADER
+  notice_waiver_approval_kinds:
+    - LEADER
+    - INDEPENDENT_SECURITY
+observations:
+  - id: MERGED-CI-PARTIAL
+    observed_on: "2026-10-14"
+    commit: e615764613b661f8503de5fb5494fc7ea5224ba3
+    classification: Public GitHub Actions metadata; partial BUILD-02 evidence, not gate approval
+    result:
+      All-event REST lookup identified successful completed push runs for Backend CI and Repository
+      validation at this exact merged SHA. Required-check policy, classic branch protections and approved
+      release candidate remain unverified.
+    references:
+      - https://github.com/hhtuann/Quizopia_2.0/actions/runs/38507476186
+      - https://github.com/hhtuann/Quizopia_2.0/actions/runs/38507476067
+    limitations:
+      Connector lookup alone returned no PR-event runs; the public all-event REST result supersedes
+      any absence inference. Branch-protection lookup was unauthorized; an empty ruleset response does not
+      establish absence of classic protections.
+    observed_at: "2026-10-14T04:04:08Z"
+    executor: Codex primary agent; public metadata inspection only
+    environment:
+      name: Public GitHub Actions API
+      classification: Read-only repository metadata
+    jobs:
+      Backend CI:
+        successful: 8
+        names:
+          - gateway
+          - identity
+          - quiz
+          - classroom
+          - assessment
+          - community
+          - proctoring
+          - ai
+      Repository validation:
+        successful: 2
+        names:
+          - compose-config
+          - full-validation
+  - id: W3-FINAL-LOCAL-BOUNDARY
+    observed_on: "2026-10-14"
+    commit: e615764613b661f8503de5fb5494fc7ea5224ba3
+    classification: Inherited local evidence only; no external release gate closed
+    result:
+      The original 59-gate matrix and executed evidence remain authoritative for their stated local
+      environments. This overlay does not rerun or relabel the 1,149-test suite.
+    references:
+      - docs/architecture/w3-final-acceptance-matrix.md
+      - docs/architecture/w3-final-assessment-acceptance.md
+    limitations:
+      Local clock progression, self-signed HTTPS, same-database peer recovery, small migration
+      fixtures, local dump/restore and load samples are not real soak, deployed TLS, fenced failover, production
+      migration, DR or approved SLA evidence.
+gates:
+  - id: BUILD-02
+    inherited_status: NOT VERIFIED
+    status: NOT VERIFIED
+    objective:
+      Required backend CI and repository checks pass at the exact approved merged release-candidate
+      SHA with verified merge and protection provenance.
+    severity: MEDIUM
+    release_blocking: true
+    proposed_owner: Repository/CI owner
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned repository maintainer with Actions/read-policy access
+    independent_reviewer: Independent repository reviewer
+    approval_authority: Repository policy owner; Leader selects the release candidate
+    prerequisites:
+      - Leader identifies the exact release-candidate commit; do not infer approval from merged develop.
+      - Repository owner supplies actual required workflow/job policy and classic/ruleset protections.
+    target_environment: GitHub repository Actions and branch-policy metadata; no deployment
+    procedure:
+      - 'Record git rev-parse origin/develop and git show --no-patch --format=fuller "$W3_RELEASE_SHA"; reconcile
+        merge provenance to PR #84 or any later approved changes.'
+      - With authorized repository tooling, paginate all-event Actions runs filtered to W3_RELEASE_SHA; retrieve
+        every required run and job with checked SHA, event, conclusion and timestamps. Public run links already
+        observed are partial evidence.
+      - Retrieve develop classic protection and ruleset/required-check policies with authorized read access;
+        compare successful jobs to the policy. If a required merged-SHA workflow is absent, owner authorizes
+        the appropriate workflow dispatch/re-run at that exact SHA, records provenance, and waits for completed
+        results.
+      - "Independently review policy-to-job coverage; do not substitute successful PR #84 head runs or PR-only
+        connector results."
+    pass_criteria:
+      - Exact approved release_candidate_sha matches every required backend/repository verification receipt.
+      - Every policy-required workflow/job is completed success; failed, skipped, cancelled or absent required
+        checks have no unexplained disposition.
+      - Merge provenance and effective branch protection/required-check policy are recorded and independently
+        reviewed.
+    minimum_evidence:
+      - Approved candidate SHA and merge provenance
+      - Actual workflow run/job URLs, event, checked SHA and conclusions
+      - Effective classic protection/ruleset and required-job inventory
+      - Independent repository review and owner approval
+    evidence: []
+    approvals: []
+    dependencies: []
+    remediation:
+      Resolve failing/missing required checks or absent policy access through repository ownership;
+      retain NOT VERIFIED until exact coverage is established.
+    execution_authorization:
+      Read-only metadata inspection is authorized now. Any dispatch or policy mutation
+      needs repository-owner authorization; this workstream must not weaken required checks.
+    final_signoff:
+      Repository policy owner approves coverage; Leader records exact RC selection. Neither
+      CI success nor PR merge grants release GO.
+    revalidate_on:
+      - Release-candidate SHA changes
+      - Required workflow/job or branch-policy changes
+      - New rerun supersedes recorded evidence
+    blocker:
+      Exact merged-SHA successful runs are observed, but approved RC and effective required-check/protection
+      policy evidence are unavailable.
+    ownership_status: PROPOSED
+  - id: NOTICE-04
+    inherited_status: NOT VERIFIED
+    status: NOT VERIFIED
+    objective:
+      Resolve the real 48-hour soak decision and, when mandated, verify actual authenticated notice
+      accessibility and cutoff behavior over the approved wall-clock window.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Operations + Security
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned staging operator using synthetic consenting test actors
+    independent_reviewer: Independent Security reviewer of timestamps, telemetry and exceptions
+    approval_authority:
+      Independent Security for completed-soak acceptance; prior Leader/Security requirement/observation
+      decision; both authorities for any waiver
+    prerequisites:
+      - Written Leader/Security decision whether real elapsed-time soak is mandatory; approved treatment of
+        dependency interruptions.
+      - Authenticated inbox, exact recipient eligibility, durable notices and cutoffs ready in approved staging;
+        synthetic isolated test actors only.
+      - Other dependencies accepted; production notifications and backdated confirmation forbidden.
+    target_environment:
+      Authorized deployment-like staging with real time, authenticated owner inbox and
+      retained availability telemetry
+    procedure:
+      - Record the requirement decision before testing. If waived, attach written decision maker/authority,
+        risk, scope, expiry/review conditions and both approvals; propose NOT APPLICABLE, never PASS.
+      - If required, obtain a bounded staging test authorization; record RC, service digests, sanitized configuration,
+        real UTC clock source, start/end plan and approved interruption treatment.
+      - Create an authorized isolated Teacher request after endAt; observe committed PUBLISH and actual accessibility
+        CONFIRM. Capture confirmedNoticeAt and closureCutoffAt from authenticated owner/read evidence and
+        restricted durable audit.
+      - Observe real wall-clock progression for at least 48 elapsed hours after actual confirmation. Collect
+        approved authenticated availability probes, exception/outage history and telemetry without recording
+        tokens or answer payloads. Never advance clocks to satisfy this gate.
+      - Verify permitted pre-cutoff Student behavior, denial at/after individual cutoff, saved-answer finalization,
+        Teacher-only COMPLETE and owner review only after CLOSED; verify missing confirmation leaves cutoff
+        null and blocks forced submission.
+      - Have Security independently review the entire observation window and any interruptions against the
+        explicit accepted treatment; preserve actual dates and evidence.
+    pass_criteria:
+      - Written Leader/Security soak decision exists; if required, actual elapsed end minus confirmedNoticeAt
+        is at least 48 hours.
+      - Authentic owner notice is accessible throughout the approved observation window under the explicitly
+        approved interruption treatment, with complete telemetry and exception history.
+      - Individual cutoff equals confirmedNoticeAt plus exactly 48 elapsed hours; missing confirmation has
+        no cutoff or closure-driven submission.
+      - Cutoff/Teacher COMPLETE/CLOSED review semantics match ADR-015 C1–C10; independent evidence review
+        and authorized gate approval complete.
+    minimum_evidence:
+      - Written soak decision and approved interruption/observation treatment
+      - Actual UTC confirmation, cutoff and start/end timestamps with elapsed calculation
+      - Authenticated availability telemetry and complete exception history
+      - Sanitized PUBLISH/CONFIRM/finalization/COMPLETE audit and negative outcomes
+      - Independent Security review; formal waiver record and both authority approvals if N/A
+    evidence: []
+    approvals: []
+    dependencies:
+      - DEPLOY-02
+      - OBSERVE-02
+      - RECOVERY-05
+      - CAPACITY-04
+    remediation:
+      Investigate interruption or inaccessible notice without inventing delivery time or changing
+      existing cutoff rights; retain open status until accepted recovery/re-observation or authorized waiver.
+    execution_authorization:
+      Leader/Security approve staging target, test actors, notice creation and observation
+      treatment; operator accepts bounded execution. No real Student notices or production clock mutation.
+    final_signoff:
+      Independent Security accepts the completed soak against the prior written Leader/Security
+      requirement and observation decision. Formal N/A requires both Leader and Security written scoped
+      risk acceptance with expiry/review conditions.
+    revalidate_on:
+      - RC, inbox topology, notice/eligibility logic or authentication changes
+      - Availability controls or approved interruption policy changes
+      - Observation history incomplete or waiver expires/scope changes
+    blocker:
+      No written soak requirement/waiver decision, authorized staging observation window or actual
+      48-hour evidence.
+    ownership_status: PROPOSED
+  - id: RECOVERY-05
+    inherited_status: BLOCKED
+    status: BLOCKED
+    objective:
+      Fenced multi-node partition/promotion recovery preserves acknowledged Assessment writes and
+      trusted Identity authority within approved durability/RPO requirements.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Platform/SRE + Security
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned database/platform failover operators
+    independent_reviewer: Independent Security and DBA recovery reviewer
+    approval_authority: Platform change authority and Security; Leader approves durability/RPO criteria
+    prerequisites:
+      - Authorized multi-node topology, supported fencing/promotion mechanism and isolated fault domain.
+      - Approved acknowledged-write durability/RPO requirements for Assessment and Identity; restore and fencing
+        runbooks.
+    target_environment:
+      Authorized multi-node deployment-like staging with real replication, primary fencing
+      and network partition controls
+    procedure:
+      - Record RC/images/configuration, topology/replication settings, approved RPO and acknowledged-write
+        manifest for both separately owned databases. Seed synthetic receipts, results, notices/cutoffs and
+        current Identity authority.
+      - Using the approved fault-injection mechanism, partition the primary, demonstrate fencing before promotion,
+        and retain independent cluster/network/operator timelines. Test attempted writes by the old primary
+        and bypass-capable old binaries.
+      - Exercise submissions/notice acknowledgments across failure, including an uncertain commit; re-establish
+        trusted Identity primary/Redis equality and retry the exact durable key/payload rather than assuming
+        rollback.
+      - Promote and recover under the runbook; reconcile acknowledged answer/result identity, receipts, notice/cutoff
+        evidence and Identity security authority to the pre-fault manifest within approved requirements.
+      - Test stale authority, lagging restore, old-writer reconnect and unauthorized recovery access; confirm
+        fail-closed behavior. Independently review complete fault/recovery logs and final invariants.
+    pass_criteria:
+      - Actual network partition and promotion occurred; old primary/old binaries cannot regain writes until
+        explicitly safe.
+      - All acknowledged Assessment and Identity authority writes satisfy approved durability/RPO; uncertain
+        commits reconcile to one durable outcome.
+      - No duplicate terminalization, lost acknowledged results/receipts/cutoffs or stale-authority admission;
+        restored Redis equals trusted current primary facts.
+      - Actual negative fault cases, recovery timing and independent review are complete.
+    minimum_evidence:
+      - Approved durability/RPO and fault authorization
+      - Topology, replication and fencing/promotion evidence
+      - Pre/post acknowledged-write integrity manifests and uncertain-commit replay
+      - Negative stale-authority/old-writer results
+      - Restricted cluster logs and independently accepted recovery report
+    evidence: []
+    approvals: []
+    dependencies:
+      - TLS-02
+      - DB-08
+    remediation:
+      Fix fencing/replication/recovery or integrity gaps and repeat affected partition cases;
+      same-DB peer recovery or PostgreSQL restart cannot substitute.
+    execution_authorization:
+      Named Platform change authority, DBA and Security authorize exact staging nodes,
+      fault mechanism, window, stop conditions and recovery operators. No production faults authorized.
+    final_signoff:
+      Independent Security/DBA accept the reconciled drill; Platform confirms approved RPO/durability
+      and recovery controls.
+    revalidate_on:
+      - Database replication/fencing/promotion configuration changes
+      - Database version, RC, runtime privilege or authority-recovery logic changes
+      - Durability/RPO requirements change
+    blocker:
+      No authorized multi-node fault environment, approved durability criteria, operators or independently
+      reviewed failover artifacts.
+    ownership_status: PROPOSED
+  - id: DB-05
+    inherited_status: NOT VERIFIED
+    status: NOT VERIFIED
+    objective:
+      Fresh and upgrade migrations through V5 preserve authoritative invariants at target-like
+      scale within approved lock, time and storage headroom.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: DBA/Platform
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned migration DBA with approved migration-owner role
+    independent_reviewer: Independent DBA/Backend integrity reviewer
+    approval_authority: DBA/Platform change authority; Leader accepts capacity/maintenance criteria
+    prerequisites:
+      - Approved target-like dataset or sanitized representative copy with documented representativeness.
+      - Accepted migration duration, lock, WAL, disk/temp-space thresholds and recovery headroom; backup/restore
+        accepted.
+      - Reviewed migration-owner/runtime-role separation and traffic drain inventory.
+    target_environment:
+      Isolated approved target-size PostgreSQL 17 environment with target runtime versions
+      and actual migration tooling
+    procedure:
+      - Record PostgreSQL/Flyway/Java/driver versions, RC, immutable V1–V5 checksums, initial schema version,
+        row/table counts and storage sizes; approve representativeness and thresholds before execution.
+      - Rehearse backup and traffic/worker drain with inventory proving no old writer; capture baseline integrity
+        manifests for publication/attempt/result identity, snapshot/result digests, receipts and notice/cutoff
+        evidence.
+      - With the reviewed migration owner, execute repository-owned Flyway fresh-install and upgrade paths
+        through V5 against separate verified targets; run validate and application schema validation without
+        rewriting merged migrations.
+      - Measure actual total/lock duration including V5 ACCESS EXCLUSIVE, WAL and disk/temp-space peaks with
+        approved monitoring; compare to accepted thresholds/headroom.
+      - Verify current and permitted mixed-version runtime behavior or isolation, unchanged legacy/publication/result
+        identities and restricted runtime privileges; rehearse documented data-preserving roll-forward/recovery.
+    pass_criteria:
+      - Dataset counts/sizes and representativeness accepted; fresh and upgrade Flyway through V5 validate
+        with unchanged checksums.
+      - Traffic drain and writer exclusion proven; supported runtime versions and schema constraints/FKs/triggers
+        validate.
+      - Observed duration/lock/WAL/disk/temp peaks satisfy explicitly approved thresholds with headroom.
+      - Authoritative identities, complete answers/results, cutoff/recipient evidence and receipts survive;
+        reviewed roll-forward recovery works.
+    minimum_evidence:
+      - Approved dataset manifest, versions and quantitative thresholds
+      - Fresh/upgrade Flyway provenance and checksums
+      - Drain inventory and actual lock/time/WAL/disk/temp traces
+      - Pre/post authoritative invariant comparison
+      - Accepted roll-forward/recovery drill and independent review
+    evidence: []
+    approvals: []
+    dependencies:
+      - DB-08
+    remediation:
+      Resolve dataset or capacity mismatch, drain/compatibility or migration defects through
+      separately reviewed engineering work; never rewrite merged V1–V5 or claim the small 93.878 ms fixture
+      as target-scale acceptance.
+    execution_authorization:
+      DBA/Platform authorize exact isolated databases, dataset use, migration-owner
+      permissions, maintenance window and stop/recovery thresholds; no production migration authorized.
+    final_signoff:
+      Independent DBA/Backend review plus DBA/Platform acceptance of actual thresholds and
+      integrity.
+    revalidate_on:
+      - Migration, PostgreSQL/Flyway/driver/runtime version changes
+      - Target dataset scale, disk/replication settings or drain plan changes
+      - Accepted duration/storage thresholds change
+    blocker:
+      No approved target-size dataset, resource thresholds, operator window or target-scale migration
+      measurements.
+    ownership_status: PROPOSED
+  - id: DB-08
+    inherited_status: BLOCKED
+    status: BLOCKED
+    objective:
+      Authorized encrypted backup and isolated restore meet approved RPO/RTO while preserving authoritative
+      Assessment and Identity integrity and access restrictions.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: DBA/SRE + Security
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned backup/restore operators using restricted approved roles
+    independent_reviewer: Independent DBA/Security recovery reviewer
+    approval_authority: DBA/SRE backup owner and Security; Leader accepts RPO/RTO
+    prerequisites:
+      - Approved backup system, encrypted storage/key custody/access and backup retention policy.
+      - Approved Assessment/Identity RPO/RTO and acknowledged-write durability requirements; isolated restore
+        destination.
+    target_environment:
+      Authorized backup platform and isolated deployment-like restore targets for separately
+      owned Assessment and Identity databases
+    procedure:
+      - Record target topology, RC/images/configuration, database versions, backup schedule/coverage, encryption/access/retention
+        controls and approved RPO/RTO. Keep keys, dumps and confidential database content out of Git.
+      - Record a sanitized manifest of acknowledged submissions/results/notices/receipts/audits and Identity
+        authority evidence; execute a real backup through the approved system with provenance and integrity
+        metadata.
+      - Restore actual backups into isolated verified destinations using restricted operators/roles; measure
+        recovery point and elapsed recovery time, and independently verify storage/key/secret access restrictions.
+      - Compare restored authoritative Assessment and Identity integrity to the manifest within approved durability/RPO;
+        verify audit, answer/result identity, notification/cutoff and retry evidence. Reconstruct Redis from
+        trusted current primary, never treat stale projection as authority.
+      - Execute and review the recovery runbook including failed restore/corrupt backup/unauthorized access
+        cases; preserve restricted logs and sanitized report.
+    pass_criteria:
+      - Actual authorized backup/restore system, encryption, retention and least-privilege access controls
+        verified.
+      - Measured recovery point/time meet explicitly approved RPO/RTO and acknowledged-write requirements.
+      - Authoritative submissions/results/notification evidence/receipts/audits and Identity authority reconcile;
+        restricted restore roles and secret controls proven.
+      - Independent DBA/Security accept an executed recoverable runbook; local pg_dump alone is insufficient.
+    minimum_evidence:
+      - Approved RPO/RTO, backup/retention policy and isolated execution authorization
+      - Backup identity/time/encryption/access and integrity manifest
+      - Actual isolated restore timeline and measured RPO/RTO
+      - Assessment/Identity pre/post integrity comparison and negative controls
+      - Independent recovery-runbook acceptance
+    evidence: []
+    approvals: []
+    dependencies:
+      - TLS-02
+      - PRIVACY-02
+    remediation:
+      Resolve backup coverage, retention/access, integrity or recovery timing gaps; repeat real
+      restore. Preserve acknowledged evidence and do not substitute local test-container dumps.
+    execution_authorization:
+      Backup owner, DBA/SRE and Security authorize source backup access, exact isolated
+      destinations, dataset/privacy controls, restore roles and stop conditions; no production restore authorized.
+    final_signoff:
+      Independent DBA/Security accept restore integrity, access and measured RPO/RTO; authorized
+      policy owners approve thresholds.
+    revalidate_on:
+      - Backup schedules/storage/encryption/retention/access or restore mechanism changes
+      - Database versions, schema, RC or durability/RPO/RTO requirements change
+    blocker:
+      No authorized backup platform/restore target, approved RPO/RTO, policy or real operational
+      restore evidence.
+    ownership_status: PROPOSED
+  - id: TLS-02
+    inherited_status: BLOCKED
+    status: BLOCKED
+    objective:
+      Actual proposed private topology validates certificates, hostnames, trust, least-privilege
+      SERVICE clients and network boundaries on every private/OAuth/JWKS hop.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Platform/DevSecOps
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned private-network/certificate operators with service owners
+    independent_reviewer: Independent Security transport/topology reviewer
+    approval_authority: Platform/DevSecOps change authority and Security
+    prerequisites:
+      - Approved private DNS/endpoints, issued certificate chains and trust-store ownership.
+      - Exact Gateway/Assessment/Quiz/Classroom client inventories and scope-specific provisioning; approved
+        ingress/egress policy.
+    target_environment:
+      Actual proposed private deployment-like staging topology, ingress/proxies and trust
+      stores
+    procedure:
+      - Inventory each actual private business, Identity OAuth and JWKS destination with certificate hostname/chain/expiry,
+        trust-store fingerprint and image/configuration binding; inspect secure transport settings without
+        printing secrets.
+      - Verify no production insecure-loopback override and no credential-bearing redirect; exercise authenticated
+        SERVICE requests through the actual hops with separately provisioned exact callers and scope-specific
+        grants.
+      - For recipient eligibility, verify exact POST /internal/security/notice-recipients/{studentId}/eligibility
+        and identity.notice-recipient.read, Assessment-only allowlist, independent RS256 SERVICE verification,
+        no USER impersonation, minimal Boolean/student/time binding, current ACTIVE/verified/STUDENT and complete
+        primary/Redis equality.
+      - Run approved wrong/untrusted certificate, wrong hostname, wrong client/scope and USER bearer negative
+        cases; unknown authority fails closed 503 without JWT fallback or positive eligibility cache.
+      - Verify public edge denies all /internal/** and direct network bypass, inspect actual ingress/egress/proxy
+        restrictions, bounded private HTTPS capacity and no-store/redaction; independently review sanitized
+        outcomes.
+    pass_criteria:
+      - All private/OAuth/JWKS hops validate actual issued certificate chains and destination hostnames using
+        approved trust stores.
+      - Insecure-loopback overrides absent; exact clients/scopes and private network policy enforced; no public
+        /internal/** exposure.
+      - Wrong certificate/host/client/scope and USER eligibility attempts rejected; narrow recipient response
+        exposes no profile/email/password/complete roles/credentials.
+      - Actual topology retains LD-05 primary/Redis fail-closed semantics, bounded capacity and no-store/redaction;
+        independent Security review complete.
+    minimum_evidence:
+      - Actual endpoint/topology and sanitized certificate/trust/configuration fingerprints
+      - Exact SERVICE client/scope and network policy manifest
+      - Positive and wrong-certificate/host/client/scope/USER negative outcomes
+      - Public-edge/internal-route denial and redaction/no-store evidence
+      - Independent Security transport acceptance
+    evidence: []
+    approvals: []
+    dependencies: []
+    remediation:
+      Correct certificate/trust/DNS/allowlist/network or exact-scope defects and repeat actual
+      hops; local self-signed HTTPS is supporting evidence only.
+    execution_authorization:
+      Platform/DevSecOps and Security approve exact staging endpoints, certificate/trust
+      changes, client provisioning and bounded negative tests. No production configuration changes authorized.
+    final_signoff:
+      Independent Security accepts actual topology and least-privilege transport; Platform
+      confirms managed certificate/trust ownership.
+    revalidate_on:
+      - Private endpoints/DNS/proxy/network policy changes
+      - Certificate/trust chain or OAuth/JWKS/client/scope changes
+      - Security configuration, image or RC changes
+    blocker:
+      No authorized deployed private endpoints/certificates/trust/network manifest or actual-topology
+      transport review.
+    ownership_status: PROPOSED
+  - id: CAPACITY-04
+    inherited_status: NOT VERIFIED
+    status: NOT VERIFIED
+    objective:
+      Accepted complete snapshot/answer payloads and closure operations remain correct under approved
+      target concurrency, latency/error budgets and resource headroom.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Backend Performance Owner + Platform
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned performance operator with Backend and Platform support
+    independent_reviewer: Independent Backend/Platform performance and integrity reviewer
+    approval_authority:
+      Leader/Platform approve workload and latency/error/resource criteria; engineering
+      authority approves any budget change
+    prerequisites:
+      - Written target workload/concurrency, representative data, test duration, latency/error budgets and
+        resource/headroom thresholds.
+      - Target-like staging hardware/JVM/JDBC/database/network limits and monitoring; retain the unchanged
+        12,613-question fixture.
+    target_environment:
+      Authorized isolated deployment-like load environment with target resources and fault
+      controls
+    procedure:
+      - Record RC/digests/configuration/versions and approved workload, duration, thresholds and dataset distributions.
+        Retain the 12,613-question fixture and test all accepted full-answer sizes and encoding/expansion
+        cases.
+      - Measure complete delivery and final answer HTTP body size against the initial 2 MiB engineering budget;
+        verify no truncation, sanitized mutation-free oversize rejection and explicit resolution before accepting
+        a snapshot that cannot safely submit. Preserve W3-A handoff limitations.
+      - Run repeated target-concurrency START/RESUME/SAVE/SUBMIT and closure REQUEST/bounded batch/COMPLETE
+        loads; compare complete persisted answers/results/receipts and atomic complete membership capture.
+        Capacity failures must roll REQUEST back fully.
+      - Collect heap/GC, pool occupancy/acquisition, CPU, locks, throughput, latency/error distribution, failure/retry/timeout
+        and resource headroom. Include lost acknowledgments and multi-instance pressure; prove no duplicate
+        terminalization or inconsistent grade/cutoff.
+      - Review raw measurement provenance and full results against approved budgets. Do not invent an SLA/P95/P99
+        or alter timeouts; any correction needs engineering evidence and explicit authorization before retest.
+    pass_criteria:
+      - Repeated approved target load meets written latency/error/resource/headroom budgets with reviewed
+        test data and duration.
+      - All accepted snapshots safely deliver and complete answer payloads submit without truncation; oversize
+        rejection sanitized and mutation-free; 12,613-question fixture retained.
+      - SAVE/SUBMIT and bounded closure throughput measured with heap/GC/JDBC/acquire/CPU/lock/failure/retry/timeout
+        evidence.
+      - No duplicate terminalization, loss of complete answers or partial successful membership capture under
+        pressure; uncertain commits recover correctly.
+    minimum_evidence:
+      - Approved workload/duration/latency/error/resource thresholds and data distribution
+      - Actual snapshot/full-answer/body expansion sizes and oversize invariant outcomes
+      - Repeated load traces and heap/GC/pool/acquisition/CPU/lock measurements
+      - SAVE/SUBMIT/closure throughput and failure/retry/timeout integrity report
+      - Independent performance review and authorized budget decisions
+    evidence: []
+    approvals: []
+    dependencies:
+      - TLS-02
+      - DB-05
+    remediation:
+      Resolve measured resource/capacity mismatch in separately reviewed work; do not truncate
+      payloads, weaken atomicity, reduce the retained fixture or raise timeouts without approval/evidence.
+    execution_authorization:
+      Leader/Platform approve workload/budgets; Platform authorizes exact isolated
+      target, synthetic data, pressure limits and stop criteria. No production load test authorized.
+    final_signoff:
+      Independent Backend/Platform accept reproducible measurements against approved budgets
+      and complete-answer/integrity checks.
+    revalidate_on:
+      - RC/images, accepted payload shapes/sizes or capacity limits change
+      - JVM/JDBC/database/hardware/timeout configuration changes
+      - Approved workload, latency/error budgets or duration changes
+    blocker: No approved workload/SLA/error/resource budgets, target resources or repeated target-load measurement.
+    ownership_status: PROPOSED
+  - id: OBSERVE-02
+    inherited_status: BLOCKED
+    status: BLOCKED
+    objective:
+      Actual restricted telemetry, root diagnostic redaction, alerts and incident escalation work
+      in the proposed deployment without exposing protected data.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: SRE/Operations + Security
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned telemetry and incident operators
+    independent_reviewer: Independent Security and Operations reviewer
+    approval_authority:
+      Operations owner approves alert/escalation criteria; Security approves access/redaction
+      controls
+    prerequisites:
+      - Deployed collection/scrape/audit sinks, restricted access and approved retention policy.
+      - Written alert thresholds, runbook/escalation path and named incident owners; synthetic canaries only.
+    target_environment:
+      Authorized deployment-like staging with actual log/proxy/APM/exporter/metrics/alert
+      sinks
+    procedure:
+      - Record RC/images/configuration and enumerate actual metrics, durable audit, application/root diagnostics,
+        proxy/APM/access-log/exporter sinks and their access controls.
+      - Collect assessment.closure.unconfirmed, assessment.closure.oldest_seconds, assessment.closure.eligible
+        and assessment.closure.work with bounded outcome tags; demonstrate backlog age, ineligible versus
+        authority_unavailable, worker failure/retry and audit recovery visibility.
+      - Using approved harmless synthetic failures, trigger actual alerts at approved thresholds and execute
+        the operator runbook/escalation; retain delivery acknowledgment and named responder actions. Accepted
+        indefinite ineligible closure remains blocked, never bypassed.
+      - Exercise approved root diagnostic settings and inspect actual sink output for suppression of Authorization/USER
+        evidence/cookies/client secrets/keys/protected answer bodies/locators. Check proxy/APM/access logs/query
+        capture/exporters/support exports, not only application categories.
+      - Verify scrape/audit access restrictions and absence of Student/Attempt/Publication IDs or answers
+        in public metric labels; retain sanitized scanner results and have independent Security/Operations
+        review actual evidence.
+    pass_criteria:
+      - Actual telemetry collection, restricted scrape/audit access, named escalation ownership and delivered
+        alerts proven against approved thresholds.
+      - Unconfirmed backlog/oldest age, ineligible versus authority unavailable, worker failure/retry and
+        auditable recovery distinguishable.
+      - Actual root diagnostic/proxy/APM/access/exporter sinks suppress credentials/protected bodies/locators;
+        public metric labels contain no Student/Attempt/Publication identifiers.
+      - Runbook exercise completes with independently accepted incident response and redaction evidence.
+    minimum_evidence:
+      - Actual sink inventory/configuration fingerprint and access-control outcomes
+      - Aggregate metric samples and approved thresholds
+      - Real alert-delivery acknowledgment and escalation/runbook timeline
+      - Sanitized redaction scans covering root diagnostics and all actual sinks
+      - Independent Security/Operations review and named incident ownership
+    evidence: []
+    approvals: []
+    dependencies:
+      - TLS-02
+      - PRIVACY-02
+    remediation:
+      Correct collection/access/alert/escalation or sink redaction gaps, purge exposed test data
+      through approved incident procedures and repeat affected exercises; unit metrics/test scans cannot
+      close this gate.
+    execution_authorization:
+      Operations/Security approve exact staging sinks, synthetic diagnostics/faults,
+      collection limits and alert recipients. No real credentials or Student answer data used as canaries.
+    final_signoff:
+      Independent Security accepts access/redaction; Operations accepts measured alert thresholds,
+      real delivery and named escalation ownership.
+    revalidate_on:
+      - Log/APM/proxy/exporter/scrape/access configuration or RC changes
+      - Thresholds, incident owners, retention or operational runbook changes
+    blocker:
+      No approved deployed telemetry/alert access, thresholds, escalation owners or actual sink redaction
+      exercise.
+    ownership_status: PROPOSED
+  - id: PRIVACY-02
+    inherited_status: BLOCKED
+    status: BLOCKED
+    objective:
+      Explicit authorized retention, erasure/anonymization, backup and operational-access rules
+      match controls without destroying immutable grading/notice/audit integrity.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Leader + Privacy/Security
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned privacy/control owners and authorized data operators
+    independent_reviewer: Independent Privacy/Security reviewer
+    approval_authority: Leader and Privacy/Security policy authority
+    prerequisites:
+      - Authorized decision makers and inventory of authoritative data categories/ownership.
+      - Immutable grading/result/audit and notice/cutoff obligations identified; backup and restricted access
+        inventory.
+    target_environment:
+      Policy review plus authorized isolated control-validation environment; no real data
+      deletion in this workstream
+    procedure:
+      - Inventory answers, immutable delivery snapshots/results, notification history, closure/cutoff evidence,
+        receipts/audits, Identity authority, logs and backups with owners/access and integrity obligations.
+      - Obtain written authorized retention periods and erasure/anonymization behavior by category, including
+        backup retention, legal/privacy authority, exceptions and audit preservation; no arbitrary TTL or
+        invented duration.
+      - Map each approved rule to existing actual controls and identify missing implementation as separately
+        scoped engineering work. Preserve immutable result/notice evidence pending policy decisions.
+      - In an explicitly authorized isolated environment with synthetic data, execute approved access/retention/erasure/anonymization
+        control cases and compare outcome to policy without breaking grade identity, durable retries, notices
+        or audits.
+      - Have Privacy/Security independently review policy/control parity, backup handling and operational
+        access; record actual names, dates and approval references only when assigned.
+    pass_criteria:
+      - Explicit written authorized periods, data categories/ownership, backup retention/access and erasure/anonymization
+        semantics exist.
+      - Rules preserve accepted immutable grading/notice/audit integrity or contain a separately authorized
+        product/security resolution of conflicts.
+      - Actual restricted-access and implementation/control evidence matches approved policy across answers/snapshots/notification/closure
+        evidence and backups.
+      - Independent Privacy/Security sign-off and Leader policy approval recorded.
+    minimum_evidence:
+      - Named authorized category owners and explicit signed retention/erasure/access decisions
+      - Data/control inventory including backups and immutable obligations
+      - Actual synthetic control-case results and restricted operational access checks
+      - Policy/control gap resolution evidence
+      - Independent Privacy/Security and Leader approval records
+    evidence: []
+    approvals: []
+    dependencies: []
+    remediation:
+      Obtain policy decisions first; resolve implementation/control gaps in separately reviewed
+      work. Do not invent periods, add TTLs or delete authoritative evidence to complete the register.
+    execution_authorization:
+      Leader/Privacy/Security approve policy and any isolated synthetic control execution.
+      Production retention/deletion/access changes require separate explicit authorization.
+    final_signoff:
+      Independent Privacy/Security accept policy/control parity; Leader approves product/security
+      policy decisions and exceptions.
+    revalidate_on:
+      - Retention/erasure/access/backup policy or legal scope changes
+      - Data categories, schema, immutable obligations or implementing controls change
+    blocker:
+      No approved periods, erasure/anonymization decisions, category ownership or matching implementation/control
+      sign-off.
+    ownership_status: PROPOSED
+  - id: DEPLOY-02
+    inherited_status: NOT VERIFIED
+    status: NOT VERIFIED
+    objective:
+      Executed authorized staging rollout proves writer drain, safe migrations, dependency activation,
+      recovery and emergency disable without losing durable cutoff rights.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Platform/SRE + Backend
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned staging release operator with service owners
+    independent_reviewer: Independent Backend/Security deployment reviewer
+    approval_authority: Platform change authority and Security; Leader approves staging scope and candidate
+    prerequisites:
+      - Exact approved release-candidate SHA, service image digests and sanitized configuration/flag manifest.
+      - Authorized staging, actual dependency credentials held by operators, backup/migration/transport/privacy
+        prerequisites and old-instance inventory.
+      - Reviewed runbook including stop conditions, mixed-version strategy and named rollback/incident owners.
+    target_environment:
+      Authorized deployment-like staging, separate service databases, actual private ingress
+      and Identity/Redis
+    procedure:
+      - Approve exact target, RC/artifact digests and feature manifest; inventory every old Gateway/Assessment/worker
+        and bypass-capable downstream instance. Use w3-final-deployment-runbook.md preflight/migration/activation
+        order.
+      - Execute approved backup and writer/worker drain; prove old binaries cannot resume writes or bypass
+        admission. Migrate with reviewed owner role and validate schema/checksums before restricted runtime
+        roles start.
+      - Verify fresh Identity primary/Redis convergence and each narrow SERVICE client/scope, protected OAuth/JWKS,
+        cursor key versions and real authenticated owner inbox access. Connectivity or JWKS alone is not aggregate
+        Identity/SMTP health proof.
+      - Under the separate bounded staging activation authorization, activate dependencies in order; execute
+        authenticated positive/negative end-to-end Publication/Attempt/SUBMIT/results/closure/inbox cases.
+        Test actual PUBLISH/CONFIRM with synthetic actors only; attestation alone never proves accessibility.
+      - Exercise failed startup, restart, roll-forward and mixed-version isolation; safely disable worker/routes
+        under the incident procedure while preserving notices, confirmed cutoffs, retry identities and authenticated
+        inbox access where safe. Never roll back to bypass-capable writers.
+      - Collect exact timestamps, digests, sanitized configuration/flags, drain/routing evidence and outcomes;
+        independent Backend/Security review reconciles all live workflow rights and limitations.
+    pass_criteria:
+      - Actual authorized staging execution bound to approved SHA, image digests and exact configuration/feature
+        manifest.
+      - Old Gateway/Assessment/worker inventory and writer drain/migration order proven; mixed-version safety
+        or explicit traffic isolation demonstrated.
+      - Fresh Identity/Redis authority, narrow clients/scopes, cursor keys and authenticated inbox readiness
+        pass before dependent activation.
+      - Failed-startup/restart/roll-forward and emergency-disable drills preserve durable answers/results/receipts
+        and confirmed notice/cutoff rights.
+      - Actual authenticated smoke and negative checks plus independent deployment review complete.
+    minimum_evidence:
+      - Environment-specific execution authorization and approved RC/images/configuration manifest
+      - Old-instance/drain/routing and actual Flyway/runtime-role evidence
+      - Dependency readiness, exact-scope and authenticated smoke outcomes
+      - Failed-start/restart/roll-forward/mixed-version/disable timelines and invariant comparisons
+      - Independent review, stop/recovery decisions and named incident/rollback owners
+    evidence: []
+    approvals: []
+    dependencies:
+      - BUILD-02
+      - TLS-02
+      - DB-05
+      - DB-08
+      - PRIVACY-02
+    remediation:
+      Correct rollout/dependency/drain/recovery defects and repeat affected stages under renewed
+      authorization; an unexecuted runbook cannot PASS.
+    execution_authorization:
+      Leader/Platform/Security authorize exact staging RC, images, flag changes,
+      synthetic actors, window and stop/recovery owners. This register authorizes no deployment or production
+      activation.
+    final_signoff:
+      Independent Backend/Security accept actual staging rollout and recovery; Platform records
+      executed change acceptance.
+    revalidate_on:
+      - RC/images/configuration/flags or service topology changes
+      - Migration/drain/mixed-version/recovery procedure changes
+      - Identity/Redis/cursor-key provisioning changes
+    blocker:
+      No named approved RC/images, authorized staging rollout/operator window or executed drain/recovery
+      evidence.
+    ownership_status: PROPOSED
+  - id: APPROVAL-01
+    inherited_status: BLOCKED
+    status: BLOCKED
+    objective:
+      Independent security acceptance and explicit Leader GO bind reconciled technical gates to
+      exact environment, candidate and artifact scope.
+    severity: HIGH
+    release_blocking: true
+    proposed_owner: Independent Security Reviewer + Leader
+    dri: UNASSIGNED — LEADER ASSIGNMENT REQUIRED
+    executor: Assigned release coordinator collecting actual operator evidence
+    independent_reviewer: Named independent Security reviewer, distinct from implementation/execution authors
+    approval_authority: Independent Security approval and explicit Leader release authority
+    prerequisites:
+      - All mandatory technical gates PASS or carry explicit authorized scoped risk dispositions; no silent
+        waiver.
+      - Actual RC/digests/configuration/topology, integrity evidence and open defect inventory available.
+      - Named independent Security reviewer, Leader, rollback/incident owners and restricted final evidence
+        pack.
+    target_environment:
+      Release decision against the actual reviewed candidate and proposed environment;
+      governance step only
+    procedure:
+      - Reconcile all eleven gate states and retrieve/verify evidence integrity, tested SHA/images/configuration
+        and human authority. Mandatory technical gates must pass or have separately explicit authorized risk
+        dispositions; an unaccepted failure blocks GO.
+      - Have a genuinely independent Security reviewer inspect actual RC/configuration/deployed topology and
+        negative security evidence; resolve open HIGH/BLOCKER issues or obtain formally authorized governance
+        with exact risk/scope/expiry. Primary-agent self-review is excluded.
+      - Record exact release scope, limitations and separate frontend/monitoring acceptance boundaries; obtain
+        named rollback/incident owners and accepted recovery plan.
+      - Obtain actual signed independent Security approval with reviewer/date/source, then actual explicit
+        Leader GO/NO-GO identifying environment, artifact SHA/digests and authorized scope. Store the final
+        decision with referenced evidence pack.
+      - Only separately authorized release operators may act on GO. This documentation assignment ends with
+        the Draft PR and report; do not merge or activate production.
+    pass_criteria:
+      - Every mandatory technical gate accepted by actual evidence or explicit authorized risk disposition;
+        no unresolved ungoverned HIGH/BLOCKER defect.
+      - Named independent Security reviewer approved actual candidate/configuration/topology with dated written
+        reference and limitations.
+      - Actual explicit Leader GO names exact environment and approved artifact SHA/digests, scope and named
+        rollback/incident owners.
+      - Final release record/evidence pack retained with integrity/source references; approvals never transfer
+        automatically to another SHA/configuration.
+    minimum_evidence:
+      - Reconciled gate receipts and any actual authorized risk dispositions
+      - Actual independent Security review and dated named approval
+      - HIGH/BLOCKER defect dispositions and scoped limitations
+      - Explicit Leader GO/NO-GO for environment/SHA/digests
+      - Named rollback/incident owners and stored final release record
+    evidence: []
+    approvals: []
+    dependencies:
+      - BUILD-02
+      - NOTICE-04
+      - RECOVERY-05
+      - DB-05
+      - DB-08
+      - TLS-02
+      - CAPACITY-04
+      - OBSERVE-02
+      - PRIVACY-02
+      - DEPLOY-02
+    remediation:
+      Keep production NO-GO until missing evidence, independent review and actual Leader decision
+      exist; self-review, register completion, CI success or merge cannot replace authorization.
+    execution_authorization:
+      Read-only coordination is authorized now; independent Security must accept
+      review scope and Leader alone issues applicable release authorization. No production action authorized
+      by this register.
+    final_signoff:
+      Both actual independent Security APPROVED and Leader APPROVED/GO records for exact candidate/environment/artifacts,
+      plus stored gate reconciliation and named rollback/incident owners.
+    revalidate_on:
+      - Any candidate SHA, artifact digest, security configuration or topology change
+      - Technical gate evidence expires/is invalidated, defect/risk changes or approval scope expires
+      - Release environment or incident/rollback ownership changes
+    blocker:
+      Technical gates remain open; no independent Security approval, approved release candidate or
+      explicit Leader production GO exists.
+    ownership_status: PROPOSED
