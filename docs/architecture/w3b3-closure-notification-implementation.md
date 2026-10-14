@@ -2,6 +2,11 @@
 
 Status: **IMPLEMENTED, DEFAULT DISABLED, PENDING INDEPENDENT SECURITY/RUNTIME REVIEW AND LEADER MERGE APPROVAL. Production activation is NOT AUTHORIZED.**
 
+Historical implementation evidence: PR #83 is now merged at
+`4a75be8f446493ad3dd5025a3930b42639cafecb`. The status/review observations below
+record its submission; current [W3-FINAL acceptance](w3-final-assessment-acceptance.md)
+tracks merged-baseline verification and external release gates.
+
 Baseline: merged PR #82, develop `5db5d41008ded12c8abdd27a2307d77f43dfdbd8`.
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) remains authoritative.
 EC79-01..04 engineering conditions remain in force. B3 adds runtime adapters to
