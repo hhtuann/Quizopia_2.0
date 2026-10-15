@@ -63,6 +63,9 @@ class MediaHttpIntegrationTest {
             REVOKE_FAIL = new AtomicBoolean(),
             EXPIRE_DURING_NETWORK = new AtomicBoolean();
     static final AtomicInteger MINTS = new AtomicInteger(), REVOCATIONS = new AtomicInteger();
+    static final AtomicBoolean TARGET_ELIGIBLE = new AtomicBoolean(true),
+            TARGET_UNAVAILABLE = new AtomicBoolean(),
+            TARGET_LOST_DURING_NETWORK = new AtomicBoolean();
 
     @Container
     static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
@@ -138,6 +141,9 @@ class MediaHttpIntegrationTest {
         REVOKE_FAIL.set(false);
         EXPIRE_DURING_NETWORK.set(false);
         MINTS.set(0);
+        TARGET_ELIGIBLE.set(true);
+        TARGET_UNAVAILABLE.set(false);
+        TARGET_LOST_DURING_NETWORK.set(false);
         REVOCATIONS.set(0);
     }
 
@@ -199,6 +205,119 @@ class MediaHttpIntegrationTest {
 
     int count() {
         return db.queryForObject("SELECT count(*) FROM monitoring_media_grants", Integer.class);
+    }
+
+    @Test
+    void targetDenialOrOutageBlocksTeacherCreateAndRenewWhileHistoryRemainsAccessible() {
+        String session = session(), grant = create(session, TEACHER);
+        String persisted = db.queryForObject(
+                "SELECT row_to_json(g)::text FROM monitoring_media_grants g WHERE id=?",
+                String.class,
+                UUID.fromString(grant));
+        for (boolean unavailable : List.of(false, true)) {
+            TARGET_ELIGIBLE.set(false);
+            TARGET_UNAVAILABLE.set(unavailable);
+            for (String operation : List.of(path(session), path(session) + "/" + grant + "/renew"))
+                http().post()
+                        .uri(operation)
+                        .headers(h -> h.setBearerAuth(actorToken(TEACHER)))
+                        .exchange()
+                        .expectStatus()
+                        .isEqualTo(unavailable ? 503 : 404)
+                        .expectHeader()
+                        .valueEquals("Cache-Control", "no-store")
+                        .expectBody()
+                        .jsonPath("$.code")
+                        .isEqualTo(unavailable ? "AUTHORITY_UNAVAILABLE" : "PROCTORING_NOT_ACCESSIBLE");
+            assertEquals(
+                    persisted,
+                    db.queryForObject(
+                            "SELECT row_to_json(g)::text FROM monitoring_media_grants g WHERE id=?",
+                            String.class,
+                            UUID.fromString(grant)));
+            assertEquals(1, MINTS.get());
+            http().get()
+                    .uri(BASE + "/" + session + "/events")
+                    .headers(h -> h.setBearerAuth(actorToken(TEACHER)))
+                    .exchange()
+                    .expectStatus()
+                    .isOk();
+        }
+    }
+
+    @Test
+    void targetLostDuringProviderWorkCannotActivateOrRenewTeacherMedia() {
+        String session = session();
+        TARGET_LOST_DURING_NETWORK.set(true);
+        http().post()
+                .uri(path(session))
+                .headers(h -> h.setBearerAuth(actorToken(TEACHER)))
+                .exchange()
+                .expectStatus()
+                .isNotFound();
+        assertEquals(0, MINTS.get());
+        assertEquals("PREPARED", db.queryForObject("SELECT state FROM monitoring_media_grants", String.class));
+        TARGET_ELIGIBLE.set(true);
+        TARGET_LOST_DURING_NETWORK.set(false);
+        String grant = create(session, TEACHER);
+        String persisted = db.queryForObject(
+                "SELECT row_to_json(g)::text FROM monitoring_media_grants g WHERE id=?",
+                String.class,
+                UUID.fromString(grant));
+        TARGET_LOST_DURING_NETWORK.set(true);
+        http().post()
+                .uri(path(session) + "/" + grant + "/renew")
+                .headers(h -> h.setBearerAuth(actorToken(TEACHER)))
+                .exchange()
+                .expectStatus()
+                .isNotFound();
+        assertEquals(1, MINTS.get());
+        assertEquals(
+                persisted,
+                db.queryForObject(
+                        "SELECT row_to_json(g)::text FROM monitoring_media_grants g WHERE id=?",
+                        String.class,
+                        UUID.fromString(grant)));
+    }
+
+    @Test
+    void historicalTeacherGrantReadsAndFencesKeepDurableAuditsAfterTargetLoss() {
+        String session = session(), grant = create(session, TEACHER);
+        TARGET_ELIGIBLE.set(false);
+        ACTIVE.set(false);
+        long before = db.queryForObject(
+                "SELECT count(*) FROM monitoring_access_audit WHERE actor_id=? AND action='SESSION_READ'",
+                Long.class,
+                TEACHER);
+        http().get()
+                .uri(path(session) + "/" + grant)
+                .headers(h -> h.setBearerAuth(actorToken(TEACHER)))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.token")
+                .doesNotExist();
+        http().post()
+                .uri(path(session) + "/" + grant + "/revoke")
+                .headers(h -> h.setBearerAuth(actorToken(TEACHER)))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.status")
+                .isEqualTo("REVOKE_PENDING");
+        assertEquals(
+                before + 2,
+                db.queryForObject(
+                        "SELECT count(*) FROM monitoring_access_audit WHERE actor_id=? AND action='SESSION_READ'",
+                        Long.class,
+                        TEACHER));
+        assertEquals(
+                "ENDED",
+                db.queryForObject(
+                        "SELECT status FROM monitoring_sessions WHERE id=?", String.class, UUID.fromString(session)));
+        assertEquals(1, MINTS.get());
     }
 
     @Test
@@ -428,20 +547,36 @@ class MediaHttpIntegrationTest {
         @Bean
         @Primary
         MonitoringAuthority authority() {
-            return (actor, attempt, role) -> {
-                if (AUTHORITY_UNAVAILABLE.get()) throw MonitoringFailure.unavailable();
-                if (role.equals("TEACHER") && !actor.id().equals(TEACHER))
-                    throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
-                return new MonitoringAuthority.Snapshot(
-                        actor.id(),
-                        role,
-                        attempt,
-                        PUBLICATION,
-                        CLASSROOM,
-                        STUDENT,
-                        ACTIVE.get(),
-                        DEADLINE.get(),
-                        Instant.now());
+            return new MonitoringAuthority() {
+                @Override
+                public Snapshot check(Actor actor, UUID attempt, String role) {
+                    return snapshot(actor, attempt, role);
+                }
+
+                @Override
+                public Snapshot checkLive(Actor actor, UUID attempt, String role) {
+                    if (role.equals("TEACHER")) {
+                        if (TARGET_UNAVAILABLE.get()) throw MonitoringFailure.unavailable();
+                        if (!TARGET_ELIGIBLE.get()) throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
+                    }
+                    return snapshot(actor, attempt, role);
+                }
+
+                private Snapshot snapshot(Actor actor, UUID attempt, String role) {
+                    if (AUTHORITY_UNAVAILABLE.get()) throw MonitoringFailure.unavailable();
+                    if (role.equals("TEACHER") && !actor.id().equals(TEACHER))
+                        throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
+                    return new MonitoringAuthority.Snapshot(
+                            actor.id(),
+                            role,
+                            attempt,
+                            PUBLICATION,
+                            CLASSROOM,
+                            STUDENT,
+                            ACTIVE.get(),
+                            DEADLINE.get(),
+                            Instant.now());
+                }
             };
         }
 
@@ -463,6 +598,7 @@ class MediaHttpIntegrationTest {
                 public void ensureRoom(String room) {
                     if (PROVIDER_FAIL.get()) throw new MonitoringFailure(503, "MEDIA_UNAVAILABLE");
                     if (EXPIRE_DURING_NETWORK.get()) ACTIVE.set(false);
+                    if (TARGET_LOST_DURING_NETWORK.get()) TARGET_ELIGIBLE.set(false);
                 }
 
                 public String token(String room, String identity, String role, Instant expires) {

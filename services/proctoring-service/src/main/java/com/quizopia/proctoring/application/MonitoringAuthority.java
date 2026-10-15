@@ -24,4 +24,9 @@ public interface MonitoringAuthority {
             Instant checkedAt) {}
 
     Snapshot check(Actor actor, UUID attempt, String role);
+
+    /** Historical snapshots never implicitly authorize live media; adapters must opt in explicitly. */
+    default Snapshot checkLive(Actor actor, UUID attempt, String role) {
+        throw MonitoringFailure.unavailable();
+    }
 }

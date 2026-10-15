@@ -201,3 +201,32 @@ bounds, 1-second validation and 1-second cancellation transport. These protect
 authority/recipient and SERVICE-token work during primary outages; configure and
 measure migration/transaction compatibility before deployment. This changes
 transport budgets, not LD-05 fact comparison or account policy.
+
+## Private target Student proctoring eligibility (H1 correction)
+
+The default-disabled [private contract](contracts/proctoring-student.openapi.yaml)
+adds `POST /internal/security/proctoring-students/{studentId}/eligibility` with
+separate `identity.proctoring-student.read` scope and exact configured Assessment
+SERVICE identity. Register that scope only through the existing operator-owned
+client registration mechanism. The notice-recipient endpoint and scope retain
+their original notice-only purpose and cannot authorize this route.
+
+The strict request contains only `attemptStartedAt`, copied from Assessment's
+authoritative Attempt. Complete PostgreSQL-primary/Redis authority equality is
+required. The exact four-field response contains Student/reference/time binding
+and Boolean eligibility only. ACTIVE, verified STUDENT eligibility and a
+conservative revocation fence are required: a revocation cutoff at or after
+Attempt start prevents new/renewed live monitoring authority for that Attempt.
+This reference is not the Teacher's token issue-time and does not authenticate
+or impersonate the Student, define reauthentication policy, change academic
+outcomes or prove provider revocation of an already issued media token.
+
+No USER evidence, query, cookies, arbitrary metadata, profile, full roles or
+credentials are accepted/exposed. Unknown, duplicate, trailing, oversized and
+noncanonical timestamp input is rejected. Exactly one application/json Content-Type
+with optional UTF-8 charset is accepted; content encoding is rejected. HTTPS is required by default and
+cannot be disabled for this enabled capability under the production profile.
+The concurrency budget is eight (configurable 1–64); primary and Redis query
+bounds remain governed by the existing LD-05 settings. Authority uncertainty is
+sanitized 503, with no JWT fallback or positive eligibility cache. Independent
+security and actual multi-service review are required before activation.

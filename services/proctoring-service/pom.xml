@@ -53,6 +53,8 @@
 
     <dependency><groupId>com.rabbitmq</groupId><artifactId>amqp-client</artifactId></dependency>
     <dependency><groupId>io.livekit</groupId><artifactId>livekit-server</artifactId><version>0.16.0</version></dependency>
+    <!-- The supported SDK explicit-token adapter uses its already pinned runtime converter at compile time. -->
+    <dependency><groupId>com.squareup.retrofit2</groupId><artifactId>converter-protobuf</artifactId><version>3.0.0</version></dependency>
 
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     <dependency><groupId>org.testcontainers</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>

@@ -7,6 +7,8 @@ import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.SignedJWT;
+import com.quizopia.proctoring.media.MediaProperties;
+import com.quizopia.proctoring.media.infrastructure.LiveKitMediaProvider;
 import io.livekit.server.*;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
@@ -175,6 +177,37 @@ class LiveKitSdkIntegrationTest {
         assertTrue(participants.body().isEmpty());
         assertTrue(admin().deleteRoom(room).execute().isSuccessful());
         assertTrue(admin().listRooms(List.of(room)).execute().body().isEmpty());
+    }
+
+    @Test
+    void applicationAdapterShortAdministrativeBearersWorkAgainstActualProvider() throws Exception {
+        String room = "quizopia-synthetic-bounded-admin-" + UUID.randomUUID();
+        rooms.add(room);
+        var properties = new MediaProperties();
+        properties.setApiUrl(URI.create(origin()));
+        properties.setApiKey(API_KEY);
+        properties.setApiSecret(SECRET);
+        // Synthetic configuration exercises request mechanics, not strict Cloud qualification.
+        properties.setRevocationMode(MediaProperties.RevocationMode.CLOUD_STRICT);
+        properties.setQualificationReference("synthetic-self-hosted-sdk-fixture-only");
+        try (var provider = new LiveKitMediaProvider(properties)) {
+            provider.ensureRoom(room);
+            assertEquals(1, admin().listRooms(List.of(room)).execute().body().size());
+            String identity = "synthetic-adapter-participant";
+            try (var participant = connect(token(room, identity, false).toJwt())) {
+                assertEquals(
+                        identity,
+                        participant
+                                .joined
+                                .get(5, TimeUnit.SECONDS)
+                                .getParticipant()
+                                .getIdentity());
+                provider.revoke(room, identity, Instant.now());
+                participant.closed.get(5, TimeUnit.SECONDS);
+            }
+            provider.deleteRoom(room);
+            assertTrue(admin().listRooms(List.of(room)).execute().body().isEmpty());
+        }
     }
 
     @Test

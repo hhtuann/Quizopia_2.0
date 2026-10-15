@@ -59,6 +59,30 @@ grants and short lifetime instead of inheriting permissive defaults. Supported
 camera/source/subscription claims are defined in the
 [official grants reference](https://docs.livekit.io/frontends/reference/tokens-grants/).
 
+The H1/M2 correction uses the pinned SDK's public explicit-token `RoomServiceClient`
+constructor over its official `RoomService` transport. Each administrative operation
+mints an HS256 bearer with `iat = nbf = current whole second` and `exp = iat + 30
+seconds`, a documented initial engineering credential cap. An opaque fresh `jti`
+prevents client token caching from being mistaken for per-request minting; it does
+not provide provider-enforced single use. The existing SDK-resolved protobuf
+converter is declared at the same version for compile-time use; TLS/hostname trust,
+1/2/3-second connect/read/call bounds, no redirect/retry and error redaction remain.
+
+CreateRoom and DeleteRoom carry only `roomCreate:true`. LiveKit requires that shared
+grant and does not support room-scoped or delete-only authority for these operations.
+RemoveParticipant carries only `roomAdmin:true` and the exact opaque room; that
+provider grant also permits other administration within the same room. These
+provider-supported limitations remain even within the 30-second window; no narrower
+operation-only enforcement is claimed. Administrative bearers never enter public
+responses, participant grants, URLs or logs.
+
+Media create and renew explicitly request `LIVE_MEDIA` authority before and after
+provider work, validate the purpose echo, and require current target Student account/
+revocation and membership checks for Teacher subscriptions. Status/revoke retain
+`HISTORY` authority, own-grant isolation and durable access audits. Historical
+evidence/metadata access never confers new live permission. See the
+[correction evidence](../architecture/w3m-correction-evidence.md).
+
 LiveKit token expiration controls initial join, not all reconnects; the server
 refreshes connected-client tokens. Removing a self-hosted participant does not
 invalidate previously issued credentials. Short TTL plus backend refusal of new

@@ -10,6 +10,8 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.*;
 import org.springframework.boot.test.system.*;
@@ -155,6 +157,124 @@ class MonitoringHttpIntegrationTest {
 
     int evidenceCount() {
         return db.queryForObject("SELECT count(*) FROM monitoring_evidence", Integer.class);
+    }
+
+    static java.util.stream.Stream<String> invalidWireRepresentations() {
+        return java.util.stream.Stream.of(
+                "sequence=1.9",
+                "questionNumber=2.9",
+                "schemaVersion=1.9",
+                "observedAt=123",
+                "sequence=\"1\"",
+                "questionNumber=\"2\"",
+                "schemaVersion=\"1\"",
+                "sequence=true",
+                "questionNumber=false",
+                "schemaVersion=true",
+                "sequence=1e0",
+                "sequence=1.0",
+                "questionNumber=2e0",
+                "schemaVersion=1e0",
+                "sequence=9223372036854775808",
+                "questionNumber=2147483648",
+                "observedAt=\"invalid-time\"",
+                "observedAt=true",
+                "observedAt={}",
+                "observedAt=[]",
+                "sequence=null",
+                "schemaVersion=null",
+                "questionNumber=null",
+                "type=null",
+                "eventId=null",
+                "streamId=null",
+                "observedAt=\"2026-10-15T24:00:00Z\"",
+                "observedAt=\"2026-10-15T01:02:03.Z\"",
+                "observedAt=\"2026-10-15T01:02:03+01:00:15\"",
+                "trailing",
+                "duplicate");
+    }
+
+    List<String> durableState() {
+        var state = new ArrayList<String>();
+        for (String table : List.of("monitoring_sessions", "monitoring_evidence", "monitoring_access_audit"))
+            state.addAll(db.queryForList(
+                    "SELECT row_to_json(t)::text FROM " + table + " t ORDER BY row_to_json(t)::text", String.class));
+        return state;
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidWireRepresentations")
+    void rejectedWireFormsAreMutationFreeAndDoNotReserveReplayIdentity(String malformed) {
+        String session = create();
+        UUID id = UUID.randomUUID();
+        String valid = event(id, 1)
+                .replace("WINDOW_FOCUS", "QUESTION_VIEWED")
+                .replace("}", ",\"questionNumber\":2,\"observedAt\":\"2026-01-01T00:00:00Z\"}");
+        String bad;
+        if (malformed.equals("trailing")) bad = valid + "{}";
+        else if (malformed.equals("duplicate")) bad = valid.replace("}", ",\"sequence\":2}");
+        else {
+            String[] pair = malformed.split("=", 2);
+            bad = valid.replaceAll(
+                    "\"" + pair[0] + "\":(?:\"[^\"]*\"|[0-9]+)",
+                    java.util.regex.Matcher.quoteReplacement("\"" + pair[0] + "\":" + pair[1]));
+            assertNotEquals(valid, bad);
+        }
+        var before = durableState();
+        http().post()
+                .uri(BASE + "/" + session + "/events")
+                .headers(h -> h.setBearerAuth(user()))
+                .header("Content-Type", "application/json")
+                .bodyValue(bad)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store")
+                .expectBody()
+                .json("{\"code\":\"INVALID_REQUEST\"}");
+        assertEquals(before, durableState(), "Rejected input changed session/evidence/audit/replay state");
+        byte[] accepted = http().post()
+                .uri(BASE + "/" + session + "/events")
+                .headers(h -> h.setBearerAuth(user()))
+                .header("Content-Type", "application/json")
+                .bodyValue(valid)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        http().post()
+                .uri(BASE + "/" + session + "/events")
+                .headers(h -> h.setBearerAuth(user()))
+                .header("Content-Type", "application/json")
+                .bodyValue(valid)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .consumeWith(response -> assertArrayEquals(accepted, response.getResponseBody()));
+        assertEquals(2, evidenceCount());
+    }
+
+    @Test
+    void validNullAndIsoTimestampWireRemainCompatible() {
+        String session = create();
+        int sequence = 0;
+        for (String stamp : List.of(
+                "null", "\"2026-01-01T00:00:00Z\"", "\"2026-01-01t00:00:00z\"", "\"2026-01-01T01:00:00+01:00\"")) {
+            String body = event(UUID.randomUUID(), ++sequence).replace("}", ",\"observedAt\":" + stamp + "}");
+            http().post()
+                    .uri(BASE + "/" + session + "/events")
+                    .headers(h -> h.setBearerAuth(user()))
+                    .header("Content-Type", "application/json")
+                    .bodyValue(body)
+                    .exchange()
+                    .expectStatus()
+                    .isOk();
+        }
+        assertEquals(5, evidenceCount());
     }
 
     @Test

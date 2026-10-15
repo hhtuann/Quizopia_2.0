@@ -95,6 +95,8 @@ class UserAdmissionIntegrationTest {
                 .toString());
         registry.add("quizopia.identity.security.signing-key.public-key-path", () -> KEYS.publicKeyPath()
                 .toString());
+        registry.add("quizopia.identity.proctoring-students.enabled", () -> true);
+        registry.add("quizopia.identity.proctoring-students.require-secure-transport", () -> false);
         registry.add("quizopia.identity.notice-recipients.enabled", () -> true);
         registry.add("quizopia.identity.notice-recipients.require-secure-transport", () -> false);
         registry.add("quizopia.identity.user-admission.enabled", () -> true);
@@ -169,10 +171,18 @@ class UserAdmissionIntegrationTest {
 
     void registerClients() {
         allowed = clients.register(
-                "assessment-service", Set.of(UserAdmissionConfiguration.SCOPE, "identity.notice-recipient.read"));
+                "assessment-service",
+                Set.of(
+                        UserAdmissionConfiguration.SCOPE,
+                        "identity.notice-recipient.read",
+                        "identity.proctoring-student.read"));
         wrongScope = clients.register("quiz-service", Set.of("quiz.read"));
         wrongClient = clients.register(
-                "untrusted-service", Set.of(UserAdmissionConfiguration.SCOPE, "identity.notice-recipient.read"));
+                "untrusted-service",
+                Set.of(
+                        UserAdmissionConfiguration.SCOPE,
+                        "identity.notice-recipient.read",
+                        "identity.proctoring-student.read"));
     }
 
     @BeforeEach
@@ -810,6 +820,245 @@ class UserAdmissionIntegrationTest {
         accounts.saveAndFlush(user);
         roles.saveAndFlush(new UserRoleEntity(user, UserRole.STUDENT));
         return user;
+    }
+
+    ResponseEntity<String> proctoring(UUID id, String token, String body, Map<String, String> extra) {
+        var headers = headers(token, null);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        extra.forEach(headers::set);
+        return http.exchange(
+                url("/internal/security/proctoring-students/" + id + "/eligibility"),
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                String.class);
+    }
+
+    @Test
+    @Order(1)
+    void proctoringEligibilityUsesCurrentFactsAndAttemptStartRevocationFence() {
+        var user = actor();
+        projection.publish(primary.read(user.getId()));
+        var started = Instant.now().minusSeconds(30).truncatedTo(ChronoUnit.MICROS);
+        String request = "{\"attemptStartedAt\":\"" + started + "\"}";
+        String token = service(allowed);
+        var response = proctoring(user.getId(), token, request, Map.of());
+        assertEquals(200, response.getStatusCode().value(), response.getBody());
+        assertEquals("no-store", response.getHeaders().getCacheControl());
+        var body = mapper.readTree(response.getBody());
+        assertEquals(4, body.size());
+        assertEquals(user.getId().toString(), body.path("studentId").asString());
+        assertEquals(started.toString(), body.path("attemptStartedAt").asString());
+        assertTrue(body.path("eligible").asBoolean());
+        assertFalse(Instant.parse(body.path("checkedAt").asString()).isAfter(Instant.now()));
+        assertFalse(response.getBody().contains(user.getEmail()));
+        jdbc.update(
+                "INSERT INTO user_access_revocation(user_id,revoked_before) VALUES(?,?)",
+                user.getId(),
+                java.sql.Timestamp.from(started));
+        assertError(proctoring(user.getId(), token, request, Map.of()), 503, "AUTHORITY_UNAVAILABLE");
+        projection.publish(primary.read(user.getId()));
+        assertFalse(mapper.readTree(
+                        proctoring(user.getId(), token, request, Map.of()).getBody())
+                .path("eligible")
+                .asBoolean());
+        String later = "{\"attemptStartedAt\":\"" + started.plusSeconds(1) + "\"}";
+        assertTrue(
+                mapper.readTree(proctoring(user.getId(), token, later, Map.of()).getBody())
+                        .path("eligible")
+                        .asBoolean());
+        jdbc.update("UPDATE user_account SET account_status='DISABLED' WHERE id=?", user.getId());
+        assertError(proctoring(user.getId(), token, request, Map.of()), 503, "AUTHORITY_UNAVAILABLE");
+        projection.publish(primary.read(user.getId()));
+        assertFalse(
+                mapper.readTree(proctoring(user.getId(), token, later, Map.of()).getBody())
+                        .path("eligible")
+                        .asBoolean());
+    }
+
+    @Test
+    @Order(1)
+    void proctoringCapabilityIsServiceOnlyAndNotInterchangeableWithNoticeScope() {
+        var user = actor();
+        projection.publish(primary.read(user.getId()));
+        String body = "{\"attemptStartedAt\":\"" + Instant.now().minusSeconds(5).truncatedTo(ChronoUnit.MICROS) + "\"}";
+        var now = Instant.now();
+        String noticeOnly = signed(
+                "assessment-service",
+                "SERVICE",
+                Map.of("scope", List.of("identity.notice-recipient.read")),
+                ISSUER,
+                now.minusSeconds(1),
+                now.plusSeconds(60));
+        String targetOnly = signed(
+                "assessment-service",
+                "SERVICE",
+                Map.of("scope", List.of("identity.proctoring-student.read")),
+                ISSUER,
+                now.minusSeconds(1),
+                now.plusSeconds(60));
+        assertError(proctoring(user.getId(), noticeOnly, body, Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(recipient(user.getId(), targetOnly, Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertEquals(
+                200,
+                proctoring(user.getId(), targetOnly, body, Map.of())
+                        .getStatusCode()
+                        .value());
+        assertError(proctoring(user.getId(), service(wrongClient), body, Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(proctoring(user.getId(), service(wrongScope), body, Map.of()), 403, "SERVICE_CALLER_FORBIDDEN");
+        assertError(
+                proctoring(user.getId(), issuer.issue(user.getId()).value(), body, Map.of()),
+                403,
+                "SERVICE_CALLER_FORBIDDEN");
+        assertError(proctoring(user.getId(), null, body, Map.of()), 401, "SERVICE_AUTHENTICATION_INVALID");
+        assertError(
+                proctoring(user.getId(), corrupt(service(allowed)), body, Map.of()),
+                401,
+                "SERVICE_AUTHENTICATION_INVALID");
+        String expired = signed(
+                "assessment-service",
+                "SERVICE",
+                Map.of("scope", List.of("identity.proctoring-student.read")),
+                ISSUER,
+                now.minusSeconds(120),
+                now.minusSeconds(1));
+        assertError(proctoring(user.getId(), expired, body, Map.of()), 401, "SERVICE_AUTHENTICATION_INVALID");
+        assertError(
+                proctoring(
+                        user.getId(),
+                        targetOnly,
+                        body,
+                        Map.of(
+                                UserAdmissionConfiguration.USER_HEADER,
+                                issuer.issue(user.getId()).value())),
+                400,
+                "INVALID_INTERNAL_REQUEST");
+    }
+
+    @Test
+    @Order(1)
+    void proctoringRequestShapesAreStrictSanitizedAndMutationFree() throws Exception {
+        var user = actor();
+        projection.publish(primary.read(user.getId()));
+        String token = service(allowed);
+        String value =
+                Instant.now().minusSeconds(5).truncatedTo(ChronoUnit.MICROS).toString();
+        String valid = "{\"attemptStartedAt\":\"" + value + "\"}";
+        var original = primary.read(user.getId());
+        for (String body : List.of(
+                "",
+                "{}",
+                "[]",
+                "null",
+                "{\"attemptStartedAt\":123}",
+                "{\"attemptStartedAt\":null}",
+                "{\"attemptStartedAt\":true}",
+                "{\"attemptStartedAt\":\"invalid\"}",
+                "{\"attemptStartedAt\":\"0000-01-01T00:00:00Z\"}",
+                "{\"attemptStartedAt\":\"2020-01-01T00:00:00.000000001Z\"}",
+                "{\"attemptStartedAt\":\"2020-01-01T00:00:00+00:00\"}",
+                "{\"attemptStartedAt\":\"" + Instant.now().plusSeconds(60) + "\"}",
+                "{\"attemptStartedAt\":\"" + value + "\",\"attemptStartedAt\":\"" + value + "\"}",
+                "{\"attemptStartedAt\":\"" + value + "\",\"extra\":false}",
+                valid + " {}",
+                " ".repeat(257))) {
+            var response = proctoring(user.getId(), token, body, Map.of());
+            assertError(response, 400, "INVALID_INTERNAL_REQUEST");
+            assertEquals("no-store", response.getHeaders().getCacheControl());
+            assertEquals(original, primary.read(user.getId()));
+            assertEquals(original, projection.read(user.getId()));
+        }
+        for (String header : List.of(
+                "Cookie",
+                "X-User-Id",
+                "X-User-Roles",
+                "X-Service-Identity",
+                "X-Authenticated-User",
+                "X-Quizopia-Other"))
+            assertError(
+                    proctoring(user.getId(), token, valid, Map.of(header, "invalid")), 400, "INVALID_INTERNAL_REQUEST");
+        assertError(
+                proctoring(user.getId(), token, valid, Map.of("Content-Type", "text/plain")),
+                400,
+                "INVALID_INTERNAL_REQUEST");
+        for (List<String> contentTypes : List.of(
+                List.<String>of(),
+                List.of("application/json", "application/json"),
+                List.of("application/*"),
+                List.of("*/*"),
+                List.of("application/json;charset=ISO-8859-1"),
+                List.of("application/json;extra=invalid"),
+                List.of("application/json;charset=UTF-8;charset=UTF-8"))) {
+            var wire = proctoringWire(user.getId(), token, valid, contentTypes, null);
+            assertEquals(400, wire.statusCode(), wire.body());
+            assertEquals("{\"code\":\"INVALID_INTERNAL_REQUEST\"}", wire.body());
+            assertEquals("no-store", wire.headers().firstValue("Cache-Control").orElseThrow());
+            assertEquals(original, primary.read(user.getId()));
+            assertEquals(original, projection.read(user.getId()));
+        }
+        var encoded = proctoringWire(user.getId(), token, valid, List.of("application/json"), "gzip");
+        assertEquals(400, encoded.statusCode(), encoded.body());
+        assertEquals("{\"code\":\"INVALID_INTERNAL_REQUEST\"}", encoded.body());
+        assertEquals(
+                200,
+                proctoringWire(user.getId(), token, valid, List.of("application/json;charset=UTF-8"), null)
+                        .statusCode());
+        var headers = headers(token, null);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        assertError(
+                http.exchange(
+                        url("/internal/security/proctoring-students/" + user.getId() + "/eligibility?other=true"),
+                        HttpMethod.POST,
+                        new HttpEntity<>(valid, headers),
+                        String.class),
+                400,
+                "INVALID_INTERNAL_REQUEST");
+        assertEquals(
+                200,
+                proctoring(user.getId(), token, valid, Map.of()).getStatusCode().value());
+    }
+
+    @Test
+    @Order(1)
+    void proctoringMissingUnverifiedRemovedRoleAndAuthorityRemainFailClosed() {
+        var user = actor();
+        String token = service(allowed);
+        String body = "{\"attemptStartedAt\":\"" + Instant.now().minusSeconds(5).truncatedTo(ChronoUnit.MICROS) + "\"}";
+        assertError(proctoring(user.getId(), token, body, Map.of()), 503, "AUTHORITY_UNAVAILABLE");
+        jdbc.update("UPDATE user_account SET email_verified_at=NULL WHERE id=?", user.getId());
+        projection.publish(primary.read(user.getId()));
+        assertFalse(
+                mapper.readTree(proctoring(user.getId(), token, body, Map.of()).getBody())
+                        .path("eligible")
+                        .asBoolean());
+        jdbc.update("UPDATE user_account SET email_verified_at=now() WHERE id=?", user.getId());
+        jdbc.update("DELETE FROM user_role WHERE user_id=?", user.getId());
+        projection.publish(primary.read(user.getId()));
+        assertFalse(
+                mapper.readTree(proctoring(user.getId(), token, body, Map.of()).getBody())
+                        .path("eligible")
+                        .asBoolean());
+        UUID missing = UUID.randomUUID();
+        projection.publish(primary.read(missing));
+        assertFalse(mapper.readTree(proctoring(missing, token, body, Map.of()).getBody())
+                .path("eligible")
+                .asBoolean());
+    }
+
+    java.net.http.HttpResponse<String> proctoringWire(
+            UUID id, String token, String body, List<String> types, String encoding) throws Exception {
+        var request = java.net.http.HttpRequest.newBuilder(
+                        java.net.URI.create(url("/internal/security/proctoring-students/" + id + "/eligibility")))
+                .timeout(java.time.Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + token)
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body));
+        types.forEach(type -> request.header("Content-Type", type));
+        if (encoding != null) request.header("Content-Encoding", encoding);
+        try (var client = java.net.http.HttpClient.newBuilder()
+                .version(java.net.http.HttpClient.Version.HTTP_1_1)
+                .connectTimeout(java.time.Duration.ofSeconds(2))
+                .build()) {
+            return client.send(request.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+        }
     }
 
     ResponseEntity<String> recipient(UUID id, String token, Map<String, String> extra) {

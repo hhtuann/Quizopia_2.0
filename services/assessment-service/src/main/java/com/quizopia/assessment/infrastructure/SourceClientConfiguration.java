@@ -8,6 +8,14 @@ import org.springframework.context.annotation.*;
 @EnableConfigurationProperties(SourceProperties.class)
 public class SourceClientConfiguration {
     @Bean(destroyMethod = "close")
+    ProctoringTargetClient proctoringTargetClient(
+            com.quizopia.assessment.configuration.ProctoringAuthorityProperties capability,
+            SourceProperties sources,
+            AdmissionProperties admission) {
+        return new ProctoringTargetClient(capability, sources, admission);
+    }
+
+    @Bean(destroyMethod = "close")
     PublicationSourceClient publicationSourceClient(SourceProperties sources, AdmissionProperties admission) {
         return new PublicationSourceClient(sources, admission);
     }

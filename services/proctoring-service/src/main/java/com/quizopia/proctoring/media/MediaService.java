@@ -36,11 +36,13 @@ public final class MediaService {
 
     public record Status(UUID id, Instant leaseUntil, String role, String status) {}
 
-    private MonitoringAuthority.Snapshot check(MonitoringAuthority.Actor actor, UUID sessionId) {
+    private MonitoringAuthority.Snapshot check(MonitoringAuthority.Actor actor, UUID sessionId, boolean live) {
         var session = sessions.find(sessionId);
         String role = session.studentId().equals(actor.id()) ? "STUDENT" : "TEACHER";
         if (!actor.roles().contains(role)) throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
-        var snapshot = authority.check(actor, session.attemptId(), role);
+        var snapshot = live
+                ? authority.checkLive(actor, session.attemptId(), role)
+                : authority.check(actor, session.attemptId(), role);
         sessions.reconcile(actor, snapshot, sessionId, true);
         return snapshot;
     }
@@ -60,12 +62,12 @@ public final class MediaService {
     public Grant create(MonitoringAuthority.Actor actor, UUID sessionId) {
         if (!capacity.tryAcquire()) throw new MonitoringFailure(503, "MEDIA_UNAVAILABLE");
         try {
-            var snapshot = check(actor, sessionId);
+            var snapshot = check(actor, sessionId, true);
             available();
             var lease = store.prepare(actor, snapshot, sessionId, properties.getLeaseDuration());
             provider.ensureRoom(lease.room());
             // Network results do not authorize release: recheck actual resource authority afterwards.
-            snapshot = check(actor, sessionId);
+            snapshot = check(actor, sessionId, true);
             lease = store.activate(actor, snapshot, lease.id());
             return grant(lease);
         } finally {
@@ -87,13 +89,13 @@ public final class MediaService {
     public Grant renew(MonitoringAuthority.Actor actor, UUID sessionId, UUID id) {
         if (!capacity.tryAcquire()) throw new MonitoringFailure(503, "MEDIA_UNAVAILABLE");
         try {
-            var snapshot = check(actor, sessionId);
+            var snapshot = check(actor, sessionId, true);
             available();
             var current = owned(actor, sessionId, id);
             if (!current.status().equals("ACTIVE") || !current.leaseUntil().isAfter(Instant.now()))
                 throw new MonitoringFailure(409, "MEDIA_GRANT_ENDED");
             provider.ensureRoom(current.room());
-            snapshot = check(actor, sessionId);
+            snapshot = check(actor, sessionId, true);
             return grant(store.renew(actor, snapshot, id, properties.getLeaseDuration()));
         } finally {
             capacity.release();
@@ -101,12 +103,12 @@ public final class MediaService {
     }
 
     public Status status(MonitoringAuthority.Actor actor, UUID sessionId, UUID id) {
-        check(actor, sessionId);
+        check(actor, sessionId, false);
         return status(owned(actor, sessionId, id));
     }
 
     public Status revoke(MonitoringAuthority.Actor actor, UUID sessionId, UUID id) {
-        check(actor, sessionId);
+        check(actor, sessionId, false);
         owned(actor, sessionId, id);
         // Persist the irreversible local fence before any uncertain provider call.
         store.fence(id, actor.id());
