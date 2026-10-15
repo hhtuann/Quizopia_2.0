@@ -1,0 +1,114 @@
+openapi: 3.1.0
+info:
+  title: Identity private target Student proctoring eligibility
+  version: 1.0.0
+  description: >-
+    H1 correction capability, implemented default disabled pending independent review.
+    This is a narrowly purpose-bound Assessment SERVICE query, never Student authentication,
+    generic account introspection, or notice-recipient authority. Private HTTPS and exact
+    caller/destination allowlists are required. No Gateway or browser route.
+paths:
+  /internal/security/proctoring-students/{studentId}/eligibility:
+    post:
+      operationId: checkProctoringStudentEligibility
+      x-required-service-scope: identity.proctoring-student.read
+      x-required-client: exact-configured-assessment-client
+      description: >-
+        Requires independently verified RS256 SERVICE credentials, accepted issuer and
+        current timestamps. Rejects USER evidence, impersonation headers, cookies, query
+        parameters, transfer/content encoding, unknown/duplicate JSON fields and trailing tokens.
+        Exactly one Content-Type is required: application/json with optional UTF-8 charset only.
+        Complete current PostgreSQL-primary/Redis facts must match; untrustworthy authority
+        yields sanitized 503 with no fallback or positive cache. Eligibility requires ACTIVE,
+        verified STUDENT plus an Attempt-start revocation fence: revoked_before at or after
+        attemptStartedAt yields false. The reference is copied by Assessment from its
+        authoritative Attempt, never from Teacher USER issue-time. This conservative fence
+        prevents new/renewed live grants for the older Attempt; it does not authenticate the
+        Student, establish reauthentication, alter academic outcomes or revoke issued SFU tokens.
+      security:
+        - serviceBearer: []
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      requestBody:
+        required: true
+        description: Maximum 256 bytes; canonical UTC Instant string, microsecond precision, year 0001–9999, not in the future.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [attemptStartedAt]
+              properties:
+                attemptStartedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Current request only; exact echoed resource/reference binding. False is an authoritative denial.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [studentId, attemptStartedAt, eligible, checkedAt]
+                properties:
+                  studentId:
+                    type: string
+                    format: uuid
+                  attemptStartedAt:
+                    type: string
+                    format: date-time
+                  eligible:
+                    type: boolean
+                  checkedAt:
+                    type: string
+                    format: date-time
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: RS256 SERVICE JWT; exact Assessment client and identity.proctoring-student.read required
+  responses:
+    Error:
+      description: Sanitized code only; INVALID_INTERNAL_REQUEST, SERVICE_AUTHENTICATION_INVALID, SERVICE_CALLER_FORBIDDEN or AUTHORITY_UNAVAILABLE.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [code]
+            properties:
+              code:
+                type: string
+                enum:
+                  [
+                    INVALID_INTERNAL_REQUEST,
+                    SERVICE_AUTHENTICATION_INVALID,
+                    SERVICE_CALLER_FORBIDDEN,
+                    AUTHORITY_UNAVAILABLE,
+                  ]
