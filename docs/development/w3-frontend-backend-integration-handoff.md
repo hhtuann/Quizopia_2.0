@@ -248,3 +248,32 @@ enforced hard deadline during outage, and self-hosted removal does not revoke ol
 tokens. M2 privacy/refusal policy, provider refresh/revocation/clock acceptance and
 real browser camera-grid E2E remain separate blockers. These backend mechanics do
 not mark frontend PR #77 accepted or alter its existing browser-executor evidence.
+
+## Current monitoring integration additions
+
+The [integration checkpoint](../architecture/w3m-integration-implementation.md)
+records the new dependent branch and actual verification limits. Current authorized
+Teachers can call bodyless/query-free
+`GET /api/proctoring/monitoring/sessions/by-attempt/{attemptId}` with fresh admission
+and owning Publication/current Classroom authority before local existence is
+revealed. Use Attempt IDs from existing Teacher results; return Session or masked
+404, never create a session or enumerate unrelated resources. Then use existing
+Teacher timeline and own media-grant APIs. Independent frontend grid acceptance
+and actual provider enforcement remain pending.
+
+The [producer-owned answer fact contract](../specifications/w3m-authoritative-answer-integration.md)
+adds server-only `ANSWER_PERSISTED` / `ASSESSMENT_AUTHORITY` timeline history with
+nullable decimal-string `assessmentRevision` (non-null for those facts only).
+Browser event POST must never send this type, provenance or revision. A fact records
+Assessment persistence, including server normalization/full SUBMIT, not proof a
+Student clicked or saved before deadline; historical facts can attach after END
+without extending runtime/media. No answer content/digest or credential is copied.
+Render browser versus authoritative provenance faithfully and keep caches/logs
+free of protected data. Existing public Assessment answer/result schemas stay fixed.
+
+Six owned real five-service journeys passed for current authority, lifecycle,
+private signature/substitution denial and pause/Redis fail-closed checks; see the
+checkpoint's exact limitation. They are loopback synthetic backend evidence, not
+private TLS, Cloud revocation, real-browser camera/grid, monitoring privacy approval
+or PR #77 independent acceptance. New outbox/inbox/full-suite results must be
+recorded only after execution. All eleven release gates remain open.

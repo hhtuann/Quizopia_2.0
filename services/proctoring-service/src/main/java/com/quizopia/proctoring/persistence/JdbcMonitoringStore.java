@@ -252,15 +252,22 @@ public class JdbcMonitoringStore implements MonitoringStore {
                 r.getString("source"),
                 r.getString("integrity_sha256"),
                 r.getInt("schema_version"),
-                r.getObject("actor_id", UUID.class));
+                r.getObject("actor_id", UUID.class),
+                r.getString("assessment_revision"));
     }
 
     public static String hash(UUID session, Event e, Instant time, String source, UUID actor) {
+        return hash(session, e, time, source, actor, null);
+    }
+
+    public static String hash(
+            UUID session, Event e, Instant time, String source, UUID actor, String assessmentRevision) {
         String canonical = session + "|" + e.eventId() + "|" + e.streamId() + "|"
                 + (e.type().serverOnly() ? null : e.sequence()) + "|" + e.type() + "|"
                 + (e.observedAt() == null ? null : e.observedAt().truncatedTo(ChronoUnit.MICROS)) + "|"
                 + e.questionNumber() + "|" + time.truncatedTo(ChronoUnit.MICROS) + "|" + source + "|"
                 + e.schemaVersion() + "|" + actor;
+        if (assessmentRevision != null) canonical += "|" + assessmentRevision;
         try {
             return HexFormat.of()
                     .formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
@@ -294,7 +301,8 @@ public class JdbcMonitoringStore implements MonitoringStore {
                         e.observedAt(),
                         e.questionNumber(),
                         e.schemaVersion());
-                if (!e.integritySha256().equals(hash(id, input, e.receivedAt(), e.source(), e.actorId())))
+                if (!e.integritySha256()
+                        .equals(hash(id, input, e.receivedAt(), e.source(), e.actorId(), e.assessmentRevision())))
                     throw new MonitoringFailure(503, "EVIDENCE_INTEGRITY_UNAVAILABLE");
             }
             audit(actor, a, id, "TIMELINE_READ", time);

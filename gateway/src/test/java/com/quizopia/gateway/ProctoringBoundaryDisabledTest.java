@@ -33,6 +33,14 @@ class ProctoringBoundaryDisabledTest {
                 .isEqualTo(503)
                 .expectHeader()
                 .valueEquals("Cache-Control", "no-store");
+        http().get()
+                .uri("/api/proctoring/monitoring/sessions/by-attempt/" + ACTOR)
+                .headers(h -> h.setBearerAuth(user()))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store");
         for (String path : List.of(
                 "/api/proctoring/sessions",
                 "/api/proctoring/token",

@@ -109,6 +109,8 @@ logging:
     org.springframework.web.HttpLogging: WARN
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
+    # Private AMQP diagnostics can expose deployment credentials/locators; use fixed outcome metrics.
+    com.rabbitmq.client: "OFF"
     org.springframework.web.servlet.mvc.method.annotation: WARN
 
 # B3 remains disabled until authenticated topology and recipient provisioning are verified.
@@ -123,3 +125,14 @@ quizopia.assessment.closure:
   cursor-keys:
     v1: ${ASSESSMENT_CURSOR_KEY_V1:}
   edge-base-url: ${ASSESSMENT_EDGE_BASE_URL:}
+
+# Technical metadata only; production capture/transport remains blocked pending privacy acceptance.
+quizopia.assessment.monitoring-events:
+  capture-enabled: ${ASSESSMENT_MONITORING_CAPTURE_ENABLED:false}
+  publisher-enabled: ${ASSESSMENT_MONITORING_PUBLISHER_ENABLED:false}
+  allow-insecure-loopback: ${ASSESSMENT_MONITORING_ALLOW_INSECURE_LOOPBACK:false}
+  host: ${ASSESSMENT_MONITORING_BROKER_HOST:}
+  port: ${ASSESSMENT_MONITORING_BROKER_PORT:5671}
+  virtual-host: ${ASSESSMENT_MONITORING_BROKER_VHOST:}
+  username: ${ASSESSMENT_MONITORING_BROKER_USERNAME:}
+  password: ${ASSESSMENT_MONITORING_BROKER_PASSWORD:}

@@ -29,11 +29,12 @@ public final class Monitoring {
         NETWORK_DISCONNECTED,
         NETWORK_RECONNECTED,
         DUPLICATE_TAB,
+        ANSWER_PERSISTED,
         SESSION_STARTED,
         SESSION_ENDED;
 
         public boolean serverOnly() {
-            return this == SESSION_STARTED || this == SESSION_ENDED;
+            return this == SESSION_STARTED || this == SESSION_ENDED || this == ANSWER_PERSISTED;
         }
 
         public boolean questionScoped() {
@@ -91,7 +92,8 @@ public final class Monitoring {
             String source,
             String integritySha256,
             int schemaVersion,
-            UUID actorId) {}
+            UUID actorId,
+            String assessmentRevision) {}
 
     public record Page(List<Evidence> items, Long nextAfter) {}
 }

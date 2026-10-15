@@ -332,6 +332,7 @@ class AssessmentAcceptanceIntegrationTest {
                     .dataSource(DB.getJdbcUrl(), DB.getUsername(), DB.getPassword())
                     .schemas(schema)
                     .defaultSchema(schema)
+                    .target("5")
                     .load()
                     .migrate());
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);

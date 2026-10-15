@@ -384,7 +384,7 @@ class SnapshotAssociationIntegrationTest {
             c.commit();
             checksum = checksum(c);
         }
-        assertEquals(5, flyway(null).migrate().migrationsExecuted);
+        assertEquals(6, flyway(null).migrate().migrationsExecuted);
         try (var c = connection()) {
             assertEquals(checksum, checksum(c));
             assertEquals(1, count(c, "publication_snapshots", id));

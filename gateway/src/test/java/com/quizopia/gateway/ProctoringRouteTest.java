@@ -11,7 +11,9 @@ class ProctoringRouteTest {
     private final String id = "12345678-1234-4234-8234-123456789abc";
 
     @Test
-    void onlyFiveExactAdaptersOpenWithExpectedRoles() {
+    void onlySixExactAdaptersOpenWithExpectedRoles() {
+        assertEquals("TEACHER", AdmissionRoutes.requiredRole("GET", base + "/by-attempt/" + id));
+        assertNull(AdmissionRoutes.requiredRole("POST", base + "/by-attempt/" + id));
         assertEquals("STUDENT", AdmissionRoutes.requiredRole("POST", base));
         assertEquals("STUDENT", AdmissionRoutes.requiredRole("GET", base + "/" + id));
         assertEquals("STUDENT", AdmissionRoutes.requiredRole("POST", base + "/" + id + "/events"));
@@ -19,6 +21,8 @@ class ProctoringRouteTest {
         assertEquals("TEACHER", AdmissionRoutes.requiredRole("GET", base + "/" + id + "/events"));
         for (String path : List.of(
                 base + "/",
+                base + "/by-attempt/" + id + "/",
+                base + "/by-attempt/" + id.toUpperCase(Locale.ROOT),
                 base + "/" + id + "/events/",
                 base + "/" + id.toUpperCase(Locale.ROOT),
                 base + "/" + id + ";x=1",

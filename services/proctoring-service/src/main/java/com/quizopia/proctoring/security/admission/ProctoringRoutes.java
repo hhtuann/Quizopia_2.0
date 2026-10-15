@@ -8,6 +8,7 @@ public final class ProctoringRoutes {
 
     public static String role(String method, String path) {
         if (MediaRoutes.matches(method, path)) return "STUDENT";
+        if (method.equals("GET") && path.matches(BASE + "/by-attempt/" + ID)) return "TEACHER";
         if (method.equals("POST") && path.equals(BASE)) return "STUDENT";
         if (method.equals("GET") && path.matches(BASE + "/" + ID)) return "STUDENT";
         if (method.equals("POST") && path.matches(BASE + "/" + ID + "/(events|reconcile)")) return "STUDENT";
