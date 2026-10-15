@@ -76,7 +76,8 @@ public class ProctoringAuthorityController {
             throw failure(403, "ACCESS_DENIED");
         if (!capacity.tryAcquire()) throw failure(503, "AUTHORITY_UNAVAILABLE");
         try {
-            String role = role(request);
+            var input = input(request);
+            String role = input.role();
             String evidence = oneHeader(request, IdentityAdmissionClient.USER_HEADER);
             if (evidence.length() > 16384 || !evidence.matches("[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+"))
                 throw failure(401, "USER_EVIDENCE_INVALID");
@@ -110,8 +111,8 @@ public class ProctoringAuthorityController {
             } catch (org.springframework.security.core.AuthenticationException invalid) {
                 throw failure(401, "USER_EVIDENCE_INVALID");
             }
-            var view =
-                    service.authority(UUID.fromString(user.getSubject()), role, UUID.fromString(attemptId), evidence);
+            var view = service.authority(
+                    UUID.fromString(user.getSubject()), role, UUID.fromString(attemptId), evidence, input.purpose());
             if (user.getExpiresAt() == null || !user.getExpiresAt().isAfter(Instant.now()))
                 throw failure(401, "USER_EVIDENCE_INVALID");
             if (!ProctoringAuthorityRoutes.permitted(authentication, properties)) throw failure(401, "UNAUTHENTICATED");
@@ -131,7 +132,9 @@ public class ProctoringAuthorityController {
         return values.getFirst();
     }
 
-    private String role(HttpServletRequest request) {
+    private record Input(String role, ProctoringAuthorityService.Purpose purpose) {}
+
+    private Input input(HttpServletRequest request) {
         if (request.getQueryString() != null
                 || request.getHeader("Content-Encoding") != null
                 || !oneHeader(request, "Content-Type")
@@ -151,11 +154,17 @@ public class ProctoringAuthorityController {
             var value = json.readTree(bytes);
             if (value == null
                     || !value.isObject()
-                    || value.size() != 1
+                    || value.size() != 2
                     || !value.path("viewerRole").isString()
                     || !Set.of("STUDENT", "TEACHER")
-                            .contains(value.path("viewerRole").asString())) throw failure(400, "INVALID_REQUEST");
-            return value.path("viewerRole").asString();
+                            .contains(value.path("viewerRole").asString())
+                    || !value.path("purpose").isString()
+                    || !Set.of("HISTORY", "LIVE_MEDIA")
+                            .contains(value.path("purpose").asString())) throw failure(400, "INVALID_REQUEST");
+            return new Input(
+                    value.path("viewerRole").asString(),
+                    ProctoringAuthorityService.Purpose.valueOf(
+                            value.path("purpose").asString()));
         } catch (IOException | JacksonException invalid) {
             throw failure(400, "INVALID_REQUEST");
         }

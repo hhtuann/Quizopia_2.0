@@ -139,6 +139,87 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /internal/classrooms/{classroomId}/proctoring-students/{studentId}/membership:
+    post:
+      operationId: classroom_proctoring_membership_read
+      description:
+        Narrow current target membership check for live monitoring. Disabled unless
+        CLASSROOM_PROCTORING_MEMBERSHIP_ENABLED is explicitly enabled. Exact Assessment
+        SERVICE caller and this distinct scope plus original independently verified
+        and freshly admitted TEACHER evidence are required. The evidence-derived Teacher
+        must currently own the Classroom; studentId must have actual persisted membership.
+        The read-write READ COMMITTED primary sample rejects standby recovery and credentials
+        are checked again for expiry after the database query. This does not authenticate
+        the Student or establish Student account eligibility.
+        No Student JWT, body, query, cookie or caller-supplied actor headers are accepted.
+        Private HTTPS only; no Gateway route or positive authorization cache.
+      security:
+        - serviceCredentials:
+            - classroom.proctoring-membership.read
+          initiatingUserEvidence: []
+      parameters:
+        - name: classroomId
+          in: path
+          required: true
+          schema: &proctoringId
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        - name: studentId
+          in: path
+          required: true
+          schema: *proctoringId
+      responses:
+        "200":
+          description: Success; never reusable authorization.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProctoringMembershipConfirmation"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description:
+            Invalid SERVICE authentication or independently invalid USER
+            evidence; inspect fixed code.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Wrong principal, client, scope or role.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Missing or inaccessible resource; no enumeration.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required authority/dependency unavailable or untrustworthy.
+          headers:
+            Cache-Control: *id001
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     serviceCredentials:
@@ -151,6 +232,9 @@ components:
               Private authority for evidence-derived
               actor.
             classroom.membership.read: Private authority for evidence-derived actor.
+            classroom.proctoring-membership.read:
+              Exact Assessment caller with original owning-Teacher evidence; target
+              membership only, no account introspection or Student impersonation.
     initiatingUserEvidence:
       type: apiKey
       in: header
@@ -184,3 +268,17 @@ components:
       properties:
         classroomId: *id002
         actorId: *id002
+    ProctoringMembershipConfirmation:
+      type: object
+      additionalProperties: false
+      required:
+        - classroomId
+        - studentId
+        - checkedAt
+      properties:
+        classroomId: *proctoringId
+        studentId: *proctoringId
+        checkedAt:
+          type: string
+          format: date-time
+          description: Primary-database sample time; not reusable authorization.

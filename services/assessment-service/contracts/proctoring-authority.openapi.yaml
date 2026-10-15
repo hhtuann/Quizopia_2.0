@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Assessment private Proctoring authority
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Narrow implemented private capability, default disabled. Never routed through Gateway.
     Independent RS256 SERVICE authentication requires the exact configured Proctoring client and
@@ -22,6 +22,10 @@ paths:
         current Classroom assignment. Terminal/deadline/CLOSED state returns active=false for authorized
         reconciliation/history; this read never finalizes an Attempt, grades or mutates deadlines.
         Each result is an in-flight authority snapshot, not continuous distributed authorization.
+        An explicit HISTORY or LIVE_MEDIA purpose is required and echoed. HISTORY active describes
+        local Attempt lifecycle only and MUST NOT authorize media. LIVE_MEDIA Teacher checks additionally
+        require current target Student Identity eligibility/revocation and Classroom membership through
+        separate narrow scopes, then reread local bindings. History never depends on target eligibility.
       security:
         - serviceBearer: []
       parameters:
@@ -46,11 +50,14 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [viewerRole]
+              required: [viewerRole, purpose]
               properties:
                 viewerRole:
                   type: string
                   enum: [STUDENT, TEACHER]
+                purpose:
+                  type: string
+                  enum: [HISTORY, LIVE_MEDIA]
       responses:
         "200":
           description: Minimal current authorized metadata; no answers, quiz content, keys, locators or account profile.
@@ -87,6 +94,7 @@ components:
         [
           actorId,
           viewerRole,
+          purpose,
           attemptId,
           publicationId,
           classroomId,
@@ -102,6 +110,9 @@ components:
         viewerRole:
           type: string
           enum: [STUDENT, TEACHER]
+        purpose:
+          type: string
+          enum: [HISTORY, LIVE_MEDIA]
         attemptId:
           type: string
           format: uuid

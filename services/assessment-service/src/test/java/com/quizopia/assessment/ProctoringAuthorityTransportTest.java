@@ -22,7 +22,7 @@ class ProctoringAuthorityTransportTest {
         var service = mock(ProctoringAuthorityService.class);
         var admission = mock(IdentityAdmissionClient.class);
         var controller = new ProctoringAuthorityController(
-                new ProctoringAuthorityProperties(true, "proctoring", false),
+                new ProctoringAuthorityProperties(true, "proctoring", false, false),
                 admission,
                 new AdmissionProperties(),
                 mock(JwtDecoder.class),
@@ -60,7 +60,7 @@ class ProctoringAuthorityTransportTest {
         assertThrows(
                 IllegalStateException.class,
                 () -> new ProctoringAuthorityController(
-                        new ProctoringAuthorityProperties(true, "proctoring", true),
+                        new ProctoringAuthorityProperties(true, "proctoring", true, false),
                         mock(IdentityAdmissionClient.class),
                         new AdmissionProperties(),
                         mock(JwtDecoder.class),
@@ -71,12 +71,22 @@ class ProctoringAuthorityTransportTest {
 
     @Test
     void enabledCapabilityRequiresExactCallerAndHasRedactedViews() {
-        assertThrows(IllegalStateException.class, () -> new ProctoringAuthorityProperties(true, "", false));
-        assertFalse(new ProctoringAuthorityProperties(false, "", false).enabled());
+        assertThrows(IllegalStateException.class, () -> new ProctoringAuthorityProperties(true, "", false, false));
+        assertFalse(new ProctoringAuthorityProperties(false, "", false, false).enabled());
         var id = java.util.UUID.randomUUID();
         assertEquals(
                 "ProctoringAuthorityView[redacted]",
-                new ProctoringAuthorityService.View(id, "STUDENT", id, id, id, id, true, Instant.now(), Instant.now())
+                new ProctoringAuthorityService.View(
+                                id,
+                                "STUDENT",
+                                ProctoringAuthorityService.Purpose.HISTORY,
+                                id,
+                                id,
+                                id,
+                                id,
+                                true,
+                                Instant.now(),
+                                Instant.now())
                         .toString());
     }
 }

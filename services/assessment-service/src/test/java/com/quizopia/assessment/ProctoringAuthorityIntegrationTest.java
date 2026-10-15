@@ -68,6 +68,9 @@ class ProctoringAuthorityIntegrationTest {
     @MockitoBean
     PublicationSources sources;
 
+    @MockitoBean
+    ProctoringTargetEligibility target;
+
     UUID student, teacher, classroom;
 
     @BeforeEach
@@ -162,8 +165,105 @@ class ProctoringAuthorityIntegrationTest {
 
     WebTestClient.ResponseSpec read(UUID id, UUID actor, String role) {
         return request(id, service(), user(actor, role))
-                .bodyValue("{\"viewerRole\":\"" + role + "\"}")
+                .bodyValue("{\"viewerRole\":\"" + role + "\",\"purpose\":\"HISTORY\"}")
                 .exchange();
+    }
+
+    WebTestClient.ResponseSpec live(UUID id, UUID actor, String role) {
+        return request(id, service(), user(actor, role))
+                .bodyValue("{\"viewerRole\":\"" + role + "\",\"purpose\":\"LIVE_MEDIA\"}")
+                .exchange();
+    }
+
+    @Test
+    void owningTeacherLiveAuthorityRequiresSeparatelyBoundTargetEligibility() {
+        UUID id = active();
+        live(id, teacher, "TEACHER")
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.active")
+                .isEqualTo(true)
+                .jsonPath("$.purpose")
+                .isEqualTo("LIVE_MEDIA");
+        Instant started = db.queryForObject(
+                "SELECT started_at FROM attempts WHERE id=?",
+                (r, n) -> r.getTimestamp(1).toInstant(),
+                id);
+        verify(target).require(eq(classroom), eq(student), eq(started), anyString());
+        verify(sources).teacher(eq(classroom), eq(teacher), anyString());
+        verify(sources, never()).member(any(), any(), any());
+    }
+
+    @Test
+    void targetMembershipOrAccountDenialAndOutageCannotApproveTeacherLiveAuthority() {
+        UUID id = active();
+        for (int status : List.of(404, 503)) {
+            doThrow(new PublicationFailure(status, "AUTHORITY_UNAVAILABLE"))
+                    .when(target)
+                    .require(any(), any(), any(), anyString());
+            live(id, teacher, "TEACHER")
+                    .expectStatus()
+                    .isEqualTo(status)
+                    .expectHeader()
+                    .valueEquals("Cache-Control", "no-store")
+                    .expectBody()
+                    .jsonPath("$.code")
+                    .isEqualTo(status == 404 ? "PROCTORING_NOT_ACCESSIBLE" : "AUTHORITY_UNAVAILABLE");
+            assertEquals("ACTIVE", db.queryForObject("SELECT state FROM attempts WHERE id=?", String.class, id));
+            assertEquals(
+                    0L, db.queryForObject("SELECT count(*) FROM grading_results WHERE attempt_id=?", Long.class, id));
+        }
+        reset(target);
+        doThrow(new AssertionError("History must not consult Student eligibility"))
+                .when(target)
+                .require(any(), any(), any(), anyString());
+        read(id, teacher, "TEACHER")
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.purpose")
+                .isEqualTo("HISTORY");
+        verifyNoInteractions(target);
+    }
+
+    @Test
+    void teacherLiveTerminalAndExpiredAttemptsDeniedWhileHistoryRemainsReadable() {
+        UUID expired = seed(
+                PublicationConfiguration.Audience.CLASS, PublicationConfiguration.MonitoringChoice.ENABLED, 5, 400);
+        live(expired, teacher, "TEACHER").expectStatus().isNotFound();
+        UUID id = active();
+        finalizer.submit(new AttemptFinalization.Manual(
+                new AttemptFinalization.SelectedAttempt(id, student),
+                0,
+                JdbcPublicationStore.digest(UUID.randomUUID().toString()),
+                null));
+        live(id, teacher, "TEACHER").expectStatus().isNotFound();
+        read(id, teacher, "TEACHER")
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.active")
+                .isEqualTo(false);
+        verifyNoInteractions(target);
+    }
+
+    @Test
+    void absentOrInvalidPurposeCannotFallBackToHistoricalOrLivePermission() {
+        UUID id = active();
+        for (String body : List.of(
+                "{\"viewerRole\":\"TEACHER\"}",
+                "{\"viewerRole\":\"TEACHER\",\"purpose\":null}",
+                "{\"viewerRole\":\"TEACHER\",\"purpose\":\"ANY\"}"))
+            request(id, service(), user(teacher, "TEACHER"))
+                    .bodyValue(body)
+                    .exchange()
+                    .expectStatus()
+                    .isBadRequest()
+                    .expectBody()
+                    .jsonPath("$.code")
+                    .isEqualTo("INVALID_REQUEST");
+        verifyNoInteractions(admission, sources, target);
     }
 
     @Test
@@ -182,6 +282,7 @@ class ProctoringAuthorityIntegrationTest {
                 Set.of(
                         "actorId",
                         "viewerRole",
+                        "purpose",
                         "attemptId",
                         "publicationId",
                         "classroomId",
@@ -292,7 +393,7 @@ class ProctoringAuthorityIntegrationTest {
                 service("proctoring", "assessment.other"),
                 evidence))
             request(id, bearer, evidence)
-                    .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                    .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                     .exchange()
                     .expectStatus()
                     .isForbidden();
@@ -305,12 +406,12 @@ class ProctoringAuthorityIntegrationTest {
                 Instant.now().minusSeconds(5),
                 Instant.now().plusSeconds(300));
         request(id, service(), forged)
-                .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                 .exchange()
                 .expectStatus()
                 .isUnauthorized();
         request(id, service(), service())
-                .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                 .exchange()
                 .expectStatus()
                 .isUnauthorized();
@@ -326,7 +427,7 @@ class ProctoringAuthorityIntegrationTest {
                 "null",
                 "{\"viewerRole\":\"STUDENT\",\"studentId\":\"forged\"}",
                 "{\"viewerRole\":\"STUDENT\",\"viewerRole\":\"TEACHER\"}",
-                "{\"viewerRole\":\"STUDENT\"}{}",
+                "{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}{}",
                 " ".repeat(257)))
             request(id, service(), user(student, "STUDENT"))
                     .bodyValue(body)
@@ -335,7 +436,7 @@ class ProctoringAuthorityIntegrationTest {
                     .isBadRequest();
         request(id, service(), user(student, "STUDENT"))
                 .header("X-User-Id", student.toString())
-                .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                 .exchange()
                 .expectStatus()
                 .isBadRequest();
@@ -359,12 +460,12 @@ class ProctoringAuthorityIntegrationTest {
                 sign(KEY, ISSUER, student.toString(), "USER", fields, now.minusSeconds(60), now.minusSeconds(1)),
                 sign(KEY, ISSUER, student.toString(), "USER", fields, now.plusSeconds(60), now.plusSeconds(300))))
             request(id, service(), evidence)
-                    .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                    .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                     .exchange()
                     .expectStatus()
                     .isUnauthorized();
         request(id, service(), user(student, "STUDENT"))
-                .bodyValue("{\"viewerRole\":\"TEACHER\"}")
+                .bodyValue("{\"viewerRole\":\"TEACHER\",\"purpose\":\"HISTORY\"}")
                 .exchange()
                 .expectStatus()
                 .isForbidden();
@@ -406,7 +507,7 @@ class ProctoringAuthorityIntegrationTest {
                 now.minusSeconds(5),
                 now.plusSeconds(300));
         request(id, badService, user(student, "STUDENT"))
-                .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                 .exchange()
                 .expectStatus()
                 .isUnauthorized()
@@ -422,7 +523,7 @@ class ProctoringAuthorityIntegrationTest {
                 now.minusSeconds(5),
                 now.plusSeconds(300));
         request(id, service(), badUser)
-                .bodyValue("{\"viewerRole\":\"STUDENT\"}")
+                .bodyValue("{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}")
                 .exchange()
                 .expectStatus()
                 .isUnauthorized()

@@ -44,6 +44,8 @@ public final class InternalAuthorityFilter extends OncePerRequestFilter {
             return "classroom.teacher-authority.read";
         if (path.matches("/internal/classrooms/" + UUID_PATH + "/student-membership"))
             return "classroom.membership.read";
+        if (path.matches("/internal/classrooms/" + UUID_PATH + "/proctoring-students/" + UUID_PATH + "/membership"))
+            return "classroom.proctoring-membership.read";
         return null;
     }
 
@@ -65,7 +67,11 @@ public final class InternalAuthorityFilter extends OncePerRequestFilter {
             InternalErrors.write(response, 401, "SERVICE_AUTHENTICATION_INVALID");
             return;
         }
-        if (!config.isEnabled() || (config.isRequireTls() && !request.isSecure())) {
+        boolean proctoring =
+                "classroom.proctoring-membership.read".equals(scope(request.getMethod(), request.getRequestURI()));
+        if (!config.isEnabled()
+                || (proctoring && !config.isProctoringMembershipEnabled())
+                || (config.isRequireTls() && !request.isSecure())) {
             InternalErrors.write(response, 503, "AUTHORITY_UNAVAILABLE");
             return;
         }
@@ -120,6 +126,14 @@ public final class InternalAuthorityFilter extends OncePerRequestFilter {
             return;
         } catch (RuntimeException failure) {
             InternalErrors.write(response, 503, "AUTHORITY_UNAVAILABLE");
+            return;
+        }
+        if (proctoring && !user.getExpiresAt().isAfter(Instant.now())) {
+            InternalErrors.write(response, 401, "USER_EVIDENCE_INVALID");
+            return;
+        }
+        if (proctoring && !token.getToken().getExpiresAt().isAfter(Instant.now())) {
+            InternalErrors.write(response, 401, "SERVICE_AUTHENTICATION_INVALID");
             return;
         }
         request.setAttribute(ACTOR, user);

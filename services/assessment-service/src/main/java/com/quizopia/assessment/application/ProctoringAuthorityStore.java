@@ -15,6 +15,8 @@ public interface ProctoringAuthorityStore {
             UUID ownerId,
             boolean monitorable,
             boolean active,
+            int durationMinutes,
+            Instant startedAt,
             Instant deadlineAt,
             Instant checkedAt) {
         @Override

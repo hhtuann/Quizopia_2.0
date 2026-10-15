@@ -116,10 +116,18 @@ quizopia.identity.notice-recipients:
   assessment-client-id: ${IDENTITY_NOTICE_RECIPIENTS_ASSESSMENT_CLIENT_ID:assessment-service}
   max-concurrent: ${IDENTITY_NOTICE_RECIPIENTS_MAX_CONCURRENT:8}
 
+quizopia.identity.proctoring-students:
+  enabled: ${IDENTITY_PROCTORING_STUDENTS_ENABLED:false}
+  require-secure-transport: ${IDENTITY_PROCTORING_STUDENTS_REQUIRE_SECURE_TRANSPORT:true}
+  assessment-client-id: ${IDENTITY_PROCTORING_STUDENTS_ASSESSMENT_CLIENT_ID:assessment-service}
+  max-concurrent: ${IDENTITY_PROCTORING_STUDENTS_MAX_CONCURRENT:8}
+
 # Suppress raw HTTP credential/body dumps even under diagnostic root logging.
 logging:
   level:
     org.apache.coyote.http11: WARN
+    # Dispatcher DEBUG includes private target UUIDs in request paths.
+    org.springframework.web.servlet.DispatcherServlet: WARN
     # Hibernate factory diagnostics dump configuration; bind diagnostics dump values.
     org.hibernate.orm.factory: WARN
     org.hibernate.orm.jdbc.bind: WARN

@@ -27,7 +27,7 @@ public class JdbcProctoringAuthorityStore implements ProctoringAuthorityStore {
                      AND a.duration_minutes BETWEEN 5 AND 240 AND a.deadline_at IS NOT NULL
                      AND p.state IN ('OPEN','CLOSED')) AS monitorable,
                     (a.state='ACTIVE' AND p.state='OPEN' AND sample.now<a.deadline_at) AS active,
-                    a.deadline_at,sample.now AS checked_at
+                    a.duration_minutes,a.started_at,a.deadline_at,sample.now AS checked_at
                 FROM attempts a JOIN publications p ON p.id=a.publication_id CROSS JOIN sample WHERE a.id=?
                 """,
                     (row, number) -> new Projection(
@@ -38,6 +38,8 @@ public class JdbcProctoringAuthorityStore implements ProctoringAuthorityStore {
                             row.getObject("owner_id", UUID.class),
                             row.getBoolean("monitorable"),
                             row.getBoolean("active"),
+                            row.getInt("duration_minutes"),
+                            row.getTimestamp("started_at").toInstant(),
                             row.getTimestamp("deadline_at") == null
                                     ? null
                                     : row.getTimestamp("deadline_at").toInstant(),
