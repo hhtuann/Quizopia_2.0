@@ -1,5 +1,11 @@
 package com.quizopia.proctoring.media.infrastructure;
 
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import com.quizopia.proctoring.application.MonitoringFailure;
 import com.quizopia.proctoring.media.*;
 import io.livekit.server.*;
@@ -8,12 +14,17 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import retrofit2.Call;
+import retrofit2.Retrofit;
+import retrofit2.converter.protobuf.ProtoConverterFactory;
 
 /** Official pinned JVM SDK; no request logging, redirects, credentials in URLs or implicit retries. */
 public final class LiveKitMediaProvider implements MediaProvider, AutoCloseable {
     private final MediaProperties properties;
     private final OkHttpClient http;
-    private final RoomServiceClient rooms;
+    // Engineering cap aligned with the existing maximum credential budget; not a product rule.
+    private static final long ADMIN_BEARER_SECONDS = 30;
+
+    private final RoomService roomService;
 
     public LiveKitMediaProvider(MediaProperties properties) {
         this.properties = properties;
@@ -25,17 +36,40 @@ public final class LiveKitMediaProvider implements MediaProvider, AutoCloseable 
                 .followSslRedirects(false)
                 .retryOnConnectionFailure(false)
                 .build();
-        rooms = RoomServiceClient.createClient(
-                properties.getApiUrl().toString(),
-                properties.getApiKey(),
-                properties.getApiSecret(),
-                () -> http,
-                false);
+        roomService = new Retrofit.Builder()
+                .baseUrl(properties.getApiUrl().toString().replaceAll("/+$", "") + "/")
+                .addConverterFactory(ProtoConverterFactory.create())
+                .client(http)
+                .build()
+                .create(RoomService.class);
     }
 
     @Override
     public boolean qualified() {
         return properties.qualified();
+    }
+
+    private RoomServiceClient administrativeClient(Map<String, Object> grants) {
+        var issued = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        // The pinned SDK's public explicit-token constructor avoids its six-hour AccessToken default.
+        // Do not cache administrative clients or tokens; each operation mints its own bounded bearer.
+        var bearer = new SignedJWT(
+                new JWSHeader(JWSAlgorithm.HS256),
+                new JWTClaimsSet.Builder()
+                        .issuer(properties.getApiKey())
+                        .issueTime(Date.from(issued))
+                        .notBeforeTime(Date.from(issued))
+                        .expirationTime(Date.from(issued.plusSeconds(ADMIN_BEARER_SECONDS)))
+                        .jwtID(UUID.randomUUID().toString())
+                        .claim("video", grants)
+                        .build());
+        try {
+            bearer.sign(new MACSigner(properties.getApiSecret()));
+        } catch (JOSEException invalidCredentials) {
+            throw new MonitoringFailure(503, "MEDIA_UNAVAILABLE");
+        }
+        return new RoomServiceClient(
+                roomService, properties.getApiKey(), properties.getApiSecret(), bearer.serialize());
     }
 
     private void execute(Call<?> call) {
@@ -82,7 +116,8 @@ public final class LiveKitMediaProvider implements MediaProvider, AutoCloseable 
 
     @Override
     public void ensureRoom(String room) {
-        execute(rooms.createRoom(room, 60, 2));
+        // LiveKit requires roomCreate for both create and delete and does not room-scope this grant.
+        execute(administrativeClient(Map.of("roomCreate", true)).createRoom(room, 60, 2));
     }
 
     @Override
@@ -109,12 +144,13 @@ public final class LiveKitMediaProvider implements MediaProvider, AutoCloseable 
     public void revoke(String room, String identity, Instant cutoff) {
         if (!qualified()) throw new MonitoringFailure(503, "MEDIA_REVOCATION_UNVERIFIED");
         // An explicit cutoff is required; the Cloud default's clock buffer is insufficient.
-        execute(rooms.removeParticipant(room, identity, cutoff.getEpochSecond()));
+        execute(administrativeClient(Map.of("roomAdmin", true, "room", room))
+                .removeParticipant(room, identity, cutoff.getEpochSecond()));
     }
 
     @Override
     public void deleteRoom(String room) {
-        execute(rooms.deleteRoom(room), true);
+        execute(administrativeClient(Map.of("roomCreate", true)).deleteRoom(room), true);
     }
 
     @Override

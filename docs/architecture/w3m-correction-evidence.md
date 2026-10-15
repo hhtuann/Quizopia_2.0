@@ -1,7 +1,7 @@
 # W3 Proctoring correction campaign
 
-Status: **H1 PRIVATE AUTHORITY AND M1 WIRE CORRECTIONS IMPLEMENTED; LIVE MEDIA AND
-CUMULATIVE ACCEPTANCE PENDING. PRODUCTION NO-GO.** Updated 2026-10-15 (Asia/Bangkok).
+Status: **H1/M1/M2 CORRECTIONS IMPLEMENTED; CUMULATIVE REAL-SERVICE ACCEPTANCE AND
+INDEPENDENT RE-REVIEW PENDING. PRODUCTION NO-GO.** Updated 2026-10-15 (Asia/Bangkok).
 
 ## Reviewed baseline and propagation
 
@@ -127,8 +127,8 @@ log `/tmp/m1-service-final-3.log`.
 
 The private Assessment adapter now sends/validates HISTORY versus LIVE_MEDIA.
 Historical-purpose responses cannot satisfy live checks; history-only port adapters
-default to denying live permission. MediaService adaptation and cumulative H1 grant
-tests remain required on #90/#91.
+default to denying live permission. MediaService adaptation is implemented on #90;
+cumulative real-service H1 grant tests remain required on #91.
 
 Executed full module command:
 
@@ -136,10 +136,48 @@ Executed full module command:
 MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash services/proctoring-service/mvnw -B -f services/proctoring-service/pom.xml -Dquizopia.build.directory=target/m1-service-final-3 spotless:apply verify -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
 ```
 
-M2 SDK administrative bearer hardening remains to be applied on its owning branch. Existing
-SDK probe confirmed the six-hour default and absent explicit iat/nbf. The supported
-custom-token client mechanism and operation-specific privileges must be wire-tested
-before claiming M2 closed.
+## M2 and downstream H1 — Bounded SDK authority and live grant admission
+
+Actual SDK wire reproduced the old missing iat/nbf and approximately 21,599 seconds
+remaining lifetime; the new regression failed before correction. The pinned public
+explicit-token RoomServiceClient constructor now receives per-operation Nimbus HS256
+bearers with explicit iat=nbf=current whole second and exp=iat+30 seconds. Fresh
+opaque jti is mint identity, not provider single-use enforcement. The existing SDK
+protobuf converter 3.0.0 is explicitly declared for compile use, without adding a
+different resolved runtime library/version or replacing the official SDK.
+
+Wire tests verify signature, timestamps, exact privileges, fresh minting and sanitized
+errors/logs. Create/Delete carry only roomCreate; the provider cannot narrow that
+shared grant by operation/room. Removal carries only roomAdmin and exact room;
+the provider grant permits other administration within that room. No participant,
+recording or data grant is added. TLS/hostname verification, timeouts, no retries/
+redirects, Unix-second cutoff and Student/Teacher participant token code are preserved.
+
+Eight wire and eight owned real LiveKit tests passed, including custom administrative
+adapter create/remove/delete. The cached-token rejoin negative remains intact; this
+does not qualify Cloud, strict revocation, hard-outage cutoff or browser camera E2E.
+
+Media create and renew now invoke explicit live-purpose checks both before and after
+provider I/O. Local Session/grant binding, activity, deadline and immutable fences
+remain enforced. Target denial/outage prevents issuance/renewal; target loss during
+provider work cannot activate or extend a grant. Teacher history and own status/
+revoke retain historical authority and durable access audits without consulting
+target live eligibility. No claim of immediate SFU revocation is made.
+
+Final complete Proctoring verification passed **201 tests, zero failures/errors/skips**.
+Reports: `services/proctoring-service/target/m2-correction-final-2/surefire-reports`;
+log `/tmp/m2-correction-final-2.log`. An intermediate run caught two test-fixture
+errors (throwing Mockito restub and wrong SQL column). Focused review also caught an
+audit regression in the initial purpose adaptation; it was corrected and an actual
+HTTP historical-read/revoke audit regression added before the final full PASS.
+
+```bash
+MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash services/proctoring-service/mvnw -B -f services/proctoring-service/pom.xml -Dquizopia.build.directory=target/m2-correction-final-2 spotless:apply verify -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
+```
+
+Application HTTP tests use real PostgreSQL/RS256 with explicit authority/provider
+doubles. Cumulative five-service target account/membership and media negative cases
+remain required on #91. Codex focused/self-review is not independent human approval.
 
 All eleven Assessment gates remain **6 BLOCKED / 5 NOT VERIFIED**. Formal RC remains
 null; nomination remains `10615f4a9cb73ceb4bce7728f23bf210d0bc99a2`. PROCTOR-01/07/11/12,

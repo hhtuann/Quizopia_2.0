@@ -11,6 +11,12 @@ info:
     does not impose a hard LiveKit lifetime during outage: token expiration governs initial join, server
     refresh/reconnect and strict revocation require separate provider evidence. No academic sanctions,
     recording, microphone/screen/data publishing or authoritative answers are implemented."
+  x-administrative-bearer:
+    lifetime-seconds: 30
+    claims: Explicit iat and nbf at current whole second, exp equal to iat plus 30; fresh opaque jti is not single-use enforcement.
+    create-delete: Only roomCreate; provider supports neither room-scoped nor delete-only authority for these operations.
+    remove-participant: Only roomAdmin and exact room; provider grant also permits other administration inside that room.
+    visibility: Backend SDK only; never part of browser responses or URLs.
 paths:
   /api/proctoring/monitoring/sessions/{id}/media-grants:
     parameters:

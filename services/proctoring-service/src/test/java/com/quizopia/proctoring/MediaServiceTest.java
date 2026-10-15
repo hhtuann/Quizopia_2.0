@@ -56,6 +56,8 @@ class MediaServiceTest {
                 Instant.now().plusSeconds(10),
                 "ACTIVE");
         when(sessions.find(sessionId)).thenReturn(session);
+        when(authority.checkLive(actor, attempt, "STUDENT"))
+                .thenAnswer(invocation -> snapshot(student, "STUDENT", true));
         when(authority.check(actor, attempt, "STUDENT")).thenAnswer(invocation -> snapshot(student, "STUDENT", true));
         when(provider.qualified()).thenReturn(true);
         when(store.prepare(eq(actor), any(), eq(sessionId), any())).thenReturn(lease);
@@ -89,10 +91,10 @@ class MediaServiceTest {
         assertEquals(grantId, grant.id());
         assertEquals("synthetic-sensitive-media-token", grant.token());
         var ordered = inOrder(authority, store, provider);
-        ordered.verify(authority).check(actor, attempt, "STUDENT");
+        ordered.verify(authority).checkLive(actor, attempt, "STUDENT");
         ordered.verify(store).prepare(eq(actor), any(), eq(sessionId), any());
         ordered.verify(provider).ensureRoom(lease.room());
-        ordered.verify(authority).check(actor, attempt, "STUDENT");
+        ordered.verify(authority).checkLive(actor, attempt, "STUDENT");
         ordered.verify(store).activate(eq(actor), any(), eq(grantId));
         ordered.verify(provider).token(lease.room(), lease.identity(), lease.role(), lease.leaseUntil());
         verify(sessions, times(2)).reconcile(eq(actor), any(), eq(sessionId), eq(true));
@@ -100,7 +102,7 @@ class MediaServiceTest {
 
     @Test
     void authorityLostDuringRoomCreationLeavesPreparedIntentWithoutToken() {
-        when(authority.check(actor, attempt, "STUDENT"))
+        when(authority.checkLive(actor, attempt, "STUDENT"))
                 .thenReturn(snapshot(student, "STUDENT", true))
                 .thenThrow(new MonitoringFailure(503, "AUTHORITY_UNAVAILABLE"));
         failure(503, "AUTHORITY_UNAVAILABLE", () -> service.create(actor, sessionId));
@@ -112,7 +114,7 @@ class MediaServiceTest {
     @Test
     void terminalAuthorityAfterRoomCreationCannotActivateOrReleaseToken() {
         var terminal = snapshot(student, "STUDENT", false);
-        when(authority.check(actor, attempt, "STUDENT")).thenReturn(snapshot(student, "STUDENT", true), terminal);
+        when(authority.checkLive(actor, attempt, "STUDENT")).thenReturn(snapshot(student, "STUDENT", true), terminal);
         when(store.activate(actor, terminal, grantId)).thenThrow(new MonitoringFailure(409, "SESSION_ENDED"));
         failure(409, "SESSION_ENDED", () -> service.create(actor, sessionId));
         verify(sessions).reconcile(actor, terminal, sessionId, true);
@@ -121,7 +123,7 @@ class MediaServiceTest {
 
     @Test
     void initialResourceDenialNeverCreatesProviderRoom() {
-        when(authority.check(actor, attempt, "STUDENT"))
+        when(authority.checkLive(actor, attempt, "STUDENT"))
                 .thenThrow(new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE"));
         failure(404, "PROCTORING_NOT_ACCESSIBLE", () -> service.create(actor, sessionId));
         verifyNoInteractions(store, provider);
@@ -137,10 +139,10 @@ class MediaServiceTest {
     @Test
     void teacherRoleUsesCurrentAttemptAuthorityRatherThanClientRoleOrRoom() {
         var currentTeacher = actor(teacher, Set.of("STUDENT", "TEACHER"));
-        when(authority.check(currentTeacher, attempt, "TEACHER"))
+        when(authority.checkLive(currentTeacher, attempt, "TEACHER"))
                 .thenThrow(new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE"));
         failure(404, "PROCTORING_NOT_ACCESSIBLE", () -> service.create(currentTeacher, sessionId));
-        verify(authority).check(currentTeacher, attempt, "TEACHER");
+        verify(authority).checkLive(currentTeacher, attempt, "TEACHER");
         verifyNoInteractions(store, provider);
     }
 
@@ -180,7 +182,7 @@ class MediaServiceTest {
                         lease.leaseUntil(),
                         "ACTIVE"));
         failure(404, "PROCTORING_NOT_ACCESSIBLE", () -> service.renew(actor, sessionId, grantId));
-        verify(authority, times(2)).check(actor, attempt, "STUDENT");
+        verify(authority, times(2)).checkLive(actor, attempt, "STUDENT");
         verify(store, never()).renew(any(), any(), any(), any());
         verify(provider, never()).token(any(), any(), any(), any());
     }
@@ -203,14 +205,14 @@ class MediaServiceTest {
 
     @Test
     void renewalRepeatsCurrentAuthorityAfterProviderCallAndRejectsAuthorityLoss() {
-        when(authority.check(actor, attempt, "STUDENT"))
+        when(authority.checkLive(actor, attempt, "STUDENT"))
                 .thenReturn(snapshot(student, "STUDENT", true))
                 .thenThrow(new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE"));
         failure(404, "PROCTORING_NOT_ACCESSIBLE", () -> service.renew(actor, sessionId, grantId));
         var ordered = inOrder(authority, provider);
-        ordered.verify(authority).check(actor, attempt, "STUDENT");
+        ordered.verify(authority).checkLive(actor, attempt, "STUDENT");
         ordered.verify(provider).ensureRoom(lease.room());
-        ordered.verify(authority).check(actor, attempt, "STUDENT");
+        ordered.verify(authority).checkLive(actor, attempt, "STUDENT");
         verify(store, never()).renew(any(), any(), any(), any());
         verify(provider, never()).token(any(), any(), any(), any());
     }
@@ -238,5 +240,44 @@ class MediaServiceTest {
         assertEquals("Grant[REDACTED]", grant.toString());
         assertFalse(grant.toString().contains(grant.token()));
         assertFalse(grant.toString().contains(actor.userEvidence()));
+    }
+
+    @Test
+    void ineligibleTargetPreventsBothNewAndRenewedTeacherGrantsWithoutProviderWork() {
+        var currentTeacher = actor(teacher, Set.of("STUDENT", "TEACHER"));
+        when(authority.check(currentTeacher, attempt, "TEACHER")).thenReturn(snapshot(teacher, "TEACHER", true));
+        for (int status : List.of(404, 503)) {
+            doThrow(new MonitoringFailure(
+                            status, status == 404 ? "PROCTORING_NOT_ACCESSIBLE" : "AUTHORITY_UNAVAILABLE"))
+                    .when(authority)
+                    .checkLive(currentTeacher, attempt, "TEACHER");
+            failure(
+                    status,
+                    status == 404 ? "PROCTORING_NOT_ACCESSIBLE" : "AUTHORITY_UNAVAILABLE",
+                    () -> service.create(currentTeacher, sessionId));
+            failure(
+                    status,
+                    status == 404 ? "PROCTORING_NOT_ACCESSIBLE" : "AUTHORITY_UNAVAILABLE",
+                    () -> service.renew(currentTeacher, sessionId, grantId));
+        }
+        verify(authority, never()).check(currentTeacher, attempt, "TEACHER");
+        verifyNoInteractions(store, provider);
+    }
+
+    @Test
+    void teacherHistoricalOwnGrantStatusAndRevokeDoNotRequireTargetLiveEligibility() {
+        var currentTeacher = actor(teacher, Set.of("STUDENT", "TEACHER"));
+        when(authority.check(currentTeacher, attempt, "TEACHER")).thenReturn(snapshot(teacher, "TEACHER", false));
+        when(authority.checkLive(currentTeacher, attempt, "TEACHER"))
+                .thenThrow(new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE"));
+        var own = new MediaStore.Lease(
+                grantId, sessionId, teacher, "TEACHER", lease.room(), lease.identity(), lease.leaseUntil(), "ACTIVE");
+        when(store.find(grantId)).thenReturn(own);
+        assertEquals(grantId, service.status(currentTeacher, sessionId, grantId).id());
+        service.revoke(currentTeacher, sessionId, grantId);
+        verify(authority, never()).checkLive(any(), any(), any());
+        verify(sessions, times(2)).reconcile(eq(currentTeacher), any(), eq(sessionId), eq(true));
+        verify(store).fence(grantId, teacher);
+        verifyNoInteractions(provider);
     }
 }

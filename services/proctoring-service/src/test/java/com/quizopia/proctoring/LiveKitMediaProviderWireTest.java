@@ -13,6 +13,9 @@ import java.util.*;
 import java.util.concurrent.atomic.*;
 import livekit.LivekitRoom;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.server.HttpServer;
 
@@ -30,6 +33,66 @@ class LiveKitMediaProviderWireTest {
             properties.setQualificationReference("synthetic-protocol-fixture-not-provider-qualification");
         }
         return properties;
+    }
+
+    @Test
+    void administrativeBearerHasExplicitShortLivedClaimsForEveryActualSdkRequest() throws Exception {
+        var tokens = new ArrayList<String>();
+        var paths = new ArrayList<String>();
+        var server = HttpServer.create()
+                .host("127.0.0.1")
+                .port(0)
+                .handle((request, response) -> {
+                    paths.add(request.uri());
+                    tokens.add(request.requestHeaders().get("Authorization").substring("Bearer ".length()));
+                    return response.header("Content-Type", "application/protobuf")
+                            .sendByteArray(Mono.just(new byte[0]));
+                })
+                .bindNow();
+        var before = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        try (var provider = new LiveKitMediaProvider(properties(server.port(), true))) {
+            provider.ensureRoom("synthetic-room");
+            provider.deleteRoom("synthetic-room");
+            provider.revoke("synthetic-room", "synthetic-participant", Instant.now());
+            provider.ensureRoom("synthetic-room");
+            assertEquals(
+                    List.of(
+                            "/twirp/livekit.RoomService/CreateRoom",
+                            "/twirp/livekit.RoomService/DeleteRoom",
+                            "/twirp/livekit.RoomService/RemoveParticipant",
+                            "/twirp/livekit.RoomService/CreateRoom"),
+                    paths);
+            var ids = new HashSet<String>();
+            for (int i = 0; i < tokens.size(); i++) {
+                var jwt = SignedJWT.parse(tokens.get(i));
+                assertTrue(jwt.verify(new MACVerifier(SECRET)));
+                var claims = jwt.getJWTClaimsSet();
+                assertNotNull(
+                        claims.getIssueTime(),
+                        "Administrative iat must be explicit; observed remaining lifetime seconds="
+                                + Duration.between(
+                                                Instant.now(),
+                                                claims.getExpirationTime().toInstant())
+                                        .toSeconds());
+                assertEquals("synthetic-wire-key", claims.getIssuer());
+                var issued = claims.getIssueTime().toInstant();
+                assertFalse(issued.isBefore(before));
+                assertFalse(issued.isAfter(Instant.now()));
+                assertEquals(issued, claims.getNotBeforeTime().toInstant());
+                assertEquals(
+                        30,
+                        Duration.between(issued, claims.getExpirationTime().toInstant())
+                                .toSeconds());
+                assertNull(claims.getSubject());
+                assertNotNull(claims.getJWTID());
+                assertTrue(ids.add(claims.getJWTID()), "Each SDK operation must receive a newly minted bearer");
+                assertEquals(
+                        i == 2 ? Map.of("roomAdmin", true, "room", "synthetic-room") : Map.of("roomCreate", true),
+                        claims.getJSONObjectClaim("video"));
+            }
+        } finally {
+            server.disposeNow();
+        }
     }
 
     @Test
@@ -155,6 +218,43 @@ class LiveKitMediaProviderWireTest {
             assertFalse(failure.getMessage().contains("sensitive"));
             assertEquals(1, count.get());
         } finally {
+            server.disposeNow();
+        }
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void administrativeBearerAndCredentialsStayOutOfFailureAndLogs(CapturedOutput output) {
+        var token = new AtomicReference<String>();
+        var count = new AtomicInteger();
+        var server = HttpServer.create()
+                .host("127.0.0.1")
+                .port(0)
+                .handle((request, response) -> {
+                    count.incrementAndGet();
+                    token.set(request.requestHeaders().get("Authorization").substring("Bearer ".length()));
+                    assertFalse(request.uri().contains(token.get()));
+                    return response.status(500)
+                            .header("Content-Type", "application/json")
+                            .sendString(Mono.just("{\"token\":\"" + token.get() + "\",\"secret\":\"" + SECRET + "\"}"));
+                })
+                .bindNow();
+        var root = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        var originalLevel = root.getLevel();
+        try (var provider = new LiveKitMediaProvider(properties(server.port(), true))) {
+            root.setLevel(ch.qos.logback.classic.Level.DEBUG);
+            var failure = assertThrows(MonitoringFailure.class, () -> provider.deleteRoom("synthetic-room"));
+            assertEquals(503, failure.status());
+            assertEquals("MEDIA_UNAVAILABLE", failure.code());
+            assertNull(failure.getCause());
+            assertNotNull(token.get());
+            assertFalse(failure.getMessage().contains(token.get()));
+            assertFalse(failure.getMessage().contains(SECRET));
+            assertFalse(output.getAll().contains(token.get()));
+            assertFalse(output.getAll().contains(SECRET));
+            assertEquals(1, count.get(), "An uncertain administrative request must not be implicitly retried");
+        } finally {
+            root.setLevel(originalLevel);
             server.disposeNow();
         }
     }
