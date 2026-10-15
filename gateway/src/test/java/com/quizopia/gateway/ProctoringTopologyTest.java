@@ -3,7 +3,12 @@ package com.quizopia.gateway;
 import static com.quizopia.gateway.PublicationTopologyTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports;
+import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jwt.SignedJWT;
 import io.lettuce.core.RedisClient;
 import java.net.URI;
 import java.net.http.HttpResponse;
@@ -20,6 +25,7 @@ import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.testcontainers.containers.*;
+import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.junit.jupiter.*;
 import org.testcontainers.junit.jupiter.Container;
 import tools.jackson.databind.JsonNode;
@@ -42,6 +48,25 @@ class ProctoringTopologyTest {
     static final String ROUTING = "answer.persisted.v1";
     static final String QUEUE = "quizopia.proctoring.assessment-monitoring.v1";
     static final String AUDIT_QUEUE = "operator.audit." + UUID.randomUUID();
+    static final String LIVEKIT_KEY = "synthetic-" + UUID.randomUUID();
+    static final String LIVEKIT_SECRET = UUID.randomUUID().toString() + UUID.randomUUID();
+    static final String LIVEKIT_CONFIG =
+            "port: 7880\nrtc:\n  tcp_port: 7881\n  port_range_start: 50000\n  port_range_end: 50010\n  use_external_ip: false\nkeys:\n  "
+                    + LIVEKIT_KEY + ": " + LIVEKIT_SECRET + "\nlogging:\n  level: warn\n";
+
+    @Container
+    static final GenericContainer<?> LIVEKIT = new GenericContainer<>("livekit/livekit-server:v1.9.0")
+            .withExposedPorts(7880)
+            .withCreateContainerCmdModifier(command -> command.getHostConfig()
+                    .withPortBindings(
+                            new PortBinding(Ports.Binding.bindIpAndPort("127.0.0.1", 0), new ExposedPort(7880))))
+            .withCopyToContainer(
+                    Transferable.of(LIVEKIT_CONFIG.getBytes(java.nio.charset.StandardCharsets.UTF_8), 0600),
+                    "/tmp/quizopia-livekit.yaml")
+            .withCommand("--config", "/tmp/quizopia-livekit.yaml", "--bind", "0.0.0.0")
+            .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/")
+                    .forPort(7880)
+                    .forStatusCode(200));
 
     @Container
     static final GenericContainer<?> BROKER = new GenericContainer<>("rabbitmq:4.1-management")
@@ -82,6 +107,7 @@ class ProctoringTopologyTest {
     static final Map<String, String> ORIGINS = new LinkedHashMap<>();
     static final List<Process> OWNED = new ArrayList<>();
     static final Map<UUID, String> TOKENS = new HashMap<>();
+    static final List<String> MEDIA_TOKENS = new ArrayList<>();
     static Path repository, evidence, keyDirectory;
     static RedisClient redisClient;
     static io.lettuce.core.api.StatefulRedisConnection<String, String> cache;
@@ -130,7 +156,9 @@ class ProctoringTopologyTest {
                         "--quizopia.identity.user-admission.enabled=true",
                         "--quizopia.identity.user-admission.require-secure-transport=false",
                         "--quizopia.identity.user-admission.allowed-clients=gateway,classroom-service,assessment-service,proctoring-service",
-                        "--quizopia.identity.user-admission.reconciliation-enabled=false"));
+                        "--quizopia.identity.user-admission.reconciliation-enabled=false",
+                        "--quizopia.identity.proctoring-students.enabled=true",
+                        "--quizopia.identity.proctoring-students.require-secure-transport=false"));
         awaitReady(ORIGINS.get("identity") + "/oauth2/jwks");
         seedIdentity();
         redisClient = RedisClient.create("redis://" + CACHE.getHost() + ":" + CACHE.getMappedPort(6379));
@@ -152,7 +180,8 @@ class ProctoringTopologyTest {
                 List.of(
                         "--quizopia.internal-authority.enabled=true",
                         "--quizopia.internal-authority.require-tls=false",
-                        "--quizopia.internal-authority.assessment-client-id=assessment-service"));
+                        "--quizopia.internal-authority.assessment-client-id=assessment-service",
+                        "--quizopia.internal-authority.proctoring-membership-enabled=true"));
         awaitReady(ORIGINS.get("classroom") + "/actuator/health");
         try (var c = db(CLASSROOM)) {
             execute(
@@ -184,6 +213,7 @@ class ProctoringTopologyTest {
                         "--quizopia.assessment.monitoring-events.username=" + BROKER_WRITER,
                         "--quizopia.assessment.monitoring-events.password=" + BROKER_WRITER_PASSWORD,
                         "--quizopia.assessment.proctoring-authority.enabled=true",
+                        "--quizopia.assessment.proctoring-authority.target-eligibility-enabled=true",
                         "--quizopia.assessment.proctoring-authority.client-id=proctoring-service",
                         "--quizopia.assessment.proctoring-authority.allow-insecure-loopback=true",
                         "--quizopia.publication.sources.enabled=true",
@@ -207,10 +237,14 @@ class ProctoringTopologyTest {
                         "--quizopia.proctoring.assessment-events.allow-insecure-loopback=true",
                         "--quizopia.proctoring.monitoring.assessment-base-url=" + ORIGINS.get("assessment"),
                         "--quizopia.proctoring.media.enabled=true",
-                        "--quizopia.proctoring.media.api-url=http://127.0.0.1:" + port(),
-                        "--quizopia.proctoring.media.public-url=ws://127.0.0.1:" + port(),
-                        "--quizopia.proctoring.media.api-key=synthetic",
-                        "--quizopia.proctoring.media.api-secret=synthetic-private-local-secret-32chars",
+                        "--quizopia.proctoring.media.worker-enabled=true",
+                        "--quizopia.proctoring.media.lease-duration=30s",
+                        "--quizopia.proctoring.media.revocation-mode=CLOUD_STRICT",
+                        "--quizopia.proctoring.media.qualification-reference=synthetic-owned-server-NOT-Cloud-qualification",
+                        "--quizopia.proctoring.media.api-url=http://127.0.0.1:" + LIVEKIT.getMappedPort(7880),
+                        "--quizopia.proctoring.media.public-url=ws://127.0.0.1:" + LIVEKIT.getMappedPort(7880),
+                        "--quizopia.proctoring.media.api-key=" + LIVEKIT_KEY,
+                        "--quizopia.proctoring.media.api-secret=" + LIVEKIT_SECRET,
                         "--quizopia.proctoring.media.allow-insecure-loopback=true"));
         awaitReady(ORIGINS.get("proctoring") + "/actuator/health");
         var args = new ArrayList<String>(List.of(
@@ -441,7 +475,11 @@ class ProctoringTopologyTest {
                         encoder.encode(SECRET));
                 var scopes = new ArrayList<>(List.of("identity.user-admission"));
                 if (client.equals("assessment-service"))
-                    scopes.addAll(List.of("classroom.teacher-authority.read", "classroom.membership.read"));
+                    scopes.addAll(List.of(
+                            "classroom.teacher-authority.read",
+                            "classroom.membership.read",
+                            "identity.proctoring-student.read",
+                            "classroom.proctoring-membership.read"));
                 if (client.equals("proctoring-service") || client.equals("wrong-client"))
                     scopes.add("assessment.proctoring-authority.read");
                 for (String scope : scopes)
@@ -479,7 +517,7 @@ class ProctoringTopologyTest {
     }
 
     static JsonNode expect(int status, HttpResponse<String> response) {
-        assertEquals(status, response.statusCode(), response.body());
+        assertEquals(status, response.statusCode(), "Unexpected protected HTTP status; response body omitted");
         assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
         assertFalse(response.body().contains(SECRET));
         assertFalse(response.body().contains("127.0.0.1"));
@@ -617,6 +655,217 @@ class ProctoringTopologyTest {
         }
     }
 
+    static UUID expectGrant(HttpResponse<String> response, String role) throws Exception {
+        assertEquals(200, response.statusCode(), "Media issuance failed; protected response body omitted");
+        assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+        var body = JSON.readTree(response.body());
+        assertEquals(6, body.size());
+        assertEquals(role, body.path("role").asString());
+        assertEquals("GRANT_ISSUED", body.path("technicalState").asString());
+        assertEquals(
+                "ws://127.0.0.1:" + LIVEKIT.getMappedPort(7880),
+                body.path("url").asString());
+        assertFalse(response.body().contains(LIVEKIT_SECRET));
+        String wire = body.path("token").asString();
+        MEDIA_TOKENS.add(wire);
+        SignedJWT token;
+        try {
+            token = SignedJWT.parse(wire);
+        } catch (java.text.ParseException invalid) {
+            fail("Media response did not contain a valid JWT; protected value omitted");
+            return null;
+        }
+        assertTrue(token.verify(new MACVerifier(LIVEKIT_SECRET)), "Owned SFU grant signature must verify");
+        var claims = token.getJWTClaimsSet();
+        assertEquals(LIVEKIT_KEY, claims.getIssuer());
+        var video = claims.getJSONObjectClaim("video");
+        assertEquals(true, video.get("roomJoin"));
+        assertEquals(role.equals("STUDENT"), video.get("canPublish"));
+        assertEquals(role.equals("TEACHER"), video.get("canSubscribe"));
+        assertEquals(false, video.get("canPublishData"));
+        for (String privilege : List.of("roomCreate", "roomAdmin", "roomList", "roomRecord", "canUpdateOwnMetadata"))
+            assertNotEquals(true, video.get(privilege));
+        if (role.equals("STUDENT")) assertEquals(List.of("camera"), video.get("canPublishSources"));
+        assertTrue(claims.getSubject().startsWith("p-"));
+        assertTrue(((String) video.get("room")).startsWith("m-"));
+        var expiry = claims.getExpirationTime().toInstant();
+        assertEquals(Instant.parse(body.path("leaseUntil").asString()).truncatedTo(ChronoUnit.SECONDS), expiry);
+        assertTrue(expiry.isAfter(Instant.now()));
+        assertFalse(expiry.isAfter(Instant.now().plusSeconds(30)));
+        return UUID.fromString(body.path("id").asString());
+    }
+
+    static String mediaFingerprint(UUID session) throws Exception {
+        return scalar(
+                PROCTORING,
+                "SELECT coalesce(jsonb_agg(to_jsonb(g) ORDER BY id),'[]'::jsonb)::text FROM monitoring_media_grants g WHERE session_id=?",
+                session);
+    }
+
+    static JsonNode privateAuthority(UUID attempt, UUID actor, String purpose) throws Exception {
+        return expect(
+                200,
+                send(
+                        "POST",
+                        ORIGINS.get("assessment") + "/internal/proctoring/attempts/" + attempt + "/authority",
+                        credential("proctoring-service", "assessment.proctoring-authority.read"),
+                        JSON.writeValueAsString(Map.of("viewerRole", "TEACHER", "purpose", purpose)),
+                        Map.of("X-Quizopia-User-Evidence", TOKENS.get(actor))));
+    }
+
+    static void assertLiveMediaDenied(UUID attempt, UUID session, UUID grant, int status) throws Exception {
+        String assessment = assessmentFingerprint(attempt), grants = mediaFingerprint(session);
+        for (String base : List.of(edge, ORIGINS.get("proctoring"))) {
+            expect(status, request("POST", base, sessionPath(session) + "/media-grants", TEACHER, null, false));
+            expect(
+                    status,
+                    request(
+                            "POST",
+                            base,
+                            sessionPath(session) + "/media-grants/" + grant + "/renew",
+                            TEACHER,
+                            null,
+                            false));
+        }
+        assertEquals(grants, mediaFingerprint(session), "Denied live authority must not create or renew a grant");
+        assertEquals(assessment, assessmentFingerprint(attempt), "Monitoring denial must preserve Assessment");
+    }
+
+    @Test
+    void teacherLiveMediaRequiresCurrentTargetMembershipWhileHistoricalEvidenceRemainsVisible() throws Exception {
+        UUID attempt = attempt(monitoredPublication()), session = session(attempt);
+        var live = privateAuthority(attempt, TEACHER, "LIVE_MEDIA");
+        assertEquals(10, live.size());
+        assertEquals(TEACHER.toString(), live.path("actorId").asString());
+        assertEquals(STUDENT.toString(), live.path("studentId").asString());
+        assertEquals("LIVE_MEDIA", live.path("purpose").asString());
+        assertTrue(live.path("active").asBoolean());
+        UUID grant = expectGrant(
+                request("POST", edge, sessionPath(session) + "/media-grants", TEACHER, null, false), "TEACHER");
+        assertEquals(
+                grant,
+                expectGrant(
+                        request(
+                                "POST",
+                                edge,
+                                sessionPath(session) + "/media-grants/" + grant + "/renew",
+                                TEACHER,
+                                null,
+                                false),
+                        "TEACHER"));
+        for (String base : List.of(edge, ORIGINS.get("proctoring")))
+            expect(404, request("POST", base, sessionPath(session) + "/media-grants", OTHER_TEACHER, null, false));
+        try (var connection = db(CLASSROOM)) {
+            execute(connection, "DELETE FROM classroom_memberships WHERE classroom_id=? AND user_id=?", CLASS, STUDENT);
+        }
+        try {
+            assertLiveMediaDenied(attempt, session, grant, 404);
+            var historical = privateAuthority(attempt, TEACHER, "HISTORY");
+            assertEquals("HISTORY", historical.path("purpose").asString());
+            for (String base : List.of(edge, ORIGINS.get("proctoring")))
+                expect(200, request("GET", base, sessionPath(session) + "/events", TEACHER, null, false));
+        } finally {
+            try (var connection = db(CLASSROOM)) {
+                execute(
+                        connection,
+                        "INSERT INTO classroom_memberships(id,classroom_id,user_id) VALUES(?,?,?)",
+                        UUID.randomUUID(),
+                        CLASS,
+                        STUDENT);
+            }
+        }
+        try (var connection = db(CLASSROOM)) {
+            execute(connection, "UPDATE classrooms SET owner_teacher_user_id=? WHERE id=?", OTHER_TEACHER, CLASS);
+        }
+        try {
+            assertLiveMediaDenied(attempt, session, grant, 404);
+        } finally {
+            try (var connection = db(CLASSROOM)) {
+                execute(connection, "UPDATE classrooms SET owner_teacher_user_id=? WHERE id=?", TEACHER, CLASS);
+            }
+        }
+    }
+
+    @Test
+    void teacherLiveMediaRequiresCurrentTargetAccountAndAttemptStartRevocationFence() throws Exception {
+        UUID attempt = attempt(monitoredPublication()), session = session(attempt);
+        UUID grant = expectGrant(
+                request("POST", edge, sessionPath(session) + "/media-grants", TEACHER, null, false), "TEACHER");
+        try {
+            try (var connection = db(IDENTITY)) {
+                execute(connection, "UPDATE user_account SET account_status='DISABLED' WHERE id=?", STUDENT);
+            }
+            assertLiveMediaDenied(attempt, session, grant, 503);
+            cache.sync().set(authorityKey(STUDENT), projection(STUDENT).replace("QUNUSVZF", "RElTQUJMRUQ"));
+            assertLiveMediaDenied(attempt, session, grant, 404);
+            assertEquals(
+                    "HISTORY",
+                    privateAuthority(attempt, TEACHER, "HISTORY")
+                            .path("purpose")
+                            .asString());
+            expect(200, request("GET", edge, sessionPath(session) + "/events", TEACHER, null, false));
+        } finally {
+            try (var connection = db(IDENTITY)) {
+                execute(connection, "UPDATE user_account SET account_status='ACTIVE' WHERE id=?", STUDENT);
+            }
+            cache.sync().set(authorityKey(STUDENT), projection(STUDENT));
+        }
+        Instant cutoff = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        try {
+            try (var connection = db(IDENTITY)) {
+                execute(
+                        connection,
+                        "INSERT INTO user_access_revocation(user_id,revoked_before) VALUES(?,?::timestamptz)",
+                        STUDENT,
+                        cutoff.toString());
+            }
+            assertLiveMediaDenied(attempt, session, grant, 503);
+            String projected = projection(STUDENT);
+            cache.sync()
+                    .set(
+                            authorityKey(STUDENT),
+                            projected.substring(0, projected.lastIndexOf('|') + 1) + "AT:" + cutoff.getEpochSecond()
+                                    + ":" + cutoff.getNano());
+            assertLiveMediaDenied(attempt, session, grant, 404);
+            expect(200, request("GET", edge, sessionPath(session) + "/events", TEACHER, null, false));
+        } finally {
+            try (var connection = db(IDENTITY)) {
+                execute(connection, "DELETE FROM user_access_revocation WHERE user_id=?", STUDENT);
+            }
+            cache.sync().set(authorityKey(STUDENT), projection(STUDENT));
+        }
+    }
+
+    @Test
+    void targetClassroomAuthorityOutageDeniesTeacherLiveCreateAndRenewWithoutMutation() throws Exception {
+        UUID attempt = attempt(monitoredPublication()), session = session(attempt);
+        UUID grant = expectGrant(
+                request("POST", edge, sessionPath(session) + "/media-grants", TEACHER, null, false), "TEACHER");
+        CLASSROOM
+                .getDockerClient()
+                .pauseContainerCmd(CLASSROOM.getContainerId())
+                .exec();
+        try {
+            assertLiveMediaDenied(attempt, session, grant, 503);
+        } finally {
+            CLASSROOM
+                    .getDockerClient()
+                    .unpauseContainerCmd(CLASSROOM.getContainerId())
+                    .exec();
+        }
+        assertEquals(
+                grant,
+                expectGrant(
+                        request(
+                                "POST",
+                                edge,
+                                sessionPath(session) + "/media-grants/" + grant + "/renew",
+                                TEACHER,
+                                null,
+                                false),
+                        "TEACHER"));
+    }
+
     @Test
     void realSessionEvidenceAndCurrentRoleResourceBoundaries() throws Exception {
         UUID attempt = attempt(monitoredPublication()), session = session(attempt);
@@ -653,7 +902,10 @@ class ProctoringTopologyTest {
             expect(404, request("GET", base, path, PEER, null, false));
             expect(404, request("GET", base, path + "/events", OTHER_TEACHER, null, false));
             expect(403, request("GET", base, path + "/events", STUDENT, null, false));
-            expect(503, request("POST", base, path + "/media-grants", STUDENT, null, false));
+            // This fixture explicitly opts into an owned synthetic SFU, never provider qualification.
+            UUID grant = expectGrant(request("POST", base, path + "/media-grants", STUDENT, null, false), "STUDENT");
+            expect(404, request("GET", base, path + "/media-grants/" + grant, PEER, null, false));
+            expect(404, request("GET", base, path + "/media-grants/" + grant, TEACHER, null, false));
         }
         long before = evidenceCount(session);
         try (var c = db(CLASSROOM)) {
@@ -691,7 +943,8 @@ class ProctoringTopologyTest {
     @Test
     void privateAuthorityRequiresExactServiceAndIndependentlyVerifiedOriginalUser() throws Exception {
         UUID attempt = attempt(monitoredPublication());
-        String path = "/internal/proctoring/attempts/" + attempt + "/authority", body = "{\"viewerRole\":\"STUDENT\"}";
+        String path = "/internal/proctoring/attempts/" + attempt + "/authority",
+                body = "{\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\"}";
         String service = credential("proctoring-service", "assessment.proctoring-authority.read");
         var view = expect(
                 200,
@@ -701,8 +954,19 @@ class ProctoringTopologyTest {
                         service,
                         body,
                         Map.of("X-Quizopia-User-Evidence", TOKENS.get(STUDENT))));
-        assertEquals(9, view.size());
+        assertEquals(10, view.size());
+        assertEquals("HISTORY", view.path("purpose").asString());
         assertEquals(STUDENT.toString(), view.path("actorId").asString());
+        for (String invalidPurpose :
+                List.of("{\"viewerRole\":\"STUDENT\"}", "{\"viewerRole\":\"STUDENT\",\"purpose\":\"UNKNOWN\"}"))
+            expect(
+                    400,
+                    send(
+                            "POST",
+                            ORIGINS.get("assessment") + path,
+                            service,
+                            invalidPurpose,
+                            Map.of("X-Quizopia-User-Evidence", TOKENS.get(STUDENT))));
         expect(
                 403,
                 send(
@@ -1160,8 +1424,11 @@ class ProctoringTopologyTest {
                         assertFalse(content.contains(brokerSecret), "Broker credential appeared in owned log");
                     assertFalse(content.contains("private synthetic explanation"));
                     assertFalse(content.contains("private synthetic answer"));
+                    assertFalse(content.contains(LIVEKIT_SECRET), "SFU administrative secret appeared in owned log");
                     for (String token : TOKENS.values())
                         assertFalse(content.contains(token), "USER JWT appeared in owned log");
+                    for (String token : MEDIA_TOKENS)
+                        assertFalse(content.contains(token), "Media JWT appeared in owned log");
                 }
             }
         }

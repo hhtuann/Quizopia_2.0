@@ -2,19 +2,24 @@
 
 Status: **BOUNDED INTEGRATION IMPLEMENTED — INDEPENDENT REVIEW REQUIRED; FUNCTIONAL ACCEPTANCE PARTIAL;
 PROVIDER/PRIVACY/PRODUCTION ACCEPTANCE NOT READY; PRODUCTION NO-GO.** Updated
-2026-10-15 (Asia/Bangkok). No unexecuted test, future CI, approval or release receipt
+2026-10-16 (Asia/Bangkok). No unexecuted test, future CI, approval or release receipt
 is asserted.
 
 ## Branch and source dependencies
 
-Current branch: `feature/w3m-monitoring-integration`, based on M2 HEAD `4e1aa7d` /
-[Draft PR #90](https://github.com/hhtuann/Quizopia_2.0/pull/90). That depends on
-[M1 Draft #89](https://github.com/hhtuann/Quizopia_2.0/pull/89) at `430dbdf`, then
-[Assessment authority Draft #88](https://github.com/hhtuann/Quizopia_2.0/pull/88).
-These unmerged branches are not portrayed as develop. Original develop baseline
-remains `e5c4ef3500f1ce40303af161cd6ca74b706c21b2`. The accompanying integration
-Draft PR description records its final commit/base and observed exact-HEAD CI;
-this source checkpoint does not predict those results.
+Current branch: `feature/w3m-monitoring-integration` / [Draft PR #91](https://github.com/hhtuann/Quizopia_2.0/pull/91).
+The correction campaign incorporates parent #90 through child merge `6f339dc`.
+Its dependency chain is [Draft #90](https://github.com/hhtuann/Quizopia_2.0/pull/90)
+at `095941b8062e622e604bef457681b3e7ca004a93` →
+[Draft #89](https://github.com/hhtuann/Quizopia_2.0/pull/89)
+at `3a085b8044065fea1514950069d0eac0bae5e449` →
+[Draft #88](https://github.com/hhtuann/Quizopia_2.0/pull/88)
+at `9f2f411cc6d5b974928269f8c1c573ef068f339b`.
+These parent-to-child merges do not mean a merge to develop. Original develop baseline
+remains `e5c4ef3500f1ce40303af161cd6ca74b706c21b2`. The PR descriptions record final
+commit/base and observed exact-HEAD CI; this checkpoint does not predict those results.
+Historical integration evidence below belongs to the original #91 reviewed HEAD
+`d9d68f8b384352a6e580afa4394bec5babad115f`, before the correction campaign.
 
 The [M1](w3m-backend-implementation.md) and
 [historical M2](w3m2-backend-implementation.md) checkpoints preserve their executed
@@ -52,16 +57,58 @@ No broker I/O occurs in answer transactions. Local database capture failure roll
 back coherently; unavailable Rabbit/Proctoring does not run on the authoritative
 answer path. Capture/publisher/consumer and real-learner enablement default OFF.
 
-## Executed integration evidence and limits
+## Current correction campaign and verification boundary
 
-All counts below are executed local results, with zero failures, errors or skips:
+The [correction evidence](w3m-correction-evidence.md) records fresh H1/M1/M2
+reproductions, corrections, executed commands and detailed limitations. Current
+cumulative local results are:
+
+| Check                       | Executed result                                               | Limit                                                                                                                                                                            |
+| --------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focused correction topology | 10 journeys PASS; zero failures/errors/skips, 98.027 seconds. | Actual Gateway, Identity, Classroom, Assessment and Proctoring; four owned PostgreSQL 17 databases, Redis 8.2, RabbitMQ 4.1 and owned LiveKit v1.9.0, with Identity-issued JWTs. |
+| Full Assessment verify      | 388 tests PASS.                                               | Local module evidence, not production acceptance.                                                                                                                                |
+| Full Proctoring verify      | 229 tests PASS.                                               | Local module evidence, not Cloud/browser acceptance.                                                                                                                             |
+| Full Gateway verify         | 119 tests PASS; zero failures/errors/skips.                   | Includes all ten correction journeys and the unchanged Publication topology suite; exact-HEAD CI is recorded separately in the PR.                                               |
+
+The three added journeys cover live create/renew after target membership loss;
+target account disable, stale Redis and the original Attempt-start revocation fence;
+and Classroom database pause. That pause also affects Teacher assignment authority,
+so it does not isolate a target-only dependency outage. Target-only outage and
+terminal/deadline no-live cases have direct module proof, including explicit remote
+doubles; they are not newly executed real-topology assertions. The synthetic
+`CLOUD_STRICT` fixture is not Cloud qualification or real-browser camera/grid proof.
+Historical totals below do not certify the corrected cumulative head or latest CI.
+
+Public API routes and field inventory remain unchanged. Browser Event numeric fields
+require integral JSON tokens within their declared bounds; fractional, decimal and
+exponent forms are rejected. `observedAt` accepts a valid RFC3339 timestamp string or
+permitted null, never a numeric epoch value. Rejected input is sanitized and mutation-free.
+
+Media create/renew now require explicit private `LIVE_MEDIA` authority before and
+after provider I/O. Teacher live authority additionally checks the bound Student's
+current Identity eligibility and Classroom membership. Historical evidence/status
+access uses `HISTORY`, with current caller/ownership checks and durable access audits,
+without requiring the target to remain eligible for live media. Historical authority
+cannot authorize a grant. These checks do not claim atomic cross-service revocation.
+
+LiveKit administrative bearers now have a 30-second TTL and only the SDK-supported
+privileges required by each operation. Provider grants retain documented room-create
+and room-administration granularity limits; bounded administrative credentials do not
+prove Cloud token revocation, refreshed-token safety or hard-outage enforcement.
+No independent human Security approval or production authorization is supplied.
+
+## Historical integration evidence and limits — original d9 baseline
+
+The following executed local results and static checks are historical evidence for
+original #91 HEAD `d9d68f8b384352a6e580afa4394bec5babad115f`. They are not fresh
+correction-campaign results. Recorded test runs had zero failures, errors or skips:
 
 | Check                                       | Actual result                                                                                | Limit                                                                                                                |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Full Assessment Maven verify                | 378 tests PASS, including 26 new outbox/publisher/configuration/shutdown tests.              | Local PostgreSQL 17/Rabbit fixtures, not target-scale migration or deployed broker HA.                               |
 | Full Proctoring Maven verify                | 185 tests PASS, including strict event/inbox/consumer and Teacher lookup.                    | Before one final logging regression; default-disabled real-learner acceptance remains separate.                      |
 | Full Gateway Maven verify                   | 116 tests PASS, including seven new five-service topology journeys.                          | Synthetic independent databases, Redis and Rabbit; no deployed private TLS or Cloud camera/grid certification.       |
-| Final Proctoring logging verification       | Eight `MonitoringDefaultDisabledHttpTest` tests PASS after suppressing raw AMQP diagnostics. | Focused verify after the full suite; adds one test, so the next complete suite has 186 tests.                        |
+| Final Proctoring logging verification       | Eight `MonitoringDefaultDisabledHttpTest` tests PASS after suppressing raw AMQP diagnostics. | Historical focused verify after the 185-test full suite; not a cumulative correction run.                            |
 | Focused seven-journey topology verification | Seven journeys PASS independently, then included in full Gateway verify.                     | Five business services plus Redis/Rabbit; four owned PostgreSQL databases, real Identity-issued USER/SERVICE tokens. |
 
 The seven journeys exercise ownership/current authority, original USER signature and
@@ -194,9 +241,11 @@ branch-protection change or feature activation is authorized by this checkpoint.
 ## Safe exact resumption
 
 1. Inspect status/branch/log/fetched develop and preserve all uncommitted/unrelated
-   work. Resume `feature/w3m-monitoring-integration` with explicit #90 → #89 → #88 base.
+   work. Resume #91 on `feature/w3m-monitoring-integration` with the corrected parent
+   SHAs above and explicit #90 → #89 → #88 dependency chain.
 2. Retrieve the integration Draft PR and verify remote HEAD, explicit dependency base
-   and actual CI. Review shared schema, Assessment V6/capture/publisher and Proctoring
+   and actual CI. Consult the correction evidence for fresh cumulative H1/M1/M2 results
+   before reusing historical PASS claims. Review shared schema, Assessment V6/capture/publisher and Proctoring
    V3/inbox/consumer/Teacher lookup/OpenAPI against the recorded evidence.
 3. Obtain independent implementation review of atomic capture, broker provenance,
    durable ACK, conflict quarantine, historical attachment and default-off boundaries.

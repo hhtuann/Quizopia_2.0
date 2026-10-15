@@ -249,6 +249,15 @@ tokens. M2 privacy/refusal policy, provider refresh/revocation/clock acceptance 
 real browser camera-grid E2E remain separate blockers. These backend mechanics do
 not mark frontend PR #77 accepted or alter its existing browser-executor evidence.
 
+The correction campaign requires explicit private `LIVE_MEDIA` authority for grant
+create/renew, including current target Student Identity eligibility and Classroom
+membership for Teacher access, checked again after provider I/O. Historical evidence,
+status and own revoke retain current caller/ownership authorization and access audits
+without requiring the target's live eligibility; `HISTORY` cannot authorize a grant.
+LiveKit administrative SDK bearers now expire after 30 seconds and carry only the
+required provider-supported privileges. Their remaining grant granularity and TTL
+are not Cloud revocation or hard-outage acceptance.
+
 ## Current monitoring integration additions
 
 The [integration checkpoint](../architecture/w3m-integration-implementation.md)
@@ -264,16 +273,37 @@ and actual provider enforcement remain pending.
 The [producer-owned answer fact contract](../specifications/w3m-authoritative-answer-integration.md)
 adds server-only `ANSWER_PERSISTED` / `ASSESSMENT_AUTHORITY` timeline history with
 nullable decimal-string `assessmentRevision` (non-null for those facts only).
-Browser event POST must never send this type, provenance or revision. A fact records
+Browser event POST must never send this type, provenance or revision. Event numeric
+fields require integral JSON tokens within their declared bounds, without fraction,
+decimal or exponent forms. `observedAt` is a valid RFC3339 string or permitted null,
+never a numeric epoch timestamp. These representation corrections add no public route
+or DTO field. A fact records
 Assessment persistence, including server normalization/full SUBMIT, not proof a
 Student clicked or saved before deadline; historical facts can attach after END
 without extending runtime/media. No answer content/digest or credential is copied.
 Render browser versus authoritative provenance faithfully and keep caches/logs
 free of protected data. Existing public Assessment answer/result schemas stay fixed.
 
-Six owned real five-service journeys passed for current authority, lifecycle,
-private signature/substitution denial and pause/Redis fail-closed checks; see the
-checkpoint's exact limitation. They are loopback synthetic backend evidence, not
-private TLS, Cloud revocation, real-browser camera/grid, monitoring privacy approval
-or PR #77 independent acceptance. New outbox/inbox/full-suite results must be
-recorded only after execution. All eleven release gates remain open.
+Seven original owned real five-service journeys passed at the historical #91
+`d9d68f8b384352a6e580afa4394bec5babad115f` baseline, including the authoritative
+Rabbit answer-fact journey, current authority/lifecycle, private signature/substitution
+denial and pause/Redis fail-closed checks. See the checkpoint's historical scope.
+The expanded correction topology now passed **10 journeys, zero failures/errors/skips,
+98.027 seconds**, using actual Gateway/Identity/Classroom/Assessment/Proctoring,
+four owned PostgreSQL 17 databases, Redis 8.2, RabbitMQ 4.1 and owned LiveKit v1.9.0,
+with Identity-issued JWTs. The three additions cover live create/renew after target
+membership loss; account disable/stale Redis/original Attempt-start revocation fencing;
+and Classroom database pause. That pause also affects Teacher assignment; target-only
+outage and terminal/deadline no-live cases are direct module evidence with explicit
+doubles, not new real-topology assertions. Cumulative Assessment **388** and Proctoring
+**229** full-suite tests passed; full Gateway verification passed **119 tests**, with
+zero failures/errors/skips. See
+[the correction evidence](../architecture/w3m-correction-evidence.md) for commands and limits.
+Original PASS counts do not certify corrected heads or latest CI. The synthetic
+`CLOUD_STRICT` fixture and loopback checks do not establish private TLS, Cloud
+revocation, real-browser camera/grid,
+monitoring privacy approval or PR #77 independent acceptance. The actual LD-05 browser
+PASS remains the single expiry/refresh scenario above; broader browser gates stay open.
+No frontend PR #77 changes or human Security approval are supplied by this handoff.
+All eleven release gates remain **6 BLOCKED / 5 NOT VERIFIED**; the nominated Assessment
+SHA is unchanged and formal `release_candidate_sha` remains null.
