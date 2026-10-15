@@ -68,6 +68,7 @@ quizopia:
       statement-millis: ${ATTEMPT_STATEMENT_TIMEOUT_MILLIS:3000}
       lock-millis: ${ATTEMPT_LOCK_TIMEOUT_MILLIS:3000}
     proctoring-authority:
+      target-eligibility-enabled: ${ASSESSMENT_PROCTORING_TARGET_ELIGIBILITY_ENABLED:false}
       enabled: ${ASSESSMENT_PROCTORING_AUTHORITY_ENABLED:false}
       client-id: ${ASSESSMENT_PROCTORING_CLIENT_ID:}
       allow-insecure-loopback: ${ASSESSMENT_PROCTORING_ALLOW_INSECURE_LOOPBACK:false}

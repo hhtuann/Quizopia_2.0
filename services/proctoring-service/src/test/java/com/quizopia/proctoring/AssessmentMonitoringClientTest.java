@@ -41,7 +41,8 @@ class AssessmentMonitoringClientTest {
     }
 
     String good() {
-        return "{\"actorId\":\"" + ACTOR + "\",\"viewerRole\":\"STUDENT\",\"attemptId\":\"" + ATTEMPT
+        return "{\"actorId\":\"" + ACTOR + "\",\"viewerRole\":\"STUDENT\",\"purpose\":\"HISTORY\",\"attemptId\":\""
+                + ATTEMPT
                 + "\",\"publicationId\":\"" + PUBLICATION + "\",\"classroomId\":\"" + CLASSROOM + "\",\"studentId\":\""
                 + ACTOR + "\",\"active\":true,\"deadlineAt\":\"" + Instant.now().plusSeconds(120)
                 + "\",\"checkedAt\":\"" + Instant.now() + "\"}";
@@ -113,7 +114,10 @@ class AssessmentMonitoringClientTest {
             assertEquals(1, tokens.get());
             assertEquals(2, checks.get());
             assertEquals("original.payload.signature", wireEvidence.get());
-            assertEquals("{\"viewerRole\":\"STUDENT\"}", wireBody.get());
+            var wire = tools.jackson.databind.json.JsonMapper.builder().build().readTree(wireBody.get());
+            assertEquals(2, wire.size());
+            assertEquals("STUDENT", wire.path("viewerRole").asString());
+            assertEquals("HISTORY", wire.path("purpose").asString());
             assertTrue(tokenForm.get().contains("scope=assessment.proctoring-authority.read"));
         } finally {
             server.disposeNow();
@@ -128,6 +132,8 @@ class AssessmentMonitoringClientTest {
                 "wrongAttempt",
                 "wrongStudent",
                 "wrongRole",
+                "wrongPurpose",
+                "missingPurpose",
                 "stale",
                 "future",
                 "malformedUuid",
@@ -136,6 +142,32 @@ class AssessmentMonitoringClientTest {
                 "trailing",
                 "oversized",
                 "missing");
+    }
+
+    @Test
+    void liveChecksRequireEchoedLivePurposeAndCannotReuseHistoricalPermission() {
+        response.set(good().replace("STUDENT", "TEACHER"));
+        var server = server(false);
+        try (var client = new AssessmentMonitoringClient(monitoring(server.port()), bounds(server.port()))) {
+            assertEquals(
+                    503,
+                    assertThrows(MonitoringFailure.class, () -> client.checkLive(actor(), ATTEMPT, "TEACHER"))
+                            .status());
+            response.set(good().replace("STUDENT", "TEACHER").replace("HISTORY", "LIVE_MEDIA"));
+            assertTrue(client.checkLive(actor(), ATTEMPT, "TEACHER").active());
+            var wire = tools.jackson.databind.json.JsonMapper.builder().build().readTree(wireBody.get());
+            assertEquals("LIVE_MEDIA", wire.path("purpose").asString());
+            assertEquals("TEACHER", wire.path("viewerRole").asString());
+        } finally {
+            server.disposeNow();
+        }
+        MonitoringAuthority historyOnly = (actor, attempt, role) -> {
+            throw new AssertionError("History called for live permission");
+        };
+        assertEquals(
+                503,
+                assertThrows(MonitoringFailure.class, () -> historyOnly.checkLive(actor(), ATTEMPT, "TEACHER"))
+                        .status());
     }
 
     @ParameterizedTest
@@ -149,6 +181,8 @@ class AssessmentMonitoringClientTest {
             case "wrongAttempt" -> body.replace(ATTEMPT.toString(), PUBLICATION.toString());
             case "wrongStudent" -> body.replace("\"studentId\":\"" + ACTOR, "\"studentId\":\"" + PUBLICATION);
             case "wrongRole" -> body.replace("STUDENT", "TEACHER");
+            case "wrongPurpose" -> body.replace("HISTORY", "LIVE_MEDIA");
+            case "missingPurpose" -> body.replace("\"purpose\":\"HISTORY\",", "");
             case "stale" ->
                 body.replaceFirst(
                         "\"checkedAt\":\"[^\"]+\"",

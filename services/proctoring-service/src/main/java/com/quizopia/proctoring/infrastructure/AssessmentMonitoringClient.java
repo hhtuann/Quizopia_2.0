@@ -78,6 +78,15 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
 
     @Override
     public Snapshot check(Actor actor, UUID attempt, String role) {
+        return check(actor, attempt, role, "HISTORY");
+    }
+
+    @Override
+    public Snapshot checkLive(Actor actor, UUID attempt, String role) {
+        return check(actor, attempt, role, "LIVE_MEDIA");
+    }
+
+    private Snapshot check(Actor actor, UUID attempt, String role, String purpose) {
         if (!actor.roles().contains(role)) throw new MonitoringFailure(403, "ACCESS_DENIED");
         try {
             var request = OAuth2AuthorizeRequest.withClientRegistrationId(SCOPE)
@@ -98,7 +107,7 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
                                 .header("X-Quizopia-User-Evidence", actor.userEvidence())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .accept(MediaType.APPLICATION_JSON)
-                                .bodyValue(Map.of("viewerRole", role))
+                                .bodyValue(Map.of("viewerRole", role, "purpose", purpose))
                                 .exchangeToMono(response -> {
                                     if (response.headers()
                                             .contentType()
@@ -109,7 +118,7 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
                                     return response.bodyToMono(byte[].class)
                                             .defaultIfEmpty(new byte[0])
                                             .map(body -> {
-                                                if (status == 200) return parse(body, actor, attempt, role);
+                                                if (status == 200) return parse(body, actor, attempt, role, purpose);
                                                 var error = json.readTree(body);
                                                 String code = error != null
                                                                 && error.isObject()
@@ -138,11 +147,12 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
         }
     }
 
-    private Snapshot parse(byte[] body, Actor actor, UUID attempt, String role) {
+    private Snapshot parse(byte[] body, Actor actor, UUID attempt, String role, String purpose) {
         var n = json.readTree(body);
         var keys = Set.of(
                 "actorId",
                 "viewerRole",
+                "purpose",
                 "attemptId",
                 "publicationId",
                 "classroomId",
@@ -155,6 +165,7 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
         for (String key : keys)
             if (!key.equals("active") && !n.path(key).isString()) throw MonitoringFailure.unavailable();
         if (!n.path("active").isBoolean()) throw MonitoringFailure.unavailable();
+        if (!purpose.equals(n.path("purpose").asString())) throw MonitoringFailure.unavailable();
         var snapshot = new Snapshot(
                 uuid(n.path("actorId").asString()),
                 n.path("viewerRole").asString(),
