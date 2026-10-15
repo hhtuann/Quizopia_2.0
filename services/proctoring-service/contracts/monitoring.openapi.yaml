@@ -657,6 +657,7 @@ components:
           type: integer
           format: int64
           minimum: 0
+          description: Integer JSON token only; fractional, exponent, string and Boolean representations are rejected.
         type:
           type: string
           enum:
@@ -686,14 +687,17 @@ components:
             - string
             - "null"
           format: date-time
+          description: ISO date-time string or null only; numeric epoch timestamps are rejected.
         questionNumber:
           type:
             - integer
             - "null"
           minimum: 1
+          description: Integer JSON token or permitted null only; fractional, exponent, string and Boolean representations are rejected.
         schemaVersion:
           type: integer
           const: 1
+          description: Integer JSON token 1 only; fractional, exponent, string, Boolean and null representations are rejected.
       allOf:
         - if:
             properties:

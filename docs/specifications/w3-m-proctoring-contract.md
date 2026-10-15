@@ -55,9 +55,13 @@ LD-05 admission downstream as well as at Gateway. Proctoring acquires its own na
 SERVICE client token for
 `POST /internal/proctoring/attempts/{attemptId}/authority`, requiring
 `assessment.proctoring-authority.read` and the exact configured Proctoring caller,
-with the original USER evidence;
+with the original USER evidence and explicit `purpose: HISTORY`;
 Assessment independently verifies SERVICE caller/scope, original USER and current
 resource authorization, delegating Classroom facts through existing private contracts.
+The private response echoes that purpose; its local Attempt `active` value is not
+fresh live-media permission. Live media must use the separate `LIVE_MEDIA` request
+purpose and validate its echo, including the new narrowly scoped target-Student
+Identity/Classroom checks. See [the correction evidence](../architecture/w3m-correction-evidence.md).
 No USER impersonation, generic introspection, Gateway internal proxy or positive
 eligibility cache is permitted. Authority checkedAt must be fresh (at most five
 seconds); malformed/stale/mismatched/unavailable authority is unavailable, not allowed.
@@ -106,7 +110,12 @@ reopen an ended session or extend the Attempt deadline.
 An ingestion request requires `schemaVersion: 1`, `eventId` UUID, `streamId` UUID, `sequence` integer
 ≥0, `type` from the allowlist, optional `observedAt` instant and a required positive
 `questionNumber` for question/answer event types; other types allow it absent or null.
-Missing/null/non-1 schema versions are rejected. Stored evidence also binds the
+Missing/null/non-1 schema versions are rejected.
+Integer fields require integral JSON tokens; fractional, exponent, string and
+Boolean representations are rejected without coercion. `observedAt` accepts an
+approved ISO timestamp string or null, never a numeric epoch value. These Event-only
+deserializers preserve unrelated endpoint types and schema version 1.
+Stored evidence also binds the
 authoritative actor ID and schema version to its canonical integrity hash. Unknown fields, duplicate
 JSON keys, arbitrary metadata, free text/URLs and invalid type-specific fields are
 rejected. The current explicit browser type set is:
