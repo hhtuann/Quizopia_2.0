@@ -11,19 +11,20 @@ The bounded Teacher workflow is implemented: pinned published QuizVersion entry,
 create/review DRAFT, owner detail, DRAFT update, CLASS/PUBLIC configuration,
 explicit monitoring choice, OPEN, OPEN schedule extension and direct CLOSE.
 Implementation, frontend quality gates and independent review are complete.
-Git publication remains pending; evidence is below.
+The feature branch is published in [Draft PR #92](https://github.com/hhtuann/Quizopia_2.0/pull/92)
+targeting develop; evidence is below. The PR remains unmerged.
 
 **Real-topology gate: BLOCKED — INTEGRATION.** Gateway, Identity and business
 services had no listeners during inspection. No actual browser-to-Gateway W3-A
 journey ran. Backend flags and clients default closed until separately provisioned.
 This checkpoint does not complete Wave 3, enable monitoring or establish production
-activation. Commit, push and Draft PR finalization remain pending at this checkpoint.
+activation. Frontend publication is complete; real-topology acceptance remains pending.
 
 ## Plan and progress
 
 This document is the bounded implementation plan and completion mapping; there
-are no separate phase files or task records. Frontend implementation is complete,
-while Git publication and real-topology acceptance remain pending.
+are no separate phase files or task records. Frontend implementation and Git
+publication are complete; real-topology acceptance remains pending.
 
 - [x] Inspect the latest develop baseline, accepted contracts and existing frontend;
       preserve the separate LD-05 branch and PR #77.
@@ -41,8 +42,12 @@ while Git publication and real-topology acceptance remain pending.
       and diff checks; pass 57 intercepted-browser tests with zero skipped.
 - [x] Complete independent read-only review, fix confirmed findings and obtain
       re-review PASS; document unsupported capabilities and integration handoff.
-- [ ] Commit scoped changes, push the feature branch and open a Draft PR targeting
-      develop; record actual commit and PR identifiers after publication.
+- [x] Commit scoped changes and publish normally by SSH: feature commit
+      `c7feb20c981004b1fcf9769aa77a520bd9ce507e`, initial evidence commit
+      `914bc5d7198d0875689a186e7faaea9d295a2eaf`, and
+      [Draft PR #92](https://github.com/hhtuann/Quizopia_2.0/pull/92) targeting develop.
+      Before this evidence update, the branch was clean and matched its remote;
+      develop remained `4744f81625632fd6e2c24d75017597c0abcbf711`.
 - [ ] Provision the isolated, revision-identified backend topology and execute real
       Teacher create/read/edit/OPEN/extend/direct-CLOSE journeys. This acceptance
       gate is blocked by missing business-service listeners and provisioning.
