@@ -17,11 +17,16 @@ export default class SanitizedReporter implements Reporter {
       process.stdout.write(
         `  Failure details withheld (${result.errors.length}); inspect locally with credentials excluded.\n`,
       );
-    for (const error of result.errors)
+    for (const error of result.errors) {
+      if (error.message) {
+        const lines = error.message.split("\n").slice(0, 6).join("\n    ");
+        process.stdout.write(`  Error: ${lines}\n`);
+      }
       if (error.location)
         process.stdout.write(
           `  Location: ${error.location.file}:${error.location.line}:${error.location.column}\n`,
         );
+    }
   }
 
   onEnd(result: FullResult) {

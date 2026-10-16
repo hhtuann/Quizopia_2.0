@@ -15,11 +15,22 @@ export default defineConfig({
   outputDir: join(tmpdir(), `quizopia-w3a-real-browser-${process.pid}`),
   preserveOutput: "never",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: process.env.W3A_REAL_FRONTEND_URL ?? "http://localhost:3000",
     trace: "off",
     screenshot: "off",
     video: "off",
     actionTimeout: 15_000,
+  },
+  webServer: {
+    command: "pnpm exec next dev --webpack --hostname localhost --port 3000",
+    url: process.env.W3A_REAL_FRONTEND_URL ?? "http://localhost:3000",
+    env: {
+      NEXT_PUBLIC_API_URL:
+        process.env.W3A_REAL_GATEWAY_URL ?? "http://localhost:8080",
+      NEXT_TELEMETRY_DISABLED: "1",
+    },
+    reuseExistingServer: true,
+    timeout: 120_000,
   },
   projects: [
     { name: "chromium-w3a-real", use: { ...devices["Desktop Chrome"] } },

@@ -22,7 +22,7 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKEND = "4744f81625632fd6e2c24d75017597c0abcbf711"
+BACKEND = os.environ.get("W3_BACKEND_SHA", "399e1fb1704daeb4e597bf901e03a48af5cd2689")
 sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location("owned_runtime", ROOT / "scripts/local/ld05-real-executor-runtime.py")
 owned = importlib.util.module_from_spec(spec)
@@ -197,7 +197,11 @@ def up():
     import bcrypt
 
     os.umask(0o077)
-    owned.available("127.0.0.1", 8080)  # Strict endpoint; never replace an existing listener.
+    try:
+        gateway_port = int(os.environ.get("W3A_REAL_GATEWAY_PORT", "8080"))
+        owned.available("127.0.0.1", gateway_port)
+    except OSError:
+        gateway_port = owned.available("127.0.0.1", 0)
     directory = Path(tempfile.mkdtemp(prefix="quizopia-w3a-"))
     state = {"fixture": "w3a-real-browser-v1", "backend_sha": BACKEND,
              "resource_prefix": "quizopia-w3a-" + secrets.token_hex(5),
@@ -244,17 +248,19 @@ def up():
                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         endpoints = {name: "http://127.0.0.1:" + str(owned.available("127.0.0.1", 0))
                      for name in ["identity", "quiz", "classroom", "assessment"]}
-        endpoints.update({"gateway": "http://127.0.0.1:8080", "mailpit": "http://127.0.0.1:" + str(mailpit_port)})
+        endpoints.update({"gateway": f"http://127.0.0.1:{gateway_port}", "mailpit": "http://127.0.0.1:" + str(mailpit_port)})
         state["endpoints"] = endpoints
         state["database_containers"] = {name: values["container"] for name, values in databases.items()}
         owned.state_write(directory, state)
+        cursor_key = base64.b64encode(secrets.token_bytes(32)).decode()
         issuer = endpoints["identity"]
+        browser_origin = os.environ.get("W3A_REAL_FRONTEND_URL", "http://localhost:3000")
         common = {"SPRING_PROFILES_ACTIVE": "local", "SERVER_ADDRESS": "127.0.0.1", "REDIS_HOST": "127.0.0.1", "REDIS_PORT": str(redis_port),
-                  "ASSESSMENT_INBOX_ENABLED": "false", "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
-                  "ASSESSMENT_EDGE_INBOX_VERIFIED": "false", "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "false",
+                  "ASSESSMENT_INBOX_ENABLED": "true", "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
+                  "ASSESSMENT_EDGE_INBOX_VERIFIED": "true", "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
                   "ASSESSMENT_MONITORING_CAPTURE_ENABLED": "false", "ASSESSMENT_MONITORING_PUBLISHER_ENABLED": "false",
                   "PROCTORING_ENABLED": "false", "PROCTORING_MEDIA_ENABLED": "false",
-                  "IDENTITY_ISSUER": issuer, "IDENTITY_JWKS_URI": issuer + "/oauth2/jwks", "GATEWAY_ALLOWED_ORIGINS": "http://localhost:3000"}
+                  "IDENTITY_ISSUER": issuer, "IDENTITY_JWKS_URI": issuer + "/oauth2/jwks", "GATEWAY_ALLOWED_ORIGINS": browser_origin}
 
         def launch(name, extra):
             module = "gateway" if name == "gateway" else "services/" + name + "-service"
@@ -279,10 +285,13 @@ def up():
                             "IDENTITY_EMAIL_OUTBOX_DISPATCHER_ENABLED": "true", "IDENTITY_EMAIL_OUTBOX_POLLING_INTERVAL": "PT1S",
                             "IDENTITY_USER_ADMISSION_ENABLED": "true", "IDENTITY_USER_ADMISSION_ALLOWED_CLIENTS": "gateway,quiz-service,classroom-service,assessment-service",
                             "IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT": "false", "IDENTITY_AUTHORITY_RECONCILIATION_ENABLED": "true",
-                            "IDENTITY_AUTHORITY_POLLING_INTERVAL": "PT1S"})
+                            "IDENTITY_AUTHORITY_POLLING_INTERVAL": "PT1S",
+                            "IDENTITY_NOTICE_RECIPIENTS_ENABLED": "true",
+                            "IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT": "false",
+                            "IDENTITY_NOTICE_RECIPIENTS_ASSESSMENT_CLIENT_ID": "assessment-service"})
         clients = {name: secrets.token_urlsafe(32) for name in ["gateway", "quiz-service", "classroom-service", "assessment-service"]}
         scopes = {name: ["identity.user-admission"] for name in clients}
-        scopes["assessment-service"] += ["quiz.version-snapshot.read", "classroom.teacher-authority.read", "classroom.membership.read"]
+        scopes["assessment-service"] += ["quiz.version-snapshot.read", "classroom.teacher-authority.read", "classroom.membership.read", "identity.notice-recipient.read"]
         sql = []
         for client, secret in clients.items():
             client_id = str(uuid.uuid4())
@@ -301,16 +310,27 @@ def up():
             launch(name, {**admission(name + "-service"), **authority})
         features = {"PUBLICATION_ENABLED": "true", "ATTEMPTS_ENABLED": "true", "RESULTS_ENABLED": "true", "CLOSURE_ENABLED": "true"}
         launch("assessment", {**admission("assessment-service"), **features, "PUBLICATION_SOURCES_ENABLED": "true",
-                              "PUBLICATION_QUIZ_BASE_URL": endpoints["quiz"], "PUBLICATION_CLASSROOM_BASE_URL": endpoints["classroom"]})
+                              "PUBLICATION_QUIZ_BASE_URL": endpoints["quiz"], "PUBLICATION_CLASSROOM_BASE_URL": endpoints["classroom"],
+                              "ASSESSMENT_EDGE_BASE_URL": endpoints["gateway"],
+                              "ASSESSMENT_INBOX_ENABLED": "true",
+                              "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
+                              "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
+                              "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+                              "ASSESSMENT_CURSOR_ACTIVE_KEY": "v1",
+                              "ASSESSMENT_CURSOR_KEY_V1": cursor_key})
         launch("gateway", {**admission("gateway"), **features, "IDENTITY_SERVICE_URL": issuer,
-                           "QUIZ_SERVICE_URL": endpoints["quiz"], "CLASSROOM_SERVICE_URL": endpoints["classroom"], "ASSESSMENT_SERVICE_URL": endpoints["assessment"]})
+                           "QUIZ_SERVICE_URL": endpoints["quiz"], "CLASSROOM_SERVICE_URL": endpoints["classroom"], "ASSESSMENT_SERVICE_URL": endpoints["assessment"],
+                           "ASSESSMENT_INBOX_ENABLED": "true"})
         state["configured_client_scopes"] = scopes
         state["test_only_flags"] = {**features, **authority, "PUBLICATION_SOURCES_ENABLED": "true", "USER_ADMISSION_ENABLED": "true",
-                                    "USER_ADMISSION_ALLOW_INSECURE_LOOPBACK": "true", "IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT": "false"}
-        state["browser_origin"] = "http://localhost:3000"
+                                    "USER_ADMISSION_ALLOW_INSECURE_LOOPBACK": "true", "IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT": "false",
+                                    "ASSESSMENT_INBOX_ENABLED": "true", "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
+                                    "ASSESSMENT_EDGE_INBOX_VERIFIED": "true", "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+                                    "IDENTITY_NOTICE_RECIPIENTS_ENABLED": "true", "IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT": "false"}
+        state["browser_origin"] = browser_origin
         state["ready_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         owned.state_write(directory, state)
-        print("PASS isolated five-service readiness; USER TTL unchanged PT5M; monitoring/inbox/worker disabled", flush=True)
+        print("PASS isolated five-service readiness; USER TTL unchanged PT5M; attempts/results/closure/inbox enabled; monitoring/media disabled", flush=True)
         print("Cleanup: python3 scripts/local/w3a-real-runtime.py down " + str(directory), flush=True)
     except BaseException:
         down(directory)
