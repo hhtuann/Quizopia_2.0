@@ -45,6 +45,7 @@ function renderAuthenticatedShell(roles: readonly AuthRole[]) {
   });
   runtime.establishAuthenticatedSession({ accessToken, user });
   const service: AuthSessionService = {
+    getSessionGeneration: () => vault.readSnapshot().sessionGeneration,
     authenticatedRequests: {
       execute: vi.fn(),
       executeOnce: vi.fn(),

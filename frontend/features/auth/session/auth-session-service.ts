@@ -24,6 +24,8 @@ import { createSessionRuntime, type SessionRuntime } from "./session-runtime";
 import { withBrowserAuthLock } from "./browser-auth-lock";
 
 export interface AuthSessionService {
+  /** Non-secret identity fence for feature requests; never returns a token. */
+  readonly getSessionGeneration: () => number;
   readonly authenticatedRequests: AuthenticatedRequestExecutor;
   readonly runtime: SessionRuntime;
   bootstrap(): Promise<RefreshResult>;
@@ -160,6 +162,8 @@ export function createAuthSessionService(
   }
 
   const service: AuthSessionService = {
+    getSessionGeneration: () =>
+      accessTokenVault.readSnapshot().sessionGeneration,
     authenticatedRequests,
     runtime,
 

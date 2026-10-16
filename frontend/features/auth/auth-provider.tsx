@@ -24,6 +24,7 @@ import {
 import type { SessionRuntime } from "./session/session-runtime";
 
 export interface AuthContextValue {
+  readonly getSessionGeneration: () => number | null;
   readonly activeWorkspace: Workspace | null;
   readonly authenticatedRequests: AuthenticatedRequestExecutor | null;
   readonly availableWorkspaces: readonly Workspace[];
@@ -88,6 +89,7 @@ export function AuthProvider({
     const user = sessionUser(session);
 
     return {
+      getSessionGeneration: activeService?.getSessionGeneration ?? (() => null),
       activeWorkspace: hasAuthenticatedIdentity(session)
         ? session.activeWorkspace
         : null,

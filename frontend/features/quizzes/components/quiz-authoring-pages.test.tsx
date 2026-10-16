@@ -99,6 +99,7 @@ function renderAuthenticated(
       executeOnceWithAccessToken: vi.fn(),
     } satisfies AuthenticatedRequestExecutor);
   const service: AuthSessionService = {
+    getSessionGeneration: () => vault.readSnapshot().sessionGeneration,
     authenticatedRequests: executor,
     bootstrap: vi.fn(async () => ({ status: "no-session" as const })),
     confirmVerification: vi.fn(),
