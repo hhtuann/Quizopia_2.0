@@ -33,6 +33,7 @@ export interface AuthContextValue {
   readonly enableTeacher: AuthSessionService["enableTeacher"];
   readonly login: AuthSessionService["login"];
   readonly logout: AuthSessionService["logout"];
+  readonly retryVerification: AuthSessionService["retryVerification"];
   readonly register: AuthSessionService["register"];
   readonly requestVerification: AuthSessionService["requestVerification"];
   readonly session: SessionState;
@@ -89,7 +90,7 @@ export function AuthProvider({
     const user = sessionUser(session);
 
     return {
-      getSessionGeneration: activeService?.getSessionGeneration ?? (() => null),
+      getSessionGeneration: activeRuntime.getSessionGeneration,
       activeWorkspace: hasAuthenticatedIdentity(session)
         ? session.activeWorkspace
         : null,
@@ -106,6 +107,9 @@ export function AuthProvider({
       login:
         activeService?.login ?? (() => unavailableResult<AuthenticatedUser>()),
       logout: activeService?.logout ?? (() => unavailableResult<void>()),
+      retryVerification:
+        activeService?.retryVerification ??
+        (() => unavailableResult<AuthenticatedUser>()),
       register:
         activeService?.register ??
         (() => unavailableResult<"VERIFICATION_REQUIRED">()),

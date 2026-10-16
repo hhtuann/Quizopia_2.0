@@ -89,19 +89,23 @@ export interface AuthApiClient {
     readonly otp: string;
     readonly username: string;
   }): Promise<AuthApiResult<void>>;
-  login(input: {
-    readonly identifier: string;
-    readonly password: string;
-  }): Promise<AuthApiResult<LoginResponse>>;
+  login(
+    input: {
+      readonly identifier: string;
+      readonly password: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<AuthApiResult<LoginResponse>>;
   enableTeacher(
     authenticatedRequests: AuthenticatedRequestExecutor,
   ): Promise<AuthApiResult<void>>;
-  logout(): Promise<AuthApiResult<void>>;
+  logout(signal?: AbortSignal): Promise<AuthApiResult<void>>;
   me(
     authenticatedRequests: AuthenticatedRequestExecutor,
     accessToken: string,
+    signal?: AbortSignal,
   ): Promise<AuthApiResult<AuthenticatedUser>>;
-  refresh(): Promise<AuthApiResult<LoginResponse>>;
+  refresh(signal?: AbortSignal): Promise<AuthApiResult<LoginResponse>>;
   register(input: {
     readonly email: string;
     readonly password: string;
@@ -140,6 +144,14 @@ function normalizeTransportResult(
   result: HttpTransportResult,
 ): AuthApiResult<HttpResponse> {
   if (result.kind === "transport-error") {
+    if (
+      result.error.kind === "invalid-response" &&
+      result.error.status !== undefined
+    )
+      return {
+        ok: false,
+        error: { kind: "unexpected-response", status: result.error.status },
+      };
     return {
       ok: false,
       error: { kind: "transport-error", error: result.error },
@@ -153,6 +165,14 @@ function normalizeAuthenticatedResult(
   result: AuthenticatedRequestResult,
 ): AuthApiResult<HttpResponse> {
   if (result.kind === "transport-error") {
+    if (
+      result.error.kind === "invalid-response" &&
+      result.error.status !== undefined
+    )
+      return {
+        ok: false,
+        error: { kind: "unexpected-response", status: result.error.status },
+      };
     return {
       ok: false,
       error: { kind: "transport-error", error: result.error },
@@ -228,11 +248,13 @@ export function createAuthApiClient(options: {
     expectedStatus: number,
     schema: z.ZodType<T>,
     credentials?: RequestCredentials,
+    signal?: AbortSignal,
   ): Promise<AuthApiResult<T>> {
     const result = normalizeTransportResult(
       await transport.execute({
         body: JSON.stringify(input),
         credentials,
+        signal,
         headers: jsonHeaders(),
         method: "POST",
         target: target(path),
@@ -256,13 +278,14 @@ export function createAuthApiClient(options: {
       return result.ok ? expectEmpty(result.value, 204) : result;
     },
 
-    login(input) {
+    login(input, signal) {
       return executeJson(
         "/api/auth/login",
         input,
         200,
         loginResponseSchema,
         "include",
+        signal,
       );
     },
 
@@ -279,10 +302,11 @@ export function createAuthApiClient(options: {
       return result.ok ? expectEmpty(result.value, 204) : result;
     },
 
-    async logout() {
+    async logout(signal) {
       const result = normalizeTransportResult(
         await transport.execute({
           credentials: "include",
+          signal,
           headers: { accept: "application/json" },
           method: "POST",
           target: target("/api/auth/logout"),
@@ -291,10 +315,11 @@ export function createAuthApiClient(options: {
       return result.ok ? expectEmpty(result.value, 204) : result;
     },
 
-    async me(authenticatedRequests, accessToken) {
+    async me(authenticatedRequests, accessToken, signal) {
       const result = normalizeAuthenticatedResult(
         await authenticatedRequests.executeOnceWithAccessToken(
           {
+            signal,
             createRequest: () => ({
               headers: { accept: "application/json" },
               method: "GET",
@@ -319,13 +344,14 @@ export function createAuthApiClient(options: {
       };
     },
 
-    refresh() {
+    refresh(signal) {
       return executeJson(
         "/api/auth/refresh",
         undefined,
         200,
         loginResponseSchema,
         "include",
+        signal,
       );
     },
 

@@ -14,6 +14,8 @@ const auth = vi.hoisted(() => ({
   login: vi.fn(),
   register: vi.fn(),
   requestVerification: vi.fn(),
+  retryVerification: vi.fn(),
+  session: { status: "anonymous" },
 }));
 
 vi.mock("next/navigation", () => ({

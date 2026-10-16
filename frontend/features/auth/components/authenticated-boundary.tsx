@@ -7,6 +7,7 @@ import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { PageContainer } from "../../../components/ui/page-container";
 import { Surface } from "../../../components/ui/surface";
 import { useAuth } from "../auth-provider";
+import { SessionVerificationRecovery } from "./session-verification-recovery";
 
 export type BootstrappingPresentation = "loading" | "unavailable";
 
@@ -155,6 +156,24 @@ export function AuthenticatedBoundary({
       >
         Your local session has been cleared. No automatic sign-in was attempted.
       </SessionMessage>
+    );
+  }
+
+  if (session.status === "verification-unavailable") {
+    return (
+      <main id="main-content" tabIndex={-1}>
+        <PageContainer className="flex min-h-screen items-center justify-center py-8 sm:py-12">
+          <Surface className="w-full max-w-lg p-6 sm:p-8">
+            <h1 className="mb-6 text-3xl font-bold text-foreground">
+              Verify your account to continue
+            </h1>
+            <SessionVerificationRecovery />
+            <Link className={loginLinkClasses} href="/login">
+              Go to sign in
+            </Link>
+          </Surface>
+        </PageContainer>
+      </main>
     );
   }
 

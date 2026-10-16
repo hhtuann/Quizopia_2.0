@@ -41,6 +41,24 @@ function renderBoundary(
 }
 
 describe("authenticated UX boundary", () => {
+  it("blocks authenticated content while account verification is unavailable", () => {
+    const { authenticatedInput, runtime, vault } = createHarness();
+    runtime.establishAuthenticatedSession(authenticatedInput);
+    runtime.markVerificationUnavailable();
+
+    renderBoundary(runtime);
+
+    expect(
+      screen.queryByText("Authenticated shell content"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Account verification is temporarily unavailable",
+    );
+    expect(
+      screen.getByRole("button", { name: "Retry account verification" }),
+    ).toBeInTheDocument();
+    expect(vault.read()).toBeNull();
+  });
   it("renders an intentional loading state while a real bootstrap can run", () => {
     const { runtime } = createHarness();
 

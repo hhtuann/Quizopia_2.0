@@ -176,6 +176,92 @@ startup dependency while retaining standard timestamp and issuer validation.
 
 The configured access-token TTL remains deployment/security configuration and must stay short-lived. User and service TTLs may be configured separately; when the user TTL is omitted, it uses the configured service-token TTL.
 
+### Frontend login hydration and temporary unavailability
+
+Successful login or bootstrap refresh credentials alone do not establish frontend authenticated
+identity: `/api/auth/me` must hydrate the authoritative user first. If hydration
+returns 503 or fails because of timeout or network unavailability, the frontend
+keeps the refresh cookie intact and enters `verification-unavailable`. It exposes
+no user, workspace, or protected-request token in this state. Any previous account
+identity is cleared after successful replacement login.
+
+Recovery is an explicit, single-flight verification action, with a ten-second
+timeout on each `/me` request and no automatic retry loop. The candidate access
+token stays only in service memory. Recovery reuses it while unexpired; an expired
+candidate permits one cookie refresh before hydration per explicit action.
+Expired-candidate recovery also bounds its refresh request to ten seconds, an
+interactive deadline consistent with hydration. Its AbortSignal reaches the HTTP
+transport and fetch. Timeout/cancellation settles the client operation, releases
+the queue/held browser lock, and ignores any late response; it never automatically
+repeats an uncertain rotation. Bootstrap and ordinary refresh requests, login and
+logout requests also use ten-second deadlines. Browser lock acquisition has its
+own ten-second deadline and operation cancellation; a callback granted after
+cancellation cannot execute. These are interactive frontend deadlines, not a
+backend cancellation or refresh-rotation guarantee.
+
+An uncertain ordinary refresh result is latched for that session generation.
+Later protected 401 responses return refresh failure without another automatic
+rotation or local expiry. A new verified login establishes a new generation;
+the existing explicit Teacher enablement action may request one explicit refresh.
+No transport/503 assumption establishes that an unsuccessful rotation had no
+server-side or cookie effect. Received `/me` 401/403 stays a denial even if its
+JSON body cannot be decoded; HTTP status survives response-body parse failure.
+
+Bootstrap retains a successfully refreshed candidate privately if `/me` cannot
+complete, enabling the same manual verification UI. If refresh itself fails
+transiently, no candidate exists: startup settles as unavailable with a sign-in
+action. A login intent supersedes any candidate produced while awaiting bootstrap.
+Retry pending state belongs to the existing runtime so remounting its presentation
+cannot enable duplicate submissions. Failed attempts receive a fresh status
+announcement; login recovery navigation belongs to the mounted login form.
+
+Login, recovery, refresh and logout cookie operations are serialized locally and
+use the existing browser auth lock where available. The in-memory token vault owns
+two monotonic fences with distinct purposes: `sessionGeneration` changes when
+tokens are cleared or an identity is established/changed and protects request
+replay and every protected response, including successful one-shot and replayed
+responses; `operationGeneration` changes on new login intent, explicit local clearing,
+session expiry, logout execution, or a refreshed identity changing accounts and
+cancels older asynchronous auth work.
+Automatic bootstrap completion and same-session refresh do not advance the
+operation fence, so a login awaiting its own bootstrap remains valid. Both fences
+are captured before bootstrap/refresh work; login captures its operation fence
+before any await. Responses are checked before hydration and state changes.
+Confirmed login clears the previous identity/token while retaining its own
+operation fence. Direct runtime identity establishment cancels older operations;
+fenced establishment completes only the current operation. Logout waits for normal
+refresh as before, checks whether a newer intent superseded that wait, and then
+cancels pending login/recovery before sending logout.
+
+Client cancellation does not prove that Identity canceled a login/refresh
+transaction, that a refresh family did not rotate, or that a browser cookie was
+unchanged. Already-applied Set-Cookie and cross-tab cookie changes cannot be
+rolled back by frontend generation checks. Web Locks coordinate participating
+tabs where available; the local queue alone does not synchronize other tabs.
+Refresh rotation after an uncertain response and backend unavailable-status
+mapping require coordinated backend contracts and real-browser integration
+verification. The frontend performs no compensating automatic logout or refresh.
+
+Merged PR #76 defines code-only `503 AUTHORITY_UNAVAILABLE` for the implemented
+Gateway/Classroom admission adapters; genuine USER evidence denial maps to
+`401 UNAUTHENTICATED`, and current-role denial to `403 ACCESS_DENIED`. SERVICE
+credential failures and dependency failures map to unavailable, not browser
+credential denial. Sensitive outcomes use `Cache-Control: no-store` and do not
+invalidate refresh families or clear cookies. Protected 503/403 responses pass
+through the frontend without refresh or logout; genuine protected 401 retains
+the existing bounded session refresh rules.
+
+This mapping covers only the exact implemented Classroom routes. PR #76 preserves
+existing `/me`, refresh and Quiz contracts; future Assessment/Proctoring business
+routes remain closed. A real `/me` 401/403 still rejects the session;
+`401 AUTH_REFRESH_FAILED` still ends refresh recovery. Existing `/me` durable
+eligibility verification is not the complete new Redis/primary admission protocol.
+The frontend adds no backend authority bypass. Browser outage/cookie-rotation
+behavior against the provisioned PR #75/#76 topology remains an integration gate.
+See [LD-05 enforcement](ld05-enforcement.md),
+[Identity authority admission](identity-authority-admission.md), and the
+[frontend takeover review](../development/frontend-ld05-review.md).
+
 ### Access-token principal contract
 
 All Quizopia access tokens contain the case-sensitive `principal_type` claim with
