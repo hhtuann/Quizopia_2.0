@@ -1,6 +1,6 @@
 # W3 Proctoring correction campaign
 
-Status: **H1 PRIVATE AUTHORITY CORRECTION IMPLEMENTED; DOWNSTREAM CORRECTIONS AND
+Status: **H1 PRIVATE AUTHORITY AND M1 WIRE CORRECTIONS IMPLEMENTED; LIVE MEDIA AND
 CUMULATIVE ACCEPTANCE PENDING. PRODUCTION NO-GO.** Updated 2026-10-15 (Asia/Bangkok).
 
 ## Reviewed baseline and propagation
@@ -103,8 +103,40 @@ constructor on configuration properties. Removing that constructor restored norm
 record binding; no security or fixture assertion was relaxed. Identity intermediate
 formatting/test-package defects were corrected before its passing full run.
 
-M1 browser numeric/timestamp coercion and M2 SDK administrative bearer hardening
-remain to be applied on their owning branches after the parent correction. Existing
+## M1 — Strict browser wire representations
+
+The actual service HTTP/PostgreSQL regression reproduced eight accepted invalid
+representations before the fix, among 28 negative cases. Fractions were truncated,
+integral exponent/decimal forms were accepted and numeric observedAt became an
+epoch timestamp. Log: `/tmp/m1-wire-repro.log` (28 tests, eight expected pre-fix
+failures, zero errors/skips). The separate cached-Jackson probe reproduced the same
+root cause despite scalar-coercion settings.
+
+Event-only Jackson mix-ins now require `VALUE_NUMBER_INT` for sequence/question/
+schema version, with signed long/int parser bounds. observedAt requires a timestamp
+string or permitted null. A strict RFC3339 shape guard also rejects 24:00, empty fractions and offset seconds
+that Instant.parse otherwise normalizes. Lowercase t/z and standard numeric offsets
+remain valid. No global Instant or numeric deserializer changes other routes. Duplicate/unknown/trailing guards, required values and schema version 1 remain.
+
+All 31 negative HTTP cases now return sanitized 400/no-store and preserve the full
+Session/evidence/audit rows. Reusing the rejected event/stream/sequence with corrected
+valid JSON succeeds and replays the same receipt. ISO and nullable timestamps pass.
+Focused verification passed 63 tests; full Proctoring verification passed **132**
+with zero failures/errors/skips. Reports: `services/proctoring-service/target/m1-service-final-3/surefire-reports`;
+log `/tmp/m1-service-final-3.log`.
+
+The private Assessment adapter now sends/validates HISTORY versus LIVE_MEDIA.
+Historical-purpose responses cannot satisfy live checks; history-only port adapters
+default to denying live permission. MediaService adaptation and cumulative H1 grant
+tests remain required on #90/#91.
+
+Executed full module command:
+
+```bash
+MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash services/proctoring-service/mvnw -B -f services/proctoring-service/pom.xml -Dquizopia.build.directory=target/m1-service-final-3 spotless:apply verify -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
+```
+
+M2 SDK administrative bearer hardening remains to be applied on its owning branch. Existing
 SDK probe confirmed the six-hour default and absent explicit iat/nbf. The supported
 custom-token client mechanism and operation-specific privileges must be wire-tested
 before claiming M2 closed.

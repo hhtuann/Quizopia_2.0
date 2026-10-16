@@ -317,7 +317,10 @@ prohibited. AI behavior monitoring remains accepted future design, deferred afte
 Wave 3; it is not a closure dependency. LD-02 requires explicit CLASS choice
 before OPEN, with no implicit ON/OFF default; choice is immutable upon OPEN.
 No additional Activity-only, AI-enabled or A/B mode is approved.
-PROCTOR-01..09 retain unresolved portions; scope approval is not contract freeze.
+The [W3-M engineering contract](specifications/w3-m-proctoring-contract.md)
+classifies derivable M1 mechanics separately from product/security and external
+privacy/deployment gates. M1 is under implementation; M2 and real-learner activation
+remain gated. Scope approval is not privacy approval or completed implementation.
 
 **PROCTOR-01.** Evidence retention default: 7 days, 30 days, or another platform value?
 
@@ -356,24 +359,28 @@ and production controls must be reviewed before real-learner enablement.
 
 **PROCTOR-08.** Which service is authoritative for answer-change/question-navigation evidence in the proctor timeline, and what sanitized event is copied from Assessment to Proctoring?
 
-Status: **PARTIALLY RESOLVED — ownership accepted; evidence contract OPEN**.
-Assessment owns authoritative answers/Attempt lifecycle/deadlines; Proctoring owns
-monitoring evidence. No authoritative answer-state duplication. Freeze sanitized
-answer-change metadata without answer content, supported browser events, timestamps,
-durability/tamper resistance, schemas, transport, retry/ordering and access controls
-before W3-M1 implementation. Browser observations are incomplete/untrusted evidence,
+Status: **PARTIALLY RESOLVED — ownership accepted; M1 browser-envelope engineering
+contract specified; implementation/review and authoritative Assessment event adapter
+pending**. Assessment owns authoritative answers/Attempt lifecycle/deadlines; Proctoring owns
+monitoring evidence. No authoritative answer-state duplication. The M1 engineering
+contract specifies strict browser metadata, timestamps, append/replay/server ordering
+and access boundaries. Browser answer-change metadata is untrusted observation;
+the authoritative Assessment answer-change outbox/consumer is not delivered by the
+initial increment. Implementation and independent review remain pending. Browser observations are incomplete/untrusted evidence,
 not proof of misconduct.
 
 **PROCTOR-09.** Exact modeling of the "exactly one classroom" constraint between Publication/Assignment/Proctoring?
 
-Status: **OPEN — engineering contract**. Exactly one Classroom, authoritative
-Teacher/member checks and active eligible Attempts are accepted constraints.
-Freeze references and verification without cross-service foreign keys/SQL.
+Status: **ENGINEERING CONTRACT SPECIFIED FOR M1 — IMPLEMENTATION/REVIEW PENDING**.
+Exactly one authority-derived Classroom/Publication/Attempt/Student binding and
+fresh private Assessment/Classroom checks are specified without cross-service
+foreign keys/SQL. No new product policy is required for these derivable mechanics.
 
 **PROCTOR-10.** Persisted monitoring configuration, UI terminology and default?
 
-Status: **PARTIALLY RESOLVED — LD-02 explicit choice and OPEN immutability
-accepted; persisted representation/UI terminology OPEN — engineering contract**.
+Status: **PERSISTED REPRESENTATION IMPLEMENTED IN ASSESSMENT; UI/monitoring runtime
+review remains separate**. Actual `MonitoringChoice` is `UNCONFIGURED`, `ENABLED`,
+`DISABLED`; the M1 contract reuses it.
 CLASS Teachers explicitly choose whether monitoring is required. Unconfigured
 CLASS DRAFT has no implicit ON or OFF default and cannot OPEN until an explicit
 choice is recorded. Enabled means Browser Activity Evidence plus LiveKit Camera;

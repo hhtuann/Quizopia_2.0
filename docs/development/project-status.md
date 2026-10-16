@@ -2,9 +2,9 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-11
+> **Last updated:** 2026-10-14
 >
-> **Checkpoint baseline:** fetched/inspected `origin/develop @ 87ff6b064b972400cd4903f7bc4fec9375e559a1` (includes PR #72/#73)
+> **Checkpoint baseline:** merged develop `e5c4ef3500f1ce40303af161cd6ca74b706c21b2` (PR #87); current M1 work is unmerged and separately identified below.
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -68,8 +68,8 @@ Completed foundation includes:
 
 Current phase:
 
-**Wave 2 delivery is complete. Wave 3 — Assessment Core is the next current
-wave.**
+**Wave 2 delivery is complete. Wave 3 — Assessment Core and optional eligible
+CLASS monitoring is current.**
 
 Wave 2 has:
 
@@ -101,7 +101,17 @@ Wave 2 remaining: **none for milestone closure**.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
-**Status: CURRENT — PRODUCT POLICY APPROVED; CONTRACT DOCUMENTATION FIRST.**
+**Status: CURRENT — ASSESSMENT A/B/C MERGED; M1 IN PROGRESS; M2 PENDING;
+PRODUCTION NO-GO.**
+
+The [W3-M checkpoint](../architecture/w3m-backend-implementation.md) records current
+source, bounded branch/resumption and actual verification limits. Assessment
+W3-A/B/C and integrated acceptance are merged through PR #84; release governance
+through PR #87 preserves eleven external gates (6 BLOCKED / 5 NOT VERIFIED).
+[ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) explicitly amends historical
+LD-01/LD-04 with unlimited Attempt duration and narrow notified delayed closure;
+no monitoring for unlimited Attempts is approved. The following historical policy
+chronology does not supersede those amendments or current implemented OpenAPI.
 
 [Accepted Assessment Core policy](../specifications/assessment-core-policy.md)
 records ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06. Publication
@@ -127,23 +137,22 @@ Activity-only, AI-enabled or A/B modes are approved.
 Proctoring owns evidence/session/room/token orchestration; Assessment owns Attempt
 validity, deadlines, answers and grades; Classroom owns class authority/membership.
 
-Assessment and Proctoring remain scaffolds; no Publication/Attempt/grading or
-monitoring product implementation is claimed. Next bounded workstreams:
+Assessment is implemented; its Publication/Attempt/grading/closure/inbox OpenAPI
+and runtime are authoritative. Proctoring had a closed scaffold at this baseline;
+the current `feature/w3m1-proctoring-activity-evidence` increment adds real M1
+session/evidence/authorization mechanics under the
+[bounded M contract](../specifications/w3-m-proctoring-contract.md). Its implementation,
+tests, independent review and later M2 branch must be verified separately. Remaining
+work is durable M1 completion, actual M2 grants/revocation/orchestration, real
+frontend/integrated journeys and external monitoring/production acceptance, not
+reimplementation of merged Assessment A/B/C.
 
-1. W3-A: freeze ASSESS-15 API/data, CLASS verification, PUBLIC locator/route/errors,
-   QuizVersion handoff, timing/configuration representation and transactional
-   reject-CLOSE contracts; prepare bounded LD-05 security/recovery/verification
-   contracts, then deliver Publication backend/Teacher UX after acceptance.
-2. W3-B: freeze count/resume, autosave revisions, cutoff/expiry/terminalization and
-   retry-safe submit contracts; deliver Student lifecycle and membership checks.
-3. W3-C: preserve accepted grading/visibility; freeze Student numeric syntax and
-   exact score representation/display/policy identity; deliver grading/results.
-4. W3-M1/M2: freeze monitoring representation/UI terminology, evidence schema/transport/
-   retention, sanitized Assessment integration, scoped session/token revocation,
-   camera refusal/loss/accommodations and production LiveKit/privacy contracts;
-   deliver durable evidence/Teacher dashboard and real camera/Teacher video grid.
-5. Verify real CLASS/PUBLIC journeys, bounded timing and monitoring enabled/disabled,
-   then close Wave 3 only after canonical DoD, CI/security and review gates pass.
+The [release operator pack](w3-production-release-approval-operator-readiness.md)
+keeps the selected Assessment nomination separate from new monitoring commits.
+Retention, refusal/loss/accommodations, deployed LiveKit/privacy review and actual
+independent approvals remain open; no synthetic/local test closes those gates.
+
+Historical contract chronology (2026-10-11):
 
 The Leader-approved LD-01..05 follow-up is recorded on 2026-10-11, after PR #72/#73:
 PUBLIC requires authenticated USER with authoritative STUDENT and Identity
@@ -188,11 +197,14 @@ The Assessment policy's A–J audit/examples and W3-A endpoint inventory are con
 inputs; proposed endpoints are not frozen APIs. Product approval and this docs-only
 reconciliation are not new implementation, CI or E2E evidence.
 
-## 3. Current accepted `develop` checkpoint
+## 3. Current merged checkpoint and historical chronology
 
-Current accepted checkpoint:
-
-`origin/develop = 87ff6b064b972400cd4903f7bc4fec9375e559a1` (verified 2026-10-11)
+Current merged baseline is PR #87 at
+`e5c4ef3500f1ce40303af161cd6ca74b706c21b2`; W3-M1 work is unmerged and carries no
+Leader merge or production approval. Consult the current checkpoint linked above
+for final source/test/PR evidence. The following records the earlier documentation
+checkpoint at `87ff6b064b972400cd4903f7bc4fec9375e559a1` (2026-10-11), not current
+implementation status:
 
 PR #72 adds Assessment policy/contract documentation; PR #73 (`d699bd3`) adds
 W3-A scope reconciliation. The latest checkpoint also includes the frontend
@@ -291,7 +303,7 @@ teacher Quiz Library plus grammar-aware editor completion and real
 create/read/update/publish integration. Remaining product gaps:
 
 - import/export;
-- Assessment publication/delivery lifecycle.
+- frontend Assessment integration/real-browser acceptance; the backend lifecycle is merged.
 
 ### 4.3 Classroom
 
@@ -306,8 +318,8 @@ Current foundation includes:
 - no fake Identity users;
 - local Classroom database ownership.
 
-W3-A/B must integrate authoritative Teacher assignment authorization and Student
-membership now. Broader creation/invites/discovery/gradebook UX remains MVP-C.
+Merged W3-A/B integrates authoritative Teacher assignment authorization and Student
+membership through private service contracts. Broader creation/invites/discovery/gradebook UX remains MVP-C.
 
 ## 5. Completed Wave 2 workstreams (historical)
 
@@ -491,8 +503,8 @@ Quiz/import:
 
 Assessment plus optional eligible CLASS monitoring is current Wave 3 scope,
 governed by section 2 and the W3-A follow-up decisions. LD-03 accepts
-authenticated STUDENT direct-link PUBLIC participation; exact locator/route/errors
-remain engineering work. Guest identity/access is deferred.
+authenticated STUDENT direct-link PUBLIC participation; implemented locator/routes/
+errors are described in the current Assessment service OpenAPI. Guest identity/access is deferred.
 
 Later product areas:
 

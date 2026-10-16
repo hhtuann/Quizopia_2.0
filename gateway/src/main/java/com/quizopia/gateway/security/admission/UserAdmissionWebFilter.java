@@ -9,6 +9,7 @@ import reactor.core.publisher.Mono;
 
 public final class UserAdmissionWebFilter implements WebFilter {
     private final boolean inboxEnabled;
+    private final boolean proctoringEnabled;
     private final IdentityAdmissionClient admission;
     private final PublicationProperties publication;
     private final AttemptFeatureProperties features;
@@ -27,6 +28,16 @@ public final class UserAdmissionWebFilter implements WebFilter {
             PublicationProperties publication,
             AttemptFeatureProperties features,
             boolean inboxEnabled) {
+        this(admission, publication, features, inboxEnabled, false);
+    }
+
+    public UserAdmissionWebFilter(
+            IdentityAdmissionClient admission,
+            PublicationProperties publication,
+            AttemptFeatureProperties features,
+            boolean inboxEnabled,
+            boolean proctoringEnabled) {
+        this.proctoringEnabled = proctoringEnabled;
         this.inboxEnabled = inboxEnabled;
         this.features = features;
         this.admission = admission;
@@ -42,6 +53,8 @@ public final class UserAdmissionWebFilter implements WebFilter {
         String method = exchange.getRequest().getMethod().name();
         String path = exchange.getRequest().getURI().getRawPath();
         boolean student = StudentAttemptRoutes.matches(method, path);
+        if (ProctoringRoutes.role(method, path) != null && !proctoringEnabled)
+            return error(exchange, AdmissionFailure.unavailable());
         if (ClosureRoutes.role(method, path) != null
                 ? !ClosureRoutes.enabled(
                         method, path, features.resultsEnabled(), features.closureEnabled(), inboxEnabled)

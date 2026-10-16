@@ -6,6 +6,12 @@ spring:
   main:
     web-application-type: servlet
   datasource:
+    hikari:
+      connection-timeout: 3000
+      validation-timeout: 1000
+      data-source-properties:
+        socketTimeout: 5
+        loginTimeout: 3
     url: ${DB_URL:jdbc:postgresql://localhost:5432/proctoring_db}
     username: ${DB_USERNAME:proctoring}
     password: ${DB_PASSWORD:proctoring_local_only}
@@ -70,9 +76,21 @@ quizopia:
 # Dedicated credential clients must remain redacted even when root logging is DEBUG/TRACE.
 logging:
   level:
+    org.apache.coyote.http11: WARN
+    org.hibernate.orm.factory: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+    org.springframework.jdbc.core: WARN
+    org.springframework.web.servlet.mvc.method.annotation: WARN
     org.springframework.web.reactive.function.client: WARN
     org.springframework.http.codec: WARN
     org.springframework.core.codec: WARN
     org.springframework.web.HttpLogging: WARN
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
+
+quizopia.proctoring.monitoring:
+  enabled: ${PROCTORING_ENABLED:false}
+  assessment-base-url: ${PROCTORING_ASSESSMENT_BASE_URL:}
+  retention-days: ${PROCTORING_RETENTION_DAYS:}
+  retention-policy-reference: ${PROCTORING_RETENTION_POLICY_REFERENCE:}
+  privacy-approval-reference: ${PROCTORING_PRIVACY_APPROVAL_REFERENCE:}

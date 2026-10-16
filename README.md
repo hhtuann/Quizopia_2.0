@@ -1,16 +1,24 @@
 # Quizopia 2.0
 
-> Project Context Pack v0.2 — Pre-Scaffold Architecture Baseline
+> Quizopia 2.0 — implemented platform and Wave 3 delivery checkpoint
 
 Quizopia 2.0 is a public web platform for creating, publishing, sharing, practicing, and taking quizzes. It also supports classroom workflows, public community content, AI-assisted authoring/tutoring, and optional proctoring for time-bounded classroom assessments.
 
 Quizopia 2.0 is a **new system** inspired by the strongest engineering invariants and lessons of Quizopia 1.x. It is **not** an incremental refactor of the legacy codebase.
 
-## Current scaffold
+## Current implementation
 
-Context Pack v0.2 finalizes the architectural decisions required to scaffold the repository for a four-person team.
+Identity/Auth, Quiz authoring, Classroom foundations and W3-A/B/C Assessment backend
+are implemented. Assessment integrated acceptance/hardening is merged through
+PR #84; production release governance through PR #87 keeps eleven external gates
+open. W3-M1 Activity Evidence is under implementation; W3-M2 LiveKit orchestration
+and frontend browser integration remain separate. Wave 3 business defaults remain disabled
+and production activation is not authorized. See the
+[current checkpoint](docs/architecture/w3m-backend-implementation.md) and
+[project status](docs/development/project-status.md).
 
-Accepted pre-scaffold decisions include:
+Context Pack v0.2 established the original scaffold architecture. Its accepted
+foundations remain:
 
 - true monorepo;
 - one Next.js frontend;
@@ -39,8 +47,7 @@ Accepted pre-scaffold decisions include:
 - Flyway-owned schemas, Hibernate validation only;
 - JUnit/Testcontainers, frontend unit/component tests, and Playwright E2E.
 
-The initial platform scaffold is implemented. It deliberately contains no
-Quizopia business features. See [`docs/development/scaffold.md`](docs/development/scaffold.md)
+The scaffold workflow remains available alongside the implemented business services. See [`docs/development/scaffold.md`](docs/development/scaffold.md)
 for the hybrid local workflow and exact commands.
 
 ## Repository structure
@@ -69,7 +76,8 @@ Quizopia_2.0/
 └── README.md
 ```
 
-The scaffold does **not** need to implement the business domains yet. Feature-level questions remain intentionally open.
+Source and implemented service OpenAPI govern current capabilities; unresolved
+product/privacy/deployment decisions remain explicit in `docs/open-questions.md`.
 
 ## Technology baseline
 

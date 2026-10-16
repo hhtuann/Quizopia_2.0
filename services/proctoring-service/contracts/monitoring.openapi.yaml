@@ -1,0 +1,864 @@
+openapi: 3.1.0
+info:
+  title: Quizopia W3-M1 activity evidence
+  version: 1.0.0
+  description:
+    Implemented default-disabled M1 increment. Browser signals are untrusted
+    observations, never authoritative answers or misconduct findings. M2 media APIs
+    and authoritative Assessment change-event adapter are not included. Production
+    activation remains prohibited pending bundle/privacy/security gates. Replay uses
+    exact canonical event identity; client observedAt is normalized to PostgreSQL
+    microseconds. Session END is irreversible. A prior acknowledgment may replay after
+    END with fresh resource authority. Remote authority is an in-flight sample, not
+    a distributed transaction.
+paths:
+  /api/proctoring/monitoring/sessions:
+    post:
+      operationId: createMonitoringSession
+      summary: createMonitoringSession
+      security:
+        - userBearer: []
+      x-required-role: STUDENT
+      description:
+        Implemented default-disabled M1 adapter, pending independent review.
+        Fresh Gateway and downstream Identity admission plus Assessment/Classroom
+        authority required. No USER/SERVICE role substitution. No positive eligibility
+        cache. All responses are sanitized and no-store.
+      responses:
+        "200":
+          description: Authorized result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      requestBody:
+        required: true
+        description:
+          Strict JSON; duplicate or unknown fields rejected. Maximum encoded
+          request body 16384 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Create"
+  /api/proctoring/monitoring/sessions/{id}:
+    get:
+      operationId: readMonitoringSession
+      summary: readMonitoringSession
+      security:
+        - userBearer: []
+      x-required-role: STUDENT owner or TEACHER
+      description:
+        Implemented default-disabled M1 adapter, pending independent review.
+        Fresh Gateway and downstream Identity admission plus Assessment/Classroom
+        authority required. No USER/SERVICE role substitution. No positive eligibility
+        cache. All responses are sanitized and no-store.
+      responses:
+        "200":
+          description: Authorized result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+  /api/proctoring/monitoring/sessions/{id}/events:
+    post:
+      operationId: appendMonitoringEvent
+      summary: appendMonitoringEvent
+      security:
+        - userBearer: []
+      x-required-role: STUDENT
+      description:
+        Implemented default-disabled M1 adapter, pending independent review.
+        Fresh Gateway and downstream Identity admission plus Assessment/Classroom
+        authority required. No USER/SERVICE role substitution. No positive eligibility
+        cache. All responses are sanitized and no-store.
+      responses:
+        "200":
+          description: Authorized result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acknowledgment"
+        "400":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        description:
+          Strict JSON; duplicate or unknown fields rejected. Maximum encoded
+          request body 16384 bytes.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Event"
+    get:
+      operationId: readMonitoringTimeline
+      summary: readMonitoringTimeline
+      security:
+        - userBearer: []
+      x-required-role: TEACHER
+      description:
+        Implemented default-disabled M1 adapter, pending independent review.
+        Fresh Gateway and downstream Identity admission plus Assessment/Classroom
+        authority required. No USER/SERVICE role substitution. No positive eligibility
+        cache. All responses are sanitized and no-store.
+      responses:
+        "200":
+          description: Authorized result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Page"
+        "400":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: after
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+  /api/proctoring/monitoring/sessions/{id}/reconcile:
+    post:
+      operationId: reconcileMonitoringSession
+      summary: reconcileMonitoringSession
+      security:
+        - userBearer: []
+      x-required-role: STUDENT owner or TEACHER
+      description:
+        Implemented default-disabled M1 adapter, pending independent review.
+        Fresh Gateway and downstream Identity admission plus Assessment/Classroom
+        authority required. No USER/SERVICE role substitution. No positive eligibility
+        cache. All responses are sanitized and no-store.
+      responses:
+        "200":
+          description: Authorized result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+components:
+  securitySchemes:
+    userBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Quizopia RS256 USER JWT
+  schemas:
+    Create:
+      type: object
+      additionalProperties: false
+      required:
+        - attemptId
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+    Session:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - attemptId
+        - publicationId
+        - classroomId
+        - studentId
+        - deadlineAt
+        - status
+        - createdAt
+        - endedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        attemptId:
+          type: string
+          format: uuid
+        publicationId:
+          type: string
+          format: uuid
+        classroomId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          format: uuid
+        deadlineAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - ENDED
+        createdAt:
+          type: string
+          format: date-time
+        endedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+    Event:
+      type: object
+      additionalProperties: false
+      required:
+        - eventId
+        - streamId
+        - sequence
+        - type
+        - schemaVersion
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        streamId:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Integer JSON token only; fractional, exponent, string and Boolean representations are rejected.
+        type:
+          type: string
+          enum:
+            - QUESTION_VIEWED
+            - QUESTION_LEFT
+            - ANSWER_SELECTED
+            - ANSWER_CHANGED
+            - ANSWER_CLEARED
+            - VISIBILITY_HIDDEN
+            - VISIBILITY_VISIBLE
+            - WINDOW_BLUR
+            - WINDOW_FOCUS
+            - FULLSCREEN_ENTERED
+            - FULLSCREEN_EXITED
+            - CAMERA_PERMISSION_GRANTED
+            - CAMERA_PERMISSION_DENIED
+            - DEVICE_MISSING
+            - DEVICE_ERROR
+            - CAMERA_UNAVAILABLE
+            - MEDIA_DISCONNECTED
+            - RECONNECTING
+            - NETWORK_DISCONNECTED
+            - NETWORK_RECONNECTED
+            - DUPLICATE_TAB
+        observedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: ISO date-time string or null only; numeric epoch timestamps are rejected.
+        questionNumber:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+          description: Integer JSON token or permitted null only; fractional, exponent, string and Boolean representations are rejected.
+        schemaVersion:
+          type: integer
+          const: 1
+          description: Integer JSON token 1 only; fractional, exponent, string, Boolean and null representations are rejected.
+      allOf:
+        - if:
+            properties:
+              type:
+                enum:
+                  - QUESTION_VIEWED
+                  - QUESTION_LEFT
+                  - ANSWER_SELECTED
+                  - ANSWER_CHANGED
+                  - ANSWER_CLEARED
+          then:
+            required:
+              - questionNumber
+            properties:
+              questionNumber:
+                type: integer
+                minimum: 1
+          else:
+            properties:
+              questionNumber:
+                type: "null"
+    Acknowledgment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - ordinal
+        - receivedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        ordinal:
+          type: integer
+          format: int64
+          minimum: 1
+        receivedAt:
+          type: string
+          format: date-time
+    Evidence:
+      type: object
+      additionalProperties: false
+      required:
+        - ordinal
+        - id
+        - streamId
+        - sequence
+        - type
+        - observedAt
+        - questionNumber
+        - receivedAt
+        - source
+        - integritySha256
+        - schemaVersion
+        - actorId
+      properties:
+        ordinal:
+          type: integer
+          format: int64
+          minimum: 1
+        id:
+          type: string
+          format: uuid
+        streamId:
+          type:
+            - string
+            - "null"
+          format: uuid
+        sequence:
+          type:
+            - integer
+            - "null"
+          format: int64
+          minimum: 0
+        type:
+          type: string
+          enum:
+            - QUESTION_VIEWED
+            - QUESTION_LEFT
+            - ANSWER_SELECTED
+            - ANSWER_CHANGED
+            - ANSWER_CLEARED
+            - VISIBILITY_HIDDEN
+            - VISIBILITY_VISIBLE
+            - WINDOW_BLUR
+            - WINDOW_FOCUS
+            - FULLSCREEN_ENTERED
+            - FULLSCREEN_EXITED
+            - CAMERA_PERMISSION_GRANTED
+            - CAMERA_PERMISSION_DENIED
+            - DEVICE_MISSING
+            - DEVICE_ERROR
+            - CAMERA_UNAVAILABLE
+            - MEDIA_DISCONNECTED
+            - RECONNECTING
+            - NETWORK_DISCONNECTED
+            - NETWORK_RECONNECTED
+            - DUPLICATE_TAB
+            - SESSION_STARTED
+            - SESSION_ENDED
+        observedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        questionNumber:
+          type:
+            - integer
+            - "null"
+          minimum: 1
+        receivedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum:
+            - CLIENT_OBSERVATION
+            - SERVER_AUTHORITY
+        integritySha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        schemaVersion:
+          type: integer
+          const: 1
+        actorId:
+          type: string
+          format: uuid
+    Page:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - nextAfter
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/Evidence"
+        nextAfter:
+          type:
+            - integer
+            - "null"
+          format: int64
+          minimum: 1
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - UNAUTHENTICATED
+            - ACCESS_DENIED
+            - INVALID_REQUEST
+            - PROCTORING_NOT_ACCESSIBLE
+            - SESSION_ENDED
+            - EVENT_CONFLICT
+            - PAYLOAD_TOO_LARGE
+            - AUTHORITY_UNAVAILABLE
+            - PERSISTENCE_UNAVAILABLE
+            - EVIDENCE_INTEGRITY_UNAVAILABLE

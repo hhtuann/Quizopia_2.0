@@ -77,6 +77,8 @@ class GatewayAdmissionIntegrationTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry p) {
+        p.add("PROCTORING_SERVICE_URL", () -> "http://127.0.0.1:" + BACKEND.port());
+        p.add("quizopia.proctoring.enabled", () -> true);
         p.add("ASSESSMENT_SERVICE_URL", () -> "http://127.0.0.1:" + BACKEND.port());
         p.add("quizopia.publication.enabled", () -> true);
         p.add("CLASSROOM_SERVICE_URL", () -> "http://127.0.0.1:" + BACKEND.port());
@@ -108,6 +110,43 @@ class GatewayAdmissionIntegrationTest {
     static void stop() {
         IDENTITY.disposeNow();
         BACKEND.disposeNow();
+    }
+
+    @Test
+    void eachProctoringAdapterRequiresFreshAdmissionAndForwardsOnlyOriginalUser() {
+        String token = user();
+        for (String operation : List.of(
+                "POST /api/proctoring/monitoring/sessions",
+                "GET /api/proctoring/monitoring/sessions/" + ACTOR,
+                "POST /api/proctoring/monitoring/sessions/" + ACTOR + "/events",
+                "GET /api/proctoring/monitoring/sessions/" + ACTOR + "/events",
+                "POST /api/proctoring/monitoring/sessions/" + ACTOR + "/reconcile")) {
+            String[] parts = operation.split(" ");
+            http.method(HttpMethod.valueOf(parts[0]))
+                    .uri(parts[1])
+                    .headers(h -> h.setBearerAuth(token))
+                    .header("X-Quizopia-User-Evidence", "spoofed")
+                    .exchange()
+                    .expectStatus()
+                    .isOk()
+                    .expectHeader()
+                    .valueEquals("Cache-Control", "no-store");
+        }
+        assertEquals(5, ADMISSIONS.get());
+        assertEquals(5, BACKEND_CALLS.get());
+        assertEquals("Bearer " + token, BACKEND_AUTH.get());
+        assertEquals(token, EVIDENCE.get());
+        STATUS.set(503);
+        BODY.set("{\"code\":\"AUTHORITY_UNAVAILABLE\"}");
+        http.get()
+                .uri("/api/proctoring/monitoring/sessions/" + ACTOR)
+                .headers(h -> h.setBearerAuth(token))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store");
+        assertEquals(5, BACKEND_CALLS.get());
     }
 
     @Test

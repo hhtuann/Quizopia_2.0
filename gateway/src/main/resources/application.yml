@@ -113,3 +113,5 @@ management.endpoint.health.group.assessment-inbox:
   include: assessmentInbox
   show-details: never
   show-components: never
+
+quizopia.proctoring.enabled: ${PROCTORING_ENABLED:false}
