@@ -10,7 +10,7 @@ import { AuthenticatedUserMenu } from "./authenticated-user-menu";
 
 export interface ApplicationShellProps {
   readonly children: ReactNode;
-  readonly currentSection?: "home" | "quizzes";
+  readonly currentSection?: "home" | "quizzes" | "assessments";
 }
 
 export function ApplicationShell({

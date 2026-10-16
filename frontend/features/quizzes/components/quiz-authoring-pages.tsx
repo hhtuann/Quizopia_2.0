@@ -988,6 +988,21 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
 
       <PublishedVersionHistory
         client={client}
+        onCreateAssessment={(version) => {
+          if (
+            dirty &&
+            !window.confirm(
+              "You have unsaved changes. Leave the editor and discard them?",
+            )
+          )
+            return;
+          const query = new URLSearchParams({
+            quizId: version.quizId,
+            quizVersionId: version.id,
+            versionNumber: String(version.versionNumber),
+          });
+          router.push(`/app/assessments/new?${query.toString()}`);
+        }}
         isOpen={historyOpen}
         onClose={() => setHistoryOpen(false)}
         quizId={quizId}

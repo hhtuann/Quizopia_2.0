@@ -42,6 +42,9 @@ interface DetailState {
 }
 
 export interface PublishedVersionHistoryProps {
+  readonly onCreateAssessment?: (
+    source: Pick<QuizVersionDetail, "quizId" | "id" | "versionNumber">,
+  ) => void;
   readonly client: QuizApiClient;
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -102,6 +105,7 @@ function focusableElements(container: HTMLElement): HTMLElement[] {
 }
 
 export function PublishedVersionHistory({
+  onCreateAssessment,
   client,
   isOpen,
   onClose,
@@ -641,6 +645,22 @@ export function PublishedVersionHistory({
                     <p className="mt-3 text-sm leading-6 text-foreground-secondary">
                       {detailState.detail.descriptionSnapshot}
                     </p>
+                  ) : null}
+                  {onCreateAssessment ? (
+                    <Button
+                      className="mt-4"
+                      onClick={() => {
+                        if (detailState.detail)
+                          onCreateAssessment({
+                            quizId: detailState.detail.quizId,
+                            id: detailState.detail.id,
+                            versionNumber: detailState.detail.versionNumber,
+                          });
+                      }}
+                    >
+                      Create assessment from version{" "}
+                      {detailState.detail.versionNumber}
+                    </Button>
                   ) : null}
                 </div>
                 <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
