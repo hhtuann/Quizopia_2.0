@@ -10,10 +10,17 @@ export interface AttemptMonitoringObserver {
   onAttemptLifecycle?(event: {
     readonly attemptId: string;
     readonly state: AttemptView["state"];
+    readonly collectionAllowed: boolean;
+    readonly selectedQuestionNumber: number;
   }): void;
   onQuestionSelection?(event: {
     readonly attemptId: string;
     readonly questionNumber: number;
+  }): void;
+  onAnswerInteraction?(event: {
+    readonly attemptId: string;
+    readonly questionNumber: number;
+    readonly type: "selected" | "changed" | "cleared";
   }): void;
 }
 

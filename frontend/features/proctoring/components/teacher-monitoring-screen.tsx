@@ -22,9 +22,19 @@ export function TeacherMonitoringPage({
 }) {
   return (
     <AuthenticatedBoundary>
-      <TeacherMonitoringScreen attemptId={attemptId} />
+      <SessionScopedTeacherMonitoring attemptId={attemptId} />
     </AuthenticatedBoundary>
   );
+}
+
+function SessionScopedTeacherMonitoring({
+  attemptId,
+}: {
+  readonly attemptId?: string;
+}) {
+  const { getSessionGeneration, user } = useAuth();
+  const scope = `${user?.id ?? "none"}:${getSessionGeneration() ?? "none"}:${attemptId ?? "lookup"}`;
+  return <TeacherMonitoringScreen attemptId={attemptId} key={scope} />;
 }
 
 export function TeacherMonitoringScreen({

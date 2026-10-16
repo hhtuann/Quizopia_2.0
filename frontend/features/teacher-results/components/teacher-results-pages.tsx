@@ -19,6 +19,7 @@ import {
   attemptStateLabels,
   attemptStateVariants,
   formatWeightTotal,
+  monitoringHrefForAttempt,
   terminalReasonLabels,
 } from "../model/teacher-results";
 
@@ -128,6 +129,14 @@ export function TeacherResultsScreen({
         setLoadingMore(false);
         setLoading(false);
         if (!result.ok) {
+          if (
+            result.error.kind === "session" ||
+            (result.error.kind === "api" &&
+              [401, 403, 404].includes(result.error.status))
+          ) {
+            setRows([]);
+            setNextCursor(null);
+          }
           setFailureText(assessmentFailureMessage(result.error));
           return;
         }
@@ -160,6 +169,14 @@ export function TeacherResultsScreen({
       setLoadingMore(false);
       pageInFlight.current = false;
       if (!page.ok) {
+        if (
+          page.error.kind === "session" ||
+          (page.error.kind === "api" &&
+            [401, 403, 404].includes(page.error.status))
+        ) {
+          setRows([]);
+          setNextCursor(null);
+        }
         setFailureText(assessmentFailureMessage(page.error));
         return;
       }
@@ -282,7 +299,13 @@ export function TeacherResultsScreen({
                     {row.ordinal}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    {row.attemptId}
+                    <Link
+                      aria-label={`Open monitoring for Attempt ${row.attemptId}`}
+                      className="font-semibold text-primary underline decoration-primary/40 underline-offset-4"
+                      href={monitoringHrefForAttempt(row.attemptId)}
+                    >
+                      {row.attemptId}
+                    </Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     {row.studentId}
@@ -339,8 +362,9 @@ export function TeacherResultsScreen({
       ) : null}
       <p className="text-xs leading-5 text-foreground-muted">
         Attempt IDs are the real authorized identities returned by the server.
-        Per-attempt monitoring lookup is a separate experience that must
-        revalidate access; no such destination is linked from here yet.
+        Each per-attempt monitoring destination performs a fresh server lookup;
+        this results table does not grant monitoring access or discover a global
+        roster.
       </p>
     </div>
   );

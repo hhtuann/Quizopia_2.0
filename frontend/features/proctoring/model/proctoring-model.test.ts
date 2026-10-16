@@ -10,7 +10,7 @@ const attemptId = "11111111-1111-4111-8111-111111111111";
 const base = {
   attemptId,
   audience: "CLASS" as const,
-  monitoringChoice: "ENABLED" as const,
+  monitoringRequired: true,
   attemptStatus: "ACTIVE" as const,
   deadlineAt: "2026-10-16T12:00:00Z",
 };
@@ -27,7 +27,7 @@ describe("monitoring eligibility boundary", () => {
       reason: "public",
     });
     expect(
-      evaluateMonitoringEligibility({ ...base, monitoringChoice: "DISABLED" }),
+      evaluateMonitoringEligibility({ ...base, monitoringRequired: false }),
     ).toEqual({ eligible: false, reason: "not-enabled" });
     expect(
       evaluateMonitoringEligibility({ ...base, deadlineAt: null }),

@@ -132,5 +132,5 @@ export const terminalReasonLabels: Record<Result["terminalReason"], string> = {
  * backs an active link. No monitoring roster endpoint is fabricated here.
  */
 export function monitoringHrefForAttempt(attemptId: string): string {
-  return `/app/monitoring/attempts/${attemptId}`;
+  return `/app/monitoring/teacher/attempts/${attemptId}`;
 }
