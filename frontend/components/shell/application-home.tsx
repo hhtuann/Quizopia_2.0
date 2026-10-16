@@ -54,6 +54,14 @@ export function ApplicationHome() {
               Open quiz authoring <ArrowRightIcon className="size-4" />
             </Link>
           ) : null}
+          {activeWorkspace === "LEARNING" && user.roles.includes("STUDENT") ? (
+            <Link
+              className={`${OUTLINE_LINK_CLASSES} mt-6`}
+              href="/app/assessments/join"
+            >
+              Enter an assessment <ArrowRightIcon className="size-4" />
+            </Link>
+          ) : null}
         </div>
       </div>
 
