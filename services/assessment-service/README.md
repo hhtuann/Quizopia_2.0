@@ -41,3 +41,21 @@ business feature or Identity activation is enabled by this prerequisite.
 
 Do not route activated protected traffic to bypass-capable older Gateway or
 downstream instances. Drain/block old instances before activation or rollback.
+
+## Default-disabled authoritative monitoring metadata
+
+The dependent integration increment adds V6 capture/outbox and a confirmed RabbitMQ
+publisher for [answer-persistence metadata](../../docs/specifications/w3m-authoritative-answer-integration.md).
+All six prior Assessment migrations, answer repository/finalizer and public API remain
+unchanged. `ASSESSMENT_MONITORING_CAPTURE_ENABLED=false` and
+`ASSESSMENT_MONITORING_PUBLISHER_ENABLED=false` are independent defaults. A typed
+capture opt-in fixes a dedicated connection GUC at pool startup; capture/answer
+rollback is atomic and no broker I/O occurs in the answer transaction. Broker outage
+leaves durable metadata pending; local DB capture failure rolls back coherently.
+
+Provision the exact dedicated private-vhost exchange/ACL and trusted TLS separately;
+no runtime topology declarations or production credentials are supplied. Production
+capture/publication is unconditionally rejected pending privacy/security acceptance.
+The fact contains bindings/question/revision/time only, no answer, answer digest,
+Quiz key or JWT, and can reflect server normalization after deadline rather than a
+Student action. No final result/gradebook event or retention policy is introduced.

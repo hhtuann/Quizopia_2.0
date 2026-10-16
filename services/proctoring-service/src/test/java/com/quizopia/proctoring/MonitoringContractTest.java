@@ -3,6 +3,7 @@ package com.quizopia.proctoring;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.quizopia.proctoring.api.MonitoringController;
+import com.quizopia.proctoring.api.MonitoringLookupController;
 import com.quizopia.proctoring.configuration.MonitoringProperties;
 import com.quizopia.proctoring.domain.Monitoring;
 import com.quizopia.proctoring.security.admission.ProctoringRoutes;
@@ -28,25 +29,29 @@ class MonitoringContractTest {
     }
 
     @Test
-    void exactFiveControllerMethodsEqualPublishedOpenApiAndProtectedInventory() throws Exception {
+    void exactSixControllerMethodsEqualPublishedOpenApiAndProtectedInventory() throws Exception {
         var doc = doc();
         assertEquals("3.1.0", doc.get("openapi"));
         Set<String> contract = new HashSet<>();
         map(doc.get("paths")).forEach((path, methods) -> map(methods).keySet().forEach(method -> {
             contract.add(method.toUpperCase(Locale.ROOT) + " " + path);
             assertNotNull(ProctoringRoutes.role(
-                    method.toUpperCase(Locale.ROOT), path.replace("{id}", "00000000-0000-4000-8000-000000000001")));
+                    method.toUpperCase(Locale.ROOT),
+                    path.replace("{id}", "00000000-0000-4000-8000-000000000001")
+                            .replace("{attemptId}", "00000000-0000-4000-8000-000000000001")));
         }));
         String base =
                 MonitoringController.class.getAnnotation(RequestMapping.class).value()[0];
         Set<String> actual = new HashSet<>();
-        for (var method : MonitoringController.class.getDeclaredMethods()) {
-            var get = method.getAnnotation(GetMapping.class);
-            var post = method.getAnnotation(PostMapping.class);
-            if (get != null) actual.add("GET " + base + (get.value().length == 0 ? "" : get.value()[0]));
-            if (post != null) actual.add("POST " + base + (post.value().length == 0 ? "" : post.value()[0]));
+        for (var controller : List.of(MonitoringController.class, MonitoringLookupController.class)) {
+            for (var method : controller.getDeclaredMethods()) {
+                var get = method.getAnnotation(GetMapping.class);
+                var post = method.getAnnotation(PostMapping.class);
+                if (get != null) actual.add("GET " + base + (get.value().length == 0 ? "" : get.value()[0]));
+                if (post != null) actual.add("POST " + base + (post.value().length == 0 ? "" : post.value()[0]));
+            }
         }
-        assertEquals(5, actual.size());
+        assertEquals(6, actual.size());
         assertEquals(actual, contract);
         assertNull(ProctoringRoutes.role(
                 "POST", "/internal/proctoring/attempts/00000000-0000-4000-8000-000000000001/authority"));

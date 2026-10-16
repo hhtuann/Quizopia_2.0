@@ -116,6 +116,7 @@ class GatewayAdmissionIntegrationTest {
     void eachProctoringAdapterRequiresFreshAdmissionAndForwardsOnlyOriginalUser() {
         String token = user();
         for (String operation : List.of(
+                "GET /api/proctoring/monitoring/sessions/by-attempt/" + ACTOR,
                 "POST /api/proctoring/monitoring/sessions",
                 "GET /api/proctoring/monitoring/sessions/" + ACTOR,
                 "POST /api/proctoring/monitoring/sessions/" + ACTOR + "/events",
@@ -132,8 +133,8 @@ class GatewayAdmissionIntegrationTest {
                     .expectHeader()
                     .valueEquals("Cache-Control", "no-store");
         }
-        assertEquals(5, ADMISSIONS.get());
-        assertEquals(5, BACKEND_CALLS.get());
+        assertEquals(6, ADMISSIONS.get());
+        assertEquals(6, BACKEND_CALLS.get());
         assertEquals("Bearer " + token, BACKEND_AUTH.get());
         assertEquals(token, EVIDENCE.get());
         STATUS.set(503);
@@ -146,7 +147,43 @@ class GatewayAdmissionIntegrationTest {
                 .isEqualTo(503)
                 .expectHeader()
                 .valueEquals("Cache-Control", "no-store");
-        assertEquals(5, BACKEND_CALLS.get());
+        assertEquals(6, BACKEND_CALLS.get());
+    }
+
+    @Test
+    void teacherSessionLookupRejectsStudentAndServiceBeforeForwarding() {
+        String path = "/api/proctoring/monitoring/sessions/by-attempt/" + ACTOR;
+        var now = Instant.now();
+        String student = sign(
+                KEY,
+                ISSUER,
+                ACTOR,
+                "USER",
+                Map.of("roles", List.of("STUDENT")),
+                now.minusSeconds(1),
+                now.plusSeconds(60));
+        http.get()
+                .uri(path)
+                .headers(h -> h.setBearerAuth(student))
+                .exchange()
+                .expectStatus()
+                .isForbidden();
+        String service = sign(
+                KEY,
+                ISSUER,
+                "proctoring-client",
+                "SERVICE",
+                Map.of("scope", "assessment.proctoring-authority.read"),
+                now.minusSeconds(1),
+                now.plusSeconds(60));
+        http.get()
+                .uri(path)
+                .headers(h -> h.setBearerAuth(service))
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+        assertEquals(0, ADMISSIONS.get());
+        assertEquals(0, BACKEND_CALLS.get());
     }
 
     @Test

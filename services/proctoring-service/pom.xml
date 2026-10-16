@@ -51,6 +51,7 @@
     <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId><scope>runtime</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
 
+    <dependency><groupId>com.rabbitmq</groupId><artifactId>amqp-client</artifactId></dependency>
     <dependency><groupId>io.livekit</groupId><artifactId>livekit-server</artifactId><version>0.16.0</version></dependency>
     <!-- The supported SDK explicit-token adapter uses its already pinned runtime converter at compile time. -->
     <dependency><groupId>com.squareup.retrofit2</groupId><artifactId>converter-protobuf</artifactId><version>3.0.0</version></dependency>

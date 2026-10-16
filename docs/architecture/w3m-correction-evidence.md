@@ -1,7 +1,7 @@
 # W3 Proctoring correction campaign
 
-Status: **H1/M1/M2 CORRECTIONS IMPLEMENTED; CUMULATIVE REAL-SERVICE ACCEPTANCE AND
-INDEPENDENT RE-REVIEW PENDING. PRODUCTION NO-GO.** Updated 2026-10-15 (Asia/Bangkok).
+Status: **H1/M1/M2 CORRECTIONS IMPLEMENTED; CUMULATIVE REAL-SERVICE TESTS PASSED;
+EXACT-HEAD CI AND INDEPENDENT RE-REVIEW REQUIRED. PRODUCTION NO-GO.** Updated 2026-10-16 (Asia/Bangkok).
 
 ## Reviewed baseline and propagation
 
@@ -64,8 +64,8 @@ After remote checks, Assessment rereads monitorability/lifecycle and critical
 Publication, Classroom, owner, Student, duration, original start and deadline
 bindings. No network call is made inside an Assessment answer transaction. Media
 create/renew must explicitly request LIVE_MEDIA and validate the echoed purpose;
-historical authority must not be reused for issuance. That downstream adaptation and
-its grant-denial tests are required before campaign H1 can be marked closed.
+historical authority must not be reused for issuance. The downstream adaptation and
+grant-denial tests are completed in the cumulative evidence below.
 
 New operator flags remain false:
 
@@ -88,8 +88,8 @@ actual PostgreSQL/HTTP authority tests, binding-race port tests and real bounded
 HTTP/OAuth client tests with explicit remote doubles. Identity's full suite passed
 433 tests, followed by 33 focused HTTP/configuration tests after final header/logging
 hardening. Full Assessment verification passed 362 tests. Classroom's final full
-primary/expiry-hardened suite passed 127. Cumulative real-service grant coverage and
-exact-HEAD CI remain pending at this source checkpoint. Do not transfer a historical PASS to a
+primary/expiry-hardened suite passed 127. These are parent-increment results;
+cumulative results are recorded below. Do not transfer a historical PASS to a
 later untested head.
 
 Executed focused Assessment command:
@@ -128,7 +128,7 @@ log `/tmp/m1-service-final-3.log`.
 The private Assessment adapter now sends/validates HISTORY versus LIVE_MEDIA.
 Historical-purpose responses cannot satisfy live checks; history-only port adapters
 default to denying live permission. MediaService adaptation is implemented on #90;
-cumulative real-service H1 grant tests remain required on #91.
+cumulative real-service H1 grant tests passed on #91 as recorded below.
 
 Executed full module command:
 
@@ -176,8 +176,90 @@ MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx25
 ```
 
 Application HTTP tests use real PostgreSQL/RS256 with explicit authority/provider
-doubles. Cumulative five-service target account/membership and media negative cases
-remain required on #91. Codex focused/self-review is not independent human approval.
+doubles. The cumulative five-service target account/membership and media negative
+cases passed as recorded below. Codex focused/self-review is not independent human approval.
+
+## Cumulative correction evidence — #91
+
+Normal parent merges preserve the published history: #88 into #89 `25b462b`,
+#89 into #90 `0e7d78e`, and #90 into #91 `6f339dc`. The final PR descriptions record
+the exact pushed heads and CI outcomes without embedding a self-referential source SHA.
+
+Full cumulative Assessment verification passed **388 tests**, and Proctoring passed
+**229 tests**, each with zero failures/errors/skips. Reports are in each module's
+`target/correction-stack-final/surefire-reports`; logs are
+`/tmp/correction-stack-assessment.log` and `/tmp/correction-stack-proctoring.log`.
+Full Gateway verification passed **119 tests**, zero failures/errors/skips, including
+the ten correction topology journeys and unchanged Publication topology suite.
+Reports: `gateway/target/correction-stack-final/surefire-reports`; log
+`/tmp/correction-stack-gateway.log`.
+
+```bash
+MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash services/assessment-service/mvnw -B -f services/assessment-service/pom.xml -Dquizopia.build.directory=target/correction-stack-final spotless:check verify -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
+MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash services/proctoring-service/mvnw -B -f services/proctoring-service/pom.xml -Dquizopia.build.directory=target/correction-stack-final spotless:check verify -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
+MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash gateway/mvnw -B -f gateway/pom.xml -Dquizopia.build.directory=target/correction-stack-final spotless:check verify -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
+```
+
+Focused Gateway `ProctoringTopologyTest` passed **10 journeys**, zero failures/errors/
+skips, in **98.027 seconds**. It retains the original seven and adds three correction
+journeys using actual Identity-issued USER/SERVICE tokens, Gateway, Identity,
+Classroom, Assessment and Proctoring; four owned PostgreSQL 17 databases, Redis 8.2,
+RabbitMQ 4.1 and owned LiveKit v1.9.0. Explicit local loopback transport and synthetic
+`CLOUD_STRICT` configuration are test fixtures, not production/provider qualification.
+
+- Eligible Teacher live create and renew succeed; target membership removal denies
+  both with 404 while HISTORY and timeline remain accessible. Non-owner and revoked
+  Teacher assignment deny live creation/renewal.
+- Disabled/revoked target primary state with stale Redis returns 503; complete equal
+  ineligible authority returns 404. Both create/renew through Gateway and directly
+  preserve full grant rows and Assessment fingerprints. The revocation fence binds
+  the original Attempt start; historical access remains available.
+- Paused owned Classroom database denies create/renew with 503 and permits renewal
+  after recovery. This also affects Teacher-assignment authority; it does not isolate
+  only the target endpoint. Target-only outage isolation and live denial for terminal/
+  deadline states are directly covered by module tests/explicit authority doubles.
+
+Student camera-only and Teacher subscribe-only participant token metadata are
+verified safely in memory; owned logs are checked for USER/media tokens and secrets.
+The original confirmed outbox/inbox SAVE replay, broker recovery, post-END history
+and Assessment-invariant journeys remain intact. No browser camera/media acceptance,
+Cloud revocation qualification or immediate SFU token invalidation is claimed.
+
+```bash
+MAVEN_USER_HOME=/home/hhtuann/.local/share/quizopia-dev/maven MAVEN_OPTS='-Xmx256m -XX:ActiveProcessorCount=2' bash gateway/mvnw -B -f gateway/pom.xml -Dquizopia.build.directory=target/h1-proctoring-topology -Dtest=ProctoringTopologyTest spotless:apply test -DargLine='-Xmx384m -XX:ActiveProcessorCount=2'
+```
+
+Reports: `gateway/target/h1-proctoring-topology/surefire-reports`; log
+`/tmp/h1-proctoring-topology.log`. Focused read-only Codex review found no remaining
+HIGH/MEDIUM issue in the correction topology and handoff; separate independent
+re-review of the complete correction stack remains required.
+
+Executed static audit `/tmp/quizopia-correction-final-audit.py` validated five OpenAPI
+documents (private Assessment 1, private Identity 1, private Classroom 3, public
+monitoring 6 and media 4 operations), ten disabled feature defaults, 185 protected
+files byte-identical to original #91, and scoped high-confidence key/access-token/JWT
+scan. Protected scope includes all historical migrations including Assessment V6 and
+Proctoring V3, accepted ADRs, frontend, shared event schema and release governance.
+Synthetic fixture credentials were manually reviewed. Relative Markdown targets were
+checked; fragment anchors were not. `docker compose config --quiet` and
+`git diff --check` passed. No new public route or public Assessment schema was added.
+
+The unchanged release-register validator passed, and all **60** unchanged safety
+tests passed using the existing Python dependency directory:
+
+```bash
+PYTHONPATH=gateway/target/w3a-evidence/openapi-python python3 /tmp/quizopia-correction-final-audit.py
+PYTHONPATH=gateway/target/w3a-evidence/openapi-python python3 services/assessment-service/contracts/validate-w3-production-release.py
+PYTHONPATH=gateway/target/w3a-evidence/openapi-python python3 services/assessment-service/contracts/test-w3-production-release.py
+```
+
+CI history must remain visible: #89's initial Gateway job timed out in unchanged
+`PublicationTopologyTest` (106 tests, zero failures, one error); a retry passed all
+eight backend jobs. #90's initial Proctoring job passed all 201 tests but failed
+packaging on Maven `file-management:3.1.0` artifact-descriptor resolution. Its retry
+passed all eight backend jobs. Final #91 CI belongs in its PR description once
+observed. No assertion,
+authorization, fixture size or timeout was relaxed to obtain a passing result.
 
 All eleven Assessment gates remain **6 BLOCKED / 5 NOT VERIFIED**. Formal RC remains
 null; nomination remains `10615f4a9cb73ceb4bce7728f23bf210d0bc99a2`. PROCTOR-01/07/11/12,

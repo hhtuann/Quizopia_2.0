@@ -2,7 +2,7 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-14
+> **Last updated:** 2026-10-15
 >
 > **Checkpoint baseline:** merged develop `e5c4ef3500f1ce40303af161cd6ca74b706c21b2` (PR #87); current M1 work is unmerged and separately identified below.
 >
@@ -101,11 +101,12 @@ Wave 2 remaining: **none for milestone closure**.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
-**Status: CURRENT — ASSESSMENT A/B/C MERGED; M1 CORE UNDER REVIEW; M2 MECHANICS IN PROGRESS;
+**Status: CURRENT — ASSESSMENT A/B/C MERGED; M1/M2 CORE UNDER REVIEW; INTEGRATION IMPLEMENTED UNDER REVIEW;
 PRODUCTION NO-GO.**
 
 The [historical M1 checkpoint](../architecture/w3m-backend-implementation.md) and
-[current M2 checkpoint](../architecture/w3m2-backend-implementation.md) record bounded
+[historical M2 checkpoint](../architecture/w3m2-backend-implementation.md) preserve
+executed evidence; the [current integration checkpoint](../architecture/w3m-integration-implementation.md) records bounded
 source/dependency/resumption and actual verification limits. Assessment
 W3-A/B/C and integrated acceptance are merged through PR #84; release governance
 through PR #87 preserves eleven external gates (6 BLOCKED / 5 NOT VERIFIED).
@@ -139,15 +140,13 @@ Proctoring owns evidence/session/room/token orchestration; Assessment owns Attem
 validity, deadlines, answers and grades; Classroom owns class authority/membership.
 
 Assessment is implemented; its Publication/Attempt/grading/closure/inbox OpenAPI
-and runtime are authoritative. Proctoring had a closed scaffold at this baseline;
-the current `feature/w3m1-proctoring-activity-evidence` increment adds real M1
-session/evidence/authorization mechanics under the
-[bounded M contract](../specifications/w3-m-proctoring-contract.md). Its implementation/review remains separate from the dependent M2 branch's media
-mechanics and unverified provider enforcement. Remaining work includes the
-authoritative answer-change adapter, actual provider revocation/hard-outage
-acceptance, real
-frontend/integrated journeys and external monitoring/production acceptance, not
-reimplementation of merged Assessment A/B/C.
+and runtime are authoritative. Proctoring was a closed scaffold before the unmerged
+M1/M2 increments (#89/#90). Current `feature/w3m-monitoring-integration` adds Teacher
+session lookup, authoritative answer-persistence metadata integration and real-service
+verification under the [bounded M contract](../specifications/w3-m-proctoring-contract.md).
+Local adapter/full verification has passed; independent review remains separate from
+provider revocation/hard-outage, real frontend camera-grid and external monitoring/
+production acceptance. No merged Assessment A/B/C business reimplementation is needed.
 
 The [release operator pack](w3-production-release-approval-operator-readiness.md)
 keeps the selected Assessment nomination separate from new monitoring commits.

@@ -5,7 +5,7 @@ info:
   description:
     Implemented default-disabled M1 increment. Browser signals are untrusted
     observations, never authoritative answers or misconduct findings. M2 media APIs
-    and authoritative Assessment change-event adapter are not included. Production
+    are specified separately in media.openapi.yaml. The default-disabled authoritative Assessment answer-event adapter uses the separate versioned event schema and integration contract. Production
     activation remains prohibited pending bundle/privacy/security gates. Replay uses
     exact canonical event identity; client observedAt is normalized to PostgreSQL
     microseconds. Session END is irreversible. A prior acknowledgment may replay after
@@ -122,6 +122,117 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/Create"
+  /api/proctoring/monitoring/sessions/by-attempt/{attemptId}:
+    get:
+      operationId: findMonitoringSessionByAttempt
+      summary: findMonitoringSessionByAttempt
+      security:
+        - userBearer: []
+      x-required-role: TEACHER
+      description:
+        Find an existing session only. Current owning-Teacher and Classroom authority
+        is verified before local session lookup. Never creates a session. No body or
+        query parameters accepted. Authorized reads are durably audited.
+        Implemented default-disabled M1 adapter, pending independent review.
+        Fresh Gateway and downstream Identity admission plus Assessment/Classroom
+        authority required. No USER/SERVICE role substitution. No positive eligibility
+        cache. All responses are sanitized and no-store.
+      responses:
+        "200":
+          description: Authorized result
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Sanitized failure; no protected body or dependency details
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
   /api/proctoring/monitoring/sessions/{id}:
     get:
       operationId: readMonitoringSession
@@ -753,6 +864,7 @@ components:
         - integritySha256
         - schemaVersion
         - actorId
+        - assessmentRevision
       properties:
         ordinal:
           type: integer
@@ -798,6 +910,7 @@ components:
             - DUPLICATE_TAB
             - SESSION_STARTED
             - SESSION_ENDED
+            - ANSWER_PERSISTED
         observedAt:
           type:
             - string
@@ -816,6 +929,7 @@ components:
           enum:
             - CLIENT_OBSERVATION
             - SERVER_AUTHORITY
+            - ASSESSMENT_AUTHORITY
         integritySha256:
           type: string
           pattern: ^[0-9a-f]{64}$
@@ -825,6 +939,15 @@ components:
         actorId:
           type: string
           format: uuid
+        assessmentRevision:
+          type:
+            - string
+            - "null"
+          pattern: ^[1-9][0-9]{0,18}$
+          description:
+            Positive signed-64-bit Assessment answer persistence revision, represented as a decimal
+            string only for ANSWER_PERSISTED from ASSESSMENT_AUTHORITY. Null for legacy browser/server
+            evidence. This fact does not contain answer content or prove a Student browser action.
     Page:
       type: object
       additionalProperties: false

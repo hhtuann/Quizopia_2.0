@@ -360,13 +360,15 @@ and production controls must be reviewed before real-learner enablement.
 **PROCTOR-08.** Which service is authoritative for answer-change/question-navigation evidence in the proctor timeline, and what sanitized event is copied from Assessment to Proctoring?
 
 Status: **PARTIALLY RESOLVED — ownership accepted; M1 browser-envelope engineering
-contract specified; implementation/review and authoritative Assessment event adapter
-pending**. Assessment owns authoritative answers/Attempt lifecycle/deadlines; Proctoring owns
+contract specified; authoritative persistence adapter implemented and locally verified;
+independent review pending**. Assessment owns authoritative answers/Attempt lifecycle/deadlines; Proctoring owns
 monitoring evidence. No authoritative answer-state duplication. The M1 engineering
 contract specifies strict browser metadata, timestamps, append/replay/server ordering
 and access boundaries. Browser answer-change metadata is untrusted observation;
-the authoritative Assessment answer-change outbox/consumer is not delivered by the
-initial increment. Implementation and independent review remain pending. Browser observations are incomplete/untrusted evidence,
+the initial increment did not include the authoritative adapter. The later
+[producer-owned persistence fact contract](specifications/w3m-authoritative-answer-integration.md)
+adds the transactional outbox/Rabbit/inbox workflow without copying answers or
+claiming browser actions. Local PostgreSQL/Rabbit/five-service verification passed; independent acceptance remains pending. Browser observations are incomplete/untrusted evidence,
 not proof of misconduct.
 
 **PROCTOR-09.** Exact modeling of the "exactly one classroom" constraint between Publication/Assignment/Proctoring?
@@ -428,7 +430,17 @@ when authoritative verification is unavailable; remaining ID-05 details stay ope
 
 **EVT-02.** Exact outbox implementation strategy/library/polling/CDC mechanism? The durability requirement is already accepted.
 
+Assessment-to-Proctoring answer-persistence workflow now specifies additive transactional
+trigger/outbox, bounded lease polling, confirmed at-least-once publication and durable
+consumer inbox. See the [workflow contract](specifications/w3m-authoritative-answer-integration.md).
+This is a narrow engineering implementation, not a global event-platform decision.
+
 **EVT-03.** Exact RabbitMQ exchange/queue/routing/retry/DLQ conventions?
+
+The monitoring answer-persistence workflow fixes its exact dedicated direct exchange,
+routing key, quorum queue, TLS/provenance/ACL and audited poison handling in the linked
+contract. Other workflows/global retry/DLQ conventions remain open. EVT-01 final
+result/gradebook events are not resolved by this metadata fact.
 
 ## Realtime
 

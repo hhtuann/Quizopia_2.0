@@ -215,10 +215,12 @@ result/review visibility. This does not certify every frontend journey or produc
 
 Current state: **IN PROGRESS — DEFAULT DISABLED; ACCEPTANCE NOT READY**.
 M1 core is under Draft PR #89 review; dependent M2 SDK/grant/recovery mechanics are
-being verified. Authoritative answer-event integration, Teacher session discovery,
-actual private topology, provider-enforced revocation/hard-outage limits, privacy/
-refusal decisions and real-browser camera grid remain incomplete. See the
-[M2 checkpoint](../architecture/w3m2-backend-implementation.md).
+implemented under Draft #90 review. The new integration branch adds authoritative
+answer-persistence outbox/inbox and current Teacher session lookup; local adapter/full
+integration verification has passed and independent acceptance remains pending. Provider/privacy,
+refusal decisions, deployed private topology/provider-enforced hard-outage limits
+and real-browser camera grid remain incomplete. See the
+[integration checkpoint](../architecture/w3m-integration-implementation.md).
 
 #### Broader minimal Classroom integration (MVP-C)
 
@@ -620,9 +622,9 @@ merged; their old contract-freeze questions are not current coding blockers. Cur
 MVP-B blockers are:
 
 - real frontend CLASS/PUBLIC/Attempt/results/closure/inbox acceptance;
-- M1 authoritative Assessment answer-change adapter and remaining independent review;
-- M2 SDK/grant/recovery completion, authorized Teacher session discovery and actual
-  multi-service/browser camera-grid integration;
+- M1 authoritative Assessment answer-persistence adapter independent review;
+- current Teacher lookup and real-service integration review; actual deployed
+  provider enforcement and browser camera-grid acceptance beyond M2 mechanics;
 - monitoring retention, camera refusal/loss/accommodations, provider revocation/
   hard-outage enforcement and deployment/privacy/security review (PROCTOR-01/07/11/12);
 - actual external release criteria/evidence and independent authorization; see the
@@ -673,37 +675,37 @@ Status vocabulary:
 - `NOT STARTED`;
 - `POST-MVP` — accepted future scope outside the current release.
 
-| Capability                            | Status         | Notes                                                                                                  |
-| ------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
-| Scaffold / service isolation          | VERIFIED       | Wave 1                                                                                                 |
-| Local account auth                    | VERIFIED       | Browser → Gateway → Identity                                                                           |
-| Frontend auth/session                 | VERIFIED       | refresh/bootstrap/logout E2E                                                                           |
-| Teacher self-enablement               | VERIFIED       | backend PR #66 + frontend; real user → teacher → publish E2E proven                                    |
-| Classroom core                        | MERGED         | assignment/product integration missing                                                                 |
-| Quiz stable identity + draft backend  | VERIFIED       | create/read/update foundation                                                                          |
-| Quiz frontend library/editor          | MERGED         | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish                          |
-| Quiz Markdown grammar/editor contract | DECIDED        | QM-01 through QM-05 accepted                                                                           |
-| Quiz parser/validator                 | VERIFIED       | merged in PR #60                                                                                       |
-| Immutable QuizVersion/publish         | VERIFIED       | merged in PR #60                                                                                       |
-| Assessment Publication                | BACKEND MERGED | PR #78; actual API, timing and publication persistence; frontend/release acceptance separate           |
-| CLASS Teacher/member eligibility      | BACKEND MERGED | Private Classroom authority integrated in W3-A/B; current checks retained                              |
-| Delivery snapshot                     | BACKEND MERGED | Atomic immutable Assessment snapshot on OPEN; source availability independent during attempts          |
-| Attempt core                          | BACKEND MERGED | W3-B1/B2 persistence and Student lifecycle through PR #82                                              |
-| Autosave/stale-write protection       | BACKEND MERGED | Question SAVE, revision conflicts and durable replay; frontend acceptance separate                     |
-| Submit/idempotency                    | BACKEND MERGED | Coherent manual/timeout/closure finalization and retry receipts through PR #83                         |
-| Grading                               | BACKEND MERGED | W3-C1 deterministic exact grading; integrated local acceptance through PR #84                          |
-| Learner result                        | BACKEND MERGED | Protected numeric result/aggregate and post-CLOSED owner review                                        |
-| Teacher result                        | BACKEND MERGED | Owned-Publication authorized results; frontend acceptance separate                                     |
-| Activity Evidence (W3-M1)             | IN PROGRESS    | Draft #89 core implemented/tested; authoritative answer adapter and independent acceptance pending     |
-| LiveKit camera monitoring (W3-M2)     | IN PROGRESS    | Dependent SDK/grant/recovery mechanics; strict provider enforcement/privacy/browser acceptance pending |
-| AI behavior monitoring                | POST-MVP       | accepted future design; not a Wave 3 DoD dependency                                                    |
-| Classroom assignment integration      | NOT STARTED    | Assessment publication                                                                                 |
-| Full MVP E2E                          | NOT STARTED    | all MUST capabilities                                                                                  |
-| MVP hardening/release                 | IN PROGRESS    | Assessment acceptance/governance merged; eleven external gates open, PRODUCTION NO-GO                  |
+| Capability                            | Status         | Notes                                                                                               |
+| ------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------- |
+| Scaffold / service isolation          | VERIFIED       | Wave 1                                                                                              |
+| Local account auth                    | VERIFIED       | Browser → Gateway → Identity                                                                        |
+| Frontend auth/session                 | VERIFIED       | refresh/bootstrap/logout E2E                                                                        |
+| Teacher self-enablement               | VERIFIED       | backend PR #66 + frontend; real user → teacher → publish E2E proven                                 |
+| Classroom core                        | MERGED         | assignment/product integration missing                                                              |
+| Quiz stable identity + draft backend  | VERIFIED       | create/read/update foundation                                                                       |
+| Quiz frontend library/editor          | MERGED         | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish                       |
+| Quiz Markdown grammar/editor contract | DECIDED        | QM-01 through QM-05 accepted                                                                        |
+| Quiz parser/validator                 | VERIFIED       | merged in PR #60                                                                                    |
+| Immutable QuizVersion/publish         | VERIFIED       | merged in PR #60                                                                                    |
+| Assessment Publication                | BACKEND MERGED | PR #78; actual API, timing and publication persistence; frontend/release acceptance separate        |
+| CLASS Teacher/member eligibility      | BACKEND MERGED | Private Classroom authority integrated in W3-A/B; current checks retained                           |
+| Delivery snapshot                     | BACKEND MERGED | Atomic immutable Assessment snapshot on OPEN; source availability independent during attempts       |
+| Attempt core                          | BACKEND MERGED | W3-B1/B2 persistence and Student lifecycle through PR #82                                           |
+| Autosave/stale-write protection       | BACKEND MERGED | Question SAVE, revision conflicts and durable replay; frontend acceptance separate                  |
+| Submit/idempotency                    | BACKEND MERGED | Coherent manual/timeout/closure finalization and retry receipts through PR #83                      |
+| Grading                               | BACKEND MERGED | W3-C1 deterministic exact grading; integrated local acceptance through PR #84                       |
+| Learner result                        | BACKEND MERGED | Protected numeric result/aggregate and post-CLOSED owner review                                     |
+| Teacher result                        | BACKEND MERGED | Owned-Publication authorized results; frontend acceptance separate                                  |
+| Activity Evidence (W3-M1)             | IN PROGRESS    | Draft #89 core; current integration adds Teacher lookup/answer adapter, verification/review pending |
+| LiveKit camera monitoring (W3-M2)     | IN PROGRESS    | Draft #90 SDK/grant/recovery mechanics; strict provider/privacy/browser acceptance pending          |
+| AI behavior monitoring                | POST-MVP       | accepted future design; not a Wave 3 DoD dependency                                                 |
+| Classroom assignment integration      | NOT STARTED    | Assessment publication                                                                              |
+| Full MVP E2E                          | NOT STARTED    | all MUST capabilities                                                                               |
+| MVP hardening/release                 | IN PROGRESS    | Assessment acceptance/governance merged; eleven external gates open, PRODUCTION NO-GO               |
 
 Status synchronization (2026-10-14): BACKEND MERGED means the implemented backend,
 not full frontend/MVP or production acceptance. See the
-[current M2 checkpoint](../architecture/w3m2-backend-implementation.md) for unmerged
+[current integration checkpoint](../architecture/w3m-integration-implementation.md) for unmerged
 dependencies and evidence limits. No new product scope or completion approval is
 introduced. Update this table when a workstream merges or becomes blocked.
 

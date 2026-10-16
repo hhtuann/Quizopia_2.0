@@ -90,6 +90,8 @@ logging:
     okhttp3: WARN
     retrofit2: WARN
     io.livekit.server: WARN
+    # Broker reply text can contain private locators; report only fixed outcome metrics.
+    com.rabbitmq.client: "OFF"
 
 quizopia.proctoring.monitoring:
   enabled: ${PROCTORING_ENABLED:false}
@@ -110,3 +112,14 @@ quizopia.proctoring.media:
   revocation-mode: ${PROCTORING_MEDIA_REVOCATION_MODE:UNVERIFIED}
   qualification-reference: ${PROCTORING_MEDIA_QUALIFICATION_REFERENCE:}
   lease-duration: ${PROCTORING_MEDIA_LEASE_DURATION:PT10S}
+
+quizopia.proctoring.assessment-events:
+  enabled: ${PROCTORING_ASSESSMENT_EVENTS_ENABLED:false}
+  host: ${PROCTORING_ASSESSMENT_EVENTS_HOST:}
+  port: ${PROCTORING_ASSESSMENT_EVENTS_PORT:5671}
+  virtual-host: ${PROCTORING_ASSESSMENT_EVENTS_VHOST:}
+  publisher-identity: ${PROCTORING_ASSESSMENT_EVENTS_PUBLISHER_IDENTITY:}
+  username: ${PROCTORING_ASSESSMENT_EVENTS_USERNAME:}
+  password: ${PROCTORING_ASSESSMENT_EVENTS_PASSWORD:}
+  tls: ${PROCTORING_ASSESSMENT_EVENTS_TLS:true}
+  allow-insecure-loopback: ${PROCTORING_ASSESSMENT_EVENTS_ALLOW_INSECURE_LOOPBACK:false}

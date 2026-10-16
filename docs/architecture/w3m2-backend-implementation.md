@@ -1,6 +1,12 @@
 # W3-M2 backend checkpoint and resumption
 
-Status: **DEPENDENT M2 ENGINEERING MECHANICS IMPLEMENTED; STRICT PROVIDER
+Historical scope: M2 increment at `4e1aa7d` / Draft PR #90. The
+[current integration checkpoint](w3m-integration-implementation.md) records later
+Teacher lookup, authoritative answer-fact integration and real-service progress.
+Remaining-work observations/test counts below describe this historical M2 increment;
+they are not rewritten as current integration evidence.
+
+Status at that checkpoint: **DEPENDENT M2 ENGINEERING MECHANICS IMPLEMENTED; STRICT PROVIDER
 REVOCATION/HARD-OUTAGE ENFORCEMENT UNVERIFIED; FUNCTIONAL DELIVERY PARTIAL;
 ENGINEERING ACCEPTANCE NOT READY; PRODUCTION NO-GO.** No provider selection,
 Cloud execution permission, independent approval or real-browser camera acceptance

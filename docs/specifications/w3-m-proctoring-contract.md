@@ -3,7 +3,11 @@
 Status: **M1 engineering contract for the current default-disabled implementation
 increment; independent implementation/security review pending. M2 and real-learner
 activation remain gated.** No new monitoring mode, retention period, camera refusal
-outcome, sanction or production approval is created.
+outcome, sanction or production approval is created. The later
+[authoritative answer integration](w3m-authoritative-answer-integration.md) and
+[current integration checkpoint](../architecture/w3m-integration-implementation.md)
+extend the initial increment with Teacher lookup and server-origin persistence facts;
+independent verification/acceptance is separate.
 
 ## Authority and unresolved decisions
 
@@ -17,15 +21,15 @@ for implemented Publication/Attempt/closure contracts; historical proposed inven
 are not executable APIs. See the [implementation checkpoint](../architecture/w3m-backend-implementation.md)
 for actual delivery/evidence boundaries and resumption.
 
-| Question   | Classification                                                             | Current decision / boundary                                                                                                                                                                                                                                                                                        |
-| ---------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| PROCTOR-01 | Product/privacy plus external review                                       | Retention/access/erasure duration and cleanup authorization remain OPEN. Durationless storage mechanics and inactive cleanup can be implemented for synthetic tests; real-learner collection cannot be enabled with an unapproved period or indefinite retention.                                                  |
-| PROCTOR-07 | Deployment/privacy                                                         | LiveKit provider/location, private transport, credentials, data handling and actual topology acceptance remain OPEN. Local infrastructure is not deployment approval.                                                                                                                                              |
-| PROCTOR-08 | Engineering mechanics; separate authoritative-event adapter dependency     | Freeze the M1 typed browser envelope, durable append/replay/ordering/access boundaries below. Browser answer metadata is an untrusted observation; Assessment alone owns committed answers and lifecycle. An authoritative Assessment answer-change outbox/consumer is not delivered by this initial M1 increment. |
-| PROCTOR-09 | Engineering derivable from accepted ownership                              | Session binds exactly one authoritative CLASS Publication, Classroom, Attempt and Student. Verify through private service authority, never cross-service SQL/FKs or client-supplied owner/class IDs.                                                                                                               |
-| PROCTOR-10 | Already implemented Assessment representation; UI wording remains frontend | Reuse `UNCONFIGURED`, `ENABLED`, `DISABLED`. CLASS choice is explicit before OPEN and immutable afterwards; PUBLIC is DISABLED. No Activity-only or invented A/B mode.                                                                                                                                             |
-| PROCTOR-11 | Split: technical security mechanics vs product outcome                     | Scoped grants, truthful technical states and current authorization/reconciliation can be implemented without academic outcomes. Refusal/loss/device/accommodation policy and dependent M2 behavior remain OPEN; no automatic stop/fail/ABANDON/penalty.                                                            |
-| PROCTOR-12 | External privacy/accessibility/security review                             | Notice/viewers, lawful basis/authorization/consent, minors, accommodations, retention/deletion, audits, location, incident/data-subject handling and no-recording approval remain OPEN before real learners. No legal compliance is inferred.                                                                      |
+| Question   | Classification                                                             | Current decision / boundary                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PROCTOR-01 | Product/privacy plus external review                                       | Retention/access/erasure duration and cleanup authorization remain OPEN. Durationless storage mechanics and inactive cleanup can be implemented for synthetic tests; real-learner collection cannot be enabled with an unapproved period or indefinite retention.                                                                                                                                                               |
+| PROCTOR-07 | Deployment/privacy                                                         | LiveKit provider/location, private transport, credentials, data handling and actual topology acceptance remain OPEN. Local infrastructure is not deployment approval.                                                                                                                                                                                                                                                           |
+| PROCTOR-08 | Engineering mechanics; separate authoritative-event adapter dependency     | Freeze the M1 typed browser envelope, durable append/replay/ordering/access boundaries below. Browser answer metadata is an untrusted observation; Assessment alone owns committed answers and lifecycle. The initial M1 increment did not deliver the authoritative adapter; the later integration increment adds a separately specified producer-owned persistence fact/outbox/inbox, pending its actual verification/review. |
+| PROCTOR-09 | Engineering derivable from accepted ownership                              | Session binds exactly one authoritative CLASS Publication, Classroom, Attempt and Student. Verify through private service authority, never cross-service SQL/FKs or client-supplied owner/class IDs.                                                                                                                                                                                                                            |
+| PROCTOR-10 | Already implemented Assessment representation; UI wording remains frontend | Reuse `UNCONFIGURED`, `ENABLED`, `DISABLED`. CLASS choice is explicit before OPEN and immutable afterwards; PUBLIC is DISABLED. No Activity-only or invented A/B mode.                                                                                                                                                                                                                                                          |
+| PROCTOR-11 | Split: technical security mechanics vs product outcome                     | Scoped grants, truthful technical states and current authorization/reconciliation can be implemented without academic outcomes. Refusal/loss/device/accommodation policy and dependent M2 behavior remain OPEN; no automatic stop/fail/ABANDON/penalty.                                                                                                                                                                         |
+| PROCTOR-12 | External privacy/accessibility/security review                             | Notice/viewers, lawful basis/authorization/consent, minors, accommodations, retention/deletion, audits, location, incident/data-subject handling and no-recording approval remain OPEN before real learners. No legal compliance is inferred.                                                                                                                                                                                   |
 
 AI detectors/flags/risk scoring/snapshots (PROCTOR-02/03), microphone/recording,
 strict screen sharing (PROCTOR-04/05) and AI disciplinary workflow are deferred
@@ -99,6 +103,13 @@ public 401) from internal SERVICE credential rejection (public authority-unavail
 shape is rejected without partial event mutation, conflicting replay is
 `409 EVENT_CONFLICT`, and untrusted required authority fails closed with 503.
 
+A sixth exact bodyless/query-free operation is now added:
+`GET /api/proctoring/monitoring/sessions/by-attempt/{attemptId}` for current authorized
+TEACHER only. Check owning Publication/current Classroom authority before revealing
+local existence; return the existing session, never create/resurrect one. This
+supports authorized lookup from existing Assessment Teacher-result Attempt IDs,
+not broad discovery of other users/resources.
+
 ## Session and evidence envelope
 
 Session view fields are `id`, `attemptId`, `publicationId`, `classroomId`, `studentId`,
@@ -126,12 +137,16 @@ rejected. The current explicit browser type set is:
 - `CAMERA_PERMISSION_GRANTED`, `CAMERA_PERMISSION_DENIED`, `DEVICE_MISSING`, `DEVICE_ERROR`, `CAMERA_UNAVAILABLE`, `MEDIA_DISCONNECTED`, `RECONNECTING`.
 - `NETWORK_DISCONNECTED`, `NETWORK_RECONNECTED`, `DUPLICATE_TAB`.
 
-`SESSION_STARTED` and `SESSION_ENDED` evidence types are reserved for the server, never accepted
+`SESSION_STARTED`, `SESSION_ENDED` and the integration's `ANSWER_PERSISTED` evidence types are reserved for the server, never accepted
 as browser assertions. Browser source/provenance remains distinguishable from
 server authority. Camera events describe reported technical conditions; they do
 not establish an actual live stream or implement M2. Answer events contain a claimed local
 question number only, no selection value/answer/digest or correctness. They do not
-prove Assessment SAVE committed. No Quiz content, unrelated tab URLs, browsing
+prove Assessment SAVE committed. The later server-only `ANSWER_PERSISTED` source is
+`ASSESSMENT_AUTHORITY`, with nullable string `assessmentRevision` non-null only for
+those facts. It means persistence (including server normalization), not a browser
+action; see the separate integration contract. Existing browser/server hashes stay
+unchanged, while the new canonical hash binds the Assessment revision. No Quiz content, unrelated tab URLs, browsing
 history, clipboard, keystrokes, media, tokens or secrets are stored.
 
 Server `receivedAt` is authoritative receipt time. Optional `observedAt` is normalized to PostgreSQL microsecond precision before

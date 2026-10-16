@@ -7,10 +7,13 @@ import com.quizopia.proctoring.api.MonitoringController;
 import com.quizopia.proctoring.application.*;
 import com.quizopia.proctoring.configuration.MonitoringProperties;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
@@ -34,6 +37,7 @@ class MonitoringDefaultDisabledHttpTest {
     @ParameterizedTest
     @ValueSource(
             strings = {
+                "GET /api/proctoring/monitoring/sessions/by-attempt/" + ACTOR,
                 "POST /api/proctoring/monitoring/sessions",
                 "GET /api/proctoring/monitoring/sessions/" + ACTOR,
                 "POST /api/proctoring/monitoring/sessions/" + ACTOR + "/events",
@@ -60,8 +64,22 @@ class MonitoringDefaultDisabledHttpTest {
     @Test
     void disabledConfigurationCreatesNoStoreAuthorityOrController() {
         assertFalse(properties.isEnabled());
+        assertTrue(context.getBeansOfType(MonitoringLookupService.class).isEmpty());
+        assertTrue(context.getBeansOfType(MonitoringLookup.class).isEmpty());
+        assertTrue(context.getBeansOfType(com.quizopia.proctoring.api.MonitoringLookupController.class)
+                .isEmpty());
         assertTrue(context.getBeansOfType(MonitoringStore.class).isEmpty());
         assertTrue(context.getBeansOfType(MonitoringAuthority.class).isEmpty());
         assertTrue(context.getBeansOfType(MonitoringController.class).isEmpty());
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void privateBrokerErrorDiagnosticsCannotReachApplicationLogs(CapturedOutput output) {
+        var logger = org.slf4j.LoggerFactory.getLogger("com.rabbitmq.client.impl.ForgivingExceptionHandler");
+        logger.error("synthetic-private-broker-reply", new IllegalStateException("synthetic-private-vhost"));
+        assertFalse(logger.isErrorEnabled());
+        assertFalse(output.getAll().contains("synthetic-private-broker-reply"));
+        assertFalse(output.getAll().contains("synthetic-private-vhost"));
     }
 }
