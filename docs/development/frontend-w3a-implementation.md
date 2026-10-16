@@ -69,7 +69,8 @@ Leader acceptance and independent platform/release gates remain separate.
       as `d648e5a4a1cffc1ec3e2eca6d8f4717f65795f1f`, push normally by SSH, and
       update existing PR #92 with exact results. Local/remote matched after push;
       PR #92 remains OPEN, Draft and unmerged.
-      Current PR #77 integration follow-up:
+
+Current PR #77 integration follow-up:
 
 - [x] Inspect clean W3-A HEAD `85455ba` and latest develop `532fe986`; normally merge
       both histories as `40f77b5` without rebasing or overwriting unrelated work.
@@ -85,8 +86,12 @@ Leader acceptance and independent platform/release gates remain separate.
       preserve shared processes and containers.
 - [x] Obtain independent read-only conflict/composition review PASS with no confirmed
       Blocker/High/Medium findings; retain separate historical and current evidence.
-- [ ] Complete final source/evidence review, commit the scoped evidence, push normally
-      to the existing branch, update PR #92 and report current CI and mergeability.
+- [x] Complete final independent source/evidence review (PASS), publish normal merge
+      `40f77b5` and evidence `3e582494c9c338e409932e10da8f83619252e94b` by normal
+      SSH push, and update existing PR #92. Local/remote matched and GitHub reported
+      mergeable against develop `532fe986`; the PR remains OPEN, Draft and unmerged.
+      Final-head CI is tracked live on PR #92 and reported in the final handoff;
+      publication does not imply that pending checks have passed.
 - [ ] Obtain Leader acceptance of PR #92 and complete separately owned release
       gates; production activation remains unauthorized.
 
@@ -234,10 +239,17 @@ than inferring success from the helper alone. The private state directory retain
 The fresh fixture retained USER TTL PT5M: the PT5S real-executor suite and separate
 Redis outage/stale-restore/recovery scenarios were not run or claimed here.
 
-Final documentation review, push and GitHub CI/mergeability status are pending at
-this evidence checkpoint. The earlier real acceptance below remains historical
-evidence for frontend `fbfc46cbf8cf892083e758d0ac76f30588526942`; it is not counted
-as the fresh run.
+Final independent source/evidence review passed with no confirmed
+Blocker/High/Medium findings. Merge `40f77b5` and evidence commit
+`3e582494c9c338e409932e10da8f83619252e94b` were normally pushed to the existing
+branch, and PR #92's description was updated. The first published checkpoint
+matched its remote and was mergeable against develop `532fe986`; Repository
+validation passed and Frontend CI was running. The final PR-head checks are live
+in GitHub Actions and are reported in the final handoff; this checkpoint does not
+assert their completion. PR #92 remains Draft and unmerged.
+
+The earlier real acceptance below remains historical evidence for frontend
+`fbfc46cbf8cf892083e758d0ac76f30588526942`; it is not counted as the fresh run.
 
 ## Contract audit
 
