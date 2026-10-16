@@ -792,6 +792,80 @@ describe("Authoritative Publication lifecycle", () => {
     );
   });
 
+  it("retains identical CLOSE command and key after capacity throttling", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    api.close
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "api", status: 429, code: "CAPACITY_EXCEEDED" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: {
+          publicationId: id,
+          state: "CLOSED",
+          revision: 2,
+          closedAt: "2026-10-16T08:30:00Z",
+        },
+      });
+    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Review and CLOSE" }),
+    );
+    confirm("CLOSE Publication");
+    expect(
+      await screen.findByText("Mutation identity retained"),
+    ).toBeInTheDocument();
+    const retry = screen.getByRole("button", {
+      name: "Retry original command",
+    });
+    await waitFor(() => expect(retry).toBeEnabled());
+    fireEvent.click(retry);
+    await screen.findByText("Publication CLOSED");
+    expect(api.close.mock.calls[1]?.slice(0, 3)).toEqual(
+      api.close.mock.calls[0]?.slice(0, 3),
+    );
+  });
+
+  it("clears a throttled CLOSE retry after a revision conflict reconciles newer OPEN state", async () => {
+    const newer = { ...opened, revision: 2 };
+    const api = client();
+    api.get
+      .mockResolvedValueOnce({ ok: true, value: opened })
+      .mockResolvedValueOnce({ ok: true, value: opened })
+      .mockResolvedValueOnce({ ok: true, value: newer });
+    api.close
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "api", status: 429, code: "CAPACITY_EXCEEDED" },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "api", status: 409, code: "REVISION_CONFLICT" },
+      });
+    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Review and CLOSE" }),
+    );
+    confirm("CLOSE Publication");
+    const retry = await screen.findByRole("button", {
+      name: "Retry original command",
+    });
+    await waitFor(() => expect(retry).toBeEnabled());
+    fireEvent.click(retry);
+    await screen.findByText(/Revision 2/);
+    expect(
+      screen.queryByRole("button", { name: "Retry original command" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Review and CLOSE" }),
+    ).toBeEnabled();
+    expect(api.close.mock.calls[1]?.slice(0, 3)).toEqual(
+      api.close.mock.calls[0]?.slice(0, 3),
+    );
+  });
+
   it("recognizes durable CLOSED from GET after a lost response without replaying CLOSE", async () => {
     const api = client();
     api.get

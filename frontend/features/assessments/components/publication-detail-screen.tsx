@@ -1,7 +1,8 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "../../../components/ui/alert";
-import { Button } from "../../../components/ui/button";
+import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { Surface } from "../../../components/ui/surface";
 import {
@@ -172,27 +173,33 @@ export function PublicationDetailScreen({
       );
     } else {
       setMutationFailure(result.error);
-      const uncertain = pending !== null || isUncertain(result.error);
-      setPending(uncertain ? command : null);
+      const capacityRetry =
+        command.kind === "close" &&
+        result.error.kind === "api" &&
+        result.error.status === 429;
+      const retainCommand = isUncertain(result.error) || capacityRetry;
+      setPending(retainCommand ? command : null);
       setReconciled(false);
       setStatus(
-        uncertain
-          ? "Outcome uncertain. Reading authoritative state before another action."
-          : "Operation was not confirmed.",
+        capacityRetry
+          ? "The server throttled direct CLOSE. Reading authoritative state before an explicit same-key retry."
+          : retainCommand
+            ? "Outcome uncertain. Reading authoritative state before another action."
+            : "Operation was not confirmed.",
       );
       if (
-        (isUncertain(result.error) &&
-          !(
-            result.error.kind === "unavailable" &&
-            result.error.reason === "refresh"
-          )) ||
-        (result.error.kind === "api" && result.error.status === 409)
+        (retainCommand ||
+          (result.error.kind === "api" && result.error.status === 409)) &&
+        !(
+          result.error.kind === "unavailable" &&
+          result.error.reason === "refresh"
+        )
       ) {
         setLoading(true);
         const current = await refresh();
         if (signal?.aborted) return;
         if (current) setReconciled(true);
-        if (current && uncertain && commandSatisfied(command, current)) {
+        if (current && retainCommand && commandSatisfied(command, current)) {
           setPending(null);
           setMutationFailure(null);
           setEditBase(null);
@@ -316,9 +323,13 @@ export function PublicationDetailScreen({
       {mutationFailure ? (
         <Alert
           title={
-            pending
-              ? "Mutation outcome is uncertain"
-              : "Operation was not confirmed"
+            pending &&
+            mutationFailure.kind === "api" &&
+            mutationFailure.status === 429
+              ? "Mutation identity retained"
+              : pending
+                ? "Mutation outcome is uncertain"
+                : "Operation was not confirmed"
           }
           variant="warning"
         >
@@ -476,6 +487,20 @@ export function PublicationDetailScreen({
               Review and CLOSE
             </Button>
           </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              className={OUTLINE_LINK_CLASSES}
+              href={`/app/assessments/${publication.publicationId}/closure`}
+            >
+              Manage delayed closure
+            </Link>
+            <Link
+              className={OUTLINE_LINK_CLASSES}
+              href={`/app/assessments/${publication.publicationId}/results`}
+            >
+              View attempt results
+            </Link>
+          </div>
           {extension ? (
             <div className="space-y-4">
               {extension.revision !== publication.revision ? (
@@ -508,11 +533,21 @@ export function PublicationDetailScreen({
         </section>
       ) : null}
       {publication.state === "CLOSED" ? (
-        <Alert title="Publication CLOSED" variant="success">
-          Durable closure is confirmed. Eligible submitted Students may review
-          according to backend policy. Student results and answer-review UI are
-          outside this Teacher workflow.
-        </Alert>
+        <>
+          <Alert title="Publication CLOSED" variant="success">
+            Durable closure is confirmed. Eligible submitted Students may review
+            according to backend policy. Student results and answer-review UI
+            are outside this Teacher workflow.
+          </Alert>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              className={OUTLINE_LINK_CLASSES}
+              href={`/app/assessments/${publication.publicationId}/results`}
+            >
+              View attempt results
+            </Link>
+          </div>
+        </>
       ) : null}
       {confirmation ? (
         <PublicationConfirmation

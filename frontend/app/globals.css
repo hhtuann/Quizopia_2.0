@@ -17,9 +17,12 @@
   --color-secondary: #7c3aed;
   --color-secondary-hover: #6d28d9;
   --color-success: #10b981;
+  --color-success-strong: #047857;
   --color-warning: #f59e0b;
+  --color-warning-strong: #92400e;
   --color-danger: #dc2626;
   --color-info: #2563eb;
+  --color-info-strong: #1d4ed8;
   --color-focus: #6366f1;
   --font-sans:
     var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;

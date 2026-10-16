@@ -11,7 +11,36 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "services/assessment-service/contracts/publications.openapi.yaml"
 TARGET = ROOT / "frontend/features/assessments/api/publication-contract.generated.ts"
-NAMES = ("Configuration", "OwnerView", "StudentView", "Update", "Open", "Schedule", "ClosedPublication", "TeacherCommand")
+NAMES = (
+    "Configuration",
+    "OwnerView",
+    "StudentView",
+    "Update",
+    "Open",
+    "Schedule",
+    "ClosedPublication",
+    "TeacherCommand",
+    "TeacherResults",
+    "TeacherResultRow",
+    "Result",
+    "ClosureView",
+    "ClosureCompletion",
+    "NotificationPage",
+    "Notification",
+)
+
+
+def object_field(name, required, schema):
+    optional = "" if name in required else "?"
+    prefix = f"  readonly {name}{optional}:"
+    value = typescript(schema)
+    if len(prefix) + len(value) + 2 <= 80:
+        return f"{prefix} {value};"
+    if " | " not in value:
+        return f"{prefix}\n    {value};"
+    if len(value) + 5 <= 80:
+        return f"{prefix}\n    {value};"
+    return prefix + "\n    | " + "\n    | ".join(value.split(" | ")) + ";"
 
 
 def typescript(schema):
@@ -29,9 +58,13 @@ def typescript(schema):
         return " | ".join(typescript({"type": item}) for item in kind)
     if kind == "object":
         required = schema.get("required", [])
-        fields = [f"  readonly {name}{'' if name in required else '?'}: {typescript(value)};"
-                  for name, value in schema["properties"].items()]
+        fields = [
+            object_field(name, required, value)
+            for name, value in schema["properties"].items()
+        ]
         return "{\n" + "\n".join(fields) + "\n}"
+    if kind == "array":
+        return f"ReadonlyArray<{typescript(schema['items'])}>"
     if kind not in ("string", "integer", "number", "boolean", "null"):
         raise ValueError(f"Unsupported schema: {schema}")
     return "number" if kind == "integer" else kind
