@@ -26,10 +26,9 @@ security gates remain outstanding.
 ## Plan and progress
 
 This document is the bounded implementation plan and completion mapping; there
-are no separate phase files or task records. The original frontend implementation
-and publication are complete. Bounded real-topology acceptance has passed; the new
-acceptance evidence still requires final review, commit and publication. Leader
-acceptance and independent platform/release gates remain separate.
+are no separate phase files or task records. The original frontend implementation,
+bounded real-topology acceptance, independent review and publication are complete.
+Leader acceptance and independent platform/release gates remain separate.
 
 - [x] Inspect the latest develop baseline, accepted contracts and existing frontend;
       preserve the separate LD-05 branch and PR #77.
@@ -61,8 +60,11 @@ acceptance and independent platform/release gates remain separate.
       parity and diff checks; pass eight isolated-runtime helper regressions.
 - [x] Obtain focused independent read-only PASS for the new acceptance source delta;
       no frontend product change or backend production modification was required.
-- [ ] Complete final independent evidence review, commit and push only the scoped
-      acceptance changes, and update existing Draft PR #92 with exact results.
+- [x] Complete final independent source/evidence review (PASS), commit scoped
+      acceptance tooling as `8ce81accd6bdec0b5d2d0a683a271e7ed02342d5` and evidence
+      as `d648e5a4a1cffc1ec3e2eca6d8f4717f65795f1f`, push normally by SSH, and
+      update existing PR #92 with exact results. Local/remote matched after push;
+      PR #92 remains OPEN, Draft and unmerged.
 - [ ] Obtain Leader acceptance of PR #92 and complete separately owned release
       gates; production activation remains unauthorized.
 
@@ -411,6 +413,16 @@ records the current-session reruns. New scoped files contain only the isolated
 runtime, its regressions, real-browser config/helpers/spec/reporter and documentation.
 No backend production logic, frontend authentication behavior or deployment defaults
 changed.
+
+The acceptance delta received independent read-only review from
+`/root/w3a_real_review`: final PASS, no remaining confirmed Blocker/High/Medium.
+An initial Medium fixture defect could stop all cleanup when a paused process had
+already exited. Cleanup now verifies each resource independently, continues after
+exited processes, refuses replacement PIDs/foreign containers, and records uncertain
+Docker or process-exit results. Eight regression tests cover cleanup and the
+read-only forwarding witness. The reviewer independently ran those tests, matched
+all five JAR hashes to this evidence, and verified the recorded processes and
+containers absent. No frontend product defect required an implementation change.
 
 Cleanup used `python3 scripts/local/w3a-real-runtime.py down` with the private state
 directory. Its conservative five-second exit bound initially left Identity/Gateway
