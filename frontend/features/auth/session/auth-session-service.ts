@@ -10,10 +10,10 @@ import {
   createAuthApiClient,
   type AuthApiFailure,
   type AuthApiResult,
+  type LoginResponse,
 } from "../api/auth-api-client";
 import type { AuthenticatedUser } from "../model/authenticated-user";
 import { hasRole } from "../model/authenticated-user";
-import { hasAuthenticatedIdentity } from "../model/session-state";
 import { createAccessTokenVault } from "./access-token-vault";
 import {
   createRefreshCoordinator,
@@ -37,6 +37,7 @@ export interface AuthSessionService {
     readonly password: string;
   }): Promise<AuthApiResult<AuthenticatedUser>>;
   logout(): Promise<AuthApiResult<void>>;
+  retryVerification(): Promise<AuthApiResult<AuthenticatedUser>>;
   register(input: {
     readonly email: string;
     readonly password: string;
@@ -90,43 +91,243 @@ export function createAuthSessionService(
     transport,
   });
 
-  let authenticatedRequests!: AuthenticatedRequestExecutor;
-
-  async function hydrateCurrentUser(loginResponse: {
-    readonly accessToken: string;
-  }): Promise<AuthApiResult<AuthenticatedUser>> {
-    return client.me(authenticatedRequests, loginResponse.accessToken);
+  // Also serialize cookie mutations when the browser Web Locks API is absent.
+  let authQueue: Promise<unknown> = Promise.resolve();
+  function serializeAuth<T>(operation: () => Promise<T>): Promise<T> {
+    const attempt = authQueue.then(operation);
+    authQueue = attempt.then(
+      () => undefined,
+      () => undefined,
+    );
+    return attempt;
   }
 
-  async function refreshOperation(): Promise<RefreshResult> {
-    return withBrowserAuthLock(async () => {
-      const refreshed = await client.refresh();
-      if (!refreshed.ok) {
-        if (
-          refreshed.error.kind === "api-error" &&
-          refreshed.error.error.status === 401 &&
-          refreshed.error.error.code === "AUTH_REFRESH_FAILED"
-        ) {
-          return { status: "no-session" };
-        }
-        return { status: "transient-failure", cause: refreshed.error };
-      }
+  interface PendingVerification {
+    readonly credentials: LoginResponse;
+    readonly expiresAt: number;
+    readonly generation: number;
+  }
+  let pendingVerification: PendingVerification | null = null;
+  let verificationPromise: Promise<AuthApiResult<AuthenticatedUser>> | null =
+    null;
 
-      const currentUser = await hydrateCurrentUser(refreshed.value);
-      if (!currentUser.ok) {
-        return noSessionFromMeFailure(currentUser.error)
-          ? { status: "no-session" }
-          : { status: "transient-failure", cause: currentUser.error };
-      }
+  let authenticatedRequests!: AuthenticatedRequestExecutor;
 
-      return {
-        status: "refreshed",
-        session: {
-          accessToken: refreshed.value.accessToken,
-          user: currentUser.value,
-        },
-      };
+  // The request deadline starts after lock acquisition. Bound acquisition too,
+  // so another tab cannot indefinitely hold this service's local queue.
+  async function lockForOperation<T>(
+    generation: number,
+    operation: () => Promise<T>,
+    unavailable: T,
+  ): Promise<T> {
+    if (!runtime.isCurrentOperation(generation)) return unavailable;
+    const controller = new AbortController();
+    const unsubscribe = runtime.subscribeOperations(() => {
+      if (!runtime.isCurrentOperation(generation)) controller.abort();
     });
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let acquired = false;
+    let onAbort!: () => void;
+    const aborted = new Promise<T>((resolve) => {
+      onAbort = () => {
+        if (!acquired) resolve(unavailable);
+      };
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+    });
+    try {
+      return await Promise.race([
+        withBrowserAuthLock(async () => {
+          clearTimeout(timeout);
+          // Even a non-cooperating lock implementation must not execute late.
+          if (
+            controller.signal.aborted ||
+            !runtime.isCurrentOperation(generation)
+          )
+            return unavailable;
+          acquired = true;
+          unsubscribe();
+          return operation();
+        }, controller.signal),
+        aborted,
+      ]);
+    } catch {
+      return unavailable;
+    } finally {
+      clearTimeout(timeout);
+      unsubscribe();
+      controller.signal.removeEventListener("abort", onAbort);
+    }
+  }
+
+  function canceledRequest(): AuthApiResult<never> {
+    return {
+      ok: false,
+      error: { kind: "transport-error", error: { kind: "aborted" } },
+    };
+  }
+
+  // Aborting also reaches fetch. The raced result ignores a late completion from
+  // a transport that fails to honor cancellation; it does not undo server work.
+  async function requestForOperation<T>(
+    generation: number,
+    request: (signal: AbortSignal) => Promise<AuthApiResult<T>>,
+    timeoutMs?: number,
+  ): Promise<AuthApiResult<T>> {
+    if (!runtime.isCurrentOperation(generation))
+      return clientStateFailure("session-changed");
+    const controller = new AbortController();
+    const unsubscribe = runtime.subscribeOperations(() => {
+      if (!runtime.isCurrentOperation(generation)) controller.abort();
+    });
+    const timeout =
+      timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => controller.abort(), timeoutMs);
+    let onAbort!: () => void;
+    const aborted = new Promise<AuthApiResult<T>>((resolve) => {
+      onAbort = () =>
+        resolve({
+          ok: false,
+          error: { kind: "transport-error", error: { kind: "aborted" } },
+        });
+      controller.signal.addEventListener("abort", onAbort, { once: true });
+    });
+    try {
+      const result = await Promise.race([request(controller.signal), aborted]);
+      return runtime.isCurrentOperation(generation)
+        ? result
+        : clientStateFailure("session-changed");
+    } catch (cause) {
+      return {
+        ok: false,
+        error: { kind: "transport-error", error: { kind: "network", cause } },
+      };
+    } finally {
+      clearTimeout(timeout);
+      unsubscribe();
+      controller.signal.removeEventListener("abort", onAbort);
+    }
+  }
+
+  function hydrateCurrentUser(
+    loginResponse: { readonly accessToken: string },
+    generation: number,
+  ) {
+    return requestForOperation(
+      generation,
+      (signal) =>
+        client.me(authenticatedRequests, loginResponse.accessToken, signal),
+      10_000,
+    );
+  }
+
+  async function refreshOperation(
+    generation: number,
+    sessionGeneration: number,
+  ): Promise<RefreshResult> {
+    const isCurrent = () =>
+      runtime.isCurrentOperation(generation) &&
+      runtime.getSessionGeneration() === sessionGeneration;
+    return serializeAuth(() =>
+      lockForOperation<RefreshResult>(
+        generation,
+        async () => {
+          if (!isCurrent()) return { status: "no-session" };
+          const refreshed = await requestForOperation(
+            generation,
+            (signal) => client.refresh(signal),
+            10_000,
+          );
+          if (!isCurrent()) return { status: "no-session" };
+          if (!refreshed.ok) {
+            if (
+              refreshed.error.kind === "api-error" &&
+              refreshed.error.error.status === 401 &&
+              refreshed.error.error.code === "AUTH_REFRESH_FAILED"
+            ) {
+              return { status: "no-session" };
+            }
+            return { status: "transient-failure", cause: refreshed.error };
+          }
+
+          const expiresAt = Date.now() + refreshed.value.expiresIn * 1000;
+          const currentUser = await hydrateCurrentUser(
+            refreshed.value,
+            generation,
+          );
+          if (!isCurrent()) return { status: "no-session" };
+          if (!currentUser.ok) {
+            if (
+              !noSessionFromMeFailure(currentUser.error) &&
+              runtime.getSnapshot().status === "bootstrapping"
+            ) {
+              pendingVerification = {
+                credentials: refreshed.value,
+                expiresAt,
+                generation,
+              };
+              return {
+                status: "transient-failure",
+                cause: currentUser.error,
+                verificationPending: true,
+              };
+            }
+            return noSessionFromMeFailure(currentUser.error)
+              ? { status: "no-session" }
+              : { status: "transient-failure", cause: currentUser.error };
+          }
+
+          return {
+            status: "refreshed",
+            session: {
+              accessToken: refreshed.value.accessToken,
+              user: currentUser.value,
+            },
+          };
+        },
+        { status: "transient-failure" },
+      ),
+    );
+  }
+
+  async function verifyLogin(
+    credentials: LoginResponse,
+    expiresAt: number,
+    generation: number,
+  ): Promise<AuthApiResult<AuthenticatedUser>> {
+    const currentUser = await hydrateCurrentUser(credentials, generation);
+    if (!runtime.isCurrentOperation(generation)) {
+      return clientStateFailure("session-changed");
+    }
+    if (!currentUser.ok) {
+      if (noSessionFromMeFailure(currentUser.error)) {
+        pendingVerification = null;
+        runtime.clearLocalSession();
+        await requestForOperation(
+          runtime.getOperationGeneration(),
+          (signal) => client.logout(signal),
+          10_000,
+        );
+      } else {
+        runtime.markVerificationUnavailable(generation);
+        pendingVerification = {
+          credentials,
+          expiresAt,
+          generation,
+        };
+      }
+      return currentUser;
+    }
+    pendingVerification = null;
+    return runtime.establishAuthenticatedSession(
+      {
+        accessToken: credentials.accessToken,
+        user: currentUser.value,
+      },
+      generation,
+    )
+      ? currentUser
+      : clientStateFailure("session-transition-failed");
   }
 
   const refreshCoordinator: RefreshCoordinator = createRefreshCoordinator(
@@ -175,18 +376,27 @@ export function createAuthSessionService(
       }
 
       const attempt = (async (): Promise<TeacherEnablementResult> => {
+        const generation = runtime.getOperationGeneration();
         await waitForBootstrap();
+        if (!runtime.isCurrentOperation(generation))
+          return clientStateFailure("session-changed");
         await refreshCoordinator.waitForIdle();
+        if (!runtime.isCurrentOperation(generation))
+          return clientStateFailure("session-changed");
 
         const enabled = await client.enableTeacher(authenticatedRequests);
         if (!enabled.ok) {
           return enabled;
         }
+        if (!runtime.isCurrentOperation(generation))
+          return clientStateFailure("session-changed");
 
-        const refreshed = await refreshCoordinator.refresh();
+        const refreshed = await refreshCoordinator.refresh({ explicit: true });
         if (refreshed.status === "no-session") {
           return clientStateFailure("no-session");
         }
+        if (!runtime.isCurrentOperation(generation))
+          return clientStateFailure("session-changed");
         if (refreshed.status === "transient-failure") {
           return {
             ok: false,
@@ -221,36 +431,116 @@ export function createAuthSessionService(
     },
 
     async login(input) {
+      const generation = runtime.beginOperation();
+      pendingVerification = null;
+      if (runtime.getSnapshot().status === "verification-unavailable")
+        runtime.prepareLoginHydration(generation);
       await waitForBootstrap();
+      if (!runtime.isCurrentOperation(generation))
+        return clientStateFailure("session-changed");
+      // A login can supersede an already-running bootstrap. Its canceled result
+      // must not mutate state; the current login settles the startup presentation.
+      if (runtime.getSnapshot().status === "bootstrapping")
+        runtime.completeBootstrapAsAnonymous();
+      if (runtime.getSnapshot().status === "verification-unavailable") {
+        // Bootstrap may have produced a candidate while this login awaited it.
+        // The explicit account intent must supersede that candidate too.
+        pendingVerification = null;
+        runtime.prepareLoginHydration(generation);
+      }
       await refreshCoordinator.waitForIdle();
+      if (!runtime.isCurrentOperation(generation))
+        return clientStateFailure("session-changed");
+      return serializeAuth(() =>
+        lockForOperation(
+          generation,
+          async () => {
+            if (!runtime.isCurrentOperation(generation))
+              return clientStateFailure("session-changed");
+            const loggedIn = await requestForOperation(
+              generation,
+              (signal) => client.login(input, signal),
+              10_000,
+            );
+            if (!runtime.isCurrentOperation(generation))
+              return clientStateFailure("session-changed");
+            if (!loggedIn.ok) {
+              return loggedIn;
+            }
+            pendingVerification = null;
+            runtime.prepareLoginHydration(generation);
+            return verifyLogin(
+              loggedIn.value,
+              Date.now() + loggedIn.value.expiresIn * 1000,
+              generation,
+            );
+          },
+          canceledRequest(),
+        ),
+      );
+    },
 
-      const loggedIn = await withBrowserAuthLock(() => client.login(input));
-      if (!loggedIn.ok) {
-        return loggedIn;
+    retryVerification() {
+      if (verificationPromise !== null) {
+        return verificationPromise;
       }
-
-      if (hasAuthenticatedIdentity(runtime.getSnapshot())) {
-        runtime.clearLocalSession();
-      }
-
-      const currentUser = await hydrateCurrentUser(loggedIn.value);
-      if (!currentUser.ok) {
-        runtime.clearLocalSession();
-        await withBrowserAuthLock(() => client.logout());
-        return currentUser;
-      }
-
-      if (
-        !runtime.establishAuthenticatedSession({
-          accessToken: loggedIn.value.accessToken,
-          user: currentUser.value,
-        })
-      ) {
-        runtime.clearLocalSession();
-        return clientStateFailure("session-transition-failed");
-      }
-
-      return currentUser;
+      const pending = pendingVerification;
+      if (pending !== null)
+        runtime.setVerificationPending(true, pending.generation);
+      const attempt = serializeAuth(() =>
+        lockForOperation(
+          pending?.generation ?? runtime.getOperationGeneration(),
+          async () => {
+            if (
+              pending === null ||
+              pending !== pendingVerification ||
+              runtime.getSnapshot().status !== "verification-unavailable" ||
+              !runtime.isCurrentOperation(pending.generation)
+            ) {
+              return clientStateFailure("no-pending-verification");
+            }
+            let credentials = pending.credentials;
+            let expiresAt = pending.expiresAt;
+            if (Date.now() >= expiresAt) {
+              // One explicit recovery attempt; ten seconds matches hydration's
+              // interactive deadline. No automatic retry of uncertain rotation.
+              const refreshed = await requestForOperation(
+                pending.generation,
+                (signal) => client.refresh(signal),
+                10_000,
+              );
+              if (!runtime.isCurrentOperation(pending.generation)) {
+                return clientStateFailure("session-changed");
+              }
+              if (!refreshed.ok) {
+                if (
+                  refreshed.error.kind === "api-error" &&
+                  refreshed.error.error.status === 401 &&
+                  refreshed.error.error.code === "AUTH_REFRESH_FAILED"
+                ) {
+                  pendingVerification = null;
+                  runtime.clearLocalSession();
+                }
+                return refreshed;
+              }
+              credentials = refreshed.value;
+              expiresAt = Date.now() + credentials.expiresIn * 1000;
+            }
+            return verifyLogin(credentials, expiresAt, pending.generation);
+          },
+          canceledRequest(),
+        ),
+      );
+      verificationPromise = attempt;
+      const clear = () => {
+        if (verificationPromise === attempt) {
+          verificationPromise = null;
+          if (pending !== null)
+            runtime.setVerificationPending(false, pending.generation);
+        }
+      };
+      void attempt.then(clear, clear);
+      return attempt;
     },
 
     logout() {
@@ -259,11 +549,44 @@ export function createAuthSessionService(
       }
 
       const attempt = (async () => {
-        await waitForBootstrap();
+        const previousGeneration = runtime.getOperationGeneration();
         await refreshCoordinator.waitForIdle();
-        const result = await withBrowserAuthLock(() => client.logout());
-        if (result.ok) {
-          runtime.clearLocalSession();
+        if (!runtime.isCurrentOperation(previousGeneration))
+          return clientStateFailure("session-changed");
+        const previousPending = pendingVerification;
+        const generation = runtime.beginOperation();
+        const result = await serializeAuth(() =>
+          lockForOperation(
+            generation,
+            async () => {
+              if (!runtime.isCurrentOperation(generation))
+                return clientStateFailure("session-changed");
+              const result = await requestForOperation(
+                generation,
+                (signal) => client.logout(signal),
+                10_000,
+              );
+              if (!runtime.isCurrentOperation(generation))
+                return clientStateFailure("session-changed");
+              if (result.ok) {
+                pendingVerification = null;
+                runtime.clearLocalSession();
+              }
+              return result;
+            },
+            canceledRequest(),
+          ),
+        );
+        if (
+          !result.ok &&
+          runtime.isCurrentOperation(generation) &&
+          previousPending !== null &&
+          pendingVerification === previousPending &&
+          runtime.getSnapshot().status === "verification-unavailable"
+        ) {
+          // Acquisition failure must preserve recovery just like HTTP failure.
+          pendingVerification = { ...previousPending, generation };
+          runtime.setVerificationPending(false, generation);
         }
         return result;
       })();

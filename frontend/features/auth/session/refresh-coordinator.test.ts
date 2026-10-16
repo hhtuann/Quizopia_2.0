@@ -17,12 +17,12 @@ function deferred<T>() {
   return { promise, reject, resolve };
 }
 
-function session(accessToken: string) {
+function session(accessToken: string, id = userId) {
   return {
     accessToken,
     user: createAuthenticatedUser({
       email: "learner01@gmail.com",
-      id: userId,
+      id,
       roles: ["STUDENT"],
       username: "learner01",
     }),
@@ -37,6 +37,40 @@ function authenticatedRuntime() {
 }
 
 describe("refresh coordinator", () => {
+  describe.each(["bootstrap", "refresh"] as const)("%s fencing", (flow) => {
+    it.each(["refreshed", "no-session", "transient-failure"] as const)(
+      "ignores a stale %s completion after a newer identity",
+      async (status) => {
+        const vault = createAccessTokenVault();
+        const runtime = createSessionRuntime(vault);
+        if (flow === "refresh")
+          runtime.establishAuthenticatedSession(session("old-access"));
+        const pending = deferred<RefreshResult>();
+        const coordinator = createRefreshCoordinator(
+          runtime,
+          () => pending.promise,
+        );
+        const attempt = coordinator[flow]();
+        runtime.clearLocalSession();
+        const newUserId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f9";
+        runtime.establishAuthenticatedSession(
+          session("new-account-access", newUserId),
+        );
+        pending.resolve(
+          status === "refreshed"
+            ? { status, session: session("obsolete-access") }
+            : { status },
+        );
+        expect(await attempt).toEqual({ status: "no-session" });
+        expect(vault.read()).toBe("new-account-access");
+        expect(runtime.getSnapshot().status).toBe("authenticated");
+        expect(runtime.getSnapshot()).toMatchObject({
+          user: { id: newUserId },
+        });
+      },
+    );
+  });
+
   it("shares one in-flight success across waiters and resets afterward", async () => {
     const { runtime, vault } = authenticatedRuntime();
     const firstAttempt = deferred<RefreshResult>();
@@ -73,7 +107,7 @@ describe("refresh coordinator", () => {
     expect(vault.read()).toBe("third-access-token");
   });
 
-  it("resets after transient returned and thrown failures", async () => {
+  it("blocks automatic replay after uncertainty and permits an explicit attempt", async () => {
     const { runtime, vault } = authenticatedRuntime();
     const firstCause = new Error("Temporary failure");
     const secondCause = new Error("Rejected operation");
@@ -91,6 +125,12 @@ describe("refresh coordinator", () => {
     expect(vault.read()).toBe("initial-access-token");
 
     await expect(coordinator.refresh()).resolves.toEqual({
+      status: "transient-failure",
+      cause: firstCause,
+    });
+    expect(refreshOperation).toHaveBeenCalledTimes(1);
+
+    await expect(coordinator.refresh({ explicit: true })).resolves.toEqual({
       status: "transient-failure",
       cause: secondCause,
     });

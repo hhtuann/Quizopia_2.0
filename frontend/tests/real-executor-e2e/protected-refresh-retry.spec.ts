@@ -151,7 +151,7 @@ test("production authenticated request executor refreshes an expired real token 
   expect(actualTtlSeconds).toBeGreaterThanOrEqual(4);
   expect(
     actualTtlSeconds,
-    "Real Executor expiry E2E requires isolated Identity with IDENTITY_AUTHORIZATION_SERVER_USER_ACCESS_TOKEN_TTL=PT5S. Restart Identity and verify its issued JWT iat/exp.",
+    "Real Executor expiry E2E requires isolated Identity with IDENTITY_AUTHORIZATION_SERVER_USER_ACCESS_TOKEN_TTL=PT5S. Provide that isolated runtime and verify issued JWT iat/exp; do not restart another developer's Identity.",
   ).toBeLessThanOrEqual(10);
 
   const loginCookies = await context.cookies(refreshUrl);

@@ -24,6 +24,8 @@ export type HttpTransportErrorKind = "aborted" | "invalid-response" | "network";
 export interface HttpTransportError {
   readonly kind: HttpTransportErrorKind;
   readonly cause?: unknown;
+  /** Preserve a received status even when its body cannot be decoded. */
+  readonly status?: number;
 }
 
 export type HttpTransportResult =
@@ -117,7 +119,7 @@ export function createFetchHttpTransport(
       } catch (cause) {
         return {
           kind: "transport-error",
-          error: { kind: "invalid-response", cause },
+          error: { kind: "invalid-response", cause, status: response.status },
         };
       }
     },

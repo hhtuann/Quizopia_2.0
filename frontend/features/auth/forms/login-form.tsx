@@ -2,13 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
 import { useAuth } from "../auth-provider";
+import { SessionVerificationRecovery } from "../components/session-verification-recovery";
 
 const loginSchema = z.object({
   identifier: z
@@ -27,8 +28,15 @@ type LoginFields = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, session } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+  const previousStatus = useRef(session.status);
+  useEffect(() => {
+    if (previousStatus.current === "verification-unavailable") {
+      if (session.status === "authenticated") router.replace("/app");
+    }
+    previousStatus.current = session.status;
+  }, [router, session.status]);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -77,7 +85,9 @@ export function LoginForm() {
         {...register("password")}
       />
 
-      {serverError ? (
+      {session.status === "verification-unavailable" ? (
+        <SessionVerificationRecovery />
+      ) : serverError ? (
         <Alert title="Sign in failed" variant="danger">
           {serverError}
         </Alert>

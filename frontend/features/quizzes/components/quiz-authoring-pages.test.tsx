@@ -107,6 +107,7 @@ function renderAuthenticated(
     logout: vi.fn(async () => ({ ok: true as const, value: undefined })),
     register: vi.fn(),
     requestVerification: vi.fn(),
+    retryVerification: vi.fn(),
     runtime,
   };
 
