@@ -87,6 +87,9 @@ logging:
     org.springframework.web.HttpLogging: WARN
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
+    okhttp3: WARN
+    retrofit2: WARN
+    io.livekit.server: WARN
 
 quizopia.proctoring.monitoring:
   enabled: ${PROCTORING_ENABLED:false}
@@ -94,3 +97,16 @@ quizopia.proctoring.monitoring:
   retention-days: ${PROCTORING_RETENTION_DAYS:}
   retention-policy-reference: ${PROCTORING_RETENTION_POLICY_REFERENCE:}
   privacy-approval-reference: ${PROCTORING_PRIVACY_APPROVAL_REFERENCE:}
+
+# Disabled until exact provider revocation and monitoring policy acceptance; no SDK defaults.
+quizopia.proctoring.media:
+  enabled: ${PROCTORING_MEDIA_ENABLED:false}
+  worker-enabled: ${PROCTORING_MEDIA_WORKER_ENABLED:false}
+  api-url: ${PROCTORING_MEDIA_API_URL:}
+  public-url: ${PROCTORING_MEDIA_PUBLIC_URL:}
+  api-key: ${PROCTORING_MEDIA_API_KEY:}
+  api-secret: ${PROCTORING_MEDIA_API_SECRET:}
+  allow-insecure-loopback: ${PROCTORING_MEDIA_ALLOW_INSECURE_LOOPBACK:false}
+  revocation-mode: ${PROCTORING_MEDIA_REVOCATION_MODE:UNVERIFIED}
+  qualification-reference: ${PROCTORING_MEDIA_QUALIFICATION_REFERENCE:}
+  lease-duration: ${PROCTORING_MEDIA_LEASE_DURATION:PT10S}

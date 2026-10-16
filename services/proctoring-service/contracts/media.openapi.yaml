@@ -1,0 +1,355 @@
+openapi: 3.1.0
+info:
+  title: Quizopia W3-M2 scoped media grants
+  version: 1.0.0
+  description:
+    "Implemented default-disabled dependent M2 mechanics; independent implementation/provider/security
+    acceptance pending. UNVERIFIED mode or a disabled recovery worker denies issuance/renewal with 503
+    MEDIA_REVOCATION_UNVERIFIED. Explicit non-production CLOUD_STRICT configuration plus a reference is
+    an operator attestation for isolated synthetic integration, not independently verified Cloud qualification
+    or vendor approval. Production-profile media enablement is unconditionally rejected. App leaseUntil
+    does not impose a hard LiveKit lifetime during outage: token expiration governs initial join, server
+    refresh/reconnect and strict revocation require separate provider evidence. No academic sanctions,
+    recording, microphone/screen/data publishing or authoritative answers are implemented."
+  x-administrative-bearer:
+    lifetime-seconds: 30
+    claims: Explicit iat and nbf at current whole second, exp equal to iat plus 30; fresh opaque jti is not single-use enforcement.
+    create-delete: Only roomCreate; provider supports neither room-scoped nor delete-only authority for these operations.
+    remove-participant: Only roomAdmin and exact room; provider grant also permits other administration inside that room.
+    visibility: Backend SDK only; never part of browser responses or URLs.
+paths:
+  /api/proctoring/monitoring/sessions/{id}/media-grants:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: &id001
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+    post:
+      operationId: createMediaGrant
+      summary: Create or reuse own scoped media grant
+      security:
+        - userBearer: []
+      x-required-role:
+        STUDENT session owner or current authorized TEACHER; existing grant operations
+        additionally require grant actor ownership
+      x-request-body-allowed: false
+      x-query-parameters-allowed: false
+      description:
+        Derive STUDENT versus TEACHER from authenticated actor and current session authority;
+        never accept browser room, role or identity. Persist PREPARED intent, ensure the opaque per-session
+        room, recheck authority and activate before signing a token. Retry can reuse an eligible current
+        grant, but is not a client-selected idempotency-key contract. No request body or query string
+        is accepted. Gateway and downstream independently verify RS256 USER/current admission; fresh Assessment/Classroom
+        resource authority is required. All outcomes are sanitized and no-store.
+      responses:
+        "200":
+          description:
+            Authorized result; technical metadata is not proof of active camera or a hard SFU
+            deadline.
+          headers: &id002
+            Cache-Control:
+              description: Sensitive result is never cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grant"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/proctoring/monitoring/sessions/{id}/media-grants/{grantId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: grantId
+        in: path
+        required: true
+        schema: *id001
+    get:
+      operationId: readMediaGrant
+      summary: Read own durable grant status
+      security:
+        - userBearer: []
+      x-required-role:
+        STUDENT session owner or current authorized TEACHER; existing grant operations
+        additionally require grant actor ownership
+      x-request-body-allowed: false
+      x-query-parameters-allowed: false
+      description:
+        Fresh resource authority and matching grant session/actor ownership are mandatory;
+        Teacher access is to their own subscribe grant, not another actor grant. Returns persisted local
+        state and never returns an access token. No request body or query string is accepted. Gateway
+        and downstream independently verify RS256 USER/current admission; fresh Assessment/Classroom resource
+        authority is required. All outcomes are sanitized and no-store.
+      responses:
+        "200":
+          description:
+            Authorized result; technical metadata is not proof of active camera or a hard SFU
+            deadline.
+          headers: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/proctoring/monitoring/sessions/{id}/media-grants/{grantId}/renew:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: grantId
+        in: path
+        required: true
+        schema: *id001
+    post:
+      operationId: renewMediaGrant
+      summary: Renew own active scoped media grant
+      security:
+        - userBearer: []
+      x-required-role:
+        STUDENT session owner or current authorized TEACHER; existing grant operations
+        additionally require grant actor ownership
+      x-request-body-allowed: false
+      x-query-parameters-allowed: false
+      description:
+        Require current authority, configured qualification/recovery worker, own ACTIVE grant
+        and unexpired local lease. Cap lease by configured 1..30 second engineering budget, current USER
+        expiry and authoritative Attempt deadline. Perform a bounded provider ensureRoom liveness
+        call and repeat fresh resource authority before renewal/signing. Worker enablement is configuration,
+        not continuous liveness or provider-revocation proof. No renewal of terminal or revoke-pending work. No request
+        body or query string is accepted. Gateway and downstream independently verify RS256 USER/current
+        admission; fresh Assessment/Classroom resource authority is required. All outcomes are sanitized
+        and no-store.
+      responses:
+        "200":
+          description:
+            Authorized result; technical metadata is not proof of active camera or a hard SFU
+            deadline.
+          headers: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grant"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /api/proctoring/monitoring/sessions/{id}/media-grants/{grantId}/revoke:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: grantId
+        in: path
+        required: true
+        schema: *id001
+    post:
+      operationId: revokeMediaGrant
+      summary: Persist own irreversible revocation intent
+      security:
+        - userBearer: []
+      x-required-role:
+        STUDENT session owner or current authorized TEACHER; existing grant operations
+        additionally require grant actor ownership
+      x-request-body-allowed: false
+      x-query-parameters-allowed: false
+      description:
+        With current authority and actor ownership, persist REVOKE_PENDING before external
+        work. Repeated fencing is safe. A returned local pending state is not proof that the provider
+        disconnected or revoked all original/refreshed tokens; bounded recovery must reconcile actual
+        provider results. No request body or query string is accepted. Gateway and downstream independently
+        verify RS256 USER/current admission; fresh Assessment/Classroom resource authority is required.
+        All outcomes are sanitized and no-store.
+      responses:
+        "200":
+          description:
+            Authorized result; technical metadata is not proof of active camera or a hard SFU
+            deadline.
+          headers: *id002
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+components:
+  securitySchemes:
+    userBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description:
+        Quizopia RS256 principal_type USER, issued/current STUDENT or TEACHER and fresh LD-05
+        admission at both boundaries. No SERVICE or browser role impersonation.
+  schemas:
+    Grant:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - url
+        - token
+        - leaseUntil
+        - role
+        - technicalState
+      properties:
+        id: *id001
+        url:
+          type: string
+          format: uri
+          description:
+            Configured LiveKit client WebSocket origin; wss required except explicit isolated
+            non-production literal-loopback ws.
+        token:
+          type: string
+          minLength: 1
+          x-sensitive: true
+          description:
+            Scoped LiveKit bearer secret. Hold in browser memory only; never persist, log,
+            cache or send through URL/query/analytics.
+        leaseUntil:
+          type: string
+          format: date-time
+          description:
+            Server-controlled local grant lease capped by current authority; not a provider-enforced
+            hard session expiry.
+        role:
+          type: string
+          enum:
+            - STUDENT
+            - TEACHER
+        technicalState:
+          type: string
+          const: GRANT_ISSUED
+          description:
+            A credential was signed; not proof of camera permission, media capture or legal
+            authorization.
+    Status:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - leaseUntil
+        - role
+        - status
+      properties:
+        id: *id001
+        leaseUntil:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum:
+            - STUDENT
+            - TEACHER
+        status:
+          type: string
+          enum:
+            - PREPARED
+            - ACTIVE
+            - REVOKE_PENDING
+            - REVOKED
+          description:
+            Durable local orchestration state, not independently accepted provider revocation
+            evidence.
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          minLength: 1
+  responses:
+    BadRequest:
+      description: Invalid request, query, body, encoding or noncanonical path; sanitized and mutation-free.
+      headers: *id002
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthenticated:
+      description: Invalid or expired USER authentication; SERVICE failures do not trigger user logout.
+      headers: *id002
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Issued/current role or access denied; SERVICE/ADMIN alone cannot satisfy a USER route.
+      headers: *id002
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Session/grant absent or not accessible to this actor; identifiers do not confer authority.
+      headers: *id002
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: SESSION_ENDED or MEDIA_GRANT_ENDED; no reopening or new grant past authoritative eligibility.
+      headers: *id002
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unavailable:
+      description:
+        AUTHORITY_UNAVAILABLE, MEDIA_REVOCATION_UNVERIFIED, MEDIA_UNAVAILABLE or PERSISTENCE_UNAVAILABLE;
+        no unsafe fallback.
+      headers: *id002
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

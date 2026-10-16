@@ -21,7 +21,8 @@ public class SecurityConfiguration {
             com.quizopia.proctoring.security.SecurityErrorHandler errors,
             com.quizopia.proctoring.security.admission.IdentityAdmissionClient admission,
             com.quizopia.proctoring.security.admission.AdmissionProperties bounds,
-            MonitoringProperties monitoring)
+            MonitoringProperties monitoring,
+            com.quizopia.proctoring.media.MediaProperties media)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -52,7 +53,7 @@ public class SecurityConfiguration {
                         }))
                 .addFilterAfter(
                         new com.quizopia.proctoring.security.admission.MonitoringAdmissionFilter(
-                                admission, bounds, monitoring),
+                                admission, bounds, monitoring, media),
                         org.springframework.security.web.access.intercept.AuthorizationFilter.class)
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(errors).accessDeniedHandler(errors))
                 .oauth2ResourceServer(oauth2 -> oauth2.authenticationEntryPoint(errors)

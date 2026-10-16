@@ -101,11 +101,12 @@ Wave 2 remaining: **none for milestone closure**.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
-**Status: CURRENT — ASSESSMENT A/B/C MERGED; M1 IN PROGRESS; M2 PENDING;
+**Status: CURRENT — ASSESSMENT A/B/C MERGED; M1 CORE UNDER REVIEW; M2 MECHANICS IN PROGRESS;
 PRODUCTION NO-GO.**
 
-The [W3-M checkpoint](../architecture/w3m-backend-implementation.md) records current
-source, bounded branch/resumption and actual verification limits. Assessment
+The [historical M1 checkpoint](../architecture/w3m-backend-implementation.md) and
+[current M2 checkpoint](../architecture/w3m2-backend-implementation.md) record bounded
+source/dependency/resumption and actual verification limits. Assessment
 W3-A/B/C and integrated acceptance are merged through PR #84; release governance
 through PR #87 preserves eleven external gates (6 BLOCKED / 5 NOT VERIFIED).
 [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) explicitly amends historical
@@ -141,9 +142,10 @@ Assessment is implemented; its Publication/Attempt/grading/closure/inbox OpenAPI
 and runtime are authoritative. Proctoring had a closed scaffold at this baseline;
 the current `feature/w3m1-proctoring-activity-evidence` increment adds real M1
 session/evidence/authorization mechanics under the
-[bounded M contract](../specifications/w3-m-proctoring-contract.md). Its implementation,
-tests, independent review and later M2 branch must be verified separately. Remaining
-work is durable M1 completion, actual M2 grants/revocation/orchestration, real
+[bounded M contract](../specifications/w3-m-proctoring-contract.md). Its implementation/review remains separate from the dependent M2 branch's media
+mechanics and unverified provider enforcement. Remaining work includes the
+authoritative answer-change adapter, actual provider revocation/hard-outage
+acceptance, real
 frontend/integrated journeys and external monitoring/production acceptance, not
 reimplementation of merged Assessment A/B/C.
 
@@ -534,12 +536,13 @@ The first MVP does **not** require completion of Waves 4–5. The authoritative
 MVP delivery path, scope tiers, blockers, and release journeys are maintained in
 `docs/development/mvp-plan.md`.
 
-Before dependent implementation, freeze W3-A/B/C and W3-M1/M2 contracts and satisfy
-canonical monitoring release gates. ASSESS-01..04, GRADE-01..06 and W3-A scope are
-approved, with LD-01..05 follow-up policy recorded. ASSESS-13/14/17, PROCTOR-10
-and ID-05 remain PARTIALLY RESOLVED for engineering/later-wave dependencies;
-ASSESS-15 remains OPEN — ENGINEERING CONTRACT. W3-B/C/M1/M2 gates remain in the
-canonical decision and `docs/open-questions.md`.
+Merged Assessment A/B/C and its implemented OpenAPI supersede the historical
+contract-open observations above. Current M1/M2 engineering contracts are specified
+for their bounded increments; actual implementation/provider/security/privacy and
+release acceptance remain separately gated. PROCTOR-10 reuses implemented
+UNCONFIGURED/ENABLED/DISABLED; unresolved policy and deployment decisions remain
+explicit in `docs/open-questions.md`. No monitoring or production approval follows
+from these status corrections.
 
 ## 11. Current development workflow
 

@@ -121,14 +121,21 @@ Current state:
 
 MVP requires the `ASSESSMENT` mode.
 
+The LD-01 duration and LD-04 ordinary-CLOSE bullets below preserve the historical
+W3-A policy. [ADR-015](../decisions/ADR-015-w3b-w3c-leader-policy.md) explicitly
+amends them with duration 0/unlimited and narrowly notified delayed closure;
+accepted current code/contracts implement those amendments. Unlimited monitoring
+remains prohibited. This historical list does not undo the amendments.
+
 Minimum delivery capability:
 
 - create/configure an assessment from an immutable `QuizVersion`;
 - support `CLASS` (exactly one Classroom) and `PUBLIC`; LD-03 requires authenticated
   USER with authoritative STUDENT and Identity account/token-validity/revocation
   rules, including TEACHER + STUDENT through STUDENT. PUBLIC uses a shared direct
-  link with a suitably non-enumerable locator and no membership; exact locator/
-  route/errors remain engineering work. Link possession bypasses no eligibility;
+  link with a suitably non-enumerable locator and no membership; implemented locator/
+  routes/errors are specified by the Assessment service OpenAPI. Link possession
+  bypasses no eligibility;
 - LD-01 new starts require OPEN, eligible Student and `startAt <= serverNow < endAt`;
   duration is integer 5–240 minutes inclusive with one-minute granularity and
   deadline = authoritative start + duration; use timezone-safe instants and
@@ -149,11 +156,12 @@ The MVP does not require full long-term Publication configurability if a smaller
 accepted policy model can satisfy the journeys above without contradicting
 business rules.
 
-Current state: **NOT STARTED / W3-A CONTRACT FREEZE REQUIRED**. ASSESS-01 through
-ASSESS-04, W3-A and LD-01..05 policy are approved; CLASS verification, exact PUBLIC
-locator/wire contract, timing/monitoring representation, close concurrency,
-API/data/handoff and LD-05 security implementation/recovery/verification require
-freeze before dependent code. No new owner self-attempt rule is introduced.
+Current state: **BACKEND MERGED — FRONTEND/EXTERNAL ACCEPTANCE SEPARATE**.
+W3-A/B/C Publication/delivery, private Classroom authority, PUBLIC locator/errors,
+server timing/configuration, closure concurrency and current admission are implemented.
+Use the [implemented Assessment OpenAPI](../../services/assessment-service/contracts/publications.openapi.yaml)
+and [integrated evidence](../architecture/w3-final-assessment-acceptance.md), retaining
+external release gates and actual frontend acceptance. No owner self-attempt rule changes.
 
 #### Attempt and answer persistence
 
@@ -168,7 +176,9 @@ freeze before dependent code. No new owner self-attempt rule is introduced.
 - submit/grading/result persistence remains transactionally coherent;
 - active attempts are independent from mutable Quiz content.
 
-Current state: **NOT STARTED**
+Current state: **BACKEND MERGED** through W3-B1/B2/B3. START/RESUME/RETAKE,
+revision-safe SAVE, idempotent coherent finalization and protected results are
+implemented; independent frontend/runtime-release acceptance remains separate.
 
 #### Grading and results
 
@@ -179,9 +189,9 @@ Current state: **NOT STARTED**
 - answer/correct-answer visibility follows an accepted MVP review policy;
 - teacher can read assessment/classroom results relevant to owned content.
 
-Current state: **NOT STARTED / CONTRACT DETAILS REQUIRED**. GRADE-01 through
-GRADE-06 and review visibility are approved. Student numeric validation, exact
-score representation/display, and the policy identifier remain contract gates.
+Current state: **BACKEND MERGED**. W3-C1/B2/B3 implement deterministic grading,
+GRADE-07 numeric syntax, GRADE-08 exact representation/policy identity and protected
+result/review visibility. This does not certify every frontend journey or production release.
 
 #### Wave 3 CLASS eligibility and monitoring
 
@@ -193,7 +203,8 @@ score representation/display, and the policy identifier remain contract gates.
 - explicit CLASS Teacher choice before OPEN, no implicit ON/OFF for unconfigured
   DRAFT and immutable choice upon OPEN; PUBLIC monitoring must be disabled;
 - reject PUBLIC/unbounded/practice proctoring and additional Activity-only,
-  AI-enabled or A/B modes; persisted representation/UI terminology remain open;
+  AI-enabled or A/B modes; actual Assessment representation is
+  `UNCONFIGURED`, `ENABLED`, `DISABLED`; UI terminology remains a separate UX concern;
 - W3-M1 evidence API/timeline and Teacher dashboard; W3-M2 real camera capture,
   authorized Teacher grid, peer-view isolation, scoped tokens and session ending;
 - truthful permissions/refusal/device-loss/disconnect/reconnect status, visible
@@ -202,7 +213,12 @@ score representation/display, and the policy identifier remain contract gates.
 - satisfy [canonical privacy/accessibility/security release gates](../specifications/w3-a-publication-scheduling-monitoring-policy.md#11-w3-a10--privacy-accessibility-and-security)
   before real-learner enablement; refusal/loss/accommodation outcomes remain OPEN.
 
-Current state: **NOT STARTED / CONTRACT AND RELEASE GATES REQUIRED**.
+Current state: **IN PROGRESS — DEFAULT DISABLED; ACCEPTANCE NOT READY**.
+M1 core is under Draft PR #89 review; dependent M2 SDK/grant/recovery mechanics are
+being verified. Authoritative answer-event integration, Teacher session discovery,
+actual private topology, provider-enforced revocation/hard-outage limits, privacy/
+refusal decisions and real-browser camera grid remain incomplete. See the
+[M2 checkpoint](../architecture/w3m2-backend-implementation.md).
 
 #### Broader minimal Classroom integration (MVP-C)
 
@@ -599,23 +615,19 @@ PR #66 + frontend + real-topology E2E) and no longer blocks MVP-A.
 
 ### Blocks MVP-B
 
-ASSESS-01 through ASSESS-04 and GRADE-01 through GRADE-06 are accepted product
-policy and no longer open. The remaining implementation gates are:
+Assessment A/B/C, GRADE-07/08 and their engineering contracts are implemented and
+merged; their old contract-freeze questions are not current coding blockers. Current
+MVP-B blockers are:
 
-- W3-A API/data/internal handoff and Classroom authority verification freeze
-  (ASSESS-15 remains OPEN — ENGINEERING CONTRACT); LD-03 PUBLIC policy is accepted,
-  while exact locator/route/error and safe projection contracts remain (ASSESS-14);
-- LD-01 timing boundaries/formula/5–240-minute duration and LD-04 reject-CLOSE
-  policy are accepted; wire/validation/conversion, transactional close conflicts/
-  overdue/start-finalization races and W3-B expiry/cutoff/timeout finalization,
-  resumption/response ordering remain OPEN (ASSESS-12/13/17);
-- W3-B attempt count, autosave revision/conflicts, submission cutoff, closure,
-  and submit/finalization contract (ASSESS-10 through ASSESS-13, ASSESS-16/17);
-- Student numeric input/submission validation (GRADE-07);
-- exact score representation/rounding/display and version 1 identifier (GRADE-08);
-- W3-M1/M2 persisted representation/UI terminology, evidence/transport/retention, CLASS model,
-  camera refusal/loss/accommodations, session/token revocation and production
-  LiveKit/privacy contracts; preserve unresolved PROCTOR-01..09.
+- real frontend CLASS/PUBLIC/Attempt/results/closure/inbox acceptance;
+- M1 authoritative Assessment answer-change adapter and remaining independent review;
+- M2 SDK/grant/recovery completion, authorized Teacher session discovery and actual
+  multi-service/browser camera-grid integration;
+- monitoring retention, camera refusal/loss/accommodations, provider revocation/
+  hard-outage enforcement and deployment/privacy/security review (PROCTOR-01/07/11/12);
+- actual external release criteria/evidence and independent authorization; see the
+  eleven-gate release register. Persisted `UNCONFIGURED`/`ENABLED`/`DISABLED` is
+  already implemented; UI terminology does not authorize new monitoring modes.
 
 LD-05 accepts fail-closed behavior for affected protected Assessment/Classroom/
 Proctoring operations while required revocation/account authority is unavailable
@@ -625,9 +637,10 @@ Wave 3. Outage alone must not invalidate refresh credentials, silently log out
 or cause refresh loops. Prefer sanitized service-unavailable errors where
 appropriate under API review. Redis health/connectivity is insufficient to resume:
 trustworthy coverage or durable reconstruction is required. Independent public
-nonprivileged infrastructure may remain available. ID-05 implementation,
-authoritative recovery mechanism and security verification remain OPEN under
-the bounded Dev1 contract gate; no authentication subsystem rewrite is authorized.
+nonprivileged infrastructure may remain available. Identity/admission implementation
+exists; deployed authority reconstruction, failure-model verification and independent
+release/security acceptance remain required. No authentication rewrite or fallback
+is authorized.
 The [Assessment Core specification](../specifications/assessment-core-policy.md)
 contains the A–J source audit, normative grading examples, proposed W3-A endpoint
 inventory, and Dev1/Dev2 handoff. `docs/open-questions.md` distinguishes Leader
@@ -660,35 +673,39 @@ Status vocabulary:
 - `NOT STARTED`;
 - `POST-MVP` — accepted future scope outside the current release.
 
-| Capability                            | Status      | Notes                                                                                 |
-| ------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
-| Scaffold / service isolation          | VERIFIED    | Wave 1                                                                                |
-| Local account auth                    | VERIFIED    | Browser → Gateway → Identity                                                          |
-| Frontend auth/session                 | VERIFIED    | refresh/bootstrap/logout E2E                                                          |
-| Teacher self-enablement               | VERIFIED    | backend PR #66 + frontend; real user → teacher → publish E2E proven                   |
-| Classroom core                        | MERGED      | assignment/product integration missing                                                |
-| Quiz stable identity + draft backend  | VERIFIED    | create/read/update foundation                                                         |
-| Quiz frontend library/editor          | MERGED      | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish         |
-| Quiz Markdown grammar/editor contract | DECIDED     | QM-01 through QM-05 accepted                                                          |
-| Quiz parser/validator                 | VERIFIED    | merged in PR #60                                                                      |
-| Immutable QuizVersion/publish         | VERIFIED    | merged in PR #60                                                                      |
-| Assessment Publication                | NOT STARTED | CLASS/PUBLIC + bounded schedule/duration approved; W3-A contracts open                |
-| CLASS Teacher/member eligibility      | NOT STARTED | mandatory W3-A/B; Classroom authoritative, verification contract open                 |
-| Delivery snapshot                     | NOT STARTED | atomic opening accepted; internal QuizVersion handoff contract required               |
-| Attempt core                          | NOT STARTED | finalized snapshot + W3-B contract/attempt policy gates                               |
-| Autosave/stale-write protection       | NOT STARTED | stale-write rejection required; exact revision/conflict contract open                 |
-| Submit/idempotency                    | NOT STARTED | idempotency/coherence required; cutoff/closure/concurrency contract open              |
-| Grading                               | NOT STARTED | product policy accepted; numeric input + score representation/policy identifier gates |
-| Learner result                        | NOT STARTED | grading/result model                                                                  |
-| Teacher result                        | NOT STARTED | grading/result model                                                                  |
-| Activity Evidence (W3-M1)             | NOT STARTED | required Wave 3; optional eligible CLASS bundle, contracts/release gates open         |
-| LiveKit camera monitoring (W3-M2)     | NOT STARTED | required Wave 3; real permissions, viewer isolation, privacy/failure gates            |
-| AI behavior monitoring                | POST-MVP    | accepted future design; not a Wave 3 DoD dependency                                   |
-| Classroom assignment integration      | NOT STARTED | Assessment publication                                                                |
-| Full MVP E2E                          | NOT STARTED | all MUST capabilities                                                                 |
-| MVP hardening/release                 | NOT STARTED | full MVP E2E first                                                                    |
+| Capability                            | Status         | Notes                                                                                                  |
+| ------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
+| Scaffold / service isolation          | VERIFIED       | Wave 1                                                                                                 |
+| Local account auth                    | VERIFIED       | Browser → Gateway → Identity                                                                           |
+| Frontend auth/session                 | VERIFIED       | refresh/bootstrap/logout E2E                                                                           |
+| Teacher self-enablement               | VERIFIED       | backend PR #66 + frontend; real user → teacher → publish E2E proven                                    |
+| Classroom core                        | MERGED         | assignment/product integration missing                                                                 |
+| Quiz stable identity + draft backend  | VERIFIED       | create/read/update foundation                                                                          |
+| Quiz frontend library/editor          | MERGED         | PR #63 persistent library, PR #64 authoring UX, PR #65 editor/branding polish                          |
+| Quiz Markdown grammar/editor contract | DECIDED        | QM-01 through QM-05 accepted                                                                           |
+| Quiz parser/validator                 | VERIFIED       | merged in PR #60                                                                                       |
+| Immutable QuizVersion/publish         | VERIFIED       | merged in PR #60                                                                                       |
+| Assessment Publication                | BACKEND MERGED | PR #78; actual API, timing and publication persistence; frontend/release acceptance separate           |
+| CLASS Teacher/member eligibility      | BACKEND MERGED | Private Classroom authority integrated in W3-A/B; current checks retained                              |
+| Delivery snapshot                     | BACKEND MERGED | Atomic immutable Assessment snapshot on OPEN; source availability independent during attempts          |
+| Attempt core                          | BACKEND MERGED | W3-B1/B2 persistence and Student lifecycle through PR #82                                              |
+| Autosave/stale-write protection       | BACKEND MERGED | Question SAVE, revision conflicts and durable replay; frontend acceptance separate                     |
+| Submit/idempotency                    | BACKEND MERGED | Coherent manual/timeout/closure finalization and retry receipts through PR #83                         |
+| Grading                               | BACKEND MERGED | W3-C1 deterministic exact grading; integrated local acceptance through PR #84                          |
+| Learner result                        | BACKEND MERGED | Protected numeric result/aggregate and post-CLOSED owner review                                        |
+| Teacher result                        | BACKEND MERGED | Owned-Publication authorized results; frontend acceptance separate                                     |
+| Activity Evidence (W3-M1)             | IN PROGRESS    | Draft #89 core implemented/tested; authoritative answer adapter and independent acceptance pending     |
+| LiveKit camera monitoring (W3-M2)     | IN PROGRESS    | Dependent SDK/grant/recovery mechanics; strict provider enforcement/privacy/browser acceptance pending |
+| AI behavior monitoring                | POST-MVP       | accepted future design; not a Wave 3 DoD dependency                                                    |
+| Classroom assignment integration      | NOT STARTED    | Assessment publication                                                                                 |
+| Full MVP E2E                          | NOT STARTED    | all MUST capabilities                                                                                  |
+| MVP hardening/release                 | IN PROGRESS    | Assessment acceptance/governance merged; eleven external gates open, PRODUCTION NO-GO                  |
 
-Update this table whenever a material workstream merges or becomes blocked.
+Status synchronization (2026-10-14): BACKEND MERGED means the implemented backend,
+not full frontend/MVP or production acceptance. See the
+[current M2 checkpoint](../architecture/w3m2-backend-implementation.md) for unmerged
+dependencies and evidence limits. No new product scope or completion approval is
+introduced. Update this table when a workstream merges or becomes blocked.
 
 ## 8. Mandatory MVP E2E journeys
 
