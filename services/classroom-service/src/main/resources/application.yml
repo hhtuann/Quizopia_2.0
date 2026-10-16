@@ -56,6 +56,7 @@ springdoc:
 quizopia:
   internal-authority:
     enabled: ${INTERNAL_AUTHORITY_ENABLED:false}
+    proctoring-membership-enabled: ${CLASSROOM_PROCTORING_MEMBERSHIP_ENABLED:false}
     require-tls: ${INTERNAL_AUTHORITY_REQUIRE_TLS:true}
     assessment-client-id: ${ASSESSMENT_SERVICE_CLIENT_ID:}
   admission:
@@ -86,3 +87,5 @@ logging:
     org.springframework.security.oauth2.client: WARN
     reactor.netty.http.client: WARN
     org.springframework.web.servlet.mvc.method.annotation: WARN
+    # Private membership paths contain the target identity even without request bodies.
+    org.springframework.web.servlet.DispatcherServlet: WARN

@@ -1,5 +1,11 @@
 # Assessment Service
 
+The private Proctoring authority contract requires an explicit `HISTORY` or
+`LIVE_MEDIA` purpose. Teacher live authority additionally uses separate narrow
+Identity/Classroom target-Student scopes and current checks; historical evidence
+authorization cannot be reused for media. All new target checks default disabled.
+See [the correction contract/evidence](../../docs/architecture/w3m-correction-evidence.md).
+
 Independent Spring Boot 4.1.1 / Java 21 Assessment service.
 
 Run independently from this directory:

@@ -120,3 +120,21 @@ business feature or Identity activation is enabled by this prerequisite.
 
 Do not route activated protected traffic to bypass-capable older Gateway or
 downstream instances. Drain/block old instances before activation or rollback.
+
+## Private live-monitoring target membership
+
+`POST /internal/classrooms/{classroomId}/proctoring-students/{studentId}/membership`
+requires the exact configured Assessment SERVICE caller with
+`classroom.proctoring-membership.read` and original independently verified/currently
+admitted TEACHER evidence. One owned primary query checks Classroom ownership and
+actual target membership in a read-write READ COMMITTED transaction; standby recovery
+state fails closed. Both original Teacher and SERVICE expiry are rechecked after
+the database response before a positive result. It returns only `classroomId`, `studentId`, `checkedAt`;
+missing/nonowned/nonmember is masked 404 and unavailable authority is sanitized 503.
+No Student authentication/account eligibility, roster, email or answer data is inferred.
+The endpoint is private, bodyless/queryless, no-store and separately disabled by
+`CLASSROOM_PROCTORING_MEMBERSHIP_ENABLED=false`. Existing membership/Teacher scopes
+remain unchanged. Live monitoring also requires the separate current target Identity
+check; this endpoint cannot substitute Teacher evidence for Student authentication.
+Actual deployed private TLS/security acceptance and monitoring production approval
+remain required.

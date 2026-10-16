@@ -13,6 +13,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
+@org.springframework.boot.context.properties.EnableConfigurationProperties(ProctoringAuthorityProperties.class)
 @Configuration
 @EnableWebSecurity
 public class SecurityConfiguration {
@@ -26,7 +27,8 @@ public class SecurityConfiguration {
             AdmissionProperties properties,
             PublicationProperties publication,
             AssessmentFeatureProperties features,
-            ClosureProperties closure)
+            ClosureProperties closure,
+            ProctoringAuthorityProperties proctoringAuthority)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -43,6 +45,12 @@ public class SecurityConfiguration {
                         .permitAll()
                         .anyRequest()
                         .access((authentication, context) -> {
+                            if (com.quizopia.assessment.security.proctoring.ProctoringAuthorityRoutes.matches(
+                                    context.getRequest().getMethod(),
+                                    context.getRequest().getRequestURI()))
+                                return new AuthorizationDecision(
+                                        com.quizopia.assessment.security.proctoring.ProctoringAuthorityRoutes.permitted(
+                                                authentication.get(), proctoringAuthority));
                             var role = PublicationRoutes.requiredRole(
                                     context.getRequest().getMethod(),
                                     context.getRequest().getRequestURI());
