@@ -1,9 +1,12 @@
 # W3-A Teacher Publication frontend
 
-Implementation and real-acceptance checkpoint: 2026-10-16 (Asia/Bangkok).
-Branch: `feature/frontend-w3a-publication`, based on develop
-`4744f81625632fd6e2c24d75017597c0abcbf711`. LD-05 branch and Draft PR #77
-remain separate and untouched; their changes were not merged or cherry-picked.
+Implementation, real-acceptance and develop-merge checkpoints: 2026-10-16
+(Asia/Bangkok). Branch: `feature/frontend-w3a-publication`.
+The original implementation used develop `4744f81625632fd6e2c24d75017597c0abcbf711`.
+After PR #77 merged, this branch normally merged develop
+`532fe986ca2a49a179b9740dc5546772618b81f0`; current merged-source evidence is
+recorded in the PR #77 follow-up section below. Historical checkpoints retain their
+original source revisions and do not substitute for current-source verification.
 
 ## Scope and current gate
 
@@ -14,14 +17,15 @@ Implementation, frontend quality gates and independent review are complete.
 The feature branch is published in [Draft PR #92](https://github.com/hhtuann/Quizopia_2.0/pull/92)
 targeting develop; evidence is below. The PR remains unmerged.
 
-**Bounded real-topology acceptance: PASS.** Three actual Chromium scenarios passed
+**Bounded real-topology acceptance: PASS, including the merged frontend.** Three actual Chromium scenarios passed
 against an isolated, revision-pinned five-service topology. PUBLIC and CLASS owner
 journeys, real error responses, account isolation and a committed creation whose
 response was withheld were exercised without response interception. The original
 missing-topology blocker is resolved for this fixture. PR #92 remains Draft for
 Leader review; this checkpoint does not complete Wave 3, enable monitoring or
 authorize production activation. Separate LD-05 outage/recovery and deployment
-security gates remain outstanding.
+security gates remain outstanding. The fresh merged-source verification checkpoint
+is recorded in the PR #77 follow-up below.
 
 ## Plan and progress
 
@@ -65,8 +69,175 @@ Leader acceptance and independent platform/release gates remain separate.
       as `d648e5a4a1cffc1ec3e2eca6d8f4717f65795f1f`, push normally by SSH, and
       update existing PR #92 with exact results. Local/remote matched after push;
       PR #92 remains OPEN, Draft and unmerged.
+      Current PR #77 integration follow-up:
+
+- [x] Inspect clean W3-A HEAD `85455ba` and latest develop `532fe986`; normally merge
+      both histories as `40f77b5` without rebasing or overwriting unrelated work.
+- [x] Resolve the README conflict semantically, retain all LD-05 security behavior,
+      and expose only the canonical runtime session-generation getter to W3-A.
+- [x] Add and pass ten deterministic auth/Publication composition regressions for
+      stale accounts, authority failure, refresh coordination, logout and switching.
+- [x] Pass current merged-source quality gates: 542 tests in 36 files, TypeScript,
+      ESLint, Prettier, production build, 59 intercepted-browser tests without skips,
+      generated contract parity, eight fixture-helper tests and diff checks.
+- [x] Reproduce the isolated five-service fixture and pass all three real Chromium
+      scenarios against exact merged frontend `40f77b5`; verify owned cleanup and
+      preserve shared processes and containers.
+- [x] Obtain independent read-only conflict/composition review PASS with no confirmed
+      Blocker/High/Medium findings; retain separate historical and current evidence.
+- [ ] Complete final source/evidence review, commit the scoped evidence, push normally
+      to the existing branch, update PR #92 and report current CI and mergeability.
 - [ ] Obtain Leader acceptance of PR #92 and complete separately owned release
       gates; production activation remains unauthorized.
+
+## PR #77 develop merge follow-up — 2026-10-16
+
+### Git provenance and semantic resolution
+
+The clean W3-A branch started at `85455ba533d2a405218d77a19b23531fc773dbfa`.
+A normal merge integrated develop `532fe986ca2a49a179b9740dc5546772618b81f0`,
+which contains merged PR #77. Merge commit
+`40f77b5b9a7aff28d7ce81b50bffce3b3311d07a` retains both parent histories;
+no rebase, force push, reset or cherry-pick was used.
+
+The only textual merge conflict was `frontend/README.md`. Its resolution retains
+both the W3-A workflow/integration instructions and LD-05 real-executor guidance.
+The authentication files merged textually, but received explicit semantic review:
+
+- Removed the W3-A `AuthSessionService.getSessionGeneration` declaration and
+  implementation. `SessionRuntime.getSessionGeneration` is the single canonical
+  API; AuthProvider exposes that exact runtime function to Publication consumers.
+- Removed obsolete service-getter fields from ApplicationShell and Quiz authoring
+  test fakes. Publication's existing context hook and response-generation checks
+  continue to use the runtime generation.
+- Retained the LD-05 distinction between operation generation and session
+  generation, unavailable-verification state, bounded refresh, cancellation, lock
+  release and uncertainty latch. No fallback authorization or automatic refresh
+  replay was added to satisfy Publication tests.
+
+Independent read-only review confirmed that the merged auth-session service,
+runtime, token vault, refresh coordinator, browser lock, authenticated executor,
+auth API/transport and LD-05 recovery components match `origin/develop` byte for
+byte. The provider's feature delta only exposes the canonical runtime getter.
+No backend production file, dependency or lockfile changed in this integration.
+
+### New composition regression evidence
+
+`frontend/features/assessments/api/publication-session.integration.test.tsx` adds
+10 deterministic tests composing actual AuthProvider, session runtime, auth service,
+refresh coordinator, Publication hook/client and authenticated executor with mocked
+HTTP transports. They establish:
+
+- Late owner success and late 401 after logout/account switch cannot populate or
+  clear the newer identity, and an old client cannot dispatch another operation.
+- Local clear invalidates an in-flight Publication response without cookie logout.
+- Authority-unavailable login stays unverified and cannot issue a protected
+  Publication request until successful authoritative manual verification.
+- Protected authority 503 preserves verified identity without refresh or logout.
+- Concurrent Publication 401s single-flight refresh, preserve session/workspace and
+  replay the exact original create command.
+- Refresh 503 latches failure until a new session; a stalled refresh is bounded,
+  ignores late credentials, releases logout and permits subsequent login.
+- An authoritative refresh that changes account invalidates the old Publication
+  client; an injected runtime exposes the same canonical generation without
+  inventing an authenticated executor.
+
+These are unit/component composition tests with mocked transports, not real-service
+or Redis-outage evidence. Independent review reported PASS, with no confirmed
+Blocker/High/Medium findings, and independently passed 95 focused tests in four
+files using:
+
+```sh
+pnpm exec vitest run features/assessments/api/publication-session.integration.test.tsx features/auth/session/auth-lifecycle.test.ts features/auth/session/login-verification.test.ts lib/api/authenticated-request.test.ts
+```
+
+The final source/evidence review also passed without confirmed Blocker/High/Medium
+findings. The delegated broad focused command
+`pnpm exec vitest run features/auth features/assessments lib/api/authenticated-request.test.ts`
+passed 303 tests in 20 files. The parent independently reran
+`pnpm exec vitest run features/assessments/api/publication-session.integration.test.tsx`:
+10 tests passed.
+
+### Fresh merged-source quality gates
+
+All frontend commands below ran from `frontend/` against merge
+`40f77b5b9a7aff28d7ce81b50bffce3b3311d07a` source; root commands are marked.
+
+| Exact command                                                                                                        | Result                              | Evidence boundary                                         |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------- |
+| `pnpm test`                                                                                                          | **PASS 542 tests / 36 files**       | Unit/component and mocked transport regression            |
+| `pnpm typecheck`                                                                                                     | **PASS**                            | TypeScript                                                |
+| `pnpm lint`                                                                                                          | **PASS**                            | ESLint                                                    |
+| `pnpm format:check`                                                                                                  | **PASS**                            | Frontend Prettier                                         |
+| `pnpm build`                                                                                                         | **PASS**                            | Production Next.js build                                  |
+| `pnpm test:e2e --workers=4`                                                                                          | **PASS 59 tests, 0 skipped**, 29.9s | Actual Chromium with intercepted responses                |
+| Root: `python3 scripts/local/generate-publication-types.py --check`                                                  | **PASS**                            | Generated Publication contract parity                     |
+| Root: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/local/tests -p test_w3a_real_runtime.py -v` | **PASS 8 tests**                    | Isolated-runtime helper regressions with mocked OS/Docker |
+| Root: `git diff --check`                                                                                             | **PASS**                            | Whitespace check                                          |
+
+### Fresh merged-source real acceptance
+
+The isolated fixture was safely reprovisioned and all three existing actual
+Chromium scenarios passed with zero retries against the exact archived frontend
+`40f77b5b9a7aff28d7ce81b50bffce3b3311d07a`. The actual backend services were built
+from `4744f81625632fd6e2c24d75017597c0abcbf711`; comparing `gateway/` and
+`services/` between that revision and merged develop `532fe986` showed no changes.
+This establishes the current merged frontend against the unchanged backend source
+subset, not mixed revisions or a production deployment. No responses were replaced
+with Playwright interception and no acceptance assertion was weakened.
+
+The command from `frontend/` was:
+
+```sh
+W3A_REAL_GATEWAY_URL=http://localhost:8080 \
+W3A_REAL_MAILPIT_URL=http://127.0.0.1:44489 \
+W3A_REAL_STATE_DIRECTORY=/tmp/quizopia-w3a-v_e8hovu \
+  pnpm exec playwright test --config=playwright.w3a-real.config.ts
+```
+
+The source archive used the existing webpack Next.js fixture at
+`http://localhost:3000`; business HTTP traversed actual Gateway. Actual backend
+endpoints were Identity `http://127.0.0.1:46983`, Quiz
+`http://127.0.0.1:35473`, Classroom `http://127.0.0.1:60997`, Assessment
+`http://127.0.0.1:48955`, Gateway `http://127.0.0.1:8080` and Mailpit
+`http://127.0.0.1:44489`. Fresh JAR identities were:
+
+| Service    | JAR SHA-256                                                        |
+| ---------- | ------------------------------------------------------------------ |
+| Identity   | `0bcbe0019e42fb99328af698c5e374c5a346d544151a6701ed39de416c71f151` |
+| Quiz       | `8639cdb32ae09464530ac6a2beaee02a0ae92b98896dee318b7927ec034ebbda` |
+| Classroom  | `03dad1b6dce8d10c85c2c7b341d9acda6b49f251358fb8427054774119cd4f7a` |
+| Assessment | `60af5d751a787234dbc18a51714349026955209ca02f0664dc911d45468df9c5` |
+| Gateway    | `10cebf031e8f09ddd60d1cbb3be9e738180d485c5d3dff726547e751f1aa6029` |
+
+The sanitized log `/tmp/w3a-merged-real-chromium.log` and sanitized metadata
+`/tmp/w3a-merged-real-evidence.json` record **PASS 3, FAIL 0**. The three cases
+re-executed actual PUBLIC create/replay/edit/conflicts/dependency-503/OPEN/extension/
+CLOSE; CLASS authority/membership/explicit monitoring/Student denial/ACTIVE CLOSE;
+and committed creation with response loss and exact original-key recovery. Actual
+same-document logout/account switch canceled the stalled old owner GET and retained
+foreign-owner denial. HTTP evidence included authority readiness 503 before bounded
+read-only recovery, no refresh/logout after dependency 503, and no automatic replay
+when a committed create exceeded the 15-second deadline. HttpOnly cookie, USER-only
+bearer and observed locator/token confidentiality assertions also passed. Actual
+Origin probes returned 200 for `http://localhost:3000` and 403 for
+`http://localhost:3100`.
+
+Cleanup completed through the owned fixture helper plus an independent absence
+check at `2026-10-16T07:18:29Z` (14:18:29 Asia/Bangkok). All five backend PIDs,
+six owned containers and three archived-frontend PIDs were absent; all seven
+recorded service/frontend ports were closed. The original six shared containers
+were unchanged. The helper initially marked four conservative Java-exit checks
+pending; the subsequent PID/port/container inspection resolved those checks rather
+than inferring success from the helper alone. The private state directory retains
+`cleanup-verification.json` for local inspection; no credentials are committed.
+The fresh fixture retained USER TTL PT5M: the PT5S real-executor suite and separate
+Redis outage/stale-restore/recovery scenarios were not run or claimed here.
+
+Final documentation review, push and GitHub CI/mergeability status are pending at
+this evidence checkpoint. The earlier real acceptance below remains historical
+evidence for frontend `fbfc46cbf8cf892083e758d0ac76f30588526942`; it is not counted
+as the fresh run.
 
 ## Contract audit
 
@@ -155,12 +326,15 @@ frontend terminalization or incomplete notification workflow.
 
 ## Session, mutation and privacy safety
 
-The only auth addition is a non-secret, read-only session-generation getter in the
-existing service/provider. It does not change login, bootstrap, refresh, logout or
-role behavior and does not port PR #77. Feature requests bind to that generation;
-account/resource changes remount and abort the screen, and stale successful responses
-are rejected even if transport ignores abort. Pre-existing auth safety and LD-05
-real-integration dependencies remain separate; this feature does not claim to fix them.
+After integrating PR #77, Publication consumes the canonical read-only
+`SessionRuntime.getSessionGeneration` through AuthProvider. The former W3-A service
+getter was removed rather than retained as a duplicate API. LD-05 operation fencing
+continues to govern asynchronous authentication work; runtime session generation
+fences Publication requests and account/resource changes remount and abort the
+screen. Stale successful responses are rejected even if transport ignores abort.
+Login, bootstrap, refresh, logout, authority-unavailable recovery and the shared
+executor retain the merged LD-05 implementation. Separate LD-05 real-integration
+scenarios are not established by Publication acceptance.
 
 Create and CLOSE generate secure 64-character ASCII keys in memory. Concurrent
 submission is prevented. Uncertain create retries retain the exact payload/key;
@@ -207,7 +381,8 @@ ran 107 focused tests across four files and `git diff --check`, both passing.
 ## Original implementation verification
 
 The following results belong to the original implementation checkpoint. The real
-acceptance run and current-session quality gates are recorded separately below.
+historical real-acceptance run and its quality gates are recorded separately below;
+current merged-source gates are in the PR #77 follow-up above.
 
 | Layer / exact command from `frontend/` unless stated                | Result                              | Boundary                                                     |
 | ------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------ |
@@ -236,7 +411,7 @@ OPEN after ACTIVE_ATTEMPTS 409) were inspected by the primary agent: readable,
 no horizontal overflow. They are intercepted-browser artifacts, not real-service
 integration evidence.
 
-## Real integration acceptance — 2026-10-16
+## Historical real integration acceptance — 2026-10-16
 
 ### Runtime provenance and isolation
 
@@ -394,7 +569,7 @@ W3A_REAL_STATE_DIRECTORY=/tmp/quizopia-w3a-kypnaoqq \
   pnpm exec playwright test --config=playwright.w3a-real.config.ts
 ```
 
-| Current-session command                                             | Result                              | Evidence boundary                                                             |
+| Historical acceptance command                                       | Result                              | Evidence boundary                                                             |
 | ------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
 | Real Chromium command above                                         | **PASS 3/3, zero retries**          | Archived frontend; real isolated five-service backend                         |
 | Root fixture unittest command above                                 | **PASS 8 tests**                    | Mocked OS/Docker cleanup and socket-witness regressions; no real faults       |
@@ -409,7 +584,7 @@ W3A_REAL_STATE_DIRECTORY=/tmp/quizopia-w3a-kypnaoqq \
 
 All required frontend gates were rerun after the real acceptance harness stabilized.
 The original results above remain historical implementation evidence; this table
-records the current-session reruns. New scoped files contain only the isolated
+records the historical acceptance-session reruns. New scoped files contain only the isolated
 runtime, its regressions, real-browser config/helpers/spec/reporter and documentation.
 No backend production logic, frontend authentication behavior or deployment defaults
 changed.
@@ -439,9 +614,9 @@ The original no-listener blocker was resolved through the isolated fixture above
 Leader review of the bounded real evidence remains required; keep PR #92 Draft until
 acceptance is explicit. This run does not establish compatibility across newer or
 mixed backend revisions, external TLS deployment, production flag activation,
-monitoring privacy/runtime readiness, or the separate PR #77 LD-05 Redis outage,
-stale-restore/recovery and uncertain refresh-cookie rotation gates. Those scenarios
-were not executed by this W3-A acceptance suite.
+monitoring privacy/runtime readiness, or the separately scoped LD-05 Redis outage,
+stale-restore/recovery and uncertain refresh-cookie rotation gates from merged
+PR #77. Those scenarios were not executed by this W3-A acceptance suite.
 
 Backend/product dependencies remain: owner Publication list and authorized Classroom
 selection directory. Deferred frontend scope: Student entry/Attempt/autosave/submit,
