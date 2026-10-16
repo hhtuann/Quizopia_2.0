@@ -10,7 +10,8 @@ import { AuthenticatedUserMenu } from "./authenticated-user-menu";
 
 export interface ApplicationShellProps {
   readonly children: ReactNode;
-  readonly currentSection?: "home" | "quizzes" | "assessments";
+  readonly currentSection?:
+    "home" | "quizzes" | "assessments" | "notifications";
 }
 
 export function ApplicationShell({
@@ -20,8 +21,10 @@ export function ApplicationShell({
   const { activeWorkspace, session, user } = useAuth();
   const isApplicationHome = currentSection === "home";
   const isQuizAuthoring = currentSection === "quizzes";
+  const isNotifications = currentSection === "notifications";
   const showQuizAuthoring =
     activeWorkspace === "TEACHING" && user?.roles.includes("TEACHER");
+  const showStudentInbox = user?.roles.includes("STUDENT");
   const navLinkClasses =
     "inline-flex min-h-10 items-center rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none";
 
@@ -65,6 +68,19 @@ export function ApplicationShell({
               href="/app/quizzes"
             >
               Quiz authoring
+            </Link>
+          ) : null}
+          {showStudentInbox ? (
+            <Link
+              aria-current={isNotifications ? "page" : undefined}
+              className={`${navLinkClasses} ${
+                isNotifications
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
+              }`}
+              href="/app/notifications"
+            >
+              Notifications
             </Link>
           ) : null}
         </nav>

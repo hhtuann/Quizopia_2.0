@@ -64,3 +64,81 @@ export type ClosedPublication = {
 export type TeacherCommand = {
   readonly expectedRevision: number;
 };
+
+export type TeacherResults = {
+  readonly items: ReadonlyArray<TeacherResultRow>;
+  readonly nextCursor: string | null;
+};
+
+export type TeacherResultRow = {
+  readonly attemptId: string;
+  readonly studentId: string;
+  readonly ordinal: string;
+  readonly state: "ACTIVE" | "SUBMITTED" | "ABANDONED";
+  readonly result: Result | null;
+};
+
+export type Result = {
+  readonly resultId: string;
+  readonly attemptId: string;
+  readonly publicationId: string;
+  readonly ordinal: string;
+  readonly earnedWeight: string;
+  readonly possibleWeight: string;
+  readonly percentageDisplay: string;
+  readonly gradingPolicyVersion: 1;
+  readonly gradingPolicyId: "QUIZOPIA_GRADING_V1";
+  readonly terminalReason:
+    "MANUAL_SUBMIT" | "BOUNDED_TIMEOUT" | "TEACHER_NOTICE_CUTOFF";
+  readonly finalizedAt: string;
+};
+
+export type ClosureView = {
+  readonly closureRequestId: string;
+  readonly publicationId: string;
+  readonly requestingTeacherId: string;
+  readonly requestedAt: string;
+  readonly state:
+    "PENDING" | "FINALIZING" | "CANCELLED" | "COMPLETED" | "RESOLVED_EARLY";
+  readonly finalizationStartedAt: string | null;
+  readonly resolvedAt: string | null;
+  readonly publicationRevision: number;
+};
+
+export type ClosureCompletion = {
+  readonly closureRequestId: string;
+  readonly publicationId: string;
+  readonly closed: boolean;
+  readonly publicationRevision: number;
+};
+
+export type NotificationPage = {
+  readonly items: ReadonlyArray<Notification>;
+  readonly nextCursor: string | null;
+};
+
+export type Notification = {
+  readonly notificationId: string;
+  readonly publicationId: string;
+  readonly publicationTitle: string;
+  readonly attemptId: string;
+  readonly closureRequestId: string;
+  readonly teacherInitiated: true;
+  readonly contentVersion: 1;
+  readonly publishedAt: string;
+  readonly confirmedNoticeAt: string | null;
+  readonly closureCutoffAt: string | null;
+  readonly warningHours: 48;
+  readonly noticeStatus:
+    | "PREPARING"
+    | "NOTICE_CONFIRMED"
+    | "CUTOFF_REACHED"
+    | "CANCELLED"
+    | "SUBMITTED"
+    | "ABANDONED"
+    | "FINALIZED"
+    | "RESOLVED_EARLY";
+  readonly message: string;
+  readonly resultId: string | null;
+  readonly serverNow: string;
+};

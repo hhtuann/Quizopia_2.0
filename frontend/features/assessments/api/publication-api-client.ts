@@ -115,6 +115,8 @@ export function publicationFailureMessage(error: PublicationFailure): string {
       "The Publication state or revision changed. Refresh authoritative details and review your action.",
     IDEMPOTENCY_CONFLICT:
       "This operation identity conflicts with an earlier request. Do not repeat it with different settings.",
+    CAPACITY_EXCEEDED:
+      "The server is temporarily throttling this operation. Retry the same operation key after a short wait.",
     CLASSROOM_NOT_ACCESSIBLE:
       "The Classroom is unavailable or you are not authorized to assign to it. Check its ID.",
     SOURCE_NOT_ACCESSIBLE:
