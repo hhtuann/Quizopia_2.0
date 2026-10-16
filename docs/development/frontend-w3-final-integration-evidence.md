@@ -28,6 +28,12 @@ Status: **FRONTEND INTEGRATION COMPLETE — REAL-SERVICE TOPOLOGY ACCEPTANCE BLO
   - For unknown/direct attempts, `client.enterClass(publicationId)` determines whether the attempt belongs to an accessible `CLASS` publication with `monitoringRequired: true`.
   - Projections that are `PUBLIC`, unconfigured, unbounded (`deadlineAt === null`), terminal, or uncertain fail closed (`not-required` or `unavailable`).
   - No synthetic `monitoringChoice` is fabricated for the Student; `monitoringRequired` is read strictly from `StudentView`.
+- **Deliberate Monitoring Retry & Lifecycle Guards**:
+  - When Proctoring experiences a temporary failure (such as an HTTP 503 Service Unavailable, network timeout, or session error), the controller transitions to `unavailable`.
+  - `IntegratedAttemptScreen` exposes an actionable **"Retry monitoring verification"** button in `AttemptMonitoringStatus` **only** when the attempt lifecycle is active and eligible (`attempt.state === "ACTIVE"`, `collectionAllowed === true`, `serverNow < deadline`, and projection is eligible).
+  - Calling `ensureStarted()` immediately validates `attempt.state === "ACTIVE"`, `collectionAllowed`, and rejects `starting`, `active`, `ended`, `ineligible`, and 403 `AUTHORITY_LOST` states, preventing retry storms while a request is in flight.
+  - Terminal attempts (`SUBMITTED`, `ABANDONED`), expired attempts, authority-lost states (403 `AUTHORITY_LOST`), `ended` sessions, or `ineligible` states strictly omit the Retry button and reject start invocation, guaranteeing backend authority is never bypassed.
+  - The status alert cleanly handles `ineligible` controller states by displaying the standard "Monitoring unavailable" alert without misleadingly showing "Starting activity monitoring".
 - **Event Forwarding & Answer Independence**:
   - Question view/leave emits `QUESTION_VIEWED` and `QUESTION_LEFT`.
   - Answer interaction in `AnswerField` emits `ANSWER_SELECTED`, `ANSWER_CHANGED`, or `ANSWER_CLEARED` carrying question metadata only (no answer payloads).
@@ -65,18 +71,24 @@ Status: **FRONTEND INTEGRATION COMPLETE — REAL-SERVICE TOPOLOGY ACCEPTANCE BLO
 | **Lint** | ESLint 9 | All frontend files | **PASS** | 0 errors, 0 warnings |
 | **Formatting** | Prettier 3 | All frontend files | **PASS** | `format:check` clean |
 | **Typecheck** | TypeScript 5.9 | `tsconfig.json` | **PASS** | `tsc --noEmit` clean |
-| **Unit & Component** | Vitest 3.2 | 55 test files | **PASS** | 669 / 669 tests pass |
+| **Unit & Component** | Vitest 3.2 | 55 test files | **PASS** | 674 / 674 tests pass |
 | **E2E Journeys** | Playwright 1.55 | 13 test suites | **PASS** | 76 / 76 tests pass |
 | **Production Build** | Next.js 16.1 Turbopack | `pnpm build` | **PASS** | 14/14 static & dynamic routes compiled |
 
 ### 3.2 Key Regression & Integration Suites Passed
 
-1. `features/attempts/components/student-assessment-pages.test.tsx` (17 tests):
+1. `features/attempts/components/student-assessment-pages.test.tsx` (22 tests):
    - `IntegratedAttemptScreen` with `not-required` projection renders without proctoring overhead.
    - `IntegratedAttemptScreen` with `checking` projection displays informative alert while keeping answers interactive.
    - `IntegratedAttemptScreen` with `unavailable` projection displays safe fallback without blocking editing.
    - `IntegratedAttemptScreen` with `eligible` projection starts monitoring and renders camera banner.
    - `IntegratedAttemptScreen` forwards answer interactions and question selection events.
+   - **Focused retry recovery regressions**:
+     - Recovers from temporary Proctoring 503 failure: clicking "Retry monitoring verification" triggers a fresh authorized `start()` call with the projection.
+     - Denies retry when attempt is submitted or terminal (`SUBMITTED` / `ABANDONED`).
+     - Denies retry when attempt countdown has expired.
+     - Denies retry on terminal authority loss (403 `AUTHORITY_LOST`).
+     - Denies retry and suppresses button when monitoring status is `ended` or `ineligible`.
 2. `features/notifications/components/notification-pages.test.tsx` (10 tests):
    - Links recipient-authorized notice to `/app/attempts/{attemptId}`.
 3. `features/teacher-results/components/teacher-results-pages.test.tsx` (4 tests):
@@ -98,26 +110,44 @@ Status: **FRONTEND INTEGRATION COMPLETE — REAL-SERVICE TOPOLOGY ACCEPTANCE BLO
 
 ---
 
-## 4. Real Multi-Service Acceptance & Topology Blocker Report
+## 4. Isolated Synthetic Topology Investigation & Acceptance Verdict
 
-In accordance with [frontend-w3-final-integration-plan.md](frontend-w3-final-integration-plan.md) and repository policy:
+### 4.1 Developer Infrastructure Safety & Resource Isolation Investigation
+
+In accordance with [frontend-w3-final-integration-plan.md](frontend-w3-final-integration-plan.md), [AGENTS.md](../../AGENTS.md), and repository safety rules:
 > *"Never run or stop another developer's services, DBs, Docker containers or ports. Never change production feature flags or use real learners to make a test pass. If prerequisites cannot be safely met, label the affected gate **BLOCKED/NOT VERIFIED** rather than substituting mock PASS."*
 
-### Topology Inspection
-- Host port scan (`ss -tulpn`) revealed active listeners on ports:
+**Active Developer Services Inspection:**
+- Host inspection confirmed active, healthy developer containers on standard host ports:
   - `5432`: `quizopia-postgres-1`
   - `6379`: `quizopia-redis-1`
-  - `5672`: `quizopia-rabbitmq-1`
-  - `8025`: `quizopia-mailpit-1`
-  - `7880`: `quizopia-livekit-1`
-- These containers belong to an existing developer's environment and must not be stopped, restarted, or modified.
-- No separate, agent-owned isolated Gateway + Identity + Quiz + Classroom + Assessment + Proctoring synthetic runtime with dedicated non-conflicting loopback ports and test credentials was available for this execution.
+  - `5672` / `15672`: `quizopia-rabbitmq-1`
+  - `1025` / `8025`: `quizopia-mailpit-1`
+  - `7880` / `7881` / `7882`: `quizopia-livekit-1`
+  - `9000` / `9001`: `quizopia-minio-1`
+- These shared developer containers were strictly left untouched, unpaused, and unconfigured.
 
-### Verdict on Acceptance Gates
+**Feasibility of Isolated Synthetic Multi-Service Backend:**
+- Investigated whether a fully isolated multi-service backend (Identity, Quiz, Classroom, Assessment, Proctoring, Gateway) could be safely provisioned on separate containers, ephemeral ports, and test credentials:
+  1. *Container & Port Feasibility*: Docker daemon allows spinning up ephemeral PostgreSQL containers bound to dynamic loopback ports (`127.0.0.1:0`) with dedicated owner labels.
+  2. *Topology Orchestration Gaps*: Unlike past workstreams which had focused single-purpose harnesses (e.g., `scripts/local/w3a-real-runtime.py` for Assessment Publication or `scripts/local/ld05-real-executor-runtime.py` for Auth token refresh), no multi-service orchestration harness exists that provisions the full 6-service backend (`identity`, `quiz`, `classroom`, `assessment`, `proctoring`, `gateway`) along with an ephemeral LiveKit media server.
+  3. *Preservation of Unapproved Governance Gates*:
+     - In `services/proctoring-service`, `quizopia.proctoring.monitoring.enabled: ${PROCTORING_ENABLED:false}` requires formal retention and privacy approval references (`PROCTORING_RETENTION_POLICY_REFERENCE`, `PROCTORING_PRIVACY_APPROVAL_REFERENCE`).
+     - `quizopia.proctoring.media.enabled: ${PROCTORING_MEDIA_ENABLED:false}` requires formal qualification references (`PROCTORING_MEDIA_QUALIFICATION_REFERENCE`).
+     - As recorded in `docs/development/w3-production-evidence-handoff.md`, all production DRI roles remain unassigned, and no unapproved production credentials, live learner data, or synthetic privacy bypasses are permitted.
+  4. *Evidence Separation*:
+     - **Mocked Browser Interception Tests**: The 76 Playwright browser tests across 13 suites intercept Gateway endpoints at the browser layer. They thoroughly validate DOM rendering, user interactions, route transitions, autosave isolation, and error fallbacks. They represent **browser contract acceptance only**.
+     - **Real Multi-Service Topology & LiveKit Provider Media Acceptance**: Truthfully reported as **BLOCKED / NOT VERIFIED** pending an operator-authorized orchestration topology and formal privacy/provider approvals.
 
-- **Real Multi-Service Assessment Topology**: **BLOCKED / NOT VERIFIED** (insufficient isolated environment without disturbing running developer services).
-- **Real LiveKit Provider Media Acceptance**: **BLOCKED / NOT VERIFIED** (requires dedicated LiveKit test credentials, provider cloud media validation, and WebRTC WAN routing).
-- **Mocked Browser Interception Tests**: Reported truthfully as **browser-contract acceptance only**, not real multi-service or provider qualification.
+### 4.2 Acceptance Gates Verdict
+
+| Gate | Status | Reason |
+| :--- | :--- | :--- |
+| **Frontend Final Composition** | **VERIFIED / PASS** | Clean integration across Student Attempt, Notifications, Teacher Results, and Proctoring. All 674 unit/component tests, 76 Playwright E2E tests, typecheck, lint, formatting, and production build pass. |
+| **Monitoring Retry Recovery** | **VERIFIED / PASS** | Confirmed recovery after 503, valid deliberate retry, and denial of retry for terminal, expired, authority-lost, or ineligible attempts. |
+| **Real Multi-Service Assessment Topology** | **BLOCKED / NOT VERIFIED** | Requires operator-authorized multi-service runtime orchestration on dedicated non-conflicting loopback ports. |
+| **Real LiveKit Provider Media Acceptance** | **BLOCKED / NOT VERIFIED** | Requires dedicated LiveKit provider credentials, provider hard-revocation qualification, and privacy approval sign-off. |
+| **Mocked Browser Acceptance vs. Real Provider Evidence** | **HONESTLY DISTINGUISHED** | Documented strictly as browser-boundary contract qualification; no false claim of real backend/provider qualification. |
 
 ---
 
@@ -127,4 +157,4 @@ The following gates remain unclosed and require explicit architectural / operato
 1. **Production Feature Flags**: `ATTEMPTS_ENABLED`, `RESULTS_ENABLED`, `CLOSURE_ENABLED`, `ASSESSMENT_INBOX_ENABLED`, and `PROCTORING_ENABLED` remain disabled by default in production configurations.
 2. **Cloud Media Hard Revocation**: Real-time media token revocation behavior during server/provider partition remains an open provider qualification gate.
 3. **48-Hour Soak & Retention Audits**: Background data retention and 48-hour closure cutoff soak validation remain open.
-4. **Independent Leader Review**: Draft PR #96 is held in Draft status for peer review.
+4. **Independent Leader Review & PR Status**: Draft PR #96 is held in Draft status for peer review. Do not merge.

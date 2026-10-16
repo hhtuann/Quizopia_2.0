@@ -34,6 +34,7 @@ const monitoringMock = vi.hoisted(() => ({
       session?: unknown;
       activity?: unknown;
       error?: unknown;
+      reason?: string;
     },
     start: vi.fn(),
     verifyAndStart: vi.fn(),
@@ -613,5 +614,200 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
     fireEvent.click(screen.getByRole("button", { name: /Question 2/ }));
     expect(monitoringMock.controller.questionLeft).toHaveBeenCalledWith(1);
     expect(monitoringMock.controller.questionViewed).toHaveBeenCalledWith(2);
+  });
+
+  it("recovers from temporary Proctoring 503 failure when user clicks retry on an active eligible attempt", async () => {
+    const api = client();
+    monitoringMock.controller.state = {
+      status: "unavailable",
+      error: { kind: "api", status: 503, message: "Service Unavailable" },
+    };
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
+    const retryButton = screen.getByRole("button", {
+      name: /retry monitoring verification/i,
+    });
+    expect(retryButton).toBeInTheDocument();
+
+    monitoringMock.controller.start.mockClear();
+    fireEvent.click(retryButton);
+
+    expect(monitoringMock.controller.start).toHaveBeenCalledWith({
+      attemptId,
+      audience: "CLASS",
+      monitoringRequired: true,
+      attemptStatus: "ACTIVE",
+      deadlineAt: "2026-10-16T12:00:00Z",
+    });
+  });
+
+  it("denies monitoring retry when attempt is submitted or terminal", () => {
+    const api = client();
+    monitoringMock.controller.state = {
+      status: "unavailable",
+      error: { kind: "api", status: 503, message: "Service Unavailable" },
+    };
+    render(
+      <IntegratedAttemptScreen
+        attempt={{ ...attempt, state: "SUBMITTED" }}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: /retry monitoring verification/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(monitoringMock.controller.start).not.toHaveBeenCalled();
+  });
+
+  it("denies monitoring retry when attempt deadline has expired", () => {
+    const api = client();
+    monitoringMock.controller.state = {
+      status: "unavailable",
+      error: { kind: "api", status: 503, message: "Service Unavailable" },
+    };
+    render(
+      <IntegratedAttemptScreen
+        attempt={{
+          ...attempt,
+          deadlineAt: "2026-10-16T08:00:00Z",
+          serverNow: "2026-10-16T08:05:00Z",
+        }}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T08:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: /retry monitoring verification/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(monitoringMock.controller.start).not.toHaveBeenCalled();
+  });
+
+  it("denies monitoring retry when authority is lost (403 / AUTHORITY_LOST)", () => {
+    const api = client();
+    monitoringMock.controller.state = {
+      status: "unavailable",
+      error: { kind: "api", status: 403, code: "AUTHORITY_LOST" },
+    };
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /retry monitoring verification/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(monitoringMock.controller.start).not.toHaveBeenCalled();
+  });
+
+  it("denies monitoring retry when monitoring status is ended or ineligible", () => {
+    const api = client();
+    monitoringMock.controller.state = { status: "ended" };
+    const { rerender } = render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /retry monitoring verification/i,
+      }),
+    ).not.toBeInTheDocument();
+
+    monitoringMock.controller.state = {
+      status: "ineligible",
+      reason: "Audience not monitored",
+    };
+    rerender(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /retry monitoring verification/i,
+      }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -579,6 +579,9 @@ export function IntegratedAttemptScreen({
 }) {
   const monitoring = useStudentMonitoring();
   const monitoringRef = useRef(monitoring);
+  const [collectionAllowed, setCollectionAllowed] = useState(() =>
+    isPotentiallyMonitoredAttempt(attempt),
+  );
   const lifecycle = useRef({
     collectionAllowed: isPotentiallyMonitoredAttempt(attempt),
     selectedQuestionNumber: attempt.questions[0]?.number ?? 1,
@@ -601,12 +604,23 @@ export function IntegratedAttemptScreen({
     const currentMonitoring = monitoringRef.current;
     if (
       currentEligibility === null ||
+      attempt.state !== "ACTIVE" ||
       !lifecycle.current.collectionAllowed ||
-      !["idle", "ended", "ineligible"].includes(currentMonitoring.state.status)
+      currentMonitoring.state.status === "starting" ||
+      currentMonitoring.state.status === "active" ||
+      currentMonitoring.state.status === "ended" ||
+      currentMonitoring.state.status === "ineligible"
+    )
+      return;
+    if (
+      currentMonitoring.state.status === "unavailable" &&
+      currentMonitoring.state.error.kind === "api" &&
+      (currentMonitoring.state.error.status === 403 ||
+        currentMonitoring.state.error.code === "AUTHORITY_LOST")
     )
       return;
     void currentMonitoring.start(currentEligibility);
-  }, []);
+  }, [attempt.state]);
 
   const ensureStopped = useCallback(() => {
     const current = monitoringRef.current;
@@ -637,6 +651,9 @@ export function IntegratedAttemptScreen({
           collectionAllowed: event.collectionAllowed,
           selectedQuestionNumber: event.selectedQuestionNumber,
         };
+        setCollectionAllowed(
+          event.collectionAllowed && event.state === "ACTIVE",
+        );
         if (event.collectionAllowed && event.state === "ACTIVE")
           ensureStarted();
         else ensureStopped();
@@ -665,6 +682,23 @@ export function IntegratedAttemptScreen({
     [eligibility, ensureStarted, ensureStopped],
   );
 
+  const isEligibleLifecycle =
+    eligibility !== null &&
+    collectionAllowed &&
+    attempt.state === "ACTIVE" &&
+    isPotentiallyMonitoredAttempt(attempt);
+
+  const isAuthorityLost =
+    monitoring.state.status === "unavailable" &&
+    monitoring.state.error.kind === "api" &&
+    (monitoring.state.error.status === 403 ||
+      monitoring.state.error.code === "AUTHORITY_LOST");
+
+  const canRetry =
+    isEligibleLifecycle &&
+    monitoring.state.status === "unavailable" &&
+    !isAuthorityLost;
+
   return (
     <AttemptScreen
       attempt={attempt}
@@ -672,6 +706,7 @@ export function IntegratedAttemptScreen({
       monitoring={observer}
       monitoringContent={
         <AttemptMonitoringStatus
+          canRetry={canRetry}
           onRetry={ensureStarted}
           projection={projection}
           state={monitoring.state}
@@ -682,10 +717,12 @@ export function IntegratedAttemptScreen({
 }
 
 function AttemptMonitoringStatus({
+  canRetry = false,
   onRetry,
   projection,
   state,
 }: {
+  readonly canRetry?: boolean;
   readonly onRetry: () => void;
   readonly projection: AttemptMonitoringProjection;
   readonly state: ReturnType<typeof useStudentMonitoring>["state"];
@@ -717,16 +754,22 @@ function AttemptMonitoringStatus({
         <StudentCamera activity={state.activity} session={state.session} />
       </div>
     );
-  if (state.status === "unavailable" || state.status === "ended")
+  if (
+    state.status === "unavailable" ||
+    state.status === "ended" ||
+    state.status === "ineligible"
+  )
     return (
       <Alert title="Monitoring unavailable" variant="warning">
         No activity observer or camera is active. This does not change answers,
         grading, or deadlines.
-        <div className="mt-3">
-          <Button onClick={onRetry} size="compact" variant="secondary">
-            Retry monitoring verification
-          </Button>
-        </div>
+        {canRetry ? (
+          <div className="mt-3">
+            <Button onClick={onRetry} size="compact" variant="secondary">
+              Retry monitoring verification
+            </Button>
+          </div>
+        ) : null}
       </Alert>
     );
   return (
