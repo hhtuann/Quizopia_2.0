@@ -32,7 +32,7 @@ import {
  * must exist and revalidate access before this backs an active link.
  */
 export function studentAttemptHref(notification: Notification): string {
-  return `/app/assessments/${notification.publicationId}/attempts/${notification.attemptId}`;
+  return `/app/attempts/${notification.attemptId}`;
 }
 
 export function NotificationsPage() {
@@ -608,7 +608,12 @@ export function NotificationDetailScreen({
               Your attempt (authorized)
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
-              {notice.attemptId}
+              <Link
+                className="font-semibold text-primary underline decoration-primary/40 underline-offset-4"
+                href={studentAttemptHref(notice)}
+              >
+                {notice.attemptId}
+              </Link>
             </dd>
           </div>
           <div>

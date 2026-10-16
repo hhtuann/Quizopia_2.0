@@ -24,6 +24,11 @@ import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import { PublicationConfirmation } from "../../assessments/components/publication-confirmation";
 import { formatUtc } from "../../assessments/utils/utc-time";
+import {
+  StudentCamera,
+  useStudentMonitoring,
+  type MonitoringEligibility,
+} from "../../proctoring";
 import type {
   Answer,
   AttemptView,
@@ -469,18 +474,61 @@ function AttemptLoader({
   readonly monitoring: AttemptMonitoringObserver;
 }) {
   const invalidAttemptId = !canonicalUuid.safeParse(attemptId).success;
+  const { getPublicLocator } = useAttemptEphemeralContext();
   const [attempt, setAttempt] = useState<AttemptView | null>(null);
+  const [monitoringProjection, setMonitoringProjection] =
+    useState<AttemptMonitoringProjection>({ status: "checking" });
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     if (invalidAttemptId) return () => controller.abort();
-    void client.getAttempt(attemptId, controller.signal).then((result) => {
-      if (controller.signal.aborted) return;
-      if (result.ok) setAttempt(result.value);
-      else setError(attemptFailureMessage(result.error));
-    });
+    void client
+      .getAttempt(attemptId, controller.signal)
+      .then(async (result) => {
+        if (controller.signal.aborted) return;
+        if (!result.ok) {
+          setError(attemptFailureMessage(result.error));
+          return;
+        }
+        setAttempt(result.value);
+        if (
+          !isPotentiallyMonitoredAttempt(result.value) ||
+          getPublicLocator(result.value.publicationId) !== null
+        ) {
+          setMonitoringProjection({ status: "not-required" });
+          return;
+        }
+        const publication = await client.enterClass(
+          result.value.publicationId,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        if (!publication.ok) {
+          setMonitoringProjection(
+            publication.error.kind === "api" && publication.error.status === 404
+              ? { status: "not-required" }
+              : { status: "unavailable" },
+          );
+          return;
+        }
+        setMonitoringProjection(
+          publication.value.audience === "CLASS" &&
+            publication.value.monitoringRequired
+            ? {
+                status: "eligible",
+                eligibility: {
+                  attemptId: result.value.attemptId,
+                  audience: publication.value.audience,
+                  monitoringRequired: publication.value.monitoringRequired,
+                  attemptStatus: result.value.state,
+                  deadlineAt: result.value.deadlineAt,
+                },
+              }
+            : { status: "not-required" },
+        );
+      });
     return () => controller.abort();
-  }, [attemptId, client, invalidAttemptId]);
+  }, [attemptId, client, getPublicLocator, invalidAttemptId]);
   if (invalidAttemptId || error)
     return (
       <Alert title="Attempt unavailable" variant="danger">
@@ -488,8 +536,204 @@ function AttemptLoader({
       </Alert>
     );
   if (attempt === null) return <AttemptLoading />;
-  return (
+  return monitoring === NO_ATTEMPT_MONITORING ? (
+    <IntegratedAttemptScreen
+      attempt={attempt}
+      client={client}
+      projection={monitoringProjection}
+    />
+  ) : (
     <AttemptScreen attempt={attempt} client={client} monitoring={monitoring} />
+  );
+}
+
+type AttemptMonitoringProjection =
+  | { readonly status: "checking" | "not-required" | "unavailable" }
+  | {
+      readonly status: "eligible";
+      readonly eligibility: MonitoringEligibility;
+    };
+
+function isPotentiallyMonitoredAttempt(attempt: AttemptView): boolean {
+  if (attempt.state !== "ACTIVE" || attempt.deadlineAt === null) return false;
+  const effectiveDeadline = effectiveAttemptDeadline(attempt);
+  const deadline =
+    effectiveDeadline === null ? null : Date.parse(effectiveDeadline);
+  const serverNow = Date.parse(attempt.serverNow);
+  return (
+    deadline !== null &&
+    Number.isFinite(deadline) &&
+    Number.isFinite(serverNow) &&
+    serverNow < deadline
+  );
+}
+
+export function IntegratedAttemptScreen({
+  attempt,
+  client,
+  projection,
+}: {
+  readonly attempt: AttemptView;
+  readonly client: AttemptApiClient;
+  readonly projection: AttemptMonitoringProjection;
+}) {
+  const monitoring = useStudentMonitoring();
+  const monitoringRef = useRef(monitoring);
+  const lifecycle = useRef({
+    collectionAllowed: isPotentiallyMonitoredAttempt(attempt),
+    selectedQuestionNumber: attempt.questions[0]?.number ?? 1,
+  });
+
+  const eligibility =
+    projection.status === "eligible" ? projection.eligibility : null;
+  const eligibilityRef = useRef(eligibility);
+
+  useEffect(() => {
+    monitoringRef.current = monitoring;
+  }, [monitoring]);
+
+  useEffect(() => {
+    eligibilityRef.current = eligibility;
+  }, [eligibility]);
+
+  const ensureStarted = useCallback(() => {
+    const currentEligibility = eligibilityRef.current;
+    const currentMonitoring = monitoringRef.current;
+    if (
+      currentEligibility === null ||
+      !lifecycle.current.collectionAllowed ||
+      !["idle", "ended", "ineligible"].includes(currentMonitoring.state.status)
+    )
+      return;
+    void currentMonitoring.start(currentEligibility);
+  }, []);
+
+  const ensureStopped = useCallback(() => {
+    const current = monitoringRef.current;
+    if (
+      current.state.status === "active" ||
+      current.state.status === "starting"
+    )
+      void current.stop();
+  }, []);
+
+  useEffect(() => {
+    if (eligibility === null) ensureStopped();
+    else ensureStarted();
+  }, [eligibility, ensureStarted, ensureStopped]);
+
+  useEffect(() => {
+    if (monitoring.state.status === "active")
+      monitoringRef.current.questionViewed(
+        lifecycle.current.selectedQuestionNumber,
+      );
+  }, [monitoring.state.status]);
+
+  const observer = useMemo<AttemptMonitoringObserver>(
+    () => ({
+      enabled: eligibility !== null,
+      onAttemptLifecycle(event) {
+        lifecycle.current = {
+          collectionAllowed: event.collectionAllowed,
+          selectedQuestionNumber: event.selectedQuestionNumber,
+        };
+        if (event.collectionAllowed && event.state === "ACTIVE")
+          ensureStarted();
+        else ensureStopped();
+      },
+      onQuestionSelection(event) {
+        const previous = lifecycle.current.selectedQuestionNumber;
+        lifecycle.current = {
+          ...lifecycle.current,
+          selectedQuestionNumber: event.questionNumber,
+        };
+        const current = monitoringRef.current;
+        if (current.state.status !== "active") return;
+        if (previous !== event.questionNumber) current.questionLeft(previous);
+        current.questionViewed(event.questionNumber);
+      },
+      onAnswerInteraction(event) {
+        const current = monitoringRef.current;
+        if (current.state.status !== "active") return;
+        if (event.type === "selected")
+          current.answerSelected(event.questionNumber);
+        else if (event.type === "cleared")
+          current.answerCleared(event.questionNumber);
+        else current.answerChanged(event.questionNumber);
+      },
+    }),
+    [eligibility, ensureStarted, ensureStopped],
+  );
+
+  return (
+    <AttemptScreen
+      attempt={attempt}
+      client={client}
+      monitoring={observer}
+      monitoringContent={
+        <AttemptMonitoringStatus
+          onRetry={ensureStarted}
+          projection={projection}
+          state={monitoring.state}
+        />
+      }
+    />
+  );
+}
+
+function AttemptMonitoringStatus({
+  onRetry,
+  projection,
+  state,
+}: {
+  readonly onRetry: () => void;
+  readonly projection: AttemptMonitoringProjection;
+  readonly state: ReturnType<typeof useStudentMonitoring>["state"];
+}) {
+  if (projection.status === "not-required") return null;
+  if (projection.status === "checking")
+    return (
+      <Alert title="Checking monitoring requirement" variant="info">
+        Assessment work is available while the authorized CLASS projection is
+        checked. No activity or camera collection has started.
+      </Alert>
+    );
+  if (projection.status === "unavailable")
+    return (
+      <Alert title="Monitoring authority unavailable" variant="warning">
+        The current monitoring requirement could not be verified, so activity
+        and camera collection remain off. Assessment saves and submission stay
+        independent.
+      </Alert>
+    );
+  if (state.status === "active")
+    return (
+      <div className="space-y-5">
+        <Alert title="Activity monitoring active" variant="info">
+          Fresh server authorization confirmed this bounded CLASS Attempt.
+          Browser evidence contains interaction metadata only and is not proof
+          of misconduct. Assessment SAVE and SUBMIT do not wait for Proctoring.
+        </Alert>
+        <StudentCamera activity={state.activity} session={state.session} />
+      </div>
+    );
+  if (state.status === "unavailable" || state.status === "ended")
+    return (
+      <Alert title="Monitoring unavailable" variant="warning">
+        No activity observer or camera is active. This does not change answers,
+        grading, or deadlines.
+        <div className="mt-3">
+          <Button onClick={onRetry} size="compact" variant="secondary">
+            Retry monitoring verification
+          </Button>
+        </div>
+      </Alert>
+    );
+  return (
+    <Alert title="Starting activity monitoring" variant="info">
+      Current backend authority is being verified before any browser observer or
+      camera control becomes active.
+    </Alert>
   );
 }
 
@@ -578,10 +822,12 @@ export function AttemptScreen({
   attempt: initialAttempt,
   client,
   monitoring,
+  monitoringContent,
 }: {
   readonly attempt: AttemptView;
   readonly client: AttemptApiClient;
   readonly monitoring: AttemptMonitoringObserver;
+  readonly monitoringContent?: React.ReactNode;
 }) {
   const router = useRouter();
   const locatorContext = useAttemptEphemeralContext();
@@ -680,8 +926,24 @@ export function AttemptScreen({
     monitoring.onAttemptLifecycle?.({
       attemptId: attempt.attemptId,
       state: attempt.state,
+      collectionAllowed:
+        attempt.state === "ACTIVE" &&
+        !expired &&
+        !authorityPaused &&
+        !terminalBusy &&
+        uncertain === null,
+      selectedQuestionNumber: selected,
     });
-  }, [attempt.attemptId, attempt.state, monitoring]);
+  }, [
+    attempt.attemptId,
+    attempt.state,
+    authorityPaused,
+    expired,
+    monitoring,
+    selected,
+    terminalBusy,
+    uncertain,
+  ]);
 
   const selectQuestion = (questionNumber: number) => {
     setSelected(questionNumber);
@@ -920,6 +1182,7 @@ export function AttemptScreen({
           are included if the server finalizes the attempt.
         </Alert>
       ) : null}
+      {monitoringContent}
       {expired && attempt.state === "ACTIVE" ? (
         <Alert title="Checking authoritative status" variant="warning">
           The local countdown reached zero. Editing is paused while the Attempt
@@ -1122,9 +1385,20 @@ export function AttemptScreen({
                 disabled={
                   mutationsBlocked || terminalBusy || uncertain !== null
                 }
-                onChange={(answer) =>
-                  coordinator.changeAnswer(question.number, answer)
-                }
+                onChange={(answer) => {
+                  const previous = coordinator.answers[question.number]!;
+                  coordinator.changeAnswer(question.number, answer);
+                  if (!monitoring.enabled) return;
+                  monitoring.onAnswerInteraction?.({
+                    attemptId: attempt.attemptId,
+                    questionNumber: question.number,
+                    type: isUnanswered(answer)
+                      ? "cleared"
+                      : isUnanswered(previous)
+                        ? "selected"
+                        : "changed",
+                  });
+                }}
                 question={question}
               />
             </div>

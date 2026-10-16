@@ -72,6 +72,22 @@ describe("Teacher Publication results", () => {
       screen.getByText("12345678901234567890.125 / 12345678901234567891"),
     ).toBeInTheDocument();
     expect(screen.getByText(submittedAttemptId)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: `Open monitoring for Attempt ${activeAttemptId}`,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/app/monitoring/teacher/attempts/${activeAttemptId}`,
+    );
+    expect(
+      screen.getByRole("link", {
+        name: `Open monitoring for Attempt ${submittedAttemptId}`,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/app/monitoring/teacher/attempts/${submittedAttemptId}`,
+    );
     expect(screen.queryByText(/correct answer/i)).not.toBeInTheDocument();
     const region = screen.getByRole("region", {
       name: "Scrollable Publication attempt results",

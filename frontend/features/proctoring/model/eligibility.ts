@@ -8,8 +8,9 @@ import { canonicalUuid } from "./monitoring";
 export interface MonitoringEligibility {
   readonly attemptId: string;
   readonly audience: "CLASS" | "PUBLIC";
-  readonly monitoringChoice: "UNCONFIGURED" | "ENABLED" | "DISABLED";
-  readonly attemptStatus: "ACTIVE" | "SUBMITTED" | "TIMED_OUT" | "ABANDONED";
+  /** StudentView exposes this safe projection; OwnerView's choice is not a Student contract. */
+  readonly monitoringRequired: boolean;
+  readonly attemptStatus: "ACTIVE" | "SUBMITTED" | "ABANDONED";
   readonly deadlineAt: string | null;
 }
 
@@ -38,7 +39,7 @@ export function evaluateMonitoringEligibility(
   if (!canonicalUuid.safeParse(value.attemptId).success)
     return { eligible: false, reason: "invalid-attempt" };
   if (value.audience === "PUBLIC") return { eligible: false, reason: "public" };
-  if (value.monitoringChoice !== "ENABLED")
+  if (!value.monitoringRequired)
     return { eligible: false, reason: "not-enabled" };
   if (value.deadlineAt === null)
     return { eligible: false, reason: "unbounded" };

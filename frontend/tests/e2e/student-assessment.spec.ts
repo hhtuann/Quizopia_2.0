@@ -161,6 +161,10 @@ async function mockAssessment(page: Page) {
       await fulfill(route, 200, preview);
       return;
     }
+    if (path === `/api/assessments/publications/${publicationId}/entry`) {
+      await fulfill(route, 404, { code: "PUBLICATION_NOT_FOUND" });
+      return;
+    }
     if (path.endsWith(`/publications/${publicationId}/attempts/start`)) {
       starts += 1;
       expect(request.postDataJSON()).toEqual({ locator });

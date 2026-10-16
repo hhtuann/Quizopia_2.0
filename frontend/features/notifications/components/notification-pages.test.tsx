@@ -194,9 +194,21 @@ describe("Student notification inbox", () => {
     expect(screen.queryByText(preparing.message)).not.toBeInTheDocument();
   });
 
-  it("derives the future Attempt handoff only from the real notification identity", () => {
-    expect(studentAttemptHref(preparing)).toBe(
-      `/app/assessments/${publicationId}/attempts/${attemptId}`,
+  it("links the recipient-authorized notice to the real Attempt route", async () => {
+    const api = client();
+    vi.mocked(api.get).mockResolvedValue({
+      ok: true,
+      status: 200,
+      value: preparing,
+    });
+    render(
+      <NotificationDetailScreen client={api} notificationId={notificationId} />,
     );
+    expect(studentAttemptHref(preparing)).toBe(`/app/attempts/${attemptId}`);
+    expect(
+      await screen.findByRole("link", {
+        name: attemptId,
+      }),
+    ).toHaveAttribute("href", `/app/attempts/${attemptId}`);
   });
 });

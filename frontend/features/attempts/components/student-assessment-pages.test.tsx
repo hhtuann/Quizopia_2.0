@@ -15,6 +15,7 @@ import type {
 import type { AttemptApiClient } from "../api/attempt-api-client";
 import {
   AttemptScreen,
+  IntegratedAttemptScreen,
   ResultScreen,
   ReviewScreen,
   StudentAssessmentJoinScreen,
@@ -26,9 +27,35 @@ const ephemeral = vi.hoisted(() => ({
   getPublicLocator: vi.fn(() => null),
   rememberPublicLocator: vi.fn(),
 }));
+const monitoringMock = vi.hoisted(() => ({
+  controller: {
+    state: { status: "idle" } as {
+      status: string;
+      session?: unknown;
+      activity?: unknown;
+      error?: unknown;
+    },
+    start: vi.fn(),
+    verifyAndStart: vi.fn(),
+    stop: vi.fn(),
+    questionViewed: vi.fn(),
+    questionLeft: vi.fn(),
+    answerSelected: vi.fn(),
+    answerChanged: vi.fn(),
+    answerCleared: vi.fn(),
+  },
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 vi.mock("../hooks/attempt-ephemeral-context", () => ({
   useAttemptEphemeralContext: () => ephemeral,
+}));
+vi.mock("../../proctoring/hooks/use-student-monitoring", () => ({
+  useStudentMonitoring: () => monitoringMock.controller,
+}));
+vi.mock("../../proctoring/components/student-camera", () => ({
+  StudentCamera: () => (
+    <div data-testid="student-camera">Mock Student Camera</div>
+  ),
 }));
 
 const publicationId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
@@ -100,6 +127,14 @@ beforeEach(() => {
   navigation.push.mockClear();
   navigation.replace.mockClear();
   ephemeral.rememberPublicLocator.mockClear();
+  monitoringMock.controller.start.mockClear();
+  monitoringMock.controller.stop.mockClear();
+  monitoringMock.controller.questionViewed.mockClear();
+  monitoringMock.controller.questionLeft.mockClear();
+  monitoringMock.controller.answerSelected.mockClear();
+  monitoringMock.controller.answerChanged.mockClear();
+  monitoringMock.controller.answerCleared.mockClear();
+  monitoringMock.controller.state = { status: "idle" };
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
     value: function (this: HTMLDialogElement) {
@@ -396,5 +431,187 @@ describe("Student assessment entry and result boundaries", () => {
     expect(await screen.findByText("Correct answer")).toBeVisible();
     expect(screen.getByText("1.00")).toBeVisible();
     expect(screen.getByText("Numerically equal exact decimals.")).toBeVisible();
+  });
+});
+
+describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => {
+  const multiQuestionAttempt: AttemptView = {
+    ...attempt,
+    questions: [
+      {
+        number: 1,
+        type: "SINGLE_CHOICE",
+        stemMarkdown: "Choose alpha.",
+        options: [
+          { label: "A", markdown: "Alpha" },
+          { label: "B", markdown: "Beta" },
+        ],
+      },
+      {
+        number: 2,
+        type: "NUMERIC_FILL",
+        stemMarkdown: "Enter token.",
+        options: [],
+      },
+    ],
+    answers: [
+      {
+        questionNumber: 1,
+        answer: { type: "SINGLE_CHOICE", optionLabel: null },
+      },
+      { questionNumber: 2, answer: { type: "NUMERIC_FILL", value: null } },
+    ],
+  };
+
+  it("renders AttemptScreen without proctoring overhead when projection is not-required", () => {
+    const api = client();
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{ status: "not-required" }}
+      />,
+    );
+    expect(screen.queryByText(/monitoring/i)).not.toBeInTheDocument();
+    expect(monitoringMock.controller.start).not.toHaveBeenCalled();
+  });
+
+  it("displays checking alert while projection is verifying without blocking interaction", () => {
+    const api = client();
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{ status: "checking" }}
+      />,
+    );
+    expect(
+      screen.getByText("Checking monitoring requirement"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Assessment work is available while the authorized CLASS projection is checked/,
+      ),
+    ).toBeInTheDocument();
+    expect(monitoringMock.controller.start).not.toHaveBeenCalled();
+  });
+
+  it("displays monitoring authority unavailable warning when check fails", () => {
+    const api = client();
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{ status: "unavailable" }}
+      />,
+    );
+    expect(
+      screen.getByText("Monitoring authority unavailable"),
+    ).toBeInTheDocument();
+    expect(monitoringMock.controller.start).not.toHaveBeenCalled();
+  });
+
+  it("starts monitoring and renders camera banner when projection is eligible", async () => {
+    const api = client();
+    monitoringMock.controller.state = { status: "idle" };
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+    await waitFor(() =>
+      expect(monitoringMock.controller.start).toHaveBeenCalledWith({
+        attemptId,
+        audience: "CLASS",
+        monitoringRequired: true,
+        attemptStatus: "ACTIVE",
+        deadlineAt: "2026-10-16T12:00:00Z",
+      }),
+    );
+  });
+
+  it("renders active monitoring banner and StudentCamera when monitoring state is active", () => {
+    const api = client();
+    monitoringMock.controller.state = {
+      status: "active",
+      session: {
+        id: "session-1",
+        attemptId,
+        deadlineAt: "2026-10-16T12:00:00Z",
+        status: "ACTIVE",
+      },
+      activity: { getSnapshot: () => ({ delivery: "live" }) },
+    };
+    render(
+      <IntegratedAttemptScreen
+        attempt={attempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText("Activity monitoring active")).toBeInTheDocument();
+    expect(screen.getByTestId("student-camera")).toBeInTheDocument();
+  });
+
+  it("forwards answer interactions and question selection events to the monitoring controller", async () => {
+    const api = client();
+    monitoringMock.controller.state = {
+      status: "active",
+      session: {
+        id: "session-1",
+        attemptId,
+        deadlineAt: "2026-10-16T12:00:00Z",
+        status: "ACTIVE",
+      },
+      activity: { getSnapshot: () => ({ delivery: "live" }) },
+    };
+    render(
+      <IntegratedAttemptScreen
+        attempt={multiQuestionAttempt}
+        client={api}
+        projection={{
+          status: "eligible",
+          eligibility: {
+            attemptId,
+            audience: "CLASS",
+            monitoringRequired: true,
+            attemptStatus: "ACTIVE",
+            deadlineAt: "2026-10-16T12:00:00Z",
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(monitoringMock.controller.questionViewed).toHaveBeenCalledWith(1),
+    );
+
+    const radio = screen.getByRole("radio", { name: /A.*Alpha/ });
+    fireEvent.click(radio);
+    expect(monitoringMock.controller.answerSelected).toHaveBeenCalledWith(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Question 2/ }));
+    expect(monitoringMock.controller.questionLeft).toHaveBeenCalledWith(1);
+    expect(monitoringMock.controller.questionViewed).toHaveBeenCalledWith(2);
   });
 });
