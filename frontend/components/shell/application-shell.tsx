@@ -20,6 +20,9 @@ export function ApplicationShell({
   const { activeWorkspace, session, user } = useAuth();
   const isApplicationHome = currentSection === "home";
   const isQuizAuthoring = currentSection === "quizzes";
+  const isAssessments = currentSection === "assessments";
+  const showStudentAssessments =
+    activeWorkspace === "LEARNING" && user?.roles.includes("STUDENT");
   const showQuizAuthoring =
     activeWorkspace === "TEACHING" && user?.roles.includes("TEACHER");
   const navLinkClasses =
@@ -65,6 +68,19 @@ export function ApplicationShell({
               href="/app/quizzes"
             >
               Quiz authoring
+            </Link>
+          ) : null}
+          {showStudentAssessments ? (
+            <Link
+              aria-current={isAssessments ? "page" : undefined}
+              className={`${navLinkClasses} ${
+                isAssessments
+                  ? "bg-primary/10 text-primary"
+                  : "text-foreground-secondary hover:bg-surface-muted hover:text-foreground"
+              }`}
+              href="/app/assessments/join"
+            >
+              Assessments
             </Link>
           ) : null}
         </nav>
