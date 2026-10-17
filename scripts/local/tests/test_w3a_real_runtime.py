@@ -142,6 +142,50 @@ class FlagDefaultTests(unittest.TestCase):
         self.assertIn('identity_notice_recipients = os.environ.get("W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED", "false")', text)
 
 
+class MembershipFixtureTests(unittest.TestCase):
+    def test_remove_membership_rejects_non_canonical_uuid(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            (directory / "state.json").write_text(json.dumps({"fixture": "w3a-real-browser-v1"}))
+            with self.assertRaises(ValueError):
+                runtime.remove_membership(directory, "not-a-uuid", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002")
+
+    def test_remove_membership_executes_delete_on_owned_container(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "resource_prefix": "owned-fixture",
+                "database_containers": {"classroom": "owned-classroom-postgres"},
+                "containers": ["owned-classroom-postgres"],
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+            cid = "11111111-1111-1111-1111-111111111111"
+            sid = "22222222-2222-2222-2222-222222222222"
+            tid = "33333333-3333-3333-3333-333333333333"
+            with patch.object(runtime.subprocess, "check_output", return_value="owned-fixture\n"), \
+                    patch.object(runtime.owned, "run") as run, \
+                    patch("sys.stdout", new_callable=io.StringIO):
+                runtime.remove_membership(directory, cid, sid, tid)
+            self.assertEqual(run.call_count, 1)
+            cmd = run.call_args.args[0]
+            self.assertIn("owned-classroom-postgres", cmd)
+            sql = run.call_args.kwargs["input"].decode()
+            self.assertIn("DELETE FROM classroom_memberships", sql)
+            self.assertIn(cid, sql)
+            self.assertIn(sid, sql)
+
+
+class RecipientEligibilityTests(unittest.TestCase):
+    def test_probe_recipient_eligibility_rejects_non_canonical_uuid(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            (directory / "state.json").write_text(json.dumps({"fixture": "w3a-real-browser-v1"}))
+            with self.assertRaises(ValueError):
+                runtime.probe_recipient_eligibility(directory, "not-a-uuid")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

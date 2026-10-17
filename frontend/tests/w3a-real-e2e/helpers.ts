@@ -523,6 +523,8 @@ export async function fixtureControl(
     | "pause-gateway"
     | "resume-gateway"
     | "seed-membership"
+    | "remove-membership"
+    | "probe-recipient-eligibility"
     | "pause-assessment"
     | "resume-assessment"
     | "quiz-pending-request"

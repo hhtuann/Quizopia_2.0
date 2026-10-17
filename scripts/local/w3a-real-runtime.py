@@ -22,7 +22,7 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKEND = os.environ.get("W3_BACKEND_SHA", "399e1fb1704daeb4e597bf901e03a48af5cd2689")
+BACKEND = os.environ.get("W3_BACKEND_SHA", "e8bd838092b82a0de1ed652b1fce59ef019f2b32")
 sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location("owned_runtime", ROOT / "scripts/local/ld05-real-executor-runtime.py")
 owned = importlib.util.module_from_spec(spec)
@@ -152,6 +152,114 @@ COMMIT;"""
     print("Owned disposable Classroom membership fixture ready")
 
 
+def remove_membership(directory, classroom_id, student_id, teacher_id):
+    """Remove only a disposable fixture membership to verify former-member access."""
+    directory = directory.resolve()
+    state = json.loads((directory / "state.json").read_text())
+    if state.get("fixture") != "w3a-real-browser-v1":
+        raise RuntimeError("Not an owned W3-A runtime")
+    for value in [classroom_id, student_id, teacher_id]:
+        if str(uuid.UUID(value)) != value:
+            raise ValueError("Fixture identifiers must be canonical UUIDs")
+    container = state["database_containers"]["classroom"]
+    label = subprocess.check_output(["docker", "inspect", "--format", '{{ index .Config.Labels "quizopia.owner" }}', container], text=True).strip()
+    if label != state["resource_prefix"] or container not in state["containers"]:
+        raise RuntimeError("Classroom database ownership does not match")
+    sql = f"""BEGIN;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM classrooms WHERE id='{classroom_id}' AND owner_teacher_user_id='{teacher_id}') THEN
+    RAISE EXCEPTION 'Owned fixture Classroom not found';
+  END IF;
+END $$;
+DELETE FROM classroom_memberships WHERE classroom_id='{classroom_id}' AND user_id='{student_id}';
+COMMIT;"""
+    owned.run(["docker", "exec", "-i", container, "psql", "-U", "classroom", "-d", "classroom_db", "-v", "ON_ERROR_STOP=1"],
+              input=sql.encode(), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    print("Owned disposable Classroom membership removed")
+
+
+def probe_recipient_eligibility(directory, student_id):
+    """Verify Identity recipient-eligibility contract and least-privilege scope in real topology."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    directory = directory.resolve()
+    state = json.loads((directory / "state.json").read_text())
+    if state.get("fixture") != "w3a-real-browser-v1":
+        raise RuntimeError("Not an owned W3-A runtime")
+    if str(uuid.UUID(student_id)) != student_id:
+        raise ValueError("Student identifier must be a canonical UUID")
+
+    assessment_env = dict(line.split("=", 1) for line in (directory / "assessment.env").read_text().splitlines() if "=" in line)
+    gateway_env = dict(line.split("=", 1) for line in (directory / "gateway.env").read_text().splitlines() if "=" in line)
+    issuer = state["endpoints"]["identity"]
+
+    def get_token(client_id, secret, scope):
+        req = urllib.request.Request(f"{issuer}/oauth2/token", method="POST")
+        auth_header = base64.b64encode(f"{client_id}:{secret}".encode()).decode()
+        req.add_header("Authorization", f"Basic {auth_header}")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        data = urllib.parse.urlencode({"grant_type": "client_credentials", "scope": scope}).encode()
+        try:
+            with urllib.request.urlopen(req, data=data) as resp:
+                body = json.loads(resp.read().decode())
+                return resp.status, body.get("access_token")
+        except urllib.error.HTTPError as err:
+            return err.code, None
+
+    def call_eligibility(token, target_id):
+        req = urllib.request.Request(f"{issuer}/internal/security/notice-recipients/{target_id}/eligibility", method="POST")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/json")
+        try:
+            with urllib.request.urlopen(req, data=b"") as resp:
+                return resp.status, json.loads(resp.read().decode())
+        except urllib.error.HTTPError as err:
+            return err.code, None
+
+    status, token = get_token(
+        assessment_env["USER_ADMISSION_CLIENT_ID"],
+        assessment_env["USER_ADMISSION_CLIENT_SECRET"],
+        "identity.notice-recipient.read",
+    )
+    if status != 200 or not token:
+        raise RuntimeError(f"Failed to obtain assessment-service token with recipient scope: HTTP {status}")
+
+    call_status, result = call_eligibility(token, student_id)
+    if call_status != 200 or not result.get("eligible"):
+        raise RuntimeError(f"Recipient eligibility check failed for student {student_id}: HTTP {call_status}, body {result}")
+
+    non_existent = str(uuid.uuid4())
+    call_status_ne, result_ne = call_eligibility(token, non_existent)
+    if call_status_ne not in {200, 503}:
+        raise RuntimeError(f"Recipient eligibility for non-existent student returned unexpected HTTP {call_status_ne}")
+    if call_status_ne == 200 and result_ne.get("eligible") is not False:
+        raise RuntimeError(f"Recipient eligibility should return eligible=false for non-existent student: HTTP {call_status_ne}, body {result_ne}")
+
+    call_status_unauth, _ = call_eligibility(None, student_id)
+    if call_status_unauth != 401:
+        raise RuntimeError(f"Unauthenticated eligibility call should return 401, got {call_status_unauth}")
+
+    gw_status, _ = get_token(
+        gateway_env["USER_ADMISSION_CLIENT_ID"],
+        gateway_env["USER_ADMISSION_CLIENT_SECRET"],
+        "identity.notice-recipient.read",
+    )
+    if gw_status == 200:
+        raise RuntimeError("Gateway service client must NOT be granted identity.notice-recipient.read scope")
+
+    output = {
+        "status": "VERIFIED",
+        "studentId": student_id,
+        "eligible": result["eligible"],
+        "checkedAt": result["checkedAt"],
+        "least_privilege_verified": True,
+    }
+    print(json.dumps(output))
+
+
 def creation_receipt_count(directory, owner_id, key_digest):
     """Observe an actual committed receipt in only the owned Assessment fixture."""
     directory = directory.resolve()
@@ -260,6 +368,7 @@ def up():
         recipient_eligibility = os.environ.get("W3A_ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED", "false")
         identity_notice_recipients = os.environ.get("W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED", "false")
         inbox_enabled = os.environ.get("W3A_ASSESSMENT_INBOX_ENABLED", "true")
+        closure_poll_millis = os.environ.get("W3A_ASSESSMENT_CLOSURE_POLL_MILLIS", "500")
 
         common = {"SPRING_PROFILES_ACTIVE": "local", "SERVER_ADDRESS": "127.0.0.1", "REDIS_HOST": "127.0.0.1", "REDIS_PORT": str(redis_port),
                   "ASSESSMENT_INBOX_ENABLED": inbox_enabled, "ASSESSMENT_CLOSURE_WORKER_ENABLED": closure_worker,
@@ -324,6 +433,7 @@ def up():
                               "ASSESSMENT_CLOSURE_WORKER_ENABLED": closure_worker,
                               "ASSESSMENT_EDGE_INBOX_VERIFIED": edge_inbox_verified,
                               "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": recipient_eligibility,
+                              "QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS": closure_poll_millis,
                               "ASSESSMENT_CURSOR_ACTIVE_KEY": "v1",
                               "ASSESSMENT_CURSOR_KEY_V1": cursor_key})
         launch("gateway", {**admission("gateway"), **features, "IDENTITY_SERVICE_URL": issuer,
@@ -356,6 +466,14 @@ def main():
     membership.add_argument("classroom_id")
     membership.add_argument("student_id")
     membership.add_argument("teacher_id")
+    membership_rm = sub.add_parser("remove-membership")
+    membership_rm.add_argument("state_directory", type=Path)
+    membership_rm.add_argument("classroom_id")
+    membership_rm.add_argument("student_id")
+    membership_rm.add_argument("teacher_id")
+    eligibility = sub.add_parser("probe-recipient-eligibility")
+    eligibility.add_argument("state_directory", type=Path)
+    eligibility.add_argument("student_id")
     receipt = sub.add_parser("creation-receipt-count")
     receipt.add_argument("state_directory", type=Path)
     receipt.add_argument("owner_id")
@@ -367,6 +485,10 @@ def main():
         down(args.state_directory)
     elif args.action == "seed-membership":
         seed_membership(args.state_directory, args.classroom_id, args.student_id, args.teacher_id)
+    elif args.action == "remove-membership":
+        remove_membership(args.state_directory, args.classroom_id, args.student_id, args.teacher_id)
+    elif args.action == "probe-recipient-eligibility":
+        probe_recipient_eligibility(args.state_directory, args.student_id)
     elif args.action == "creation-receipt-count":
         creation_receipt_count(args.state_directory, args.owner_id, args.key_digest)
     elif args.action == "quiz-pending-request":
