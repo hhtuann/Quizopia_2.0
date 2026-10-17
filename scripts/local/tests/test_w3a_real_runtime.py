@@ -133,5 +133,15 @@ class QueueWitnessTests(unittest.TestCase):
                     self.assertEqual(run.call_args.args[0], ["ss", "-tnp", "( sport = :38281 )"])
 
 
+class FlagDefaultTests(unittest.TestCase):
+    def test_closure_worker_and_edge_inbox_attestation_default_off(self):
+        text = (Path(__file__).resolve().parents[1] / "w3a-real-runtime.py").read_text()
+        self.assertIn('closure_worker = os.environ.get("W3A_ASSESSMENT_CLOSURE_WORKER_ENABLED", "false")', text)
+        self.assertIn('edge_inbox_verified = os.environ.get("W3A_ASSESSMENT_EDGE_INBOX_VERIFIED", "false")', text)
+        self.assertIn('recipient_eligibility = os.environ.get("W3A_ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED", "false")', text)
+        self.assertIn('identity_notice_recipients = os.environ.get("W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED", "false")', text)
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -255,9 +255,15 @@ def up():
         cursor_key = base64.b64encode(secrets.token_bytes(32)).decode()
         issuer = endpoints["identity"]
         browser_origin = os.environ.get("W3A_REAL_FRONTEND_URL", "http://localhost:3000")
+        closure_worker = os.environ.get("W3A_ASSESSMENT_CLOSURE_WORKER_ENABLED", "false")
+        edge_inbox_verified = os.environ.get("W3A_ASSESSMENT_EDGE_INBOX_VERIFIED", "false")
+        recipient_eligibility = os.environ.get("W3A_ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED", "false")
+        identity_notice_recipients = os.environ.get("W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED", "false")
+        inbox_enabled = os.environ.get("W3A_ASSESSMENT_INBOX_ENABLED", "true")
+
         common = {"SPRING_PROFILES_ACTIVE": "local", "SERVER_ADDRESS": "127.0.0.1", "REDIS_HOST": "127.0.0.1", "REDIS_PORT": str(redis_port),
-                  "ASSESSMENT_INBOX_ENABLED": "true", "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
-                  "ASSESSMENT_EDGE_INBOX_VERIFIED": "true", "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+                  "ASSESSMENT_INBOX_ENABLED": inbox_enabled, "ASSESSMENT_CLOSURE_WORKER_ENABLED": closure_worker,
+                  "ASSESSMENT_EDGE_INBOX_VERIFIED": edge_inbox_verified, "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": recipient_eligibility,
                   "ASSESSMENT_MONITORING_CAPTURE_ENABLED": "false", "ASSESSMENT_MONITORING_PUBLISHER_ENABLED": "false",
                   "PROCTORING_ENABLED": "false", "PROCTORING_MEDIA_ENABLED": "false",
                   "IDENTITY_ISSUER": issuer, "IDENTITY_JWKS_URI": issuer + "/oauth2/jwks", "GATEWAY_ALLOWED_ORIGINS": browser_origin}
@@ -286,12 +292,14 @@ def up():
                             "IDENTITY_USER_ADMISSION_ENABLED": "true", "IDENTITY_USER_ADMISSION_ALLOWED_CLIENTS": "gateway,quiz-service,classroom-service,assessment-service",
                             "IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT": "false", "IDENTITY_AUTHORITY_RECONCILIATION_ENABLED": "true",
                             "IDENTITY_AUTHORITY_POLLING_INTERVAL": "PT1S",
-                            "IDENTITY_NOTICE_RECIPIENTS_ENABLED": "true",
+                            "IDENTITY_NOTICE_RECIPIENTS_ENABLED": identity_notice_recipients,
                             "IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT": "false",
                             "IDENTITY_NOTICE_RECIPIENTS_ASSESSMENT_CLIENT_ID": "assessment-service"})
         clients = {name: secrets.token_urlsafe(32) for name in ["gateway", "quiz-service", "classroom-service", "assessment-service"]}
         scopes = {name: ["identity.user-admission"] for name in clients}
-        scopes["assessment-service"] += ["quiz.version-snapshot.read", "classroom.teacher-authority.read", "classroom.membership.read", "identity.notice-recipient.read"]
+        scopes["assessment-service"] += ["quiz.version-snapshot.read", "classroom.teacher-authority.read", "classroom.membership.read"]
+        if identity_notice_recipients == "true":
+            scopes["assessment-service"].append("identity.notice-recipient.read")
         sql = []
         for client, secret in clients.items():
             client_id = str(uuid.uuid4())
@@ -312,25 +320,25 @@ def up():
         launch("assessment", {**admission("assessment-service"), **features, "PUBLICATION_SOURCES_ENABLED": "true",
                               "PUBLICATION_QUIZ_BASE_URL": endpoints["quiz"], "PUBLICATION_CLASSROOM_BASE_URL": endpoints["classroom"],
                               "ASSESSMENT_EDGE_BASE_URL": endpoints["gateway"],
-                              "ASSESSMENT_INBOX_ENABLED": "true",
-                              "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
-                              "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
-                              "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+                              "ASSESSMENT_INBOX_ENABLED": inbox_enabled,
+                              "ASSESSMENT_CLOSURE_WORKER_ENABLED": closure_worker,
+                              "ASSESSMENT_EDGE_INBOX_VERIFIED": edge_inbox_verified,
+                              "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": recipient_eligibility,
                               "ASSESSMENT_CURSOR_ACTIVE_KEY": "v1",
                               "ASSESSMENT_CURSOR_KEY_V1": cursor_key})
         launch("gateway", {**admission("gateway"), **features, "IDENTITY_SERVICE_URL": issuer,
                            "QUIZ_SERVICE_URL": endpoints["quiz"], "CLASSROOM_SERVICE_URL": endpoints["classroom"], "ASSESSMENT_SERVICE_URL": endpoints["assessment"],
-                           "ASSESSMENT_INBOX_ENABLED": "true"})
+                           "ASSESSMENT_INBOX_ENABLED": inbox_enabled})
         state["configured_client_scopes"] = scopes
         state["test_only_flags"] = {**features, **authority, "PUBLICATION_SOURCES_ENABLED": "true", "USER_ADMISSION_ENABLED": "true",
                                     "USER_ADMISSION_ALLOW_INSECURE_LOOPBACK": "true", "IDENTITY_USER_ADMISSION_REQUIRE_SECURE_TRANSPORT": "false",
-                                    "ASSESSMENT_INBOX_ENABLED": "true", "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
-                                    "ASSESSMENT_EDGE_INBOX_VERIFIED": "true", "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
-                                    "IDENTITY_NOTICE_RECIPIENTS_ENABLED": "true", "IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT": "false"}
+                                    "ASSESSMENT_INBOX_ENABLED": inbox_enabled, "ASSESSMENT_CLOSURE_WORKER_ENABLED": closure_worker,
+                                    "ASSESSMENT_EDGE_INBOX_VERIFIED": edge_inbox_verified, "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": recipient_eligibility,
+                                    "IDENTITY_NOTICE_RECIPIENTS_ENABLED": identity_notice_recipients, "IDENTITY_NOTICE_RECIPIENTS_REQUIRE_SECURE_TRANSPORT": "false"}
         state["browser_origin"] = browser_origin
         state["ready_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         owned.state_write(directory, state)
-        print("PASS isolated five-service readiness; USER TTL unchanged PT5M; attempts/results/closure/inbox enabled; monitoring/media disabled", flush=True)
+        print("PASS isolated five-service readiness; USER TTL unchanged PT5M; attempts/results/closure/inbox contact enabled; closure worker/edge attestation defaulted OFF; monitoring/media disabled", flush=True)
         print("Cleanup: python3 scripts/local/w3a-real-runtime.py down " + str(directory), flush=True)
     except BaseException:
         down(directory)

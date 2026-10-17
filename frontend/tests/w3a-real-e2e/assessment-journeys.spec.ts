@@ -560,13 +560,27 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
     evidence(info, "Assessment successfully closed after attempt abandoned.");
 
     // 7. Student Notifications Inbox
+    const inboxResponse = studentPage.waitForResponse(
+      (res) =>
+        res.url().includes("/api/assessments/notifications") &&
+        res.request().method() === "GET",
+    );
     await studentPage.goto("/app/notifications");
+    const inboxHttp = await inboxResponse;
+    assertStatus(
+      inboxHttp.status(),
+      200,
+      "real Student GET /api/assessments/notifications",
+    );
     await expect(
-      studentPage.getByRole("heading", { name: "Assessment notices" }),
+      studentPage.getByRole("heading", { name: "Your inbox" }),
+    ).toBeVisible();
+    await expect(
+      studentPage.getByRole("heading", { name: "No assessment notices yet" }),
     ).toBeVisible();
     evidence(
       info,
-      "Student notifications inbox accessible and authenticated via real Gateway.",
+      "Student notifications inbox screen reached and authenticated GET 200 confirmed; empty inbox prior to delayed closure requests.",
     );
 
     await teacher.assertConfidentiality();

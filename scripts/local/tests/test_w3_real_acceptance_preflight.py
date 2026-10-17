@@ -27,6 +27,11 @@ class PreflightTest(unittest.TestCase):
         for destructive in ("docker stop", "docker rm", "docker run", "git reset", "git clean", "kill -9"):
             self.assertNotIn(destructive, text)
 
+    def test_occupied_port_notes_prohibit_silent_reuse(self):
+        text = SCRIPT.read_text()
+        self.assertIn("Existing frontend on 3000 must not be reused without ownership verification", text)
+        self.assertIn("Legacy W3-A launcher requires unused loopback 8080; do not terminate another listener", text)
+
 
 if __name__ == "__main__":
     unittest.main()
