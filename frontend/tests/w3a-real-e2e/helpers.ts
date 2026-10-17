@@ -162,16 +162,42 @@ export class BrowserActor {
     expect(refresh?.sameSite).toBe("Lax");
     expect(refresh?.path).toBe("/api/auth");
     if (refresh?.value) this.rememberSecret(refresh.value);
-    const snapshot = await this.page.evaluate(async () => ({
-      cookie: document.cookie,
-      local: JSON.stringify(localStorage),
-      session: JSON.stringify(sessionStorage),
-      links: [...document.querySelectorAll("a")].map((link) => link.href),
-      indexedDbNames:
-        "databases" in indexedDB
-          ? (await indexedDB.databases()).map((database) => database.name ?? "")
-          : [],
-    }));
+    await this.page.bringToFront();
+    await this.page.waitForLoadState("domcontentloaded");
+    const evaluateSnapshot = async () => {
+      return this.page.evaluate(async () => ({
+        cookie: document.cookie,
+        local: JSON.stringify(localStorage),
+        session: JSON.stringify(sessionStorage),
+        links: [...document.querySelectorAll("a")].map((link) => link.href),
+        indexedDbNames:
+          "databases" in indexedDB
+            ? (await indexedDB.databases()).map(
+                (database) => database.name ?? "",
+              )
+            : [],
+      }));
+    };
+    let snapshot: {
+      cookie: string;
+      local: string;
+      session: string;
+      links: string[];
+      indexedDbNames: string[];
+    };
+    try {
+      snapshot = await evaluateSnapshot();
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        err.message.includes("Execution context was destroyed")
+      ) {
+        await this.page.waitForLoadState("domcontentloaded");
+        snapshot = await evaluateSnapshot();
+      } else {
+        throw err;
+      }
+    }
     expect(snapshot.cookie.includes("quizopia_refresh")).toBe(false);
     expect(snapshot.indexedDbNames).toEqual([]);
     const nonSecretSurfaces = [
@@ -349,6 +375,25 @@ export async function enableTeacherUi(page: Page, actor: BrowserActor) {
     );
 }
 
+export async function ensureTeachingWorkspace(page: Page) {
+  const switchBtn = page.getByRole("button", {
+    name: "Switch to Teaching workspace",
+  });
+  const readyIndicator = page.getByRole("button", {
+    name: /Refresh status|Refresh results/,
+  });
+  await Promise.race([
+    switchBtn.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {}),
+    readyIndicator
+      .waitFor({ state: "visible", timeout: 5_000 })
+      .catch(() => {}),
+  ]);
+  if (await switchBtn.isVisible().catch(() => false)) {
+    await switchBtn.click();
+    await readyIndicator.waitFor({ state: "visible", timeout: 10_000 });
+  }
+}
+
 export async function publishExactSource(page: Page) {
   await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
   await page.getByRole("link", { name: "Create quiz" }).click();
@@ -389,6 +434,49 @@ export async function publishExactSource(page: Page) {
   return { quizId, quizVersionId, versionNumber: 1 };
 }
 
+export async function publishMultiQuestionSource(page: Page) {
+  await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
+  await page.getByRole("link", { name: "Create quiz" }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
+  const quizId = new URL(page.url()).pathname.split("/").at(-1)!;
+  await page
+    .getByRole("textbox", { name: "Quiz title" })
+    .fill("Isolated W3 Multi-Question Source");
+  await page
+    .getByRole("textbox", { name: "Quiz Markdown source" })
+    .fill(
+      "Câu 1 [SINGLE_CHOICE]: Which protocol serves web pages?\n*A. HTTP\nB. FTP\nC. SSH\nD. SMTP\n\n" +
+        "Câu 2 [MULTIPLE_CHOICE]: Which of these are transport protocols?\n*A. TCP\n*B. UDP\nC. IP\nD. DNS\n\n" +
+        "Câu 3 [TRUE_FALSE_MATRIX]: Network layer facts.\n*A. IPv6 has 128-bit addresses\nB. IPv4 has 64-bit addresses\n*C. Routers operate at Layer 3\nD. Switches operate at Layer 4\n\n" +
+        "Câu 4 [NUMERIC_FILL]: Compute 10 divided by 4.\nĐáp án: 2.50\n",
+    );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page
+    .getByLabel("Description")
+    .fill("Disposable multi-question real integration source");
+  await page.getByRole("button", { name: "Publish QuizVersion" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Publish complete" }),
+  ).toContainText("Published immutable version 1");
+  await page.getByRole("button", { name: "Published versions" }).click();
+  await page
+    .getByRole("list", { name: "Published version history" })
+    .getByRole("button", { name: /Version 1/ })
+    .click();
+  await page
+    .getByRole("button", { name: "Create assessment from version 1" })
+    .click();
+  await expect(page).toHaveURL(/\/app\/assessments\/new\?/);
+  const query = new URL(page.url()).searchParams;
+  expect(query.get("quizId") === quizId).toBe(true);
+  expect(query.get("versionNumber")).toBe("1");
+  const quizVersionId = query.get("quizVersionId")!;
+  expect(/^[0-9a-f-]{36}$/.test(quizVersionId)).toBe(true);
+  return { quizId, quizVersionId, versionNumber: 1 };
+}
+
 export async function confirm(page: Page, label: string) {
   await page
     .getByRole("dialog")
@@ -404,6 +492,19 @@ export function commandResponse(
   return page.waitForResponse(
     (response) =>
       response.url().startsWith(`${gateway}${publicationBase}`) &&
+      new URL(response.url()).pathname.endsWith(suffix) &&
+      response.request().method() === method,
+  );
+}
+
+export function attemptResponse(
+  page: Page,
+  suffix: string,
+  method: string,
+): Promise<Response> {
+  return page.waitForResponse(
+    (response) =>
+      response.url().startsWith(`${gateway}/api/assessments/`) &&
       new URL(response.url()).pathname.endsWith(suffix) &&
       response.request().method() === method,
   );

@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:real": "playwright test --config=playwright.real.config.ts",
-    "test:e2e:real:executor": "node tests/real-executor-e2e/run-real-executor.mjs"
+    "test:e2e:real:executor": "node tests/real-executor-e2e/run-real-executor.mjs",
+    "test:e2e:real:w3": "playwright test --config=playwright.w3a-real.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
