@@ -38,7 +38,12 @@ def process_owned(directory, name):
     if process is None:
         raise RuntimeError("Runtime process record is incomplete")
     path = Path("/proc") / str(process["pid"])
-    if jar.encode() not in (path / "cmdline").read_bytes().split(b"\0") or (path / "cwd").resolve() != directory:
+    try:
+        cmdline = (path / "cmdline").read_bytes().split(b"\0")
+        cwd = (path / "cwd").resolve()
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
+        raise RuntimeError("Runtime process is not running")
+    if jar.encode() not in cmdline or cwd != directory:
         raise RuntimeError("Runtime process ownership does not match")
     return process["pid"]
 
@@ -301,6 +306,107 @@ def quiz_pending_request(directory):
     print("1" if pending else "0")
 
 
+def _restart_assessment(directory, env_updates, state_updates, message):
+    directory = directory.resolve()
+    state = json.loads((directory / "state.json").read_text())
+    if state.get("fixture") != "w3a-real-browser-v1":
+        raise RuntimeError("Not an owned W3-A runtime")
+    jar = state["service_jars"]["assessment"]
+
+    try:
+        pid = process_owned(directory, "assessment")
+        if state.get("assessment_paused"):
+            os.kill(pid, signal.SIGCONT)
+        os.kill(pid, signal.SIGTERM)
+        if not wait_for_exit(directory, "assessment", timeout=10):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+            if not wait_for_exit(directory, "assessment", timeout=5):
+                raise RuntimeError("Assessment process failed to stop cleanly")
+    except (RuntimeError, OSError):
+        pass
+
+    env_path = directory / "assessment.env"
+    env_vars = dict(line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line)
+    env_vars.update(env_updates)
+    owned.private_write(env_path, "\n".join(f"{k}={v}" for k, v in env_vars.items()) + "\n")
+
+    log = (directory / "assessment.log").open("ab")
+    process = subprocess.Popen(
+        ["java", "-Xmx256m", "-XX:ActiveProcessorCount=2", "-jar", str(jar)],
+        env={**os.environ, **env_vars}, cwd=directory, stdout=log, stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    log.close()
+
+    state["processes"] = [p for p in state["processes"] if p["jar"] != jar]
+    state["processes"].append({"pid": process.pid, "jar": jar})
+    state["test_only_flags"].update(state_updates)
+    owned.state_write(directory, state)
+    owned.wait_http(state["endpoints"]["assessment"] + "/actuator/health")
+    print(message, flush=True)
+
+
+def activate_edge_attestation(directory):
+    """Operator-controlled transition: restart owned assessment-service with edge inbox attestation enabled, keeping closure worker OFF."""
+    _restart_assessment(
+        directory,
+        {
+            "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
+            "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+            "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
+        },
+        {
+            "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
+            "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+            "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
+        },
+        "PASS operator activation: edge inbox attestation activated; closure worker remains OFF",
+    )
+
+
+def activate_closure_worker(directory, poll_millis="4000"):
+    """Operator-controlled transition: restart owned assessment-service with worker and edge attestation enabled."""
+    _restart_assessment(
+        directory,
+        {
+            "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
+            "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+            "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
+            "QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS": str(poll_millis),
+        },
+        {
+            "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
+            "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "true",
+            "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
+            "QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS": str(poll_millis),
+        },
+        f"PASS operator activation: assessment closure worker and edge attestation activated (poll_millis={poll_millis})",
+    )
+
+
+def reset_closure_flags(directory):
+    """Operator-controlled transition: restart owned assessment-service resetting closure flags to pre-worker/pre-attestation state."""
+    _restart_assessment(
+        directory,
+        {
+            "ASSESSMENT_EDGE_INBOX_VERIFIED": "false",
+            "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "false",
+            "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
+            "QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS": "5000",
+        },
+        {
+            "ASSESSMENT_EDGE_INBOX_VERIFIED": "false",
+            "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "false",
+            "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
+            "QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS": "5000",
+        },
+        "PASS operator reset: closure flags returned to initial pre-worker state",
+    )
+
+
 def up():
     import bcrypt
 
@@ -474,6 +580,13 @@ def main():
     eligibility = sub.add_parser("probe-recipient-eligibility")
     eligibility.add_argument("state_directory", type=Path)
     eligibility.add_argument("student_id")
+    edge_attest = sub.add_parser("activate-edge-attestation")
+    edge_attest.add_argument("state_directory", type=Path)
+    activate = sub.add_parser("activate-closure-worker")
+    activate.add_argument("state_directory", type=Path)
+    activate.add_argument("poll_millis", nargs="?", default="4000")
+    reset_flags = sub.add_parser("reset-closure-flags")
+    reset_flags.add_argument("state_directory", type=Path)
     receipt = sub.add_parser("creation-receipt-count")
     receipt.add_argument("state_directory", type=Path)
     receipt.add_argument("owner_id")
@@ -489,6 +602,12 @@ def main():
         remove_membership(args.state_directory, args.classroom_id, args.student_id, args.teacher_id)
     elif args.action == "probe-recipient-eligibility":
         probe_recipient_eligibility(args.state_directory, args.student_id)
+    elif args.action == "activate-edge-attestation":
+        activate_edge_attestation(args.state_directory)
+    elif args.action == "activate-closure-worker":
+        activate_closure_worker(args.state_directory, args.poll_millis)
+    elif args.action == "reset-closure-flags":
+        reset_closure_flags(args.state_directory)
     elif args.action == "creation-receipt-count":
         creation_receipt_count(args.state_directory, args.owner_id, args.key_digest)
     elif args.action == "quiz-pending-request":

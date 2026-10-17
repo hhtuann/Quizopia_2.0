@@ -12,6 +12,7 @@ import {
   enableTeacherUi,
   fixtureControl,
   gateway,
+  matchGatewayUrl,
   publicationBase,
   publishExactSource,
   registerTeacher,
@@ -520,15 +521,17 @@ test("real CLASS ownership/membership, explicit monitoring, STUDENT denial and A
     try {
       const pendingOwner = page.waitForRequest(
         (request) =>
-          request.url() ===
-            `${gateway}${publicationBase}/${created.publicationId}` &&
-          request.method() === "GET",
+          matchGatewayUrl(
+            request.url(),
+            `${publicationBase}/${created.publicationId}`,
+            true,
+          ) && request.method() === "GET",
       );
       await page.getByRole("button", { name: "Refresh status" }).click();
       const oldRequest = await pendingOwner;
       await page.getByRole("button", { name: /Open user menu for/ }).click();
-      const loggedOut = page.waitForResponse(
-        (response) => response.url() === `${gateway}/api/auth/logout`,
+      const loggedOut = page.waitForResponse((response) =>
+        matchGatewayUrl(response.url(), "/api/auth/logout", true),
       );
       await page.getByRole("menuitem", { name: "Sign out" }).click();
       assertStatus(
@@ -621,7 +624,7 @@ test("real committed creation with lost response retains original key and reconc
   let receivedCreationResponse = false;
   page.on("request", (outgoing) => {
     if (
-      outgoing.url() === `${gateway}${publicationBase}` &&
+      matchGatewayUrl(outgoing.url(), publicationBase, true) &&
       outgoing.method() === "POST"
     )
       creationRequests.push({
@@ -631,7 +634,7 @@ test("real committed creation with lost response retains original key and reconc
   });
   page.on("response", (response) => {
     if (
-      response.url() === `${gateway}${publicationBase}` &&
+      matchGatewayUrl(response.url(), publicationBase, true) &&
       response.request().method() === "POST"
     )
       receivedCreationResponse = true;
@@ -647,7 +650,7 @@ test("real committed creation with lost response retains original key and reconc
   try {
     const outgoing = page.waitForRequest(
       (pending) =>
-        pending.url() === `${gateway}${publicationBase}` &&
+        matchGatewayUrl(pending.url(), publicationBase, true) &&
         pending.method() === "POST",
     );
     await confirm(page, "Create DRAFT");

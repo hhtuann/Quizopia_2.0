@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   expect,
@@ -24,16 +25,58 @@ function loopbackOrigin(input: string): string {
     url.hash
   )
     throw new Error("Real acceptance requires an isolated loopback origin.");
+  if (url.hostname === "127.0.0.1") {
+    url.hostname = "localhost";
+  }
   return url.origin;
 }
 
+function resolveStateEndpoints(): { gateway?: string; mailpit?: string } {
+  const dir = process.env.W3A_REAL_STATE_DIRECTORY;
+  if (!dir) return {};
+  try {
+    const raw = readFileSync(join(dir, "state.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed?.endpoints ?? {};
+  } catch {
+    return {};
+  }
+}
+const stateEndpoints = resolveStateEndpoints();
+
 export const gateway = loopbackOrigin(
-  process.env.W3A_REAL_GATEWAY_URL ?? "http://localhost:8080",
+  process.env.W3A_REAL_GATEWAY_URL ??
+    stateEndpoints.gateway ??
+    "http://localhost:8080",
 );
 const mailpit = loopbackOrigin(
-  process.env.W3A_REAL_MAILPIT_URL ?? "http://127.0.0.1:8025",
+  process.env.W3A_REAL_MAILPIT_URL ??
+    stateEndpoints.mailpit ??
+    "http://127.0.0.1:8025",
 );
 const publicationBase = "/api/assessments/publications";
+
+export function matchGatewayUrl(
+  url: string,
+  pathOrPrefix: string,
+  exact = false,
+): boolean {
+  try {
+    const u = new URL(url);
+    const g = new URL(gateway);
+    const loopbacks = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+    const isLoopback = loopbacks.has(u.hostname) && loopbacks.has(g.hostname);
+    const samePort =
+      (u.port || (u.protocol === "https:" ? "443" : "80")) ===
+      (g.port || (g.protocol === "https:" ? "443" : "80"));
+    if (!isLoopback || !samePort) return false;
+    return exact
+      ? u.pathname === pathOrPrefix
+      : u.pathname.startsWith(pathOrPrefix);
+  } catch {
+    return false;
+  }
+}
 
 export function evidence(info: TestInfo, description: string) {
   // Callers supply static descriptions/status numbers only, never raw payloads.
@@ -66,7 +109,7 @@ export class BrowserActor {
       this.networkUrls.push(request.url());
       if (new URL(request.url()).pathname.startsWith("/api/auth/"))
         this.authRequests.push(new URL(request.url()).pathname);
-      if (request.url().startsWith(`${gateway}/`)) {
+      if (matchGatewayUrl(request.url(), "/")) {
         const authorization = request.headers().authorization;
         if (
           authorization?.startsWith("Bearer ") &&
@@ -101,7 +144,7 @@ export class BrowserActor {
     await page.getByLabel("Password").fill(this.credentials.password);
     const me = page.waitForResponse(
       (response) =>
-        response.url() === `${gateway}/api/auth/me` &&
+        matchGatewayUrl(response.url(), "/api/auth/me", true) &&
         response.status() === 200,
     );
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -294,8 +337,11 @@ export async function registerTeacher(
   await expect(page).toHaveURL(/\/verify-email\?username=/);
   const issued = page.waitForResponse(
     (response) =>
-      response.url() === `${gateway}/api/auth/email-verification/request` &&
-      response.request().method() === "POST",
+      matchGatewayUrl(
+        response.url(),
+        "/api/auth/email-verification/request",
+        true,
+      ) && response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "Resend code" }).click();
   assertStatus((await issued).status(), 202, "real verification issuance");
@@ -313,7 +359,8 @@ export async function registerTeacher(
   await page.getByLabel("Password").fill(password);
   const me = page.waitForResponse(
     (response) =>
-      response.url() === `${gateway}/api/auth/me` && response.status() === 200,
+      matchGatewayUrl(response.url(), "/api/auth/me", true) &&
+      response.status() === 200,
   );
   await page.getByRole("button", { name: "Sign in" }).click();
   await me;
@@ -335,11 +382,12 @@ export async function registerTeacher(
 
 export async function enableTeacherUi(page: Page, actor: BrowserActor) {
   await page.getByRole("button", { name: /Open user menu for/ }).click();
-  const enabled = page.waitForResponse(
-    (response) => response.url() === `${gateway}/api/auth/teacher-enablement`,
+  const enabled = page.waitForResponse((response) =>
+    matchGatewayUrl(response.url(), "/api/auth/teacher-enablement", true),
   );
   await page.getByRole("menuitem", { name: "Register as teacher" }).click();
-  assertStatus((await enabled).status(), 204, "real Teacher enablement");
+  const res = await enabled;
+  assertStatus(res.status(), 204, "real Teacher enablement");
   await expect(page.getByRole("status")).toContainText(
     "Teacher access is ready",
   );
@@ -376,22 +424,18 @@ export async function enableTeacherUi(page: Page, actor: BrowserActor) {
 }
 
 export async function ensureTeachingWorkspace(page: Page) {
-  const switchBtn = page.getByRole("button", {
-    name: "Switch to Teaching workspace",
+  const authoringLink = page.getByRole("link", {
+    name: "Quiz authoring",
+    exact: true,
   });
-  const readyIndicator = page.getByRole("button", {
-    name: /Refresh status|Refresh results/,
-  });
-  await Promise.race([
-    switchBtn.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {}),
-    readyIndicator
-      .waitFor({ state: "visible", timeout: 5_000 })
-      .catch(() => {}),
-  ]);
-  if (await switchBtn.isVisible().catch(() => false)) {
-    await switchBtn.click();
-    await readyIndicator.waitFor({ state: "visible", timeout: 10_000 });
+  if (await authoringLink.isVisible().catch(() => false)) {
+    return;
   }
+  await page.getByRole("button", { name: /Open user menu for/ }).click();
+  const switchItem = page.getByRole("menuitem", { name: "Switch to Teaching" });
+  await switchItem.waitFor({ state: "visible", timeout: 5_000 });
+  await switchItem.click();
+  await authoringLink.waitFor({ state: "visible", timeout: 10_000 });
 }
 
 export async function publishExactSource(page: Page) {
@@ -491,7 +535,7 @@ export function commandResponse(
 ): Promise<Response> {
   return page.waitForResponse(
     (response) =>
-      response.url().startsWith(`${gateway}${publicationBase}`) &&
+      matchGatewayUrl(response.url(), publicationBase) &&
       new URL(response.url()).pathname.endsWith(suffix) &&
       response.request().method() === method,
   );
@@ -504,7 +548,7 @@ export function attemptResponse(
 ): Promise<Response> {
   return page.waitForResponse(
     (response) =>
-      response.url().startsWith(`${gateway}/api/assessments/`) &&
+      matchGatewayUrl(response.url(), "/api/assessments/") &&
       new URL(response.url()).pathname.endsWith(suffix) &&
       response.request().method() === method,
   );
@@ -525,6 +569,9 @@ export async function fixtureControl(
     | "seed-membership"
     | "remove-membership"
     | "probe-recipient-eligibility"
+    | "activate-edge-attestation"
+    | "activate-closure-worker"
+    | "reset-closure-flags"
     | "pause-assessment"
     | "resume-assessment"
     | "quiz-pending-request"

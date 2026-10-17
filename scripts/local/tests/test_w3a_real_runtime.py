@@ -8,7 +8,7 @@ import signal
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import call, patch, MagicMock
 
 SPEC = importlib.util.spec_from_file_location(
     "w3a_runtime", Path(__file__).resolve().parents[1] / "w3a-real-runtime.py"
@@ -140,6 +140,143 @@ class FlagDefaultTests(unittest.TestCase):
         self.assertIn('edge_inbox_verified = os.environ.get("W3A_ASSESSMENT_EDGE_INBOX_VERIFIED", "false")', text)
         self.assertIn('recipient_eligibility = os.environ.get("W3A_ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED", "false")', text)
         self.assertIn('identity_notice_recipients = os.environ.get("W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED", "false")', text)
+
+
+class ActivateEdgeAttestationTests(unittest.TestCase):
+    def test_activate_edge_attestation_restarts_assessment_with_attestation_only(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            jar_path = "/private/assessment.jar"
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "service_jars": {"assessment": jar_path},
+                "processes": [{"pid": 101, "jar": jar_path}],
+                "test_only_flags": {
+                    "ASSESSMENT_EDGE_INBOX_VERIFIED": "false",
+                    "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "false",
+                    "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
+                },
+                "endpoints": {"assessment": "http://127.0.0.1:45678"},
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+            (directory / "assessment.env").write_text("SERVER_PORT=45678\nASSESSMENT_CLOSURE_WORKER_ENABLED=false\n")
+
+            mock_process = unittest.mock.MagicMock()
+            mock_process.pid = 202
+
+            with patch.object(runtime, "process_owned", return_value=101), \
+                    patch.object(runtime, "wait_for_exit", return_value=True), \
+                    patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.subprocess, "Popen", return_value=mock_process) as popen, \
+                    patch.object(runtime.owned, "wait_http") as wait_http, \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                runtime.activate_edge_attestation(directory)
+
+            kill.assert_called_once_with(101, signal.SIGTERM)
+            self.assertIn("PASS operator activation: edge inbox attestation activated; closure worker remains OFF", output.getvalue())
+            wait_http.assert_called_once_with("http://127.0.0.1:45678/actuator/health")
+
+            updated_env = (directory / "assessment.env").read_text()
+            self.assertIn("ASSESSMENT_EDGE_INBOX_VERIFIED=true", updated_env)
+            self.assertIn("ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=true", updated_env)
+            self.assertIn("ASSESSMENT_CLOSURE_WORKER_ENABLED=false", updated_env)
+
+            updated_state = json.loads((directory / "state.json").read_text())
+            self.assertEqual(updated_state["processes"], [{"pid": 202, "jar": jar_path}])
+            self.assertEqual(updated_state["test_only_flags"]["ASSESSMENT_EDGE_INBOX_VERIFIED"], "true")
+            self.assertEqual(updated_state["test_only_flags"]["ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED"], "true")
+            self.assertEqual(updated_state["test_only_flags"]["ASSESSMENT_CLOSURE_WORKER_ENABLED"], "false")
+
+
+class ActivateClosureWorkerTests(unittest.TestCase):
+    def test_activate_closure_worker_restarts_assessment_with_enabled_flags(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            jar_path = "/private/assessment.jar"
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "service_jars": {"assessment": jar_path},
+                "processes": [{"pid": 101, "jar": jar_path}],
+                "test_only_flags": {
+                    "ASSESSMENT_EDGE_INBOX_VERIFIED": "false",
+                    "ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED": "false",
+                    "ASSESSMENT_CLOSURE_WORKER_ENABLED": "false",
+                },
+                "endpoints": {"assessment": "http://127.0.0.1:45678"},
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+            (directory / "assessment.env").write_text("SERVER_PORT=45678\nASSESSMENT_CLOSURE_WORKER_ENABLED=false\n")
+
+            mock_process = unittest.mock.MagicMock()
+            mock_process.pid = 202
+
+            with patch.object(runtime, "process_owned", return_value=101), \
+                    patch.object(runtime, "wait_for_exit", return_value=True), \
+                    patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.subprocess, "Popen", return_value=mock_process) as popen, \
+                    patch.object(runtime.owned, "wait_http") as wait_http, \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                runtime.activate_closure_worker(directory, "4000")
+
+            kill.assert_called_once_with(101, signal.SIGTERM)
+            self.assertIn("PASS operator activation", output.getvalue())
+            wait_http.assert_called_once_with("http://127.0.0.1:45678/actuator/health")
+
+            updated_env = (directory / "assessment.env").read_text()
+            self.assertIn("ASSESSMENT_EDGE_INBOX_VERIFIED=true", updated_env)
+            self.assertIn("ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=true", updated_env)
+            self.assertIn("ASSESSMENT_CLOSURE_WORKER_ENABLED=true", updated_env)
+            self.assertIn("QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS=4000", updated_env)
+
+            updated_state = json.loads((directory / "state.json").read_text())
+            self.assertEqual(updated_state["processes"], [{"pid": 202, "jar": jar_path}])
+            self.assertEqual(updated_state["test_only_flags"]["ASSESSMENT_CLOSURE_WORKER_ENABLED"], "true")
+            self.assertEqual(updated_state["test_only_flags"]["QUIZOPIA_ASSESSMENT_CLOSURE_POLL_MILLIS"], "4000")
+
+
+class ResetClosureFlagsTests(unittest.TestCase):
+    def test_reset_closure_flags_restores_initial_defaults(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            jar_path = str(directory / "assessment.jar")
+            Path(jar_path).write_text("fake-jar")
+            (directory / "assessment.env").write_text("SERVER_PORT=45678\nASSESSMENT_CLOSURE_WORKER_ENABLED=true\nASSESSMENT_EDGE_INBOX_VERIFIED=true\n")
+
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "service_jars": {"assessment": jar_path},
+                "processes": [{"pid": 101, "jar": jar_path}],
+                "endpoints": {"assessment": "http://127.0.0.1:45678"},
+                "test_only_flags": {
+                    "ASSESSMENT_CLOSURE_WORKER_ENABLED": "true",
+                    "ASSESSMENT_EDGE_INBOX_VERIFIED": "true",
+                },
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+
+            mock_process = MagicMock()
+            mock_process.pid = 202
+
+            with patch.object(runtime, "process_owned", return_value=101), \
+                    patch.object(runtime, "wait_for_exit", return_value=True), \
+                    patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.owned, "wait_http") as wait_http, \
+                    patch.object(runtime.subprocess, "Popen", return_value=mock_process), \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                runtime.reset_closure_flags(directory)
+
+            kill.assert_called_once_with(101, signal.SIGTERM)
+            self.assertIn("PASS operator reset", output.getvalue())
+            wait_http.assert_called_once_with("http://127.0.0.1:45678/actuator/health")
+
+            updated_env = (directory / "assessment.env").read_text()
+            self.assertIn("ASSESSMENT_EDGE_INBOX_VERIFIED=false", updated_env)
+            self.assertIn("ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=false", updated_env)
+            self.assertIn("ASSESSMENT_CLOSURE_WORKER_ENABLED=false", updated_env)
+
+            updated_state = json.loads((directory / "state.json").read_text())
+            self.assertEqual(updated_state["test_only_flags"]["ASSESSMENT_CLOSURE_WORKER_ENABLED"], "false")
+            self.assertEqual(updated_state["test_only_flags"]["ASSESSMENT_EDGE_INBOX_VERIFIED"], "false")
 
 
 class MembershipFixtureTests(unittest.TestCase):

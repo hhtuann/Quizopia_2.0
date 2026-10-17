@@ -14,6 +14,7 @@ import {
   evidence,
   fixtureControl,
   gateway,
+  matchGatewayUrl,
   publicationBase,
   publishMultiQuestionSource,
   registerTeacher,
@@ -76,7 +77,7 @@ test("real PUBLIC Assessment: Teacher OPEN, Student locator entry, 4 question ty
 
     const previewResponse = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/entry") &&
         res.request().method() === "POST",
     );
@@ -91,7 +92,7 @@ test("real PUBLIC Assessment: Teacher OPEN, Student locator entry, 4 question ty
     // Start Attempt
     const startResponse = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/attempts/start") &&
         res.request().method() === "POST",
     );
@@ -451,7 +452,7 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
     await studentPage.getByLabel("Publication ID").fill(created.publicationId);
     const deniedEntry = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/entry") &&
         res.request().method() === "POST",
     );
@@ -476,7 +477,7 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
     // 3. Retry entry after membership seeded
     const previewRetry = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/entry") &&
         res.request().method() === "POST",
     );
@@ -494,7 +495,7 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
     // Start Attempt
     const startResponse = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/attempts/start") &&
         res.request().method() === "POST",
     );
@@ -600,6 +601,9 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
   page,
   request,
 }, info) => {
+  // Ensure pre-attestation / pre-worker clean baseline state
+  await fixtureControl("reset-closure-flags");
+
   // 1. Register Teacher and create Classroom
   const teacher = await registerTeacher(page, request, info);
   const teacherMe = await teacher.fetch<{ id: string }>("/api/auth/me");
@@ -749,7 +753,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
 
     const previewRes = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/entry") &&
         res.request().method() === "POST",
     );
@@ -759,7 +763,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
 
     const startRes = studentPage.waitForResponse(
       (res) =>
-        res.url().startsWith(`${gateway}/api/assessments/publications/`) &&
+        matchGatewayUrl(res.url(), "/api/assessments/publications/") &&
         res.url().endsWith("/attempts/start") &&
         res.request().method() === "POST",
     );
@@ -790,15 +794,47 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       "Student started ACTIVE unlimited attempt (duration_minutes: 0, deadline_at: null) and saved answer.",
     );
 
-    // 8. Probe early REQUEST denial (now < endAt) -> 409 CLOSURE_NOT_READY
+    // 8. Target 2 / H1 pre-worker readiness: Probe pre-attestation REQUEST denial (worker & edge attestation OFF)
     const ownerBefore = await teacher.owner(publicationId);
-    const earlyRequestRes = await teacher.fetch<{
+    const preAttestationRes = await teacher.fetch<{
       code: string;
       message: string;
     }>(
       `/api/assessments/publications/${publicationId}/closure-requests`,
       "POST",
       { expectedRevision: ownerBefore.revision },
+      randomBytes(16).toString("hex"),
+    );
+    assertStatus(
+      preAttestationRes.status,
+      503,
+      "Pre-attestation REQUEST denied with 503",
+    );
+    expect(preAttestationRes.body.code).toBe("DEPENDENCY_UNAVAILABLE");
+    evidence(
+      info,
+      "Target 2 / H1 verified: Teacher REQUEST denied with 503 DEPENDENCY_UNAVAILABLE while worker and edge inbox attestation are OFF.",
+    );
+
+    // Operator-controlled transition 1: activate edge inbox attestation (synthetic closure worker remains OFF)
+    const attestationOutput = await fixtureControl("activate-edge-attestation");
+    expect(attestationOutput).toContain(
+      "PASS operator activation: edge inbox attestation activated; closure worker remains OFF",
+    );
+    evidence(
+      info,
+      "H1 verified: Operator-controlled staged transition successfully activated edge inbox attestation while synthetic closure worker remains OFF.",
+    );
+
+    // 9. Probe early REQUEST denial (now < endAt) -> 409 CLOSURE_NOT_READY
+    const ownerAfterActivation = await teacher.owner(publicationId);
+    const earlyRequestRes = await teacher.fetch<{
+      code: string;
+      message: string;
+    }>(
+      `/api/assessments/publications/${publicationId}/closure-requests`,
+      "POST",
+      { expectedRevision: ownerAfterActivation.revision },
       randomBytes(16).toString("hex"),
     );
     assertStatus(
@@ -812,14 +848,14 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       "Early REQUEST denied with 409 CLOSURE_NOT_READY while participation window is active (now < endAt).",
     );
 
-    // 9. Wait until window has elapsed (now >= endAt)
+    // 10. Wait until window has elapsed (now >= endAt)
     const endAtMillis = Date.parse(endAtUtc);
     const remainingWait = endAtMillis - Date.now() + 1500;
     if (remainingWait > 0) {
       await page.waitForTimeout(remainingWait);
     }
 
-    // 10. Teacher REQUEST delayed closure via UI
+    // 11. Teacher REQUEST delayed closure via UI
     await page.bringToFront();
     await page.goto(`/app/assessments/${publicationId}/closure`);
     await ensureTeachingWorkspace(page);
@@ -838,6 +874,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
     await page.getByRole("button", { name: "REQUEST delayed closure" }).click();
     const requestHttp = await requestCommandRes;
     assertStatus(requestHttp.status(), 201, "Teacher REQUEST delayed closure");
+    const requestKey = requestHttp.request().headers()["idempotency-key"];
     const requestView = (await requestHttp.json()) as ClosureView;
     expect(requestView.state).toBe("PENDING");
     const closureRequestId = requestView.closureRequestId;
@@ -852,6 +889,55 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       page.getByText("Publication CLOSED", { exact: true }),
     ).toHaveCount(0);
 
+    // M2: Exact same-key replay vs idempotency conflict vs concurrency conflict on REQUEST
+    // (a) Exact same key and payload replay -> 201 identical response
+    const requestReplayRes = await teacher.fetch<ClosureView>(
+      `/api/assessments/publications/${publicationId}/closure-requests`,
+      "POST",
+      { expectedRevision: ownerAfterActivation.revision },
+      requestKey,
+    );
+    assertStatus(
+      requestReplayRes.status,
+      201,
+      "Exact same-key REQUEST replay returns 201",
+    );
+    expect(requestReplayRes.body.closureRequestId).toBe(closureRequestId);
+    expect(requestReplayRes.body.state).toBe("PENDING");
+
+    // (b) Same key with altered payload -> 409 IDEMPOTENCY_CONFLICT
+    const requestIdempConflictRes = await teacher.fetch<{ code: string }>(
+      `/api/assessments/publications/${publicationId}/closure-requests`,
+      "POST",
+      { expectedRevision: 999 },
+      requestKey,
+    );
+    assertStatus(
+      requestIdempConflictRes.status,
+      409,
+      "Same key with altered payload returns 409 IDEMPOTENCY_CONFLICT",
+    );
+    expect(requestIdempConflictRes.body.code).toBe("IDEMPOTENCY_CONFLICT");
+
+    // (c) New random key while PENDING -> 409 CLOSURE_PENDING
+    const ownerWhilePending = await teacher.owner(publicationId);
+    const requestPendingConflictRes = await teacher.fetch<{ code: string }>(
+      `/api/assessments/publications/${publicationId}/closure-requests`,
+      "POST",
+      { expectedRevision: ownerWhilePending.revision },
+      randomBytes(16).toString("hex"),
+    );
+    assertStatus(
+      requestPendingConflictRes.status,
+      409,
+      "New key while PENDING returns 409 CLOSURE_PENDING",
+    );
+    expect(requestPendingConflictRes.body.code).toBe("CLOSURE_PENDING");
+    evidence(
+      info,
+      "M2 verified: REQUEST exact same-key replay returned 201 identical response; altered payload returned 409 IDEMPOTENCY_CONFLICT; new key while pending returned 409 CLOSURE_PENDING.",
+    );
+
     await page.getByRole("link", { name: "Open closure request" }).click();
     await expect(page).toHaveURL(
       `/app/assessments/${publicationId}/closure/${closureRequestId}`,
@@ -865,7 +951,96 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       `Teacher requested delayed closure via UI: recorded durable closureRequestId ${closureRequestId}, state PENDING, publication remains OPEN.`,
     );
 
-    // 11. Target 4: Poll Student inbox until background worker confirms notice
+    // M1: Authoritative pre-worker state observation with worker OFF
+    const attemptBeforeWorker = await student.fetch<AttemptView>(
+      `/api/assessments/attempts/${startedAttempt.attemptId}`,
+    );
+    assertStatus(
+      attemptBeforeWorker.status,
+      200,
+      "Student queries attempt before worker activation",
+    );
+    expect(attemptBeforeWorker.body.closure?.closureRequestId).toBe(
+      closureRequestId,
+    );
+    expect(attemptBeforeWorker.body.closure?.closureCutoffAt).toBeNull();
+
+    const inboxBeforeWorker = await student.fetch<{ items: Notification[] }>(
+      "/api/assessments/notifications",
+    );
+    assertStatus(
+      inboxBeforeWorker.status,
+      200,
+      "Student inbox query before worker activation",
+    );
+    expect(inboxBeforeWorker.body.items).toHaveLength(0);
+    evidence(
+      info,
+      `M1 verified: Authoritative pre-worker state observed with worker OFF: closureRequestId=${closureRequestId}, state=PENDING, attempt.closureCutoffAt=null, student inbox=0 unconfirmed items.`,
+    );
+
+    // Operator-controlled transition 2: activate synthetic closure worker with 4000ms poll delay
+    const activateWorkerOutput = await fixtureControl(
+      "activate-closure-worker",
+      "4000",
+    );
+    expect(activateWorkerOutput).toContain("PASS operator activation");
+    evidence(
+      info,
+      "H1 verified: Operator-controlled staged transition successfully activated assessment closure worker with 4000ms poll delay after verified pre-worker state.",
+    );
+
+    // 12. Target 4 / M1: Capture authoritative PREPARING notice with null confirmation and cutoff
+    let preparingNotice: Notification | null = null;
+    await expect
+      .poll(
+        async () => {
+          const res = await student.fetch<{ items: Notification[] }>(
+            "/api/assessments/notifications",
+          );
+          if (res.status !== 200 || !res.body.items) return null;
+          const found = res.body.items.find(
+            (item) => item.attemptId === startedAttempt.attemptId,
+          );
+          if (found && found.noticeStatus === "PREPARING") {
+            preparingNotice = found;
+            return "PREPARING";
+          }
+          return found?.noticeStatus ?? null;
+        },
+        { timeout: 3500, intervals: [100, 200, 400] },
+      )
+      .toBe("PREPARING");
+
+    expect(preparingNotice).not.toBeNull();
+    expect(preparingNotice!.noticeStatus).toBe("PREPARING");
+    expect(preparingNotice!.confirmedNoticeAt).toBeNull();
+    expect(preparingNotice!.closureCutoffAt).toBeNull();
+    expect(preparingNotice!.publicationId).toBe(publicationId);
+    expect(preparingNotice!.closureRequestId).toBe(closureRequestId);
+
+    // Assert student UI displays "Your notice is being prepared" and "Notice preparing" badge
+    await studentPage.bringToFront();
+    await studentPage.goto(
+      `/app/notifications/${preparingNotice!.notificationId}`,
+    );
+    await expect(
+      studentPage.getByText("Notice preparing", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      studentPage.getByText("Your notice is being prepared", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      studentPage.getByText(
+        "48-hour period starts only when the server confirms",
+      ),
+    ).toBeVisible();
+    evidence(
+      info,
+      `M1 verified: Authoritative PREPARING notice captured before worker confirmation: id=${preparingNotice!.notificationId}, confirmedNoticeAt=null, closureCutoffAt=null, UI alert 'Your notice is being prepared'.`,
+    );
+
+    // 13. Poll Student inbox until background worker confirms notice
     let studentNotice: Notification | null = null;
     await expect
       .poll(
@@ -885,7 +1060,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
             found.closureCutoffAt !== null
           );
         },
-        { timeout: 30_000, intervals: [500, 1000] },
+        { timeout: 25_000, intervals: [500, 1000] },
       )
       .toBe(true);
 
@@ -1075,7 +1250,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         "Early COMPLETE blocked with 409 CLOSURE_NOT_READY; request identity preserved, Publication remains OPEN, genuine 48-hour cutoff honored without manipulation.",
       );
 
-      // COMPLETE authorization fence: Student and foreign teacher denied
+      // COMPLETE authorization fence: Student denied COMPLETE
       const studentComplete = await student.fetch(
         `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/complete`,
         "POST",
@@ -1083,6 +1258,75 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         randomBytes(16).toString("hex"),
       );
       assertStatus(studentComplete.status, 403, "Student denied COMPLETE");
+
+      // M2: Foreign-Teacher authorization fence: unrelated Teacher denied GET, REQUEST, CANCEL, COMPLETE (404)
+      const foreignTeacherContext = await browser.newContext();
+      try {
+        const foreignTeacherPage = await foreignTeacherContext.newPage();
+        const foreignTeacher = await registerTeacher(
+          foreignTeacherPage,
+          request,
+          info,
+          true,
+        );
+
+        // GET publication -> 404
+        const foreignGet = await foreignTeacher.fetch(
+          `/api/assessments/publications/${publicationId}`,
+        );
+        assertStatus(
+          foreignGet.status,
+          404,
+          "Foreign Teacher denied GET publication",
+        );
+
+        // REQUEST closure -> 404
+        const foreignReq = await foreignTeacher.fetch(
+          `/api/assessments/publications/${publicationId}/closure-requests`,
+          "POST",
+          { expectedRevision: 1 },
+          randomBytes(16).toString("hex"),
+        );
+        assertStatus(
+          foreignReq.status,
+          404,
+          "Foreign Teacher denied REQUEST closure",
+        );
+
+        // CANCEL closure -> 404
+        const foreignCancel = await foreignTeacher.fetch(
+          `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/cancel`,
+          "POST",
+          { expectedRevision: 1 },
+          randomBytes(16).toString("hex"),
+        );
+        assertStatus(
+          foreignCancel.status,
+          404,
+          "Foreign Teacher denied CANCEL closure",
+        );
+
+        // COMPLETE closure -> 404
+        const foreignComplete = await foreignTeacher.fetch(
+          `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/complete`,
+          "POST",
+          { expectedRevision: 1 },
+          randomBytes(16).toString("hex"),
+        );
+        assertStatus(
+          foreignComplete.status,
+          404,
+          "Foreign Teacher denied COMPLETE closure",
+        );
+
+        await foreignTeacher.assertConfidentiality();
+      } finally {
+        await foreignTeacherContext.close();
+      }
+      evidence(
+        info,
+        "M2 verified: Foreign-Teacher authorization fence: unrelated Teacher receives 404 PUBLICATION_NOT_FOUND on GET, REQUEST, CANCEL, COMPLETE.",
+      );
 
       // 16. Target 5: Real Teacher CANCEL pre-finalization
       await page.bringToFront();
@@ -1111,6 +1355,10 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         .click();
       const cancelHttp = await cancelRes;
       assertStatus(cancelHttp.status(), 200, "Teacher CANCEL closure request");
+      const cancelKey = cancelHttp.request().headers()["idempotency-key"];
+      const originalCancelBody = cancelHttp.request().postDataJSON() as {
+        expectedRevision: number;
+      };
       const cancelView = (await cancelHttp.json()) as ClosureView;
       expect(cancelView.state).toBe("CANCELLED");
 
@@ -1145,20 +1393,51 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         "Cancelled notice persists durably in database with noticeStatus CANCELLED (no deletion).",
       );
 
-      // CANCEL replay / conflict probes
-      const cancelReplay = await teacher.fetch(
+      // M2: CANCEL replay / conflict probes
+      // (a) Exact same key and payload replay -> 200 identical response
+      const cancelSameKey = await teacher.fetch<ClosureView>(
+        `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/cancel`,
+        "POST",
+        originalCancelBody,
+        cancelKey,
+      );
+      assertStatus(
+        cancelSameKey.status,
+        200,
+        "Exact same-key CANCEL replay returns 200",
+      );
+      expect(cancelSameKey.body.closureRequestId).toBe(closureRequestId);
+      expect(cancelSameKey.body.state).toBe("CANCELLED");
+
+      // (b) Same key with altered payload -> 409 IDEMPOTENCY_CONFLICT
+      const cancelIdempConflict = await teacher.fetch<{ code: string }>(
+        `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/cancel`,
+        "POST",
+        { expectedRevision: 999 },
+        cancelKey,
+      );
+      assertStatus(
+        cancelIdempConflict.status,
+        409,
+        "Same key with altered revision returns 409 IDEMPOTENCY_CONFLICT",
+      );
+      expect(cancelIdempConflict.body.code).toBe("IDEMPOTENCY_CONFLICT");
+
+      // (c) New random key on resolved request -> 409 CLOSURE_RESOLVED
+      const cancelTerminalConflict = await teacher.fetch<{ code: string }>(
         `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/cancel`,
         "POST",
         { expectedRevision: cancelView.publicationRevision },
         randomBytes(16).toString("hex"),
       );
       assertStatus(
-        cancelReplay.status,
+        cancelTerminalConflict.status,
         409,
-        "Cancel on resolved request returns 409",
+        "New key on resolved request returns 409 CLOSURE_RESOLVED",
       );
+      expect(cancelTerminalConflict.body.code).toBe("CLOSURE_RESOLVED");
 
-      const completeOnCancelled = await teacher.fetch(
+      const completeOnCancelled = await teacher.fetch<{ code: string }>(
         `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/complete`,
         "POST",
         { expectedRevision: cancelView.publicationRevision },
@@ -1169,6 +1448,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         409,
         "Complete on cancelled request returns 409",
       );
+      expect(completeOnCancelled.body.code).toBe("CLOSURE_RESOLVED");
 
       const studentCancel = await student.fetch(
         `/api/assessments/publications/${publicationId}/closure-requests/${closureRequestId}/cancel`,
@@ -1177,6 +1457,10 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         randomBytes(16).toString("hex"),
       );
       assertStatus(studentCancel.status, 403, "Student denied CANCEL");
+      evidence(
+        info,
+        "M2 verified: CANCEL exact same-key replay returned 200 identical response; altered payload returned 409 IDEMPOTENCY_CONFLICT; new key on resolved request returned 409 CLOSURE_RESOLVED; student denied 403.",
+      );
 
       await studentB.assertConfidentiality();
     } finally {
