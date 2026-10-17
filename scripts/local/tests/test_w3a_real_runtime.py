@@ -38,7 +38,7 @@ class CleanupTests(unittest.TestCase):
         self.addCleanup(waiter.stop)
 
     def test_exited_paused_process_does_not_skip_remaining_cleanup(self):
-        with patch.object(runtime, "process_owned", side_effect=[FileNotFoundError(), 82]), \
+        with patch.object(runtime, "process_owned", side_effect=[ProcessLookupError(), 82]), \
                 patch.object(runtime.os, "kill") as kill, \
                 patch.object(runtime.subprocess, "run", return_value=self.owned_inspection), \
                 patch.object(runtime.owned, "run") as remove:
@@ -71,7 +71,7 @@ class CleanupTests(unittest.TestCase):
 
     def test_foreign_container_is_never_removed(self):
         foreign = subprocess.CompletedProcess([], 0, "another-owner\n", "")
-        with patch.object(runtime, "process_owned", side_effect=FileNotFoundError()), \
+        with patch.object(runtime, "process_owned", side_effect=ProcessLookupError()), \
                 patch.object(runtime.os, "kill") as kill, \
                 patch.object(runtime.subprocess, "run", side_effect=[foreign, self.owned_inspection]), \
                 patch.object(runtime.owned, "run") as remove:
@@ -83,7 +83,7 @@ class CleanupTests(unittest.TestCase):
 
     def test_docker_inspect_failure_never_claims_verified_cleanup(self):
         unavailable = subprocess.CompletedProcess([], 1, "", "Docker unavailable")
-        with patch.object(runtime, "process_owned", side_effect=FileNotFoundError()), \
+        with patch.object(runtime, "process_owned", side_effect=ProcessLookupError()), \
                 patch.object(runtime.subprocess, "run", return_value=unavailable), \
                 patch.object(runtime.owned, "run") as remove:
             runtime.down(self.directory)
@@ -105,6 +105,13 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(recorded["cleanup_unverified"], ["quiz", "gateway"])
         self.assertNotIn("stopped_at", recorded)
 
+    def test_missing_runtime_state_during_down_cannot_claim_cleanup(self):
+        (self.directory / "state.json").unlink()
+        with patch("sys.stdout", new_callable=io.StringIO) as output:
+            runtime.down(self.directory)
+        self.assertIn("Unverified resources left untouched: runtime state missing or invalid", output.getvalue())
+        self.assertFalse((self.directory / "state.json").exists())
+
 
 class ExitWaitTests(unittest.TestCase):
     def test_non_exiting_process_wait_has_a_bounded_deadline(self):
@@ -113,6 +120,14 @@ class ExitWaitTests(unittest.TestCase):
                 patch.object(runtime.time, "sleep") as sleep:
             self.assertFalse(runtime.wait_for_exit(Path("/private/fixture"), "quiz", timeout=5))
         sleep.assert_called_once_with(0.05)
+
+    def test_genuine_process_absence_is_handled_with_process_lookup_error(self):
+        with patch.object(runtime, "process_owned", side_effect=ProcessLookupError()):
+            self.assertTrue(runtime.wait_for_exit(Path("/private/fixture"), "quiz", timeout=5))
+
+    def test_missing_runtime_state_during_wait_for_exit_fails_closed(self):
+        with patch.object(runtime, "process_owned", side_effect=RuntimeError("Runtime state is missing or unreadable")):
+            self.assertFalse(runtime.wait_for_exit(Path("/private/fixture"), "quiz", timeout=5))
 
 
 class QueueWitnessTests(unittest.TestCase):
@@ -370,6 +385,41 @@ class RestartAssessmentOwnershipTests(unittest.TestCase):
                 kill.assert_called_once_with(101, signal.SIGTERM)
                 popen.assert_not_called()
 
+    def test_missing_runtime_state_during_restart_fails_closed(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            # no state.json
+            with patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.subprocess, "Popen") as popen:
+                with self.assertRaises(RuntimeError) as cm:
+                    runtime._restart_assessment(directory, {}, {}, "test")
+                self.assertIn("Runtime state is missing or unreadable", str(cm.exception))
+                kill.assert_not_called()
+                popen.assert_not_called()
+
+    def test_missing_state_during_wait_for_exit_prevents_replacement_process(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            jar_path = "/private/assessment.jar"
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "service_jars": {"assessment": jar_path},
+                "processes": [{"pid": 101, "jar": jar_path}],
+                "test_only_flags": {},
+                "endpoints": {"assessment": "http://127.0.0.1:45678"},
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+            (directory / "assessment.env").write_text("SERVER_PORT=45678\n")
+
+            with patch.object(runtime, "process_owned", side_effect=[101, RuntimeError("Runtime state is missing or unreadable"), RuntimeError("Runtime state is missing or unreadable")]), \
+                    patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.subprocess, "Popen") as popen:
+                with self.assertRaises(RuntimeError) as cm:
+                    runtime._restart_assessment(directory, {}, {}, "test")
+                self.assertIn("ownership mismatch before SIGKILL", str(cm.exception))
+                kill.assert_called_once_with(101, signal.SIGTERM)
+                popen.assert_not_called()
+
 
 class RecipientEligibilityTests(unittest.TestCase):
     def test_probe_recipient_eligibility_rejects_non_canonical_uuid(self):
@@ -378,6 +428,139 @@ class RecipientEligibilityTests(unittest.TestCase):
             (directory / "state.json").write_text(json.dumps({"fixture": "w3a-real-browser-v1"}))
             with self.assertRaises(ValueError):
                 runtime.probe_recipient_eligibility(directory, "not-a-uuid")
+
+
+class ProcessOwnedTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.jar_path = "/private/assessment.jar"
+        self.state = {
+            "fixture": "w3a-real-browser-v1",
+            "service_jars": {"assessment": self.jar_path},
+            "processes": [{"pid": 1234, "jar": self.jar_path}],
+        }
+        (self.directory / "state.json").write_text(json.dumps(self.state))
+
+    def test_missing_state_raises_runtime_error(self):
+        (self.directory / "state.json").unlink()
+        with self.assertRaises(RuntimeError) as cm:
+            runtime.process_owned(self.directory, "assessment")
+        self.assertIn("Runtime state is missing or unreadable", str(cm.exception))
+
+    def test_corrupt_state_raises_runtime_error(self):
+        (self.directory / "state.json").write_text("invalid json")
+        with self.assertRaises(RuntimeError) as cm:
+            runtime.process_owned(self.directory, "assessment")
+        self.assertIn("Runtime state is missing or unreadable", str(cm.exception))
+
+    def test_missing_proc_raises_process_lookup_error(self):
+        mock_status = MagicMock()
+        mock_status.read_text.side_effect = FileNotFoundError()
+        mock_proc_pid = MagicMock()
+        mock_proc_pid.__truediv__.return_value = mock_status
+
+        mock_proc = MagicMock()
+        mock_proc.__truediv__.return_value = mock_proc_pid
+
+        with patch.object(runtime, "Path", side_effect=lambda *a: mock_proc if a == ("/proc",) else Path(*a)):
+            with self.assertRaises(ProcessLookupError) as cm:
+                runtime.process_owned(self.directory, "assessment")
+            self.assertIn("Runtime process is not running", str(cm.exception))
+
+    def test_zombie_state_raises_process_lookup_error(self):
+        mock_status = MagicMock()
+        mock_status.read_text.return_value = "Name:\tjava\nState:\tZ (zombie)\nTgid:\t1234\n"
+        mock_proc_pid = MagicMock()
+        mock_proc_pid.__truediv__.return_value = mock_status
+
+        mock_proc = MagicMock()
+        mock_proc.__truediv__.return_value = mock_proc_pid
+
+        with patch.object(runtime, "Path", side_effect=lambda *a: mock_proc if a == ("/proc",) else Path(*a)):
+            with self.assertRaises(ProcessLookupError) as cm:
+                runtime.process_owned(self.directory, "assessment")
+            self.assertIn("Runtime process is not running", str(cm.exception))
+
+    def test_empty_cmdline_raises_process_lookup_error(self):
+        mock_status = MagicMock()
+        mock_status.read_text.return_value = "Name:\tjava\nState:\tS (sleeping)\n"
+        mock_cmdline = MagicMock()
+        mock_cmdline.read_bytes.return_value = b""
+
+        def sub_path(name):
+            if name == "status":
+                return mock_status
+            if name == "cmdline":
+                return mock_cmdline
+            return MagicMock()
+
+        mock_proc_pid = MagicMock()
+        mock_proc_pid.__truediv__.side_effect = sub_path
+
+        mock_proc = MagicMock()
+        mock_proc.__truediv__.return_value = mock_proc_pid
+
+        with patch.object(runtime, "Path", side_effect=lambda *a: mock_proc if a == ("/proc",) else Path(*a)):
+            with self.assertRaises(ProcessLookupError) as cm:
+                runtime.process_owned(self.directory, "assessment")
+            self.assertIn("Runtime process is not running", str(cm.exception))
+
+    def test_ownership_mismatch_raises_runtime_error(self):
+        mock_status = MagicMock()
+        mock_status.read_text.return_value = "Name:\tjava\nState:\tS (sleeping)\n"
+        mock_cmdline = MagicMock()
+        mock_cmdline.read_bytes.return_value = b"java\0-jar\0/other/service.jar\0"
+        mock_cwd = MagicMock()
+        mock_cwd.resolve.return_value = self.directory
+
+        def sub_path(name):
+            if name == "status":
+                return mock_status
+            if name == "cmdline":
+                return mock_cmdline
+            if name == "cwd":
+                return mock_cwd
+            return MagicMock()
+
+        mock_proc_pid = MagicMock()
+        mock_proc_pid.__truediv__.side_effect = sub_path
+
+        mock_proc = MagicMock()
+        mock_proc.__truediv__.return_value = mock_proc_pid
+
+        with patch.object(runtime, "Path", side_effect=lambda *a: mock_proc if a == ("/proc",) else Path(*a)):
+            with self.assertRaises(RuntimeError) as cm:
+                runtime.process_owned(self.directory, "assessment")
+            self.assertIn("Runtime process ownership does not match", str(cm.exception))
+
+    def test_matching_process_returns_pid(self):
+        mock_status = MagicMock()
+        mock_status.read_text.return_value = "Name:\tjava\nState:\tS (sleeping)\n"
+        mock_cmdline = MagicMock()
+        mock_cmdline.read_bytes.return_value = b"java\0-jar\0" + self.jar_path.encode() + b"\0"
+        mock_cwd = MagicMock()
+        mock_cwd.resolve.return_value = self.directory
+
+        def sub_path(name):
+            if name == "status":
+                return mock_status
+            if name == "cmdline":
+                return mock_cmdline
+            if name == "cwd":
+                return mock_cwd
+            return MagicMock()
+
+        mock_proc_pid = MagicMock()
+        mock_proc_pid.__truediv__.side_effect = sub_path
+
+        mock_proc = MagicMock()
+        mock_proc.__truediv__.return_value = mock_proc_pid
+
+        with patch.object(runtime, "Path", side_effect=lambda *a: mock_proc if a == ("/proc",) else Path(*a)):
+            pid = runtime.process_owned(self.directory, "assessment")
+            self.assertEqual(pid, 1234)
 
 
 if __name__ == "__main__":

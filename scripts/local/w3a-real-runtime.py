@@ -30,7 +30,10 @@ spec.loader.exec_module(owned)
 
 
 def process_owned(directory, name):
-    state = json.loads((directory / "state.json").read_text())
+    try:
+        state = json.loads((directory / "state.json").read_text())
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as err:
+        raise RuntimeError("Runtime state is missing or unreadable") from err
     if state.get("fixture") != "w3a-real-browser-v1":
         raise RuntimeError("Not an owned W3-A runtime")
     jar = state["service_jars"][name]
@@ -45,8 +48,10 @@ def process_owned(directory, name):
                 state_code = line.split(":", 1)[1].strip()
                 if state_code.startswith(("Z", "X")):
                     raise ProcessLookupError("Runtime process is not running")
-                break
-        cmdline = (path / "cmdline").read_bytes().split(b"\0")
+        raw_cmdline = (path / "cmdline").read_bytes()
+        if not raw_cmdline:
+            raise ProcessLookupError("Runtime process is not running")
+        cmdline = raw_cmdline.split(b"\0")
         cwd = (path / "cwd").resolve()
     except (FileNotFoundError, ProcessLookupError):
         raise ProcessLookupError("Runtime process is not running")
@@ -77,10 +82,10 @@ def wait_for_exit(directory, service, timeout=5):
     while True:
         try:
             process_owned(directory, service)
-        except (FileNotFoundError, ProcessLookupError):
+        except ProcessLookupError:
             return True
-        except RuntimeError:
-            # Changed ownership is left untouched and cannot prove clean exit.
+        except (RuntimeError, OSError):
+            # Missing runtime state or changed ownership cannot prove clean exit.
             return False
         if time.monotonic() >= deadline:
             return False
@@ -89,7 +94,13 @@ def wait_for_exit(directory, service, timeout=5):
 
 def down(directory):
     directory = directory.resolve()
-    state = json.loads((directory / "state.json").read_text())
+    try:
+        state = json.loads((directory / "state.json").read_text())
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        print("Owned runtime cleanup attempted; private evidence retained at", directory)
+        print("Unverified resources left untouched: runtime state missing or invalid")
+        return
+
     if state.get("fixture") != "w3a-real-browser-v1":
         raise RuntimeError("Not an owned W3-A runtime")
     unverified = []
@@ -101,7 +112,7 @@ def down(directory):
             os.kill(pid, signal.SIGTERM)
             if not wait_for_exit(directory, service):
                 unverified.append(service)
-        except (FileNotFoundError, ProcessLookupError):
+        except ProcessLookupError:
             # An already exited process needs no signal and must not prevent
             # cleanup of the remaining independently verified owned resources.
             pass
@@ -317,14 +328,20 @@ def quiz_pending_request(directory):
 
 def _restart_assessment(directory, env_updates, state_updates, message):
     directory = directory.resolve()
-    state = json.loads((directory / "state.json").read_text())
+    try:
+        state = json.loads((directory / "state.json").read_text())
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as err:
+        raise RuntimeError("Runtime state is missing or unreadable") from err
     if state.get("fixture") != "w3a-real-browser-v1":
         raise RuntimeError("Not an owned W3-A runtime")
     jar = state["service_jars"]["assessment"]
 
     # 1. Initial process ownership verification.
     # MUST FAIL CLOSED on ownership mismatch or incomplete process record.
-    pid = process_owned(directory, "assessment")
+    try:
+        pid = process_owned(directory, "assessment")
+    except Exception as err:
+        raise RuntimeError(f"Cannot restart assessment JVM: initial ownership check failed ({err})") from err
 
     # 2. Stop the existing verified process.
     if state.get("assessment_paused"):

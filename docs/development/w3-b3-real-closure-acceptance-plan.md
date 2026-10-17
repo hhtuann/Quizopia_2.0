@@ -1,6 +1,6 @@
 # W3-B3 real closure + notice acceptance — next workstream
 
-**Status: PLANNED / NOT VERIFIED.** This is an independent follow-up to merged real Assessment smoke harness PR #99; parent issue [#97](https://github.com/hhtuann/Quizopia_2.0/issues/97).
+**Status: VERIFIED IN SYNTHETIC ACCEPTANCE (Targets 1–5 & 7); Target 6 Genuine ≥48h Soak & Post-Cutoff Completion Gated as BLOCKED.** This is an independent follow-up to merged real Assessment smoke harness PR #99; parent issue [#97](https://github.com/hhtuann/Quizopia_2.0/issues/97).
 
 Baseline `develop`: `e8bd838092b82a0de1ed652b1fce59ef019f2b32`.
 
@@ -18,15 +18,44 @@ Expand the **owned isolated synthetic** five-JVM real Gateway/Chromium acceptanc
 - `docs/development/w3-real-acceptance-runtime-evidence.md`
 - Assessment `publications.openapi.yaml`, implemented controller/worker/inbox/recipient authority and previous acceptance harness source/tests.
 
-## Acceptance targets (only after genuine staged readiness is verified)
+## Staged execution sequence and acceptance targets
 
-1. Real synthetic Teacher and Student with eligible ACTIVE CLASS Attempt, authoritative recipient state and distinct owned resources.
-2. **Before** enabling any closure worker/notice recipient dependency, establish fresh authenticated Student inbox list/detail 200 and masked cross-recipient 404, Gateway route/readiness, matching Identity eligible recipient contract and exact least-privilege SERVICE scope. Do not assert `ASSESSMENT_EDGE_INBOX_VERIFIED=true` without such evidence.
-3. Real Teacher **REQUEST** under explicit user action: recorded durable request identity, `PREPARING` notice without confirmation or cutoff; no fabricated CLOSED.
-4. Where safely authorized and real prerequisites verified, enable only the **owned synthetic** bounded worker/recipient controls; prove durable PUBLISHED recipient-owned notice and fresh eligibility, actual `confirmedNoticeAt` and immutable `closureCutoffAt = confirmedNoticeAt + 48 hours`, plus owner inbox/detail and former-CLASS-member read. Capture evidence of real server-issued timestamps, not a browser clock.
-5. Real Teacher **CANCEL** pre-finalization and resulting durable non-actionable notice (no deletion). Probe replay/idempotency and conflicts, account/session fencing, foreign recipient/teacher denial, 503/recovery with exact key/payload retention.
-6. **COMPLETE** before the real cutoff must stay blocked with `CLOSURE_NOT_READY`; preserve request identity. Never backdate timestamps, fast-forward DB clocks, alter real cutoff, or claim the ≥48h soak PASS. Actual post-cutoff completion belongs to a separately approved long-running staging soak unless a genuinely eligible elapsed interval is observed.
-7. Preserve the existing real W3-A/W3-B/C 5/5 journeys, no Playwright Gateway interception and deterministic resource teardown; add targeted unit tests and sanitized receipts.
+1. **Target 1 — Actor and attempt readiness**: Real synthetic Teacher and Student with eligible ACTIVE CLASS Attempt (`durationMinutes: 0`, no deadline), authoritative recipient state and distinct owned resources.
+2. **Target 2 — Pre-activation prerequisite verification**:
+   - Identity recipient capability is enabled at runtime boot (`W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED=true`), while Assessment edge attestation (`ASSESSMENT_EDGE_INBOX_VERIFIED`), recipient eligibility (`ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED`), and closure worker (`ASSESSMENT_CLOSURE_WORKER_ENABLED`) default to `false`.
+   - Before enabling Assessment edge attestation, recipient eligibility, or worker activation, verify:
+     - Actual Gateway route & readiness (`/actuator/health/assessment-inbox` returns HTTP 200 `UP`).
+     - Fresh Student inbox returns HTTP 200 `[]`.
+     - Non-existent notice ID returns HTTP 404 (random-UUID unknown-ID probe).
+     - Identity recipient contract returns eligible with least-privilege SERVICE token scope (`identity.notice-recipient.read`).
+     - Unauthenticated recipient request denied with HTTP 401.
+     - Gateway/USER scope recipient request denied (least-privilege enforcement).
+   - Verify Teacher delayed-closure REQUEST returns expected HTTP 503 `DEPENDENCY_UNAVAILABLE` while Assessment edge/worker prerequisites remain disabled.
+3. **Target 3 — Phase 1 edge activation, Teacher REQUEST, and pre-worker state**:
+   - Operator-controlled staged transition activates Assessment edge inbox attestation and recipient eligibility (`ASSESSMENT_EDGE_INBOX_VERIFIED=true`, `ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=true`) while the synthetic closure worker remains OFF (`ASSESSMENT_CLOSURE_WORKER_ENABLED=false`).
+   - Teacher delayed-closure REQUEST under explicit user action: recorded durable request identity (`PENDING`), Publication remains OPEN.
+   - Observe authoritative pre-worker state with worker OFF: `attempt.closureCutoffAt=null`, student inbox contains 0 unconfirmed items.
+   - Capture actual UI REQUEST payload and idempotency key: exact same-key replay returns identical HTTP 201 with full response-body equality; altered payload with same key returns HTTP 409 `IDEMPOTENCY_CONFLICT`; new key while pending returns HTTP 409 `CLOSURE_PENDING`.
+4. **Target 4 — Phase 2 worker activation, PREPARING notice, 48h cutoff, former-member read, and post-activation cross-recipient masking**:
+   - Operator-controlled staged transition activates the assessment closure worker (`ASSESSMENT_CLOSURE_WORKER_ENABLED=true`, poll delay 4000ms).
+   - Observe authoritative server-issued `PREPARING` notice before worker confirmation (`confirmedNoticeAt=null`, `closureCutoffAt=null`, UI alert 'Your notice is being prepared' and badge 'Notice preparing').
+   - Worker confirms recipient notice with server-issued timestamps: actual `confirmedNoticeAt` and immutable `closureCutoffAt = confirmedNoticeAt + 48 hours` (+172,800,000ms).
+   - Student navigates browser UI to notice detail showing authoritative 48-hour cutoff.
+   - Former CLASS member read verified: upon removal of classroom membership, entry to assessment is rejected (404), while recipient notice inbox and detail remain accessible (HTTP 200).
+   - **Post-activation cross-recipient authorization masking**: explicitly distinguished from pre-activation unknown-ID 404; Student B accesses Student A's confirmed notice ID and receives HTTP 404 `NOTICE_NOT_FOUND` with empty inbox.
+5. **Target 5 — Teacher CANCEL, foreign-Teacher fencing, and exact replay**:
+   - Foreign-Teacher authorization fence: unrelated Teacher receives HTTP 404 `PUBLICATION_NOT_FOUND` on GET, REQUEST, CANCEL, and COMPLETE.
+   - Teacher confirms CANCEL in UI: backend returns HTTP 200, state transitions to `CANCELLED`, UI shows request resolved.
+   - Cancelled notice persists durably in database with `noticeStatus = CANCELLED` (no deletion).
+   - Capture actual UI CANCEL payload and idempotency key: exact same-key replay returns identical HTTP 200 with full response-body equality; altered payload with same key returns HTTP 409 `IDEMPOTENCY_CONFLICT`; new key on resolved request returns HTTP 409 `CLOSURE_RESOLVED`; student denied CANCEL (HTTP 403).
+6. **Target 6 — Early COMPLETE denial & genuine cutoff protection**:
+   - COMPLETE before real cutoff stays blocked with HTTP 409 `CLOSURE_NOT_READY`; request identity and `PENDING` state preserved. Never backdate timestamps, fast-forward DB clocks, alter real cutoff, or claim the ≥48h soak PASS.
+   - Genuine ≥48-hour soak and post-cutoff completion remain explicitly gated as **BLOCKED / NOT VERIFIED** for a dedicated long-running staging soak.
+   - Outage recovery: safely feasible single-node dependency outage (SIGSTOP/resume) verified; multi-node failover and W3-M LiveKit proctoring remain separate gates.
+7. **Target 7 — Regressions, fail-closed runtime controls, and cleanup**:
+   - Preserve existing real W3-A/W3-B/C 5/5 journeys, zero Playwright Gateway interception.
+   - Process-exit detection distinguishes verified process exit (`ProcessLookupError`) from missing runtime state (`RuntimeError`). Missing state or ownership uncertainty fails closed without signaling foreign PIDs or claiming verified cleanup.
+   - Deterministic resource teardown verified with zero unverified resources.
 
 ## Boundaries
 
