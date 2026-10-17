@@ -34,6 +34,25 @@ describe("W3A Real Frontend Configuration", () => {
     expect(config.reuseExistingServer).toBe(false);
   });
 
+  it("resolves gatewayURL from W3A_REAL_STATE_DIRECTORY state.json if W3A_REAL_GATEWAY_URL not set", () => {
+    const fs = require("node:fs");
+    const os = require("node:os");
+    const path = require("node:path");
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "w3a-config-test-"));
+    try {
+      fs.writeFileSync(
+        path.join(tempDir, "state.json"),
+        JSON.stringify({ endpoints: { gateway: "http://127.0.0.1:54321" } }),
+      );
+      const config = resolveW3aRealFrontendEnvironment({
+        W3A_REAL_STATE_DIRECTORY: tempDir,
+      });
+      expect(config.gatewayURL).toBe("http://localhost:54321");
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("supports 127.0.0.1 loopback binding", () => {
     const config = resolveW3aRealFrontendEnvironment({
       W3A_REAL_FRONTEND_URL: "http://127.0.0.1:4000",

@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { join } from "node:path";
 
 export interface W3aRealFrontendEnvironment {
   readonly host: string;
@@ -19,7 +21,26 @@ export function resolveW3aRealFrontendEnvironment(
   env: Record<string, string | undefined> = process.env,
 ): W3aRealFrontendEnvironment {
   const rawFrontendUrl = env.W3A_REAL_FRONTEND_URL ?? "http://localhost:3000";
-  const rawGatewayUrl = env.W3A_REAL_GATEWAY_URL ?? "http://localhost:8080";
+  let rawGatewayUrl = env.W3A_REAL_GATEWAY_URL;
+  if (!rawGatewayUrl && env.W3A_REAL_STATE_DIRECTORY) {
+    try {
+      const raw = readFileSync(
+        join(env.W3A_REAL_STATE_DIRECTORY, "state.json"),
+        "utf8",
+      );
+      const parsed = JSON.parse(raw);
+      if (parsed?.endpoints?.gateway) {
+        const u = new URL(parsed.endpoints.gateway);
+        if (u.hostname === "127.0.0.1") {
+          u.hostname = "localhost";
+        }
+        rawGatewayUrl = u.origin;
+      }
+    } catch {
+      // fallback to default below
+    }
+  }
+  rawGatewayUrl = rawGatewayUrl ?? "http://localhost:8080";
 
   let parsed: URL;
   try {
