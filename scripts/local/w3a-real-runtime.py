@@ -39,10 +39,19 @@ def process_owned(directory, name):
         raise RuntimeError("Runtime process record is incomplete")
     path = Path("/proc") / str(process["pid"])
     try:
+        status_text = (path / "status").read_text()
+        for line in status_text.splitlines():
+            if line.startswith("State:"):
+                state_code = line.split(":", 1)[1].strip()
+                if state_code.startswith(("Z", "X")):
+                    raise ProcessLookupError("Runtime process is not running")
+                break
         cmdline = (path / "cmdline").read_bytes().split(b"\0")
         cwd = (path / "cwd").resolve()
-    except (FileNotFoundError, ProcessLookupError, PermissionError):
-        raise RuntimeError("Runtime process is not running")
+    except (FileNotFoundError, ProcessLookupError):
+        raise ProcessLookupError("Runtime process is not running")
+    except PermissionError:
+        raise RuntimeError("Runtime process ownership does not match")
     if jar.encode() not in cmdline or cwd != directory:
         raise RuntimeError("Runtime process ownership does not match")
     return process["pid"]
@@ -313,21 +322,36 @@ def _restart_assessment(directory, env_updates, state_updates, message):
         raise RuntimeError("Not an owned W3-A runtime")
     jar = state["service_jars"]["assessment"]
 
-    try:
-        pid = process_owned(directory, "assessment")
-        if state.get("assessment_paused"):
-            os.kill(pid, signal.SIGCONT)
-        os.kill(pid, signal.SIGTERM)
-        if not wait_for_exit(directory, "assessment", timeout=10):
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
-            if not wait_for_exit(directory, "assessment", timeout=5):
-                raise RuntimeError("Assessment process failed to stop cleanly")
-    except (RuntimeError, OSError):
-        pass
+    # 1. Initial process ownership verification.
+    # MUST FAIL CLOSED on ownership mismatch or incomplete process record.
+    pid = process_owned(directory, "assessment")
 
+    # 2. Stop the existing verified process.
+    if state.get("assessment_paused"):
+        os.kill(pid, signal.SIGCONT)
+    os.kill(pid, signal.SIGTERM)
+
+    if not wait_for_exit(directory, "assessment", timeout=10):
+        # 3. Process did not exit within timeout.
+        # NEVER SIGKILL without revalidating process identity!
+        try:
+            current_pid = process_owned(directory, "assessment")
+        except ProcessLookupError:
+            # Process exited right around the deadline; no kill needed.
+            current_pid = None
+        except RuntimeError as err:
+            # Ownership mismatch or process identity replaced!
+            # MUST NOT SIGKILL and MUST NOT launch replacement!
+            raise RuntimeError("Assessment process ownership mismatch before SIGKILL") from err
+
+        if current_pid is not None:
+            if current_pid != pid:
+                raise RuntimeError("Assessment process PID changed unexpectedly before SIGKILL")
+            os.kill(pid, signal.SIGKILL)
+            if not wait_for_exit(directory, "assessment", timeout=5):
+                raise RuntimeError("Assessment process failed to stop cleanly after SIGKILL")
+
+    # 4. Process has exited cleanly. Update configuration and launch replacement.
     env_path = directory / "assessment.env"
     env_vars = dict(line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line)
     env_vars.update(env_updates)

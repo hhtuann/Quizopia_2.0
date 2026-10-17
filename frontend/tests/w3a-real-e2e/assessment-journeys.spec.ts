@@ -656,7 +656,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       .toBe(200);
     expect(emptyInboxRes.body.items).toEqual([]);
 
-    // (c) Fresh authenticated Student unknown notice 404
+    // (c) Fresh authenticated Student unknown notice 404 (non-existent notice ID probe)
     const unknownNoticeRes = await student.fetch(
       `/api/assessments/notifications/${randomUUID()}`,
     );
@@ -679,7 +679,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
     expect(recipientProbe.least_privilege_verified).toBe(true);
     evidence(
       info,
-      "Target 2 verified: Gateway /actuator/health/assessment-inbox UP, Student inbox 200/404 verified, and Identity recipient contract verified with least-privilege SERVICE token scope.",
+      "Target 2 verified: Gateway /actuator/health/assessment-inbox UP, Student inbox 200/404 unknown-ID verified, and Identity recipient contract verified with least-privilege SERVICE token scope.",
     );
 
     // 3. Seed Student A membership in Classroom
@@ -875,6 +875,9 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
     const requestHttp = await requestCommandRes;
     assertStatus(requestHttp.status(), 201, "Teacher REQUEST delayed closure");
     const requestKey = requestHttp.request().headers()["idempotency-key"];
+    const originalRequestBody = requestHttp.request().postDataJSON() as {
+      expectedRevision: number;
+    };
     const requestView = (await requestHttp.json()) as ClosureView;
     expect(requestView.state).toBe("PENDING");
     const closureRequestId = requestView.closureRequestId;
@@ -894,7 +897,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
     const requestReplayRes = await teacher.fetch<ClosureView>(
       `/api/assessments/publications/${publicationId}/closure-requests`,
       "POST",
-      { expectedRevision: ownerAfterActivation.revision },
+      originalRequestBody,
       requestKey,
     );
     assertStatus(
@@ -902,8 +905,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       201,
       "Exact same-key REQUEST replay returns 201",
     );
-    expect(requestReplayRes.body.closureRequestId).toBe(closureRequestId);
-    expect(requestReplayRes.body.state).toBe("PENDING");
+    expect(requestReplayRes.body).toEqual(requestView);
 
     // (b) Same key with altered payload -> 409 IDEMPOTENCY_CONFLICT
     const requestIdempConflictRes = await teacher.fetch<{ code: string }>(
@@ -1196,14 +1198,14 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         .toBe(200);
       expect(studentBInbox.body.items).toEqual([]);
 
-      // Student B cannot read Student A's notice (404)
+      // Student B cannot read Student A's notice (404 masks existence of another recipient's notice)
       const foreignNoticeRes = await studentB.fetch(
         `/api/assessments/notifications/${notice.notificationId}`,
       );
       assertStatus(foreignNoticeRes.status, 404, "Cross-recipient notice 404");
       evidence(
         info,
-        "Cross-recipient masking verified: Student B receives 404 on Student A's notice and has empty inbox.",
+        "Cross-recipient authorization masking verified: Student B receives 404 on Student A's confirmed notice and has empty inbox.",
       );
 
       // 15. Target 6: COMPLETE before cutoff blocked with 409 CLOSURE_NOT_READY
@@ -1406,8 +1408,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
         200,
         "Exact same-key CANCEL replay returns 200",
       );
-      expect(cancelSameKey.body.closureRequestId).toBe(closureRequestId);
-      expect(cancelSameKey.body.state).toBe("CANCELLED");
+      expect(cancelSameKey.body).toEqual(cancelView);
 
       // (b) Same key with altered payload -> 409 IDEMPOTENCY_CONFLICT
       const cancelIdempConflict = await teacher.fetch<{ code: string }>(

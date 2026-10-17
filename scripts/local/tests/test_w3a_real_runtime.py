@@ -313,6 +313,64 @@ class MembershipFixtureTests(unittest.TestCase):
             self.assertIn(sid, sql)
 
 
+class RestartAssessmentOwnershipTests(unittest.TestCase):
+    def test_initial_ownership_mismatch_fails_closed(self):
+        """Initial ownership mismatch must fail closed without signaling or launching a process."""
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            jar_path = "/private/assessment.jar"
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "service_jars": {"assessment": jar_path},
+                "processes": [{"pid": 101, "jar": jar_path}],
+                "test_only_flags": {},
+                "endpoints": {"assessment": "http://127.0.0.1:45678"},
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+            (directory / "assessment.env").write_text("SERVER_PORT=45678\n")
+
+            with patch.object(runtime, "process_owned", side_effect=RuntimeError("Runtime process ownership does not match")), \
+                    patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.subprocess, "Popen") as popen:
+                with self.assertRaises(RuntimeError) as cm:
+                    runtime._restart_assessment(directory, {}, {}, "test")
+                self.assertIn("ownership does not match", str(cm.exception))
+                kill.assert_not_called()
+                popen.assert_not_called()
+
+    def test_pid_replacement_between_term_and_kill_fails_closed(self):
+        """If process identity changes between SIGTERM and SIGKILL, must fail closed without SIGKILL or launch."""
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            jar_path = "/private/assessment.jar"
+            state = {
+                "fixture": "w3a-real-browser-v1",
+                "service_jars": {"assessment": jar_path},
+                "processes": [{"pid": 101, "jar": jar_path}],
+                "test_only_flags": {},
+                "endpoints": {"assessment": "http://127.0.0.1:45678"},
+            }
+            (directory / "state.json").write_text(json.dumps(state))
+            (directory / "assessment.env").write_text("SERVER_PORT=45678\n")
+
+            process_owned_calls = [101, RuntimeError("Runtime process ownership does not match")]
+            def mock_process_owned(d, name):
+                res = process_owned_calls.pop(0)
+                if isinstance(res, Exception):
+                    raise res
+                return res
+
+            with patch.object(runtime, "process_owned", side_effect=mock_process_owned), \
+                    patch.object(runtime, "wait_for_exit", return_value=False), \
+                    patch.object(runtime.os, "kill") as kill, \
+                    patch.object(runtime.subprocess, "Popen") as popen:
+                with self.assertRaises(RuntimeError) as cm:
+                    runtime._restart_assessment(directory, {}, {}, "test")
+                self.assertIn("ownership mismatch before SIGKILL", str(cm.exception))
+                kill.assert_called_once_with(101, signal.SIGTERM)
+                popen.assert_not_called()
+
+
 class RecipientEligibilityTests(unittest.TestCase):
     def test_probe_recipient_eligibility_rejects_non_canonical_uuid(self):
         with tempfile.TemporaryDirectory() as name:

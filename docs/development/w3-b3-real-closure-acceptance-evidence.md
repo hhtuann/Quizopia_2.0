@@ -4,7 +4,7 @@
 **Draft PR**: [#100](https://github.com/hhtuann/Quizopia_2.0/pull/100)  
 **Branch**: `test/w3-b3-real-closure-acceptance`  
 **Base Commit (`develop`)**: `e8bd838092b82a0de1ed652b1fce59ef019f2b32`  
-**Execution Timestamp**: 2026-10-17T12:42:06Z  
+**Execution Timestamp**: 2026-10-17T13:19:32Z  
 **Execution Status**: **REAL SYNTHETIC ACCEPTANCE VERIFIED (Targets 1–5 & 7; H1, M1, M2 Confirmed)** / **Target 6 Genuine ≥48h Soak & Post-Cutoff Completion Explicitly Gated as BLOCKED**
 
 ---
@@ -20,12 +20,12 @@ All tests ran in an isolated synthetic test topology with separate ephemeral por
 | Target | Description | Status | Verification & Evidence |
 | --- | --- | --- | --- |
 | **Target 1** | Real synthetic Teacher and Student with eligible ACTIVE CLASS Attempt (`durationMinutes: 0`), authoritative recipient state, and distinct owned resources. | **PASS** | Synthetic Teacher created Classroom and CLASS Assessment with `durationMinutes: 0` (unlimited, no deadline). Student enrolled via membership fixture, entered assessment, and established an `ACTIVE` attempt (`deadline_at: null`). |
-| **Target 2 (H1)** | Pre-worker prerequisite verification & H1 pre-worker readiness: Gateway health UP, Student inbox 200 (empty) / 404 unknown notice, Identity recipient contract with least-privilege SERVICE scope, and Teacher REQUEST denied with 503 `DEPENDENCY_UNAVAILABLE` before edge attestation and closure worker activation. | **PASS** | Gateway `/actuator/health/assessment-inbox` returned 200 `UP`. Fresh Student inbox returned 200 `[]` and random UUID returned 404. Service OAuth2 token probe verified `identity.notice-recipient.read` on `POST /internal/security/notice-recipients/{studentId}/eligibility` (eligible=true, unauthenticated=401, gateway scope denied). **H1 verified**: Teacher REQUEST denied with 503 `DEPENDENCY_UNAVAILABLE` when worker and edge attestation flags are `false`. Operator-controlled staged transition enabled edge attestation while synthetic worker remained OFF. |
-| **Target 3 (M1, M2)** | Real Teacher REQUEST under explicit user action: recorded durable request identity (`PENDING`), notice created without confirmation or cutoff, no false CLOSED, pre-worker null cutoff, and M2 request replay/conflict handling. | **PASS** | Teacher requested delayed closure via UI: recorded durable `closureRequestId` (`ca76dd77-ba28-4871-874e-fdf98776ebe9`), state `PENDING`, Publication remained `OPEN`. Prior to window expiry, early REQUEST was rejected with 409 `CLOSURE_NOT_READY`. **M2 verified**: exact same-key REQUEST replay returned HTTP 201 identical response; altered payload with same key returned HTTP 409 `IDEMPOTENCY_CONFLICT`; new key while pending returned HTTP 409 `CLOSURE_PENDING`. **M1 verified**: pre-worker state observed with worker OFF showing `attempt.closureCutoffAt=null` and student inbox 0 unconfirmed items. |
-| **Target 4 (H1, M1)** | Owned synthetic bounded worker controls: staged activation (H1), pre-worker authoritative `PREPARING` notice (M1), durable PUBLISHED recipient notice, fresh eligibility, actual `confirmedNoticeAt` and immutable `closureCutoffAt = confirmedNoticeAt + 48 hours` (+172,800,000ms), owner inbox/detail, former CLASS member read. | **PASS** | **H1 verified**: operator-controlled staged transition activated assessment closure worker with 4000ms poll delay after verified pre-worker state. **M1 verified**: server-issued authoritative `PREPARING` notice captured before worker confirmation (`id=15cde82b-6d7d-4e34-bfea-c88544772c50`, `confirmedNoticeAt=null`, `closureCutoffAt=null`, UI alert 'Your notice is being prepared' and badge 'Notice preparing'). Worker confirmed notice with server-issued timestamps: `confirmedNoticeAt = 2026-10-17T12:41:12.294886Z`, `closureCutoffAt = 2026-10-19T12:41:12.294886Z` (delta = exactly 172,800,000ms = 48.0000h). Student navigated browser to notice detail. After membership removal, student entry was blocked (404), while notice inbox and detail remained accessible (200 OK). |
-| **Target 5 (M2)** | Real Teacher CANCEL pre-finalization and durable non-actionable notice (no deletion). Replay/idempotency and conflicts (M2), foreign-Teacher fence (M2), account fencing, foreign denial. | **PASS** | **M2 verified**: foreign-Teacher authorization fence confirmed—unrelated Teacher receives HTTP 404 `PUBLICATION_NOT_FOUND` on GET, REQUEST, CANCEL, COMPLETE. Teacher confirmed CANCEL in UI: backend returned 200, state transitioned to `CANCELLED`, UI showed resolved. Cancelled notice persists in DB with `noticeStatus = CANCELLED` (no deletion). **M2 verified**: exact same-key CANCEL replay returned HTTP 200 identical response; altered payload returned HTTP 409 `IDEMPOTENCY_CONFLICT`; new key on resolved request returned HTTP 409 `CLOSURE_RESOLVED`; student denied CANCEL (403). |
+| **Target 2 (H1, M1)** | Pre-worker prerequisite verification & H1 pre-worker readiness: Gateway health UP, Student inbox 200 (empty) / 404 unknown notice ID, Identity recipient contract with least-privilege SERVICE scope, and Teacher REQUEST denied with 503 `DEPENDENCY_UNAVAILABLE` before edge attestation and closure worker activation. | **PASS** | Gateway `/actuator/health/assessment-inbox` returned 200 `UP`. Fresh Student inbox returned 200 `[]` and non-existent random UUID returned 404 (unknown-ID probe). Service OAuth2 token probe verified `identity.notice-recipient.read` on `POST /internal/security/notice-recipients/{studentId}/eligibility` (eligible=true, unauthenticated=401, gateway scope denied). **H1 verified**: Teacher REQUEST denied with 503 `DEPENDENCY_UNAVAILABLE` when worker and edge attestation flags are `false`. Operator-controlled staged transition enabled edge attestation while synthetic worker remained OFF. |
+| **Target 3 (M1, M2)** | Real Teacher REQUEST under explicit user action: recorded durable request identity (`PENDING`), notice created without confirmation or cutoff, no false CLOSED, pre-worker null cutoff, and M2 request replay/conflict handling with exact body capture. | **PASS** | Teacher requested delayed closure via UI: recorded durable `closureRequestId` (`50cbd9ff-9ecc-4a39-809d-07485fa5a8b9`), state `PENDING`, Publication remained `OPEN`. Prior to window expiry, early REQUEST was rejected with 409 `CLOSURE_NOT_READY`. **M2 verified**: captured original REQUEST payload from the actual UI command; exact same-key replay returned HTTP 201 with full response body equality (`expect(res.body).toEqual(requestView)`); altered payload with same key returned HTTP 409 `IDEMPOTENCY_CONFLICT`; new key while pending returned HTTP 409 `CLOSURE_PENDING`. **M1 verified**: pre-worker state observed with worker OFF showing `attempt.closureCutoffAt=null` and student inbox 0 unconfirmed items. |
+| **Target 4 (H1, M1)** | Owned synthetic bounded worker controls: staged activation (H1), pre-worker authoritative `PREPARING` notice (M1), durable PUBLISHED recipient notice, fresh eligibility, actual `confirmedNoticeAt` and immutable `closureCutoffAt = confirmedNoticeAt + 48 hours` (+172,800,000ms), owner inbox/detail, former CLASS member read, and post-activation cross-recipient authorization masking. | **PASS** | **H1 verified**: operator-controlled staged transition activated assessment closure worker with 4000ms poll delay after verified pre-worker state. **M1 verified**: server-issued authoritative `PREPARING` notice captured before worker confirmation (`id=52247fcb-b265-4a12-b227-6902e1d369e5`, `confirmedNoticeAt=null`, `closureCutoffAt=null`, UI alert 'Your notice is being prepared' and badge 'Notice preparing'). Worker confirmed notice with server-issued timestamps: `confirmedNoticeAt = 2026-10-17T13:18:36.917591Z`, `closureCutoffAt = 2026-10-19T13:18:36.917591Z` (delta = exactly 172,800,000ms = 48.0000h). Student navigated browser to notice detail. After membership removal, student entry was blocked (404), while notice inbox and detail remained accessible (200 OK). **M1 post-activation cross-recipient authorization masking verified**: Student B receives 404 when accessing Student A's confirmed notice ID (distinguished from pre-activation unknown-ID 404). |
+| **Target 5 (M2)** | Real Teacher CANCEL pre-finalization and durable non-actionable notice (no deletion). Replay/idempotency with exact body equality (M2), foreign-Teacher fence (M2), account fencing, foreign denial. | **PASS** | **M2 verified**: foreign-Teacher authorization fence confirmed—unrelated Teacher receives HTTP 404 `PUBLICATION_NOT_FOUND` on GET, REQUEST, CANCEL, COMPLETE. Teacher confirmed CANCEL in UI: backend returned 200, state transitioned to `CANCELLED`, UI showed resolved. Cancelled notice persists in DB with `noticeStatus = CANCELLED` (no deletion). **M2 verified**: exact same-key CANCEL replay returned HTTP 200 with full response body equality (`expect(res.body).toEqual(cancelView)`); altered payload returned HTTP 409 `IDEMPOTENCY_CONFLICT`; new key on resolved request returned HTTP 409 `CLOSURE_RESOLVED`; student denied CANCEL (403). |
 | **Target 6** | Early COMPLETE before cutoff blocked with 409 `CLOSURE_NOT_READY`; preserve request identity. Genuine ≥48-hour operational soak, multi-node DB cluster failover outage recovery, and W3-M real LiveKit media. | **EARLY COMPLETE PASS / ≥48H SOAK & MULTI-NODE FAILOVER BLOCKED** | Early COMPLETE before cutoff blocked with 409 `CLOSURE_NOT_READY`; request identity and `PENDING` state preserved in UI. **Genuine ≥48-hour cutoff was not modified, database clocks were not manipulated, and staging soak PASS is NOT claimed.** Post-cutoff completion remains explicitly gated as **BLOCKED / NOT VERIFIED** for dedicated long-running staging soak. **Outage recovery**: safely feasible single-node dependency outage (SIGSTOP/resume) verified in public journey; multi-node cluster failover / split-brain recovery and W3-M real LiveKit proctoring explicitly marked as **BLOCKED / NOT VERIFIED** in synthetic single-node acceptance topology. |
-| **Target 7** | Preserve existing real W3-A/W3-B/C 5/5 journeys, zero Playwright Gateway interception, and deterministic cleanup. | **PASS** | All 6/6 Playwright acceptance journeys passed cleanly (`Real W3-A suite: passed`). No mock/route interceptions. Python harness unit tests passed (19/19). Deterministic runtime teardown verified. |
+| **Target 7 (H1)** | Preserve existing real W3-A/W3-B/C 5/5 journeys, zero Playwright Gateway interception, fail-closed process ownership controls, and deterministic cleanup. | **PASS** | All 6/6 Playwright acceptance journeys passed cleanly (`Real W3-A suite: passed`). No mock/route interceptions. Python harness unit tests passed (21/21), including regression tests for initial ownership mismatch and PID replacement between TERM and KILL. Deterministic runtime teardown verified (0 unverified resources). |
 
 ---
 
@@ -62,22 +62,22 @@ passed: real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient
   Teacher-role fixture readiness GET initially 503 AUTHORITY_UNAVAILABLE; bounded read-only polling reaches authoritative 404 before any create mutation.
   Gateway registration 202, Mailpit OTP, login/me 200, Teacher enablement 204; HttpOnly cookie managed by browser.
   Separate disposable STUDENT authenticated via Gateway/OTP and real browser session.
-  Target 2 verified: Gateway /actuator/health/assessment-inbox UP, Student inbox 200/404 verified, and Identity recipient contract verified with least-privilege SERVICE token scope.
+  Target 2 verified: Gateway /actuator/health/assessment-inbox UP, Student inbox 200/404 unknown-ID verified, and Identity recipient contract verified with least-privilege SERVICE token scope.
   CLASS Assessment opened with durationMinutes: 0 and monitoringChoice: DISABLED.
   Student started ACTIVE unlimited attempt (duration_minutes: 0, deadline_at: null) and saved answer.
   Target 2 / H1 verified: Teacher REQUEST denied with 503 DEPENDENCY_UNAVAILABLE while worker and edge inbox attestation are OFF.
   H1 verified: Operator-controlled staged transition successfully activated edge inbox attestation while synthetic closure worker remains OFF.
   Early REQUEST denied with 409 CLOSURE_NOT_READY while participation window is active (now < endAt).
   M2 verified: REQUEST exact same-key replay returned 201 identical response; altered payload returned 409 IDEMPOTENCY_CONFLICT; new key while pending returned 409 CLOSURE_PENDING.
-  Teacher requested delayed closure via UI: recorded durable closureRequestId ca76dd77-ba28-4871-874e-fdf98776ebe9, state PENDING, publication remains OPEN.
-  M1 verified: Authoritative pre-worker state observed with worker OFF: closureRequestId=ca76dd77-ba28-4871-874e-fdf98776ebe9, state=PENDING, attempt.closureCutoffAt=null, student inbox=0 unconfirmed items.
+  Teacher requested delayed closure via UI: recorded durable closureRequestId 50cbd9ff-9ecc-4a39-809d-07485fa5a8b9, state PENDING, publication remains OPEN.
+  M1 verified: Authoritative pre-worker state observed with worker OFF: closureRequestId=50cbd9ff-9ecc-4a39-809d-07485fa5a8b9, state=PENDING, attempt.closureCutoffAt=null, student inbox=0 unconfirmed items.
   H1 verified: Operator-controlled staged transition successfully activated assessment closure worker with 4000ms poll delay after verified pre-worker state.
-  M1 verified: Authoritative PREPARING notice captured before worker confirmation: id=15cde82b-6d7d-4e34-bfea-c88544772c50, confirmedNoticeAt=null, closureCutoffAt=null, UI alert 'Your notice is being prepared'.
-  Worker published and confirmed recipient notice: confirmedNoticeAt=2026-10-17T12:41:12.294886Z, closureCutoffAt=2026-10-19T12:41:12.294886Z, exact delta=172800000ms (+48 hours).
+  M1 verified: Authoritative PREPARING notice captured before worker confirmation: id=52247fcb-b265-4a12-b227-6902e1d369e5, confirmedNoticeAt=null, closureCutoffAt=null, UI alert 'Your notice is being prepared'.
+  Worker published and confirmed recipient notice: confirmedNoticeAt=2026-10-17T13:18:36.917591Z, closureCutoffAt=2026-10-19T13:18:36.917591Z, exact delta=172800000ms (+48 hours).
   Student successfully navigated to notice detail in browser UI showing authoritative 48-hour cutoff.
   Former CLASS member read verified: entry rejected 404, but recipient notice inbox & detail remain accessible 200 OK.
   Separate disposable STUDENT authenticated via Gateway/OTP and real browser session.
-  Cross-recipient masking verified: Student B receives 404 on Student A's notice and has empty inbox.
+  Cross-recipient authorization masking verified: Student B receives 404 on Student A's confirmed notice and has empty inbox.
   Early COMPLETE blocked with 409 CLOSURE_NOT_READY; request identity preserved, Publication remains OPEN, genuine 48-hour cutoff honored without manipulation.
   Teacher-role fixture readiness GET initially 503 AUTHORITY_UNAVAILABLE; bounded read-only polling reaches authoritative 404 before any create mutation.
   Gateway registration 202, Mailpit OTP, login/me 200, Teacher enablement 204; HttpOnly cookie managed by browser.
@@ -114,97 +114,55 @@ Real W3-A suite: passed
 
 ---
 
-## 3. Detailed Verification of B3 Targets & Leader Findings
+## 3. Detailed Verification of Findings & Resolution Mechanics
 
-### 3.1 Target 1: Synthetic Actors & Unlimited CLASS Attempt
-- **Teacher**: Registered via Gateway with disposable email and Mailpit OTP; enabled with `ROLE_TEACHER`. Created a Classroom and published an immutable Quiz with 4 question types.
-- **CLASS Assessment**: Configured with `audience: "CLASS"`, `durationMinutes: 0` (unlimited, no deadline), and `monitoringChoice: "DISABLED"`.
-- **Student**: Registered independently. Enrolled into Classroom using owned runtime database fixture. Entered assessment via `/app/assessments/join`, successfully started attempt with `deadline_at: null`, and submitted an initial answer to enter active in-progress state.
+### 3.1 Finding H1: Runtime Process Ownership, Fail-Closed Mismatches & SIGKILL Revalidation
+- **Vulnerability Addressed**: Previously, `_restart_assessment()` caught `(RuntimeError, OSError)` with `pass`, which could swallow ownership mismatches, send `SIGKILL` to recycled PIDs without identity revalidation, or launch replacement processes under uncertain ownership. Furthermore, zombie states during process termination were not distinguished from running processes.
+- **Resolution**:
+  1. `_restart_assessment()` now calls `process_owned(directory, "assessment")` initially and lets `RuntimeError` propagate immediately. If ownership does not match, execution halts without sending signals or launching processes.
+  2. If the process does not exit within the initial 10s wait, `_restart_assessment()` revalidates process identity via `process_owned(directory, "assessment")`. If ownership is mismatched or the PID was recycled by another process, `_restart_assessment()` raises `RuntimeError("Assessment process ownership mismatch before SIGKILL")`. `SIGKILL` is NEVER sent to an unverified or changed PID.
+  3. `process_owned()` was updated to inspect `/proc/<pid>/status` for zombie/dead process states (`State: Z`, `State: X`) and raise `ProcessLookupError("Runtime process is not running")`. This enables `wait_for_exit()` to recognize clean terminations without treating terminating address space teardown as ownership corruption.
+  4. Never launch or accept a replacement process if ownership was uncertain or termination failed.
+- **Regression Unit Tests Added** (`RestartAssessmentOwnershipTests` in `scripts/local/tests/test_w3a_real_runtime.py`):
+  - `test_initial_ownership_mismatch_fails_closed`: Verifies that initial ownership mismatch raises `RuntimeError`, `os.kill` is not called, and `Popen` is not launched.
+  - `test_pid_replacement_between_term_and_kill_fails_closed`: Verifies that if PID identity changes after SIGTERM, SIGKILL is not sent, `Popen` is not launched, and `_restart_assessment` fails closed with `RuntimeError("Assessment process ownership mismatch before SIGKILL")`.
 
-### 3.2 Target 2 & Finding H1: Pre-Worker Readiness & Two-Phase Operator Activation
-- **H1 Finding**: The test harness previously had edge attestation and closure worker enabled unconditionally from boot.
-- **Resolution & Evidence**:
-  - The test suite now explicitly calls `fixtureControl("reset-closure-flags")` at the outset of the B3 journey, resetting `ASSESSMENT_EDGE_INBOX_VERIFIED=false`, `ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=false`, and `ASSESSMENT_CLOSURE_WORKER_ENABLED=false`.
-  - With both worker and edge attestation OFF, Teacher submitted `POST /api/assessments/{id}/closure-requests` and received HTTP 503 `DEPENDENCY_UNAVAILABLE` (`Closure notification delivery is temporarily unavailable; delayed closure cannot be initiated at this time`).
-  - **Operator Staged Activation Phase 1**: Test harness invoked `fixtureControl("activate-edge-attestation")`. Assessment Service restarted with `ASSESSMENT_EDGE_INBOX_VERIFIED=true` and `ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=true`, while `ASSESSMENT_CLOSURE_WORKER_ENABLED` remained `false`.
-  - Gateway health check `GET /actuator/health/assessment-inbox` returned HTTP 200 with status `"UP"`.
-  - Fresh Student inbox returned HTTP 200 with `items: []`; random UUID returned HTTP 404.
-  - Identity recipient eligibility contract verified using OAuth2 `client_credentials` service token (`identity.notice-recipient.read` on `POST /internal/security/notice-recipients/{studentId}/eligibility` -> 200 `eligible: true`; unauthenticated -> 401; gateway client token -> 403 denied).
+### 3.2 Finding M1: Accurate Activation Sequence & 404 Evidence Distinction
+- **Accurate Activation Sequence**:
+  1. **Boot**: Identity Service starts with `W3A_IDENTITY_NOTICE_RECIPIENTS_ENABLED=true` (least-privilege `identity.notice-recipient.read` scope configured for `assessment-service`). All Assessment flags (`ASSESSMENT_EDGE_INBOX_VERIFIED`, `ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED`, `ASSESSMENT_CLOSURE_WORKER_ENABLED`) default to `false`.
+  2. **Baseline Reset**: Test suite calls `fixtureControl("reset-closure-flags")`, guaranteeing Assessment edge inbox attestation and closure worker are OFF.
+  3. **Target 2 Prerequisites**:
+     - Gateway `/actuator/health/assessment-inbox` returns 200 `UP`.
+     - Student fresh inbox returns 200 `[]`.
+     - **Pre-Activation Unknown-ID Probe**: `GET /api/assessments/notifications/{randomUuid}` returns HTTP 404 (verifying non-existent notification ID lookup).
+     - **Identity Recipient Contract**: OAuth2 `client_credentials` probe confirms `identity.notice-recipient.read` on `POST /internal/security/notice-recipients/{studentId}/eligibility` returns 200 `eligible: true`; unauthenticated returns 401; Gateway client is denied scope.
+  4. **Pre-Worker REQUEST Denial**: Teacher submits `POST /closure-requests` while flags are `false`; server returns HTTP 503 `DEPENDENCY_UNAVAILABLE`.
+  5. **Phase 1 Activation**: `fixtureControl("activate-edge-attestation")` restarts Assessment Service with `ASSESSMENT_EDGE_INBOX_VERIFIED=true` and `ASSESSMENT_RECIPIENT_ELIGIBILITY_ENABLED=true`, worker remains OFF.
+  6. **Pre-Worker State Captured**: Teacher REQUEST accepted (`PENDING`, publication `OPEN`). Server returns `attempt.closureCutoffAt: null` and 0 unconfirmed items in inbox.
+  7. **Phase 2 Activation**: `fixtureControl("activate-closure-worker", "4000")` restarts Assessment Service with closure worker enabled (4000ms poll delay).
+  8. **PREPARING Notice Captured**: Server returns `noticeStatus: "PREPARING"`, `confirmedNoticeAt: null`, `closureCutoffAt: null`. UI displays "Notice preparing" badge and "Your notice is being prepared" banner.
+  9. **Worker Confirmation**: Notice confirmed with exact 48-hour cutoff: `confirmedNoticeAt = 2026-10-17T13:18:36.917591Z`, `closureCutoffAt = 2026-10-19T13:18:36.917591Z` (exact 172,800,000ms delta).
+  10. **Post-Activation Cross-Recipient Authorization Masking**: Student B authenticates independently and attempts `GET /api/assessments/notifications/{studentA_noticeId}`. Server returns HTTP 404, proving cross-recipient authorization masking (distinguished from pre-activation unknown-ID 404).
 
-### 3.3 Target 3, Finding M1 & Finding M2: Request Idempotency, Conflicts & Pre-Worker Notice
-- **Early REQUEST Denial**: Prior to participation window end (`now < endAt`), early REQUEST was rejected with HTTP 409 `CLOSURE_NOT_READY`.
-- **Teacher REQUEST**: After window expiration, Teacher submitted delayed closure request via the UI (`/app/assessments/{id}/closure`):
-  - Received HTTP 201 `ClosureView` with durable `closureRequestId`: `ca76dd77-ba28-4871-874e-fdf98776ebe9`.
-  - Initial request state: `PENDING`.
-  - Assessment Publication remained `OPEN` (no false CLOSED).
-- **M2 Verification (REQUEST)**:
-  - **Exact same-key replay**: Resending identical payload and idempotency key returned HTTP 201 with identical response body.
-  - **Altered payload conflict**: Sending different payload (`durationMinutes: 15` vs `0`) with the same idempotency key returned HTTP 409 `IDEMPOTENCY_CONFLICT`.
-  - **New key conflict**: Sending a fresh idempotency key while closure is already pending returned HTTP 409 `CLOSURE_PENDING`.
-- **M1 Verification (Pre-Worker Authoritative State)**:
-  - While worker remained OFF in Phase 1, the student attempt state was observed via API: `attempt.closureCutoffAt` was `null`.
-  - Student notifications inbox was observed via API: `items: []` (0 unconfirmed notices delivered to recipient).
-  - Assessment publication remained `OPEN`, request remained `PENDING`.
-
-### 3.4 Target 4, Finding H1 & Finding M1: Staged Worker Activation, PREPARING Notice & Exact Cutoff
-- **Operator Staged Activation Phase 2 (H1)**: Test harness invoked `fixtureControl("activate-closure-worker")` with a configured 4000ms initial polling delay. Assessment Service restarted with `ASSESSMENT_CLOSURE_WORKER_ENABLED=true`.
-- **M1 Verification (Server-Issued PREPARING Notice)**:
-  - Immediately following worker startup (during the 4000ms delay before confirmation processing), the unconfirmed notice was captured:
-    - `id`: `15cde82b-6d7d-4e34-bfea-c88544772c50`
-    - `confirmedNoticeAt`: `null`
-    - `closureCutoffAt`: `null`
-  - In Chromium, the student navigated to `/app/notifications/{noticeId}`:
-    - UI displayed the "Notice preparing" badge and "Your notice is being prepared" informational alert.
-- **Worker Confirmation & Cutoff Enforcement**:
-  - The worker executed confirmation processing:
-    - Recipient notice transitioned to `noticeStatus: "CONFIRMED"`.
-    - Server-issued timestamps captured:
-      - `confirmedNoticeAt`: `2026-10-17T12:41:12.294886Z`
-      - `closureCutoffAt`: `2026-10-19T12:41:12.294886Z`
-      - Exact delta: **172,800,000 milliseconds** (+48.0000 hours).
-  - Student refreshed the notice detail in Chromium:
-    - UI displayed "48-hour period confirmed" and authoritative cutoff `2026-10-19T12:41:12.294886Z`.
-- **Former Member Access**:
-  - Student was removed from Classroom membership via controlled database fixture.
-  - Student attempt entry check was re-evaluated and blocked with HTTP 404.
-  - Student notifications inbox and notice detail remained accessible with HTTP 200 OK.
-- **Cross-Recipient Isolation**:
-  - Separate disposable Student B authenticated.
-  - Student B inbox returned 200 with empty list.
-  - Student B attempting to access Student A's notice returned HTTP 404.
-
-### 3.5 Target 5 & Finding M2: Foreign-Teacher Fence, CANCEL Replay & Conflicts
-- **M2 Verification (Foreign-Teacher Fence)**:
-  - A separate, unrelated Teacher (Teacher B) authenticated via Gateway/OTP.
-  - Teacher B attempted operations on Teacher A's assessment publication:
-    - `GET /api/assessments/{id}/closure` -> HTTP 404 `PUBLICATION_NOT_FOUND`
-    - `POST /api/assessments/{id}/closure-requests` -> HTTP 404 `PUBLICATION_NOT_FOUND`
-    - `POST /api/assessments/{id}/closure-requests/{requestId}/cancel` -> HTTP 404 `PUBLICATION_NOT_FOUND`
-    - `POST /api/assessments/{id}/closure-requests/{requestId}/complete` -> HTTP 404 `PUBLICATION_NOT_FOUND`
-- **Teacher CANCEL**:
-  - Teacher confirmed cancellation in the UI:
-    - Sent `POST /closure-requests/{id}/cancel` with idempotency key and expected publication revision.
-    - Backend returned HTTP 200 with state `CANCELLED`.
-    - UI confirmed "Cancellation confirmed by the server" and "This request is resolved".
-- **Notice Retention**:
-  - Student reloaded notice detail: displayed "Closure cancelled" alert.
-  - Direct API `GET /api/assessments/notifications/{noticeId}` returned HTTP 200 with `noticeStatus: "CANCELLED"` (retained durably as history, not deleted).
-- **M2 Verification (CANCEL Replay & Conflicts)**:
-  - **Exact same-key replay**: Resending identical payload and idempotency key returned HTTP 200 identical response.
-  - **Altered payload conflict**: Sending different expectedRevision with the same key returned HTTP 409 `IDEMPOTENCY_CONFLICT`.
-  - **New key conflict on resolved request**: Sending a fresh idempotency key to cancel an already-resolved request returned HTTP 409 `CLOSURE_RESOLVED`.
-  - **Student denial**: Student attempting to cancel returned HTTP 403.
-
-### 3.6 Target 6: Early COMPLETE Denial & Gated Operational Subgates
-- Prior to the 48-hour cutoff, Teacher executed "Review and COMPLETE closure" in the UI:
-  - Backend returned HTTP 409 `CLOSURE_NOT_READY`.
-  - UI preserved the command identity and `PENDING` request state.
-  - Publication remained `OPEN`.
-- **Strict Boundary Maintained**:
-  - The genuine 48-hour cutoff was **not manipulated**.
-  - Database clocks and timestamps were **not backdated**.
-  - Operational soak PASS is **not claimed**.
-  - Actual post-cutoff completion remains **BLOCKED / NOT VERIFIED** (deferred to long-running staging soak).
+### 3.3 Finding M2: Exact Idempotency Replay & Full Response Body Assertions
+- **Original Payload Capture**:
+  - For Teacher REQUEST: Captured `originalRequestBody = requestHttp.request().postDataJSON()` and `requestKey = requestHttp.request().headers()["idempotency-key"]` from the actual Playwright UI action.
+  - Replayed unchanged with identical key and payload: Server returned HTTP 201.
+  - **Full Replay Equality**: Asserted `expect(requestReplayRes.body).toEqual(requestView)` across the entire response structure.
+- **Same Key with Altered Payload Conflict**:
+  - Replayed with different `expectedRevision`: Server returned HTTP 409 `IDEMPOTENCY_CONFLICT`.
+- **New Key Concurrency Conflict**:
+  - Sent new key while request is active: Server returned HTTP 409 `CLOSURE_PENDING`.
+- **For Teacher CANCEL**:
+  - Captured `originalCancelBody` and `cancelKey` from the actual UI cancel action.
+  - Replayed unchanged with identical key and payload: Server returned HTTP 200.
+  - **Full Replay Equality**: Asserted `expect(cancelSameKey.body).toEqual(cancelView)` across the entire response structure.
+  - Altered payload conflict: Server returned HTTP 409 `IDEMPOTENCY_CONFLICT`.
+  - New key on resolved request: Server returned HTTP 409 `CLOSURE_RESOLVED`.
+  - Student denial: Student attempting to cancel returned HTTP 403.
+- **Foreign-Teacher Authorization Fence**:
+  - Registered and authenticated unrelated Teacher B.
+  - Proved Teacher B receives HTTP 404 `PUBLICATION_NOT_FOUND` across `GET`, `REQUEST`, `CANCEL`, and `COMPLETE`.
 
 ---
 
@@ -223,7 +181,7 @@ Per project policy, requirements that cannot be safely or authentically proven i
 ## 5. Test Suite Summary & Quality Checks
 
 1. **Playwright Real Acceptance Suite**: 6/6 journeys passed (`Real W3-A suite: passed`).
-2. **Python Runtime Harness Unit Tests**: 19/19 tests passed (`test_w3a_real_runtime.py`).
+2. **Python Runtime Harness Unit Tests**: 21/21 tests passed (`test_w3a_real_runtime.py`).
 3. **Frontend Vitest Unit Suite**: 56/56 test files, 682/682 tests passed.
 4. **Frontend Code Quality**:
    - `pnpm --dir frontend format:check`: PASS (0 style issues)
@@ -231,4 +189,5 @@ Per project policy, requirements that cannot be safely or authentically proven i
    - `pnpm --dir frontend typecheck`: PASS (0 TypeScript errors)
 5. **Teardown Verification**:
    - Runtime directory cleanly torn down via `python3 scripts/local/w3a-real-runtime.py down`.
+   - Output: `Owned runtime cleanup complete; private evidence retained at /tmp/...` (0 unverified resources).
    - Host developer containers (`quizopia-postgres-1`, `quizopia-redis-1`, `quizopia-rabbitmq-1`, `quizopia-mailpit-1`, `quizopia-livekit-1`, `quizopia-minio-1`) remained healthy and untouched.
