@@ -55,20 +55,28 @@ No mandatory executed gate failed in this workstream. Unavailable gates remain
 | PR #98 merge                      | `399e1fb1704daeb4e597bf901e03a48af5cd2689`                                                                    |
 | PR #99 accepted head / merge      | `1dd011a9288239a7cd2a188a01e63b5880bcb9d3` / `e8bd838092b82a0de1ed652b1fce59ef019f2b32`                       |
 | PR #100 accepted head / merge     | `edb27f2e54fd6ad61914ad690930880e5d15901a` / `a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`                       |
+| PR #101 evidence-package commit   | `1f8499647f5c4c09c458673b03056d3b57ec00ba`                                                                    |
 | Existing runtime branch           | `origin/test/w3-real-acceptance-runtime` is merged, 0 commits ahead and 7 behind `develop`; it was not reused |
 | Work branch                       | `test/w3-final-acceptance-97`, created from current `develop`                                                 |
 
-The service artifacts and Chromium run are pinned to `01e975d2...`. That checkpoint
-has `a9acb226...` as its parent and adds only the sanitized evidence reporter, its
-tests, and the preflight port-probe correction. The final report/receipt commit is a
-documentation child of the executed checkpoint; it does not retroactively change
-the executed service source.
+The runtime launcher built all five service artifacts from the exact Git snapshot
+`01e975d2...`. The Chromium runner used the frontend worktree at that same commit,
+and its reporter recorded the operator-supplied source SHA after strict format
+validation; the sanitized runtime manifest independently carries the launcher's
+backend SHA and artifact digests. That checkpoint has `a9acb226...` as its parent
+and adds only the sanitized evidence reporter, its tests, and the preflight
+port-probe correction. The final report/receipt commit is a documentation child of
+the executed checkpoint; it does not retroactively change the executed service
+source.
 
-GitHub checks for the accepted product base SHA were inspected on 2026-10-18:
+GitHub checks were inspected on 2026-10-18:
 
 - [Frontend CI push run `39047849902`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39047849902): **SUCCESS**.
 - [Repository validation push run `39047849923`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39047849923): `compose-config` **SUCCESS** and
   `full-validation` **SUCCESS**.
+- PR #101 evidence-package [Frontend CI run `39112573219`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39112573219): **SUCCESS**.
+- PR #101 evidence-package [Repository validation run `39112573237`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39112573237): `compose-config` **SUCCESS**;
+  `full-validation` **SKIPPED** by pull-request workflow design.
 - PR #100 `full-validation` was skipped by pull-request workflow design and is not
   described as passed.
 - Effective branch-protection and required-check policy remains unverified, so these
@@ -370,22 +378,3 @@ Until those prerequisites exist, the next safe engineering action is to extend t
 real Assessment harness for the `NOT RUN` rows. The next governance action is the
 formal owner/criteria/authorization package described in
 `w3-production-release-approval-operator-readiness.md`.
-
-## G. Draft issue #97 update — do not publish before human review
-
-This text is a handoff draft only. It has not been posted to GitHub.
-
-> Exact-checkpoint direct rerun completed on
-> `01e975d2c7639570986906e4cd2b2937a382198b` (parent/current accepted product
-> base `a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`):
-> host preflight passed, 6/6 real Gateway/Chromium Assessment+B3 journeys passed,
-> a durable sanitized receipt was retained and hashed, and owned teardown completed
-> with zero unverified resources. Product-base push
-> Frontend CI, compose-config, and full-validation are successful. This reconfirms
-> the implemented synthetic scope only. Explicit remaining Assessment scenarios,
-> monitoring-unavailable/write coexistence, genuine ≥48-hour soak and post-cutoff
-> COMPLETE, multi-node failover, LiveKit/provider qualification, backup/restore,
-> privacy/security/operations approvals, and final Leader authorization remain
-> NOT RUN or BLOCKED. Production defaults remain disabled. Issue #97 is not eligible
-> for closure and production remains NO-GO. See
-> `docs/development/w3-acceptance-final-evidence.md`.
