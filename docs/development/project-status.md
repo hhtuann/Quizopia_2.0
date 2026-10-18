@@ -2,9 +2,12 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-15
+> **Last updated:** 2026-10-18
 >
-> **Checkpoint baseline:** merged develop `e5c4ef3500f1ce40303af161cd6ca74b706c21b2` (PR #87); current M1 work is unmerged and separately identified below.
+> **Checkpoint baseline:** merged `develop` `a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`
+> (PR #100) before final evidence integration; Wave 3 handoff PR #101 contains
+> the evidence package at `1f8499647f5c4c09c458673b03056d3b57ec00ba` plus
+> this status-only finalization update.
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -101,8 +104,24 @@ Wave 2 remaining: **none for milestone closure**.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
-**Status: CURRENT — ASSESSMENT A/B/C MERGED; M1/M2 CORE UNDER REVIEW; INTEGRATION IMPLEMENTED UNDER REVIEW;
-PRODUCTION NO-GO.**
+**Status: IMPLEMENTATION HANDED OFF — ASSESSMENT, M1/M2, FRONTEND INTEGRATION,
+AND BOUNDED REAL-RUNTIME ACCEPTANCE MERGED OR DELIVERED; PRODUCTION NO-GO.**
+
+Wave 3 implementation is delivered through PRs #88–#100. PR #101 packages the
+final bounded acceptance evidence plus two acceptance-harness corrections: durable
+sanitized browser receipts and a reusable-bind preflight fix. The evidence package
+commit is `1f8499647f5c4c09c458673b03056d3b57ec00ba`; the executed runtime checkpoint
+is `01e975d2c7639570986906e4cd2b2937a382198b`. Six real Gateway/Chromium
+Assessment+B3 journeys passed, along with the local frontend, script, and release
+register checks recorded in
+[the final evidence report](w3-acceptance-final-evidence.md).
+
+This is an implementation handoff, not production acceptance. Issue #97 remains
+OPEN. The authoritative production register remains **6 BLOCKED / 5 NOT VERIFIED**;
+the genuine ≥48-hour soak/post-cutoff COMPLETE, multi-node recovery, target
+operations, LiveKit/provider qualification, and independent privacy/security/
+operations/Leader decisions remain outstanding. Assessment, Inbox, and Proctoring
+production defaults remain disabled.
 
 The [historical M1 checkpoint](../architecture/w3m-backend-implementation.md) and
 [historical M2 checkpoint](../architecture/w3m2-backend-implementation.md) preserve
@@ -140,13 +159,14 @@ Proctoring owns evidence/session/room/token orchestration; Assessment owns Attem
 validity, deadlines, answers and grades; Classroom owns class authority/membership.
 
 Assessment is implemented; its Publication/Attempt/grading/closure/inbox OpenAPI
-and runtime are authoritative. Proctoring was a closed scaffold before the unmerged
-M1/M2 increments (#89/#90). Current `feature/w3m-monitoring-integration` adds Teacher
-session lookup, authoritative answer-persistence metadata integration and real-service
-verification under the [bounded M contract](../specifications/w3-m-proctoring-contract.md).
-Local adapter/full verification has passed; independent review remains separate from
-provider revocation/hard-outage, real frontend camera-grid and external monitoring/
-production acceptance. No merged Assessment A/B/C business reimplementation is needed.
+and runtime are authoritative. Proctoring M1 Activity Evidence, M2 LiveKit core,
+Assessment integration, and frontend monitoring integration are merged through
+PRs #89–#96. Local adapter/full verification and bounded real-service verification
+have passed under the
+[bounded M contract](../specifications/w3-m-proctoring-contract.md). Provider
+revocation/hard-outage qualification, authorized real browser/provider execution,
+and external privacy/security/operations acceptance remain separate production
+gates. No Assessment A/B/C business reimplementation is needed.
 
 The [release operator pack](w3-production-release-approval-operator-readiness.md)
 keeps the selected Assessment nomination separate from new monitoring commits.
@@ -200,12 +220,13 @@ reconciliation are not new implementation, CI or E2E evidence.
 
 ## 3. Current merged checkpoint and historical chronology
 
-Current merged baseline is PR #87 at
-`e5c4ef3500f1ce40303af161cd6ca74b706c21b2`; W3-M1 work is unmerged and carries no
-Leader merge or production approval. Consult the current checkpoint linked above
-for final source/test/PR evidence. The following records the earlier documentation
-checkpoint at `87ff6b064b972400cd4903f7bc4fec9375e559a1` (2026-10-11), not current
-implementation status:
+The current merged baseline before final evidence integration is PR #100 at
+`a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`; PR #101 carries the final bounded
+evidence package and status correction. Merge does not confer production approval.
+Consult the [final evidence report](w3-acceptance-final-evidence.md) for exact
+source/test receipts and remaining gates. The following records the earlier
+documentation checkpoint at `87ff6b064b972400cd4903f7bc4fec9375e559a1`
+(2026-10-11), not current implementation status:
 
 PR #72 adds Assessment policy/contract documentation; PR #73 (`d699bd3`) adds
 W3-A scope reconciliation. The latest checkpoint also includes the frontend
@@ -299,12 +320,14 @@ Implemented backend capability:
 - immutable `QuizVersion`;
 - publish operation.
 
-Frontend work in `feature/frontend-quiz-library` implements the persistent
-teacher Quiz Library plus grammar-aware editor completion and real
-create/read/update/publish integration. Remaining product gaps:
+Frontend work implements the persistent teacher Quiz Library plus grammar-aware
+editor completion and real create/read/update/publish integration. Remaining Quiz
+product gap:
 
-- import/export;
-- frontend Assessment integration/real-browser acceptance; the backend lifecycle is merged.
+- import/export.
+
+Frontend Assessment integration is merged through PR #96. Its bounded real
+Gateway/Chromium acceptance is recorded in PRs #99–#101.
 
 ### 4.3 Classroom
 
@@ -524,7 +547,7 @@ cut defined in `docs/development/mvp-plan.md`.
 
 - **Wave 1 — Foundation:** CLOSED
 - **Wave 2 — Auth + Quiz Authoring Core:** CLOSED at PR #71
-- **Wave 3 — Assessment + eligible CLASS monitoring:** CURRENT; W3-A CLASS/PUBLIC, bounded schedule/duration, snapshot and CLASS Teacher authority; W3-B membership/Attempt/autosave/submit; W3-C unchanged grading/results; required W3-M1 Activity Evidence and W3-M2 LiveKit camera monitoring
+- **Wave 3 — Assessment + eligible CLASS monitoring:** IMPLEMENTATION HANDED OFF; bounded real-runtime Assessment/B3 evidence delivered in PR #101, while production acceptance remains tracked as BLOCKED/NOT VERIFIED in issue #97
 - **Broader minimal Classroom product integration:** MVP-C creation/invites/discovery/gradebook; W3-A/B mandatory eligibility is earlier
 - **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
 - **Wave 4 — broader Realtime + future Proctoring:** post-MVP; AI behavior monitoring and any separately approved recording/strict screen-sharing evolution, beyond required W3-M1/M2
@@ -536,9 +559,9 @@ MVP delivery path, scope tiers, blockers, and release journeys are maintained in
 `docs/development/mvp-plan.md`.
 
 Merged Assessment A/B/C and its implemented OpenAPI supersede the historical
-contract-open observations above. Current M1/M2 engineering contracts are specified
-for their bounded increments; actual implementation/provider/security/privacy and
-release acceptance remain separately gated. PROCTOR-10 reuses implemented
+contract-open observations above. M1/M2 implementation is merged; provider,
+security, privacy, operations, and production release acceptance remain separately
+gated. PROCTOR-10 reuses implemented
 UNCONFIGURED/ENABLED/DISABLED; unresolved policy and deployment decisions remain
 explicit in `docs/open-questions.md`. No monitoring or production approval follows
 from these status corrections.
