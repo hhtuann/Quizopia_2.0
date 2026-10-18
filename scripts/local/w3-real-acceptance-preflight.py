@@ -28,7 +28,13 @@ def run(argv, cwd=None):
 def port_free(port):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            # Match application servers that use reusable-bind semantics. Without
+            # this, their recently closed accepted connections can leave the port
+            # in TIME_WAIT and produce a false "occupied" result after teardown.
+            # A live IPv4 listener still makes bind fail, as the guard test proves.
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(("127.0.0.1", port))
+            listener.listen(1)
         return True
     except OSError:
         return False

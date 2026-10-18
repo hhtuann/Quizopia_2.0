@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import socket
 import unittest
+from unittest.mock import MagicMock, patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / "w3-real-acceptance-preflight.py"
 SPEC = importlib.util.spec_from_file_location("w3_preflight", SCRIPT)
@@ -12,9 +13,22 @@ SPEC.loader.exec_module(module)
 
 
 class PreflightTest(unittest.TestCase):
+    def test_port_probe_sets_reuseaddr_before_bind(self):
+        probe = MagicMock()
+        probe.__enter__.return_value = probe
+        with patch.object(module.socket, "socket", return_value=probe):
+            self.assertTrue(module.port_free(3000))
+
+        probe.setsockopt.assert_called_once_with(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1
+        )
+        probe.bind.assert_called_once_with(("127.0.0.1", 3000))
+        probe.listen.assert_called_once_with(1)
+
     def test_occupied_port_is_detected(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
             server.bind(("127.0.0.1", 0))
+            server.listen(1)
             port = server.getsockname()[1]
             self.assertFalse(module.port_free(port))
         self.assertTrue(module.port_free(port))
