@@ -1,4 +1,11 @@
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -92,6 +99,47 @@ describe("sanitized W3 real reporter", () => {
     const reporter = new SanitizedReporter();
     expect(() => reporter.onBegin?.({} as FullConfig, {} as Suite)).toThrow();
     expect(readFileSync(path, "utf8")).toBe("existing\n");
+  });
+
+  it("keeps writing to the exclusively opened receipt if its path is replaced", () => {
+    const path = evidencePath();
+    const retainedPath = `${path}.retained`;
+    const replacementTarget = `${path}.replacement`;
+    configure(path);
+
+    const reporter = new SanitizedReporter();
+    reporter.onBegin?.({} as FullConfig, {} as Suite);
+    renameSync(path, retainedPath);
+    writeFileSync(replacementTarget, "replacement\n", { mode: 0o600 });
+    symlinkSync(replacementTarget, path);
+
+    reporter.onTestEnd?.(
+      {
+        id: "journey-2",
+        title: "replacement-resistant journey",
+        annotations: [],
+      } as unknown as TestCase,
+      {
+        status: "passed",
+        startTime: new Date("2026-10-18T02:00:00Z"),
+        duration: 500,
+        errors: [],
+      } as unknown as TestResult,
+    );
+    reporter.onEnd?.({ status: "passed" } as FullResult);
+
+    expect(readFileSync(replacementTarget, "utf8")).toBe("replacement\n");
+    const records = readFileSync(retainedPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(records).toHaveLength(3);
+    expect(records[1]).toMatchObject({
+      type: "test-result",
+      testId: "journey-2",
+      status: "passed",
+    });
+    expect(records[2]).toMatchObject({ type: "run-end", status: "passed" });
   });
 
   it("requires exact source and run identity for evidence output", () => {

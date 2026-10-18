@@ -1,4 +1,4 @@
-import { appendFileSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, writeSync } from "node:fs";
 import { resolve } from "node:path";
 import type {
   FullConfig,
@@ -16,12 +16,11 @@ export default class SanitizedReporter implements Reporter {
     : undefined;
   private readonly sourceSha = process.env.W3A_REAL_SOURCE_SHA;
   private readonly runId = process.env.W3A_REAL_EVIDENCE_RUN_ID;
+  private evidenceFd: number | undefined;
 
   private appendEvidence(record: Record<string, unknown>) {
-    if (!this.evidenceFile) return;
-    appendFileSync(this.evidenceFile, `${JSON.stringify(record)}\n`, {
-      encoding: "utf8",
-    });
+    if (this.evidenceFd === undefined) return;
+    writeSync(this.evidenceFd, `${JSON.stringify(record)}\n`, null, "utf8");
   }
 
   onBegin(_config: FullConfig, _suite: Suite) {
@@ -34,16 +33,24 @@ export default class SanitizedReporter implements Reporter {
       throw new Error(
         "W3A_REAL_EVIDENCE_RUN_ID must be a safe 3-64 character identifier when evidence output is enabled",
       );
-    writeFileSync(
-      this.evidenceFile,
-      `${JSON.stringify({
-        type: "run-start",
-        runId: this.runId,
-        sourceSha: this.sourceSha,
-        startedAt: new Date().toISOString(),
-      })}\n`,
-      { encoding: "utf8", flag: "wx", mode: 0o600 },
-    );
+    this.evidenceFd = openSync(this.evidenceFile, "wx", 0o600);
+    try {
+      writeSync(
+        this.evidenceFd,
+        `${JSON.stringify({
+          type: "run-start",
+          runId: this.runId,
+          sourceSha: this.sourceSha,
+          startedAt: new Date().toISOString(),
+        })}\n`,
+        null,
+        "utf8",
+      );
+    } catch (error) {
+      closeSync(this.evidenceFd);
+      this.evidenceFd = undefined;
+      throw error;
+    }
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
@@ -87,12 +94,19 @@ export default class SanitizedReporter implements Reporter {
 
   onEnd(result: FullResult) {
     process.stdout.write(`Real W3-A suite: ${result.status}\n`);
-    this.appendEvidence({
-      type: "run-end",
-      runId: this.runId,
-      sourceSha: this.sourceSha,
-      status: result.status,
-      completedAt: new Date().toISOString(),
-    });
+    try {
+      this.appendEvidence({
+        type: "run-end",
+        runId: this.runId,
+        sourceSha: this.sourceSha,
+        status: result.status,
+        completedAt: new Date().toISOString(),
+      });
+    } finally {
+      if (this.evidenceFd !== undefined) {
+        closeSync(this.evidenceFd);
+        this.evidenceFd = undefined;
+      }
+    }
   }
 }
