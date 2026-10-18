@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "type": "sanitized-runtime-manifest",
+  "runId": "w3-final-20261018",
+  "sourceSha": "01e975d2c7639570986906e4cd2b2937a382198b",
+  "acceptedProductBaseSha": "a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2",
+  "fixture": "w3a-real-browser-v1",
+  "resourceOwnerLabel": "quizopia-w3a-7184182205",
+  "derivedAt": "2026-10-18T08:27:46Z",
+  "derivation": {
+    "description": "Sanitized projection of the owned runtime state after teardown, plus read-only post-teardown process and container checks",
+    "privateStateSha256": "83d848a90fe9577fce31c5f40418b44ddce339f13a8f90e948a25e6922dc4760"
+  },
+  "timeline": {
+    "runtimeStartedAt": "2026-10-18T08:18:02Z",
+    "runtimeReadyAt": "2026-10-18T08:18:55Z",
+    "browserStartedAt": "2026-10-18T08:19:07.393Z",
+    "browserCompletedAt": "2026-10-18T08:21:48.908Z",
+    "runtimeStoppedAt": "2026-10-18T08:22:17Z"
+  },
+  "topology": {
+    "serviceProcesses": [
+      "identity",
+      "quiz",
+      "classroom",
+      "assessment",
+      "gateway"
+    ],
+    "ownedDependencyContainers": [
+      "identity-postgres",
+      "quiz-postgres",
+      "classroom-postgres",
+      "assessment-postgres",
+      "redis",
+      "mailpit"
+    ],
+    "browserOrigin": "http://localhost:3000",
+    "gatewayEndpoint": "http://127.0.0.1:8080",
+    "loopbackOnly": true
+  },
+  "artifactSha256": {
+    "identity": "d2f5c8ff807632c91726014e3e791b826631f6112b2d090cdaa6f0f43e87133d",
+    "quiz": "7dbdedf2904395542bfa05f2f4220a6ef2af01c9b669a24ce643138d770e7cf2",
+    "classroom": "42d1d7d2847c4d587dae6305d25211d0809d510752a94c142b1b99c9a2ad7e3e",
+    "assessment": "5318ebe16030dc2390bec844aef7addd052076ba80e2d5c34e8e1b80ea096bed",
+    "gateway": "7a605fbe34d2696e7043d992a3e86ecbda6f557435fa4cdbf01be1d99856992f"
+  },
+  "stagedControls": {
+    "atProvision": {
+      "identityNoticeRecipientsEnabled": true,
+      "assessmentClosureWorkerEnabled": false,
+      "assessmentEdgeInboxVerified": false,
+      "assessmentRecipientEligibilityEnabled": false,
+      "monitoringAndMediaEnabled": false
+    },
+    "duringBrowserRun": [
+      "assessment edge inbox attestation enabled after verified worker-off denial",
+      "assessment closure worker and recipient eligibility enabled after verified PENDING and PREPARING states"
+    ]
+  },
+  "browserReceipt": {
+    "path": "docs/development/w3-real-acceptance-20261018.jsonl",
+    "sha256": "4c2adedaa9ebb928353703a80902d10e02f48427b404018ba37d4ad62b6a061b",
+    "testResultCount": 6,
+    "status": "passed"
+  },
+  "cleanup": {
+    "cleanupUnverified": [],
+    "ownedContainerCountBeforeTeardown": 6,
+    "ownedProcessCountBeforeTeardown": 5,
+    "ownedContainerCountAfterTeardown": 0,
+    "ownedProcessCountAfterTeardown": 0
+  },
+  "limitations": [
+    "Local synthetic single-node execution only",
+    "Not an approved staging, soak, multi-node, LiveKit, provider, or production-release receipt",
+    "Not independently signed or reviewed by an authorized human operator"
+  ]
+}
