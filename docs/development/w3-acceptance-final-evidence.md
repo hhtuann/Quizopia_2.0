@@ -55,7 +55,7 @@ No mandatory executed gate failed in this workstream. Unavailable gates remain
 | PR #98 merge                      | `399e1fb1704daeb4e597bf901e03a48af5cd2689`                                                                    |
 | PR #99 accepted head / merge      | `1dd011a9288239a7cd2a188a01e63b5880bcb9d3` / `e8bd838092b82a0de1ed652b1fce59ef019f2b32`                       |
 | PR #100 accepted head / merge     | `edb27f2e54fd6ad61914ad690930880e5d15901a` / `a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`                       |
-| PR #101 evidence-package commit   | `1f8499647f5c4c09c458673b03056d3b57ec00ba`                                                                    |
+| PR #101 final head / merge        | `d7473be5aa1c53eae532fc8d9fbf1abdbd07cfe6` / `77ede6171bb6279580f5db403eeb0e68853d862c`                       |
 | Existing runtime branch           | `origin/test/w3-real-acceptance-runtime` is merged, 0 commits ahead and 7 behind `develop`; it was not reused |
 | Work branch                       | `test/w3-final-acceptance-97`, created from current `develop`                                                 |
 
@@ -74,8 +74,8 @@ GitHub checks were inspected on 2026-10-18:
 - [Frontend CI push run `39047849902`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39047849902): **SUCCESS**.
 - [Repository validation push run `39047849923`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39047849923): `compose-config` **SUCCESS** and
   `full-validation` **SUCCESS**.
-- PR #101 evidence-package [Frontend CI run `39112573219`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39112573219): **SUCCESS**.
-- PR #101 evidence-package [Repository validation run `39112573237`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39112573237): `compose-config` **SUCCESS**;
+- PR #101 final-head [Frontend CI run `39113481092`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39113481092): **SUCCESS**.
+- PR #101 final-head [Repository validation run `39113481089`](https://github.com/hhtuann/Quizopia_2.0/actions/runs/39113481089): `compose-config` **SUCCESS**;
   `full-validation` **SKIPPED** by pull-request workflow design.
 - PR #100 `full-validation` was skipped by pull-request workflow design and is not
   described as passed.

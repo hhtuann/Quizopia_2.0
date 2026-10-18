@@ -4,10 +4,9 @@
 >
 > **Last updated:** 2026-10-18
 >
-> **Checkpoint baseline:** merged `develop` `a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`
-> (PR #100) before final evidence integration; Wave 3 handoff PR #101 contains
-> the evidence package at `1f8499647f5c4c09c458673b03056d3b57ec00ba` plus
-> this status-only finalization update.
+> **Checkpoint baseline:** merged `develop` `77ede6171bb6279580f5db403eeb0e68853d862c`
+> (PR #101); the bounded runtime used checkpoint
+> `01e975d2c7639570986906e4cd2b2937a382198b`.
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -107,7 +106,7 @@ Wave 2 remaining: **none for milestone closure**.
 **Status: IMPLEMENTATION HANDED OFF — ASSESSMENT, M1/M2, FRONTEND INTEGRATION,
 AND BOUNDED REAL-RUNTIME ACCEPTANCE MERGED OR DELIVERED; PRODUCTION NO-GO.**
 
-Wave 3 implementation is delivered through PRs #88–#100. PR #101 packages the
+Wave 3 implementation is delivered through PRs #88–#101. PR #101 packages the
 final bounded acceptance evidence plus two acceptance-harness corrections: durable
 sanitized browser receipts and a reusable-bind preflight fix. The evidence package
 commit is `1f8499647f5c4c09c458673b03056d3b57ec00ba`; the executed runtime checkpoint
@@ -220,9 +219,9 @@ reconciliation are not new implementation, CI or E2E evidence.
 
 ## 3. Current merged checkpoint and historical chronology
 
-The current merged baseline before final evidence integration is PR #100 at
-`a9acb2264cf103948e44bf0cd01abd6bc2c6e1b2`; PR #101 carries the final bounded
-evidence package and status correction. Merge does not confer production approval.
+The current merged baseline is PR #101 at
+`77ede6171bb6279580f5db403eeb0e68853d862c`; it carries the final bounded evidence
+package and status correction. Merge does not confer production approval.
 Consult the [final evidence report](w3-acceptance-final-evidence.md) for exact
 source/test receipts and remaining gates. The following records the earlier
 documentation checkpoint at `87ff6b064b972400cd4903f7bc4fec9375e559a1`
