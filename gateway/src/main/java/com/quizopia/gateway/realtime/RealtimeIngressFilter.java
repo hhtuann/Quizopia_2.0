@@ -23,6 +23,7 @@ public final class RealtimeIngressFilter implements WebFilter {
     public static final String TICKET_PATH = "/api/realtime/tickets";
     public static final String WEBSOCKET_PATH = "/ws/realtime";
     public static final String SUBPROTOCOL = "quizopia.realtime.v1";
+    private static final String WEBSOCKET_KEY = "Sec-WebSocket-Key";
     private static final Set<String> PREFLIGHT_HEADERS = Set.of("authorization", "content-type");
     private static final String BEARER = "Bearer [A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+";
 
@@ -60,8 +61,8 @@ public final class RealtimeIngressFilter implements WebFilter {
         if (exchange.getRequest().getURI().getRawQuery() != null) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.BAD_REQUEST, "INVALID_REQUEST");
         }
-        String origin = exchange.getRequest().getHeaders().getOrigin();
-        if (!allowedOrigins.contains(origin)) {
+        String origin = approvedOrigin(exchange.getRequest().getHeaders());
+        if (origin == null) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.FORBIDDEN, "ACCESS_DENIED");
         }
         List<String> authorization = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION);
@@ -78,14 +79,15 @@ public final class RealtimeIngressFilter implements WebFilter {
 
     private Mono<Void> preflight(ServerWebExchange exchange) {
         HttpHeaders headers = exchange.getRequest().getHeaders();
-        if (!allowedOrigins.contains(headers.getOrigin())
+        String origin = approvedOrigin(headers);
+        if (origin == null
                 || !HttpMethod.POST.name().equals(headers.getFirst(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD))
                 || !allowedPreflightHeaders(headers.getFirst(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS))) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.FORBIDDEN, "ACCESS_DENIED");
         }
         var response = exchange.getResponse();
         response.setStatusCode(HttpStatus.NO_CONTENT);
-        response.getHeaders().set(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, headers.getOrigin());
+        response.getHeaders().set(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
         response.getHeaders().set(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, HttpMethod.POST.name());
         response.getHeaders().set(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization, Content-Type");
         response.getHeaders().set(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
@@ -105,14 +107,18 @@ public final class RealtimeIngressFilter implements WebFilter {
                 || !List.of(SUBPROTOCOL).equals(headers.get("Sec-WebSocket-Protocol"))) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.BAD_REQUEST, "INVALID_REQUEST");
         }
-        String origin = headers.getOrigin();
-        if (!allowedOrigins.contains(origin)) {
+        String origin = approvedOrigin(headers);
+        if (origin == null) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.FORBIDDEN, "ACCESS_DENIED");
         }
         if (!properties.isEnabled()) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.SERVICE_UNAVAILABLE, "AUTHORITY_UNAVAILABLE");
         }
         InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
+        String connectionKey = connectionKey(remote, headers);
+        if (connectionKey == null) {
+            return RealtimeHttpResponses.error(exchange, HttpStatus.BAD_REQUEST, "INVALID_REQUEST");
+        }
         String ip = remote == null || remote.getAddress() == null
                 ? "unknown"
                 : remote.getAddress().getHostAddress();
@@ -120,7 +126,11 @@ public final class RealtimeIngressFilter implements WebFilter {
         if (reservation.rejection() != null) {
             return RealtimeHttpResponses.error(exchange, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED");
         }
-        return chain.filter(exchange).doFinally(ignored -> reservation.lease().close());
+        if (!limiter.registerHandoff(connectionKey, reservation.lease())) {
+            reservation.lease().close();
+            return RealtimeHttpResponses.error(exchange, HttpStatus.BAD_REQUEST, "INVALID_REQUEST");
+        }
+        return chain.filter(exchange).doFinally(ignored -> limiter.cancelHandoff(connectionKey, reservation.lease()));
     }
 
     private static boolean headerContainsToken(HttpHeaders headers, String name, String expected) {
@@ -136,6 +146,20 @@ public final class RealtimeIngressFilter implements WebFilter {
                 .map(String::trim)
                 .map(name -> name.toLowerCase(Locale.ROOT))
                 .allMatch(PREFLIGHT_HEADERS::contains);
+    }
+
+    private String approvedOrigin(HttpHeaders headers) {
+        List<String> origins = headers.getOrEmpty(HttpHeaders.ORIGIN);
+        if (origins.size() != 1) return null;
+        String origin = origins.getFirst();
+        return allowedOrigins.contains(origin) ? origin : null;
+    }
+
+    static String connectionKey(InetSocketAddress remote, HttpHeaders headers) {
+        List<String> keys = headers.getOrEmpty(WEBSOCKET_KEY);
+        if (keys.size() != 1 || keys.getFirst().isBlank()) return null;
+        String source = remote == null ? "unknown" : remote.toString();
+        return source + "|" + keys.getFirst();
     }
 
     private static boolean reserved(String path, String prefix) {

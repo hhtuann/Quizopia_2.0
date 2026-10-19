@@ -39,12 +39,14 @@ public class RealtimeConfiguration {
     RealtimeWebSocketHandler realtimeWebSocketHandler(
             RealtimeProperties properties,
             RealtimeTicketStore tickets,
+            RealtimeConnectionLimiter limiter,
             ReactiveJwtDecoder decoder,
             QuizopiaJwtAuthenticationConverter converter,
             IdentityAdmissionClient admission,
             MeterRegistry meters,
             Clock realtimeClock) {
-        return new RealtimeWebSocketHandler(properties, tickets, decoder, converter, admission, meters, realtimeClock);
+        return new RealtimeWebSocketHandler(
+                properties, tickets, limiter, decoder, converter, admission, meters, realtimeClock);
     }
 
     @Bean

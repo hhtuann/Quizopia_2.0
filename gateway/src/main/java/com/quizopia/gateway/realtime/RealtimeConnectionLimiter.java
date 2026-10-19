@@ -45,6 +45,7 @@ public final class RealtimeConnectionLimiter {
     private final Map<String, Integer> byIp = new HashMap<>();
     private final Map<String, Integer> byOrigin = new HashMap<>();
     private final Map<String, ArrayDeque<Long>> upgrades = new HashMap<>();
+    private final Map<String, Lease> pendingHandoffs = new HashMap<>();
     private int total;
 
     public RealtimeConnectionLimiter(RealtimeProperties properties, Clock clock) {
@@ -82,6 +83,18 @@ public final class RealtimeConnectionLimiter {
         byIp.merge(ip, 1, Integer::sum);
         byOrigin.merge(origin, 1, Integer::sum);
         return Reservation.accepted(new Lease(ip, origin));
+    }
+
+    synchronized boolean registerHandoff(String connectionKey, Lease lease) {
+        return pendingHandoffs.putIfAbsent(connectionKey, lease) == null;
+    }
+
+    synchronized Lease claimHandoff(String connectionKey) {
+        return connectionKey == null ? null : pendingHandoffs.remove(connectionKey);
+    }
+
+    synchronized void cancelHandoff(String connectionKey, Lease lease) {
+        if (pendingHandoffs.remove(connectionKey, lease)) lease.close();
     }
 
     private void removeExpiredUpgradeSources(long now) {

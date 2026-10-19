@@ -39,6 +39,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     private final RealtimeProperties properties;
     private final RealtimeTicketStore tickets;
+    private final RealtimeConnectionLimiter limiter;
     private final ReactiveJwtDecoder decoder;
     private final QuizopiaJwtAuthenticationConverter converter;
     private final IdentityAdmissionClient admission;
@@ -52,6 +53,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
     public RealtimeWebSocketHandler(
             RealtimeProperties properties,
             RealtimeTicketStore tickets,
+            RealtimeConnectionLimiter limiter,
             ReactiveJwtDecoder decoder,
             QuizopiaJwtAuthenticationConverter converter,
             IdentityAdmissionClient admission,
@@ -59,6 +61,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             Clock clock) {
         this.properties = properties;
         this.tickets = tickets;
+        this.limiter = limiter;
         this.decoder = decoder;
         this.converter = converter;
         this.admission = admission;
@@ -73,6 +76,14 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
+        RealtimeConnectionLimiter.Lease lease = limiter.claimHandoff(RealtimeIngressFilter.connectionKey(
+                session.getHandshakeInfo().getRemoteAddress(),
+                session.getHandshakeInfo().getHeaders()));
+        if (lease == null) {
+            meters.counter("gateway.realtime.websocket", "outcome", RealtimeFailure.Kind.AUTHORITY_UNAVAILABLE.name())
+                    .increment();
+            return session.close(new CloseStatus(RealtimeFailure.Kind.AUTHORITY_UNAVAILABLE.closeCode()));
+        }
         AtomicReference<State> state = new AtomicReference<>(State.PENDING_AUTH);
         AtomicReference<Disposable> expiry = new AtomicReference<>();
         Sinks.Many<WebSocketMessage> outbound =
@@ -101,6 +112,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             if (expiryTimer != null) expiryTimer.dispose();
             state.set(State.CLOSED);
             outbound.tryEmitComplete();
+            lease.close();
         });
     }
 
@@ -203,7 +215,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
     private AuthFrame parseAuth(String text) {
         JsonNode root = parseObject(text);
         if (root.size() != 4
-                || root.path("protocolVersion").asInt(-1) != 1
+                || !protocolVersionOne(root)
                 || !"AUTH".equals(text(root, "type"))
                 || !root.path("ticket").isString()
                 || !root.path("accessToken").isString()) {
@@ -222,7 +234,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     private void requireSubscribe(JsonNode root) {
         if (root.size() != 4
-                || root.path("protocolVersion").asInt(-1) != 1
+                || !protocolVersionOne(root)
                 || !canonicalUuid(root.path("requestId"))
                 || !root.path("resource").isObject()
                 || root.path("resource").size() != 2
@@ -234,7 +246,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     private void requireUnsubscribe(JsonNode root) {
         if (root.size() != 4
-                || root.path("protocolVersion").asInt(-1) != 1
+                || !protocolVersionOne(root)
                 || !canonicalUuid(root.path("requestId"))
                 || !root.path("subscriptionId").isString()
                 || root.path("subscriptionId").asString().isEmpty()
@@ -257,6 +269,11 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     private static String text(JsonNode root, String field) {
         return root.path(field).isString() ? root.path(field).asString() : null;
+    }
+
+    private static boolean protocolVersionOne(JsonNode root) {
+        JsonNode version = root.path("protocolVersion");
+        return version.isIntegralNumber() && version.canConvertToInt() && version.intValue() == 1;
     }
 
     private static boolean canonicalUuid(JsonNode value) {

@@ -7,8 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.quizopia.gateway.realtime.RealtimeConnectionLimiter;
 import com.quizopia.gateway.realtime.RealtimeIngressFilter;
 import com.quizopia.gateway.realtime.RealtimeTicketStore;
+import com.quizopia.gateway.security.admission.IdentityAdmissionClient;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
@@ -26,20 +30,25 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -52,6 +61,7 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketMessage;
@@ -70,6 +80,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@ExtendWith(OutputCaptureExtension.class)
 @Import(RealtimeGatewayIntegrationTest.Keys.class)
 class RealtimeGatewayIntegrationTest {
     private static final String ORIGIN = "https://quizopia.test";
@@ -82,6 +93,7 @@ class RealtimeGatewayIntegrationTest {
     private static final AtomicReference<String> ADMISSION_BODY =
             new AtomicReference<>("{\"actorId\":\"" + ACTOR + "\",\"roles\":[\"STUDENT\"]}");
     private static final AtomicInteger ADMISSION_CALLS = new AtomicInteger();
+    private static final AtomicInteger TOKEN_CALLS = new AtomicInteger();
     private static final DisposableServer IDENTITY = identityStub();
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -94,6 +106,15 @@ class RealtimeGatewayIntegrationTest {
     @Autowired
     private RealtimeTicketStore tickets;
 
+    @Autowired
+    private RealtimeConnectionLimiter connectionLimiter;
+
+    @Autowired
+    private CapturingObservationHandler observations;
+
+    @Autowired
+    private IdentityAdmissionClient admission;
+
     private WebTestClient http;
 
     @DynamicPropertySource
@@ -104,8 +125,11 @@ class RealtimeGatewayIntegrationTest {
         registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> ISSUER);
         registry.add("quizopia.gateway.browser.allowed-origins", () -> ORIGIN + "," + SECOND_ORIGIN);
         registry.add("quizopia.realtime.enabled", () -> true);
-        registry.add("quizopia.realtime.auth-timeout", () -> "PT1S");
+        registry.add("quizopia.realtime.auth-timeout", () -> "PT3S");
         registry.add("quizopia.realtime.ticket-issue-rate-per-actor", () -> 3);
+        registry.add("quizopia.realtime.maximum-connections", () -> 1);
+        registry.add("quizopia.realtime.maximum-connections-per-ip", () -> 1);
+        registry.add("quizopia.realtime.maximum-connections-per-origin", () -> 1);
         registry.add("quizopia.admission.enabled", () -> true);
         registry.add("quizopia.admission.identity-base-url", () -> "http://127.0.0.1:" + IDENTITY.port());
         registry.add("quizopia.admission.client-id", () -> "gateway-realtime-test");
@@ -122,6 +146,8 @@ class RealtimeGatewayIntegrationTest {
         ADMISSION_STATUS.set(200);
         ADMISSION_BODY.set("{\"actorId\":\"" + ACTOR + "\",\"roles\":[\"STUDENT\"]}");
         ADMISSION_CALLS.set(0);
+        awaitConnectionCount(0);
+        observations.clear();
         http = WebTestClient.bindToServer()
                 .baseUrl("http://127.0.0.1:" + port)
                 .responseTimeout(Duration.ofSeconds(5))
@@ -192,6 +218,38 @@ class RealtimeGatewayIntegrationTest {
                 .expectStatus()
                 .isEqualTo(405);
         http.get().uri("/ws/realtime/unknown").exchange().expectStatus().isNotFound();
+        assertEquals(0, ADMISSION_CALLS.get());
+    }
+
+    @Test
+    void duplicateOriginsFailClosedAcrossTicketPreflightAndUpgrade() {
+        String token = userToken(Duration.ofMinutes(5));
+        http.post()
+                .uri(RealtimeIngressFilter.TICKET_PATH)
+                .header(HttpHeaders.ORIGIN, ORIGIN, SECOND_ORIGIN)
+                .headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .json("{\"code\":\"ACCESS_DENIED\"}", true);
+        http.options()
+                .uri(RealtimeIngressFilter.TICKET_PATH)
+                .header(HttpHeaders.ORIGIN, ORIGIN, SECOND_ORIGIN)
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.POST.name())
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization, Content-Type")
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .json("{\"code\":\"ACCESS_DENIED\"}", true);
+        websocketUpgrade(List.of(ORIGIN, SECOND_ORIGIN), RealtimeIngressFilter.SUBPROTOCOL, null, null)
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .json("{\"code\":\"ACCESS_DENIED\"}", true);
         assertEquals(0, ADMISSION_CALLS.get());
     }
 
@@ -301,6 +359,22 @@ class RealtimeGatewayIntegrationTest {
             String response = new String(body, java.nio.charset.StandardCharsets.UTF_8);
             assertEquals("{\"code\":\"AUTHORITY_UNAVAILABLE\"}", response);
             assertFalse(response.contains(token));
+        } finally {
+            REDIS.getDockerClient().unpauseContainerCmd(REDIS.getContainerId()).exec();
+            REDIS.execInContainer("redis-cli", "PING");
+        }
+    }
+
+    @Test
+    void redisFailureDuringTicketConsumptionClosesWithAuthorityUnavailable() throws Exception {
+        String token = userToken(Duration.ofMinutes(5));
+        String ticket = ticket(issueBody(token, ORIGIN));
+        REDIS.getDockerClient().pauseContainerCmd(REDIS.getContainerId()).exec();
+        try {
+            AtomicReference<CloseStatus> close = new AtomicReference<>();
+            List<String> messages = exchange(ORIGIN, List.of(auth(ticket, token)), 1, close);
+            assertEquals(4503, close.get().getCode());
+            assertFalse(messages.stream().anyMatch(message -> message.contains("AUTHENTICATED")));
         } finally {
             REDIS.getDockerClient().unpauseContainerCmd(REDIS.getContainerId()).exec();
             REDIS.execInContainer("redis-cli", "PING");
@@ -430,15 +504,127 @@ class RealtimeGatewayIntegrationTest {
     }
 
     @Test
-    void websocketClosesAtJwtExpiryAndNeverDisclosesCredentials() {
-        String token = userToken(Duration.ofSeconds(3));
-        String ticket = ticket(issueBody(token, ORIGIN));
-        AtomicReference<CloseStatus> close = new AtomicReference<>();
-        List<String> messages = exchange(ORIGIN, List.of(auth(ticket, token)), 1, close);
+    void websocketRejectsCoercedProtocolVersionsForEveryClientFrame() {
+        String token = userToken(Duration.ofMinutes(5));
 
+        String authTicket = ticket(issueBody(token, ORIGIN));
+        AtomicReference<CloseStatus> authClose = new AtomicReference<>();
+        exchange(
+                ORIGIN,
+                List.of(auth(authTicket, token).replace("\"protocolVersion\":1", "\"protocolVersion\":\"1\"")),
+                1,
+                authClose);
+        assertEquals(4400, authClose.get().getCode());
+
+        String subscribeTicket = ticket(issueBody(token, ORIGIN));
+        AtomicReference<CloseStatus> subscribeClose = new AtomicReference<>();
+        String subscribe = "{\"protocolVersion\":1.5,\"type\":\"SUBSCRIBE\",\"requestId\":\""
+                + UUID.randomUUID()
+                + "\",\"resource\":{\"kind\":\"ATTEMPT_OWNER\",\"id\":\""
+                + UUID.randomUUID()
+                + "\"}}";
+        exchange(ORIGIN, List.of(auth(subscribeTicket, token), subscribe), 1, subscribeClose);
+        assertEquals(4400, subscribeClose.get().getCode());
+
+        String unsubscribeTicket = ticket(issueBody(token, ORIGIN));
+        AtomicReference<CloseStatus> unsubscribeClose = new AtomicReference<>();
+        String unsubscribe = "{\"protocolVersion\":true,\"type\":\"UNSUBSCRIBE\",\"requestId\":\""
+                + UUID.randomUUID()
+                + "\",\"subscriptionId\":\"subscription-1\"}";
+        exchange(ORIGIN, List.of(auth(unsubscribeTicket, token), unsubscribe), 1, unsubscribeClose);
+        assertEquals(4400, unsubscribeClose.get().getCode());
+    }
+
+    @Test
+    void websocketConnectionLeaseIsHeldUntilTeardownAndThenReleased() throws Exception {
+        String token = userToken(Duration.ofMinutes(5));
+        String heldTicket = ticket(issueBody(token, ORIGIN));
+        CompletableFuture<Void> heldClosed = new CompletableFuture<>();
+        CompletableFuture<Void> heldAuthenticated = new CompletableFuture<>();
+        WebSocket held = openWebSocket(ORIGIN, heldClosed, heldAuthenticated);
+        try {
+            held.sendText(auth(heldTicket, token), true).join();
+            heldAuthenticated.get(5, TimeUnit.SECONDS);
+            websocketUpgrade(ORIGIN, RealtimeIngressFilter.SUBPROTOCOL, null, null)
+                    .expectStatus()
+                    .isEqualTo(429)
+                    .expectBody()
+                    .json("{\"code\":\"RATE_LIMITED\"}", true);
+        } finally {
+            held.sendClose(WebSocket.NORMAL_CLOSURE, "").join();
+            heldClosed.get(5, TimeUnit.SECONDS);
+        }
+        awaitConnectionCount(0);
+
+        String replacementTicket = ticket(issueBody(token, ORIGIN));
+        List<String> messages = exchange(ORIGIN, List.of(auth(replacementTicket, token)), 2, null);
+        assertEquals("{\"protocolVersion\":1,\"type\":\"AUTHENTICATED\"}", messages.get(1));
+    }
+
+    @Test
+    void websocketClosesAtJwtExpiryAndNeverDisclosesCredentials(CapturedOutput output) {
+        String token = userToken(Duration.ofSeconds(3));
+        AtomicReference<CloseStatus> close = new AtomicReference<>();
+        ch.qos.logback.classic.Logger root =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        ch.qos.logback.classic.Level previousLevel = root.getLevel();
+        int tokenCallsBefore = TOKEN_CALLS.get();
+        String ticket;
+        String authFrame;
+        String ticketObservations;
+        String websocketObservations;
+        List<String> messages;
+        root.setLevel(ch.qos.logback.classic.Level.TRACE);
+        try {
+            clearCachedAdmissionClient();
+            ticket = ticket(issueBody(token, ORIGIN));
+            authFrame = auth(ticket, token);
+            ticketObservations = observations.completed();
+            observations.clear();
+            messages = exchange(ORIGIN, List.of(authFrame), 1, close);
+            websocketObservations = observations.completed();
+        } finally {
+            root.setLevel(previousLevel);
+        }
+
+        assertEquals(tokenCallsBefore + 1, TOKEN_CALLS.get());
         assertEquals(4401, close.get().getCode());
         assertTrue(messages.stream().anyMatch(message -> message.contains("AUTHENTICATED")));
         assertTrue(messages.stream().noneMatch(message -> message.contains(token) || message.contains(ticket)));
+        assertCredentialsAbsent(output.getAll(), token, ticket, authFrame);
+        assertFalse(ticketObservations.isBlank());
+        assertFalse(websocketObservations.isBlank());
+        assertCredentialsAbsent(ticketObservations + websocketObservations, token, ticket, authFrame);
+    }
+
+    private void clearCachedAdmissionClient() {
+        Object manager = ReflectionTestUtils.getField(admission, "manager");
+        ReactiveOAuth2AuthorizedClientService clients = (ReactiveOAuth2AuthorizedClientService)
+                ReflectionTestUtils.getField(manager, "authorizedClientService");
+        clients.removeAuthorizedClient("identity-admission", "identity-admission-client")
+                .block(Duration.ofSeconds(2));
+    }
+
+    private static void assertCredentialsAbsent(String captured, String token, String ticket, String authFrame) {
+        assertFalse(captured.contains(token));
+        assertFalse(captured.contains(ticket));
+        assertFalse(captured.contains(authFrame));
+        assertFalse(captured.contains("test-only-secret"));
+        assertFalse(captured.contains("service-token"));
+    }
+
+    private void awaitConnectionCount(int expected) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (connectionCount() != expected && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+        assertEquals(expected, connectionCount());
+    }
+
+    private int connectionCount() {
+        synchronized (connectionLimiter) {
+            return (int) ReflectionTestUtils.getField(connectionLimiter, "total");
+        }
     }
 
     private WebTestClient.ResponseSpec issue(String token, String origin, String body) {
@@ -453,10 +639,15 @@ class RealtimeGatewayIntegrationTest {
 
     private WebTestClient.ResponseSpec websocketUpgrade(
             String origin, String protocol, String authorization, String query) {
+        return websocketUpgrade(List.of(origin), protocol, authorization, query);
+    }
+
+    private WebTestClient.ResponseSpec websocketUpgrade(
+            List<String> origins, String protocol, String authorization, String query) {
         String uri = RealtimeIngressFilter.WEBSOCKET_PATH + (query == null ? "" : "?" + query);
         return http.get()
                 .uri(uri)
-                .header(HttpHeaders.ORIGIN, origin)
+                .header(HttpHeaders.ORIGIN, origins.toArray(String[]::new))
                 .header(HttpHeaders.UPGRADE, "websocket")
                 .header(HttpHeaders.CONNECTION, "Upgrade")
                 .header("Sec-WebSocket-Protocol", protocol)
@@ -466,6 +657,48 @@ class RealtimeGatewayIntegrationTest {
                     if (authorization != null) headers.set(HttpHeaders.AUTHORIZATION, authorization);
                 })
                 .exchange();
+    }
+
+    private WebSocket openWebSocket(
+            String origin, CompletableFuture<Void> closed, CompletableFuture<Void> authenticated) {
+        WebSocket.Listener listener = new WebSocket.Listener() {
+            private final StringBuilder text = new StringBuilder();
+
+            @Override
+            public void onOpen(WebSocket webSocket) {
+                webSocket.request(1);
+            }
+
+            @Override
+            public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+                text.append(data);
+                if (last) {
+                    if ("{\"protocolVersion\":1,\"type\":\"AUTHENTICATED\"}".contentEquals(text)) {
+                        authenticated.complete(null);
+                    }
+                    text.setLength(0);
+                }
+                webSocket.request(1);
+                return null;
+            }
+
+            @Override
+            public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+                closed.complete(null);
+                return null;
+            }
+
+            @Override
+            public void onError(WebSocket webSocket, Throwable error) {
+                closed.completeExceptionally(error);
+            }
+        };
+        return java.net.http.HttpClient.newHttpClient()
+                .newWebSocketBuilder()
+                .header(HttpHeaders.ORIGIN, origin)
+                .subprotocols(RealtimeIngressFilter.SUBPROTOCOL)
+                .buildAsync(URI.create("ws://127.0.0.1:" + port + RealtimeIngressFilter.WEBSOCKET_PATH), listener)
+                .join();
     }
 
     private String issueBody(String token, String origin) {
@@ -587,6 +820,7 @@ class RealtimeGatewayIntegrationTest {
                 .port(0)
                 .handle((request, response) -> {
                     if (request.uri().equals("/oauth2/token")) {
+                        TOKEN_CALLS.incrementAndGet();
                         return request.receive()
                                 .then(response.status(200)
                                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -659,6 +893,45 @@ class RealtimeGatewayIntegrationTest {
                     NimbusReactiveJwtDecoder.withPublicKey(KEY.toRSAPublicKey()).build();
             decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
             return decoder;
+        }
+
+        @Bean
+        CapturingObservationHandler capturingObservationHandler() {
+            return new CapturingObservationHandler();
+        }
+    }
+
+    static final class CapturingObservationHandler implements ObservationHandler<Observation.Context> {
+        private final List<String> completed = new CopyOnWriteArrayList<>();
+
+        @Override
+        public boolean supportsContext(Observation.Context context) {
+            return true;
+        }
+
+        @Override
+        public void onStop(Observation.Context context) {
+            completed.add(context.getName()
+                    + '|'
+                    + context.getContextualName()
+                    + '|'
+                    + context.getAllKeyValues()
+                    + '|'
+                    + context.getError());
+        }
+
+        @Override
+        public void onEvent(Observation.Event event, Observation.Context context) {
+            completed.add(
+                    "event|" + event.getName() + '|' + event.getContextualName() + '|' + context.getAllKeyValues());
+        }
+
+        void clear() {
+            completed.clear();
+        }
+
+        String completed() {
+            return String.join("\n", completed);
         }
     }
 }
