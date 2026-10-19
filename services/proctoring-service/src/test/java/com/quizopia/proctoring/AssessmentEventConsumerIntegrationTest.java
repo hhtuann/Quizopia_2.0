@@ -518,8 +518,10 @@ class AssessmentEventConsumerIntegrationTest {
     @Test
     void defaultTlsTrustRejectsUnknownCertificateBeforeBrokerCredentialsAreSent() throws Exception {
         var directory = java.nio.file.Files.createTempDirectory("quizopia-consumer-tls-");
-        java.nio.file.Files.setPosixFilePermissions(
-                directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        if (java.nio.file.Files.getFileStore(directory).supportsFileAttributeView("posix")) {
+            java.nio.file.Files.setPosixFilePermissions(
+                    directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        }
         var keyFile = directory.resolve("server.p12");
         String pass = UUID.randomUUID().toString();
         var executor = Executors.newSingleThreadExecutor();
@@ -544,18 +546,34 @@ class AssessmentEventConsumerIntegrationTest {
                             "-dname",
                             "CN=localhost",
                             "-ext",
-                            "SAN=dns:localhost")
+                            "SAN=dns:localhost,ip:127.0.0.1")
                     .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
             assertTrue(keytool.waitFor(10, TimeUnit.SECONDS));
             assertEquals(0, keytool.exitValue());
-            java.nio.file.Files.setPosixFilePermissions(
-                    keyFile, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            if (java.nio.file.Files.getFileStore(keyFile).supportsFileAttributeView("posix")) {
+                java.nio.file.Files.setPosixFilePermissions(
+                        keyFile, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            }
             var keys = java.security.KeyStore.getInstance("PKCS12");
             try (var input = java.nio.file.Files.newInputStream(keyFile)) {
                 keys.load(input, pass.toCharArray());
             }
+            var certificateChain = Arrays.stream(keys.getCertificateChain("fixture"))
+                    .map(java.security.cert.X509Certificate.class::cast)
+                    .toArray(java.security.cert.X509Certificate[]::new);
+            var defaultTrustManagers = javax.net.ssl.TrustManagerFactory.getInstance(
+                    javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+            defaultTrustManagers.init((java.security.KeyStore) null);
+            var defaultTrustManager = Arrays.stream(defaultTrustManagers.getTrustManagers())
+                    .filter(javax.net.ssl.X509TrustManager.class::isInstance)
+                    .map(javax.net.ssl.X509TrustManager.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            assertThrows(
+                    java.security.cert.CertificateException.class,
+                    () -> defaultTrustManager.checkServerTrusted(certificateChain, "RSA"));
             var managers =
                     javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
             managers.init(keys, pass.toCharArray());
@@ -568,18 +586,36 @@ class AssessmentEventConsumerIntegrationTest {
                     try (var socket = (javax.net.ssl.SSLSocket) server.accept()) {
                         socket.setSoTimeout(5000);
                         socket.startHandshake();
-                        return false;
+                        return null;
                     } catch (javax.net.ssl.SSLHandshakeException expected) {
-                        return true;
+                        return expected;
+                    } catch (java.net.SocketException expectedPeerAbort) {
+                        String message = Objects.requireNonNullElse(expectedPeerAbort.getMessage(), "")
+                                .toLowerCase(Locale.ROOT);
+                        boolean expectedWindowsPeerAbort = System.getProperty("os.name")
+                                        .toLowerCase(Locale.ROOT)
+                                        .contains("win")
+                                && (message.contains("forcibly closed by the remote host")
+                                        || message.contains("aborted by the software in your host machine"));
+                        if (!expectedWindowsPeerAbort) throw expectedPeerAbort;
+                        return expectedPeerAbort;
                     }
                 });
                 properties.setTls(true);
                 properties.setPort(server.getLocalPort());
                 poll();
-                assertTrue(handshake.get(8, TimeUnit.SECONDS));
+                assertNotNull(handshake.get(8, TimeUnit.SECONDS));
                 assertEquals(
                         1.0,
                         meters.counter("proctoring.assessment.events", "outcome", "pending")
+                                .count());
+                assertEquals(
+                        0.0,
+                        meters.counter("proctoring.assessment.events", "outcome", "received")
+                                .count());
+                assertEquals(
+                        0.0,
+                        meters.counter("proctoring.assessment.events", "outcome", "rejected")
                                 .count());
                 assertEquals(0, count("assessment_monitoring_inbox"));
             }

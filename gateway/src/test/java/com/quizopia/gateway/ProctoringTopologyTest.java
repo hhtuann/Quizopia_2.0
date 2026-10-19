@@ -130,8 +130,10 @@ class ProctoringTopologyTest {
                         pem("PUBLIC KEY", signing.toRSAPublicKey().getEncoded()))
                 .entrySet()) {
             Files.writeString(keyDirectory.resolve(entry.getKey()), entry.getValue());
-            Files.setPosixFilePermissions(
-                    keyDirectory.resolve(entry.getKey()), PosixFilePermissions.fromString("rw-------"));
+            Path keyFile = keyDirectory.resolve(entry.getKey());
+            if (Files.getFileStore(keyFile).supportsFileAttributeView("posix")) {
+                Files.setPosixFilePermissions(keyFile, PosixFilePermissions.fromString("rw-------"));
+            }
         }
         for (String service : List.of("identity", "classroom", "assessment", "proctoring")) {
             ORIGINS.put(service, "http://127.0.0.1:" + port());
@@ -352,13 +354,13 @@ class ProctoringTopologyTest {
 
     static void buildOwned(String name) throws Exception {
         Path module = repository.resolve("services/" + name + "-service");
-        var p = new ProcessBuilder(
-                        "bash",
-                        "mvnw",
-                        "-B",
-                        "-DskipTests",
-                        "-Dquizopia.build.directory=" + module.resolve("target/proctoring-topology-build"),
-                        "package")
+        var command = mavenWrapperCommand();
+        command.addAll(List.of(
+                "-B",
+                "-DskipTests",
+                "-Dquizopia.build.directory=" + module.resolve("target/proctoring-topology-build"),
+                "package"));
+        var p = new ProcessBuilder(command)
                 .directory(module.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(evidence.resolve(name + "-build.log").toFile())

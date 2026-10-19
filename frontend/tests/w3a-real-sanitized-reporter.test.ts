@@ -88,7 +88,8 @@ describe("sanitized W3 real reporter", () => {
       status: "failed",
     });
     expect(readFileSync(path, "utf8")).not.toContain("secret-bearing");
-    expect(statSync(path).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32")
+      expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
   it("refuses to overwrite an existing evidence file", () => {
@@ -104,14 +105,15 @@ describe("sanitized W3 real reporter", () => {
   it("keeps writing to the exclusively opened receipt if its path is replaced", () => {
     const path = evidencePath();
     const retainedPath = `${path}.retained`;
-    const replacementTarget = `${path}.replacement`;
+    const replacementTarget =
+      process.platform === "win32" ? path : `${path}.replacement`;
     configure(path);
 
     const reporter = new SanitizedReporter();
     reporter.onBegin?.({} as FullConfig, {} as Suite);
     renameSync(path, retainedPath);
     writeFileSync(replacementTarget, "replacement\n", { mode: 0o600 });
-    symlinkSync(replacementTarget, path);
+    if (process.platform !== "win32") symlinkSync(replacementTarget, path);
 
     reporter.onTestEnd?.(
       {

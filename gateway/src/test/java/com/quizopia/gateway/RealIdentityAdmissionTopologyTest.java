@@ -361,7 +361,8 @@ class RealIdentityAdmissionTopologyTest {
     }
 
     static void build(String project) throws Exception {
-        var command = new ArrayList<String>(List.of("bash", "mvnw", "-B", "-DskipTests", "package"));
+        var command = PublicationTopologyTest.mavenWrapperCommand();
+        command.addAll(List.of("-B", "-DskipTests", "package"));
         if (project.contains("classroom"))
             command.add("-Dquizopia.build.directory=" + root.resolve(project + "/target/admission-topology-build"));
         var process = new ProcessBuilder(command)
