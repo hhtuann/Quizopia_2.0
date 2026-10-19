@@ -1844,7 +1844,8 @@ class PublicationTopologyTest {
     }
 
     static void build(String project) throws Exception {
-        var command = new ArrayList<String>(List.of("bash", "mvnw", "-B", "-DskipTests", "package"));
+        var command = mavenWrapperCommand();
+        command.addAll(List.of("-B", "-DskipTests", "package"));
         command.add("-Dquizopia.build.directory=" + root.resolve(project + "/target/publication-topology-build"));
         var process = new ProcessBuilder(command)
                 .directory(root.resolve(project).toFile())
@@ -1854,6 +1855,13 @@ class PublicationTopologyTest {
                 .start();
         assertTrue(process.waitFor(180, TimeUnit.SECONDS), "Topology artifact build timed out");
         assertEquals(0, process.exitValue(), "See gateway/target/publication-topology build logs");
+    }
+
+    static ArrayList<String> mavenWrapperCommand() {
+        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")) {
+            return new ArrayList<>(List.of("cmd.exe", "/d", "/s", "/c", "mvnw.cmd"));
+        }
+        return new ArrayList<>(List.of("bash", "mvnw"));
     }
 
     static void startProcess(String name, Path jar, List<String> args) throws Exception {

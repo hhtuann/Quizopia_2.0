@@ -518,8 +518,10 @@ class AssessmentEventConsumerIntegrationTest {
     @Test
     void defaultTlsTrustRejectsUnknownCertificateBeforeBrokerCredentialsAreSent() throws Exception {
         var directory = java.nio.file.Files.createTempDirectory("quizopia-consumer-tls-");
-        java.nio.file.Files.setPosixFilePermissions(
-                directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        if (java.nio.file.Files.getFileStore(directory).supportsFileAttributeView("posix")) {
+            java.nio.file.Files.setPosixFilePermissions(
+                    directory, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        }
         var keyFile = directory.resolve("server.p12");
         String pass = UUID.randomUUID().toString();
         var executor = Executors.newSingleThreadExecutor();
@@ -550,8 +552,10 @@ class AssessmentEventConsumerIntegrationTest {
                     .start();
             assertTrue(keytool.waitFor(10, TimeUnit.SECONDS));
             assertEquals(0, keytool.exitValue());
-            java.nio.file.Files.setPosixFilePermissions(
-                    keyFile, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            if (java.nio.file.Files.getFileStore(keyFile).supportsFileAttributeView("posix")) {
+                java.nio.file.Files.setPosixFilePermissions(
+                        keyFile, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+            }
             var keys = java.security.KeyStore.getInstance("PKCS12");
             try (var input = java.nio.file.Files.newInputStream(keyFile)) {
                 keys.load(input, pass.toCharArray());
@@ -564,24 +568,56 @@ class AssessmentEventConsumerIntegrationTest {
             try (var server = (javax.net.ssl.SSLServerSocket)
                     tls.getServerSocketFactory().createServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
                 server.setSoTimeout(5000);
-                var handshake = executor.submit(() -> {
-                    try (var socket = (javax.net.ssl.SSLSocket) server.accept()) {
-                        socket.setSoTimeout(5000);
-                        socket.startHandshake();
-                        return false;
-                    } catch (javax.net.ssl.SSLHandshakeException expected) {
-                        return true;
-                    }
-                });
-                properties.setTls(true);
-                properties.setPort(server.getLocalPort());
-                poll();
-                assertTrue(handshake.get(8, TimeUnit.SECONDS));
-                assertEquals(
-                        1.0,
-                        meters.counter("proctoring.assessment.events", "outcome", "pending")
-                                .count());
-                assertEquals(0, count("assessment_monitoring_inbox"));
+                var clientTlsLogger = (ch.qos.logback.classic.Logger)
+                        org.slf4j.LoggerFactory.getLogger("com.rabbitmq.client.impl.SocketFrameHandler");
+                var clientTlsEvents =
+                        new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+                clientTlsEvents.start();
+                clientTlsLogger.addAppender(clientTlsEvents);
+                try {
+                    var handshake = executor.submit(() -> {
+                        try (var socket = (javax.net.ssl.SSLSocket) server.accept()) {
+                            socket.setSoTimeout(5000);
+                            socket.startHandshake();
+                            return null;
+                        } catch (javax.net.ssl.SSLHandshakeException expected) {
+                            return expected;
+                        } catch (java.net.SocketException expectedPeerAbort) {
+                            String message = Objects.requireNonNullElse(expectedPeerAbort.getMessage(), "")
+                                    .toLowerCase(Locale.ROOT);
+                            boolean expectedWindowsPeerAbort = System.getProperty("os.name")
+                                            .toLowerCase(Locale.ROOT)
+                                            .contains("win")
+                                    && (message.contains("forcibly closed by the remote host")
+                                            || message.contains("aborted by the software in your host machine"));
+                            if (!expectedWindowsPeerAbort) throw expectedPeerAbort;
+                            return expectedPeerAbort;
+                        }
+                    });
+                    properties.setTls(true);
+                    properties.setPort(server.getLocalPort());
+                    poll();
+                    assertNotNull(handshake.get(8, TimeUnit.SECONDS));
+                    assertTrue(clientTlsEvents.list.stream()
+                            .map(ch.qos.logback.classic.spi.ILoggingEvent::getFormattedMessage)
+                            .anyMatch(message -> message.contains("certificate_unknown") && message.contains("PKIX")));
+                    assertEquals(
+                            1.0,
+                            meters.counter("proctoring.assessment.events", "outcome", "pending")
+                                    .count());
+                    assertEquals(
+                            0.0,
+                            meters.counter("proctoring.assessment.events", "outcome", "received")
+                                    .count());
+                    assertEquals(
+                            0.0,
+                            meters.counter("proctoring.assessment.events", "outcome", "rejected")
+                                    .count());
+                    assertEquals(0, count("assessment_monitoring_inbox"));
+                } finally {
+                    clientTlsLogger.detachAppender(clientTlsEvents);
+                    clientTlsEvents.stop();
+                }
             }
         } finally {
             executor.shutdownNow();
