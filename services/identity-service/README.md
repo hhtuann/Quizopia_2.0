@@ -64,6 +64,17 @@ Credentials tokens retain OAuth scopes and now carry the explicit `SERVICE`
 principal discriminator. Service principals cannot access user-only current
 profile or teacher-enablement endpoints.
 
+For future W4-B2 calls, operators may provision one dedicated persisted
+`client_credentials` client through the existing service-client registration
+mechanism. Set `IDENTITY_REALTIME_GATEWAY_CLIENT_ID` to that exact client ID and
+grant that client exactly `assessment.realtime.subscription-authorize` for this
+purpose. Identity adds audience `quizopia-assessment-realtime-authority` only
+when the configured client requests exactly that registered/authorized scope;
+ordinary service clients receive no new audience. Keep the encoded client secret
+in operator-managed runtime secret storage—never Git or `.env.example`. Leaving
+the client ID blank disables this special audience path. B1 does not implement
+or activate the Assessment private authority endpoint.
+
 Default local port: 8081. See `.env.example` and the root development documentation for configuration.
 
 ## Local signing-key bootstrap

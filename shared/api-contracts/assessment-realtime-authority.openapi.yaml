@@ -1,0 +1,171 @@
+openapi: 3.1.0
+info:
+  title: Quizopia W4-A1 Internal Assessment Realtime Authorization R3
+  version: 0.3.0-review
+  description: Dedicated registered Gateway SERVICE JWT; requires exact SERVICE subject, audience and scope
+    plus fresh USER evidence. Identity audience is a required post-authorization implementation task, with
+    explicit tests. No implied claim already exists.
+paths:
+  /internal/realtime/subscription-authorizations:
+    post:
+      operationId: authorizeRealtimeSubscription
+      security:
+      - serviceJwt:
+        - assessment.realtime.subscription-authorize
+        initiatingUserEvidence: []
+      parameters:
+      - name: X-Quizopia-User-Evidence
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 100
+          maxLength: 16384
+        description: Exactly one JWT USER evidence header; independent validation of token signature, issuer,
+          iat/exp, principal_type USER, roles, current Identity admission, actor-sub binding. No query, cookies,
+          redirect or credential logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceRequest'
+      responses:
+        '200':
+          description: Current positive authorization for this request only; no-cache
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizedResource'
+        '400':
+          $ref: '#/components/responses/Error'
+          description: Malformed strict internal request
+        '401':
+          $ref: '#/components/responses/Error'
+          description: Invalid service or USER evidence
+        '403':
+          $ref: '#/components/responses/Error'
+          description: Valid wrong SERVICE caller/scope/audience or insufficient global role
+        '404':
+          $ref: '#/components/responses/Error'
+          description: Resource absent or inaccessible; mask existence
+        '503':
+          $ref: '#/components/responses/Error'
+          description: Authority, Identity, Classroom, database or credentials uncertain
+      x-required-service-principal-type: SERVICE
+      x-required-service-client-id-config: ASSESSMENT_REALTIME_GATEWAY_CLIENT_ID; exact registered client ID,
+        nonblank, allowlisted only
+      x-required-service-audience: quizopia-assessment-realtime-authority
+      x-required-service-scope: assessment.realtime.subscription-authorize
+      x-user-evidence-check: Strict original USER JWT independently decoded, actor derived from sub, current
+        Identity admission, never log; no actorId from payload
+      description: Exact internal POST; SERVICE JWT RS256, configured issuer, principal_type SERVICE, sub equals
+        configured Gateway-only client id, aud contains quizopia-assessment-realtime-authority, scope contains
+        assessment.realtime.subscription-authorize; all required. If existing Identity issuer does not mint
+        this aud claim, implement and review an additive dedicated client token issuance change before using
+        endpoint. Original USER evidence validated separately; no positive cache. Owner checks outside DB transaction;
+        re-read current resource and fail closed on uncertainty.
+      x-identity-issuance-plan:
+        tokenType: OAuth2 access_token
+        grant: client_credentials
+        clientId: Exact registered ASSESSMENT_REALTIME_GATEWAY_CLIENT_ID
+        scope: assessment.realtime.subscription-authorize
+        audience:
+        - quizopia-assessment-realtime-authority
+        claims:
+          principal_type: SERVICE
+          sub: registered client_id
+        isolation: Add audience ONLY for exact dedicated client in OAuth2TokenCustomizer<JwtEncodingContext>
+          after checking effective issuer behavior. Do not modify other client token audiences/scopes. Two
+          issuer tests (dedicated gets aud; pre-existing clients unchanged) are mandatory before private API
+          enabled.
+      x-current-issuer-feasibility: Known existing customizer sets only principal_type SERVICE. Required audience
+        requires an additive narrowly scoped implementation; DESIGN CONTRACT is resolved, RUNTIME PROOF belongs
+        to W4-B1/B2 integration tests.
+components:
+  securitySchemes:
+    serviceJwt:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth2/token
+          scopes:
+            assessment.realtime.subscription-authorize: Specific Gateway-to-Assessment realtime authority scope
+      description: Only Quizopia-issued SERVICE JWT from configured Gateway realtime client, with aud quizopia-assessment-realtime-authority
+        and exact scope; OAuth scope alone is insufficient.
+    initiatingUserEvidence:
+      type: apiKey
+      in: header
+      name: X-Quizopia-User-Evidence
+  schemas:
+    ResourceRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - resourceKind
+      - resourceId
+      properties:
+        resourceKind:
+          type: string
+          enum:
+          - ATTEMPT_OWNER
+          - PUBLICATION_TEACHER
+        resourceId:
+          type: string
+          format: uuid
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+    AuthorizedResource:
+      type: object
+      additionalProperties: false
+      required:
+      - resourceKind
+      - resourceId
+      - authorized
+      - checkedAt
+      properties:
+        resourceKind:
+          type: string
+          enum:
+          - ATTEMPT_OWNER
+          - PUBLICATION_TEACHER
+        resourceId:
+          type: string
+          format: uuid
+        authorized:
+          type: boolean
+          const: true
+        checkedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      properties:
+        code:
+          type: string
+          enum:
+          - INVALID_REQUEST
+          - USER_EVIDENCE_INVALID
+          - SERVICE_AUTHENTICATION_INVALID
+          - SERVICE_CALLER_FORBIDDEN
+          - NOT_ACCESSIBLE
+          - AUTHORITY_UNAVAILABLE
+  responses:
+    Error:
+      description: Fixed non-oracular error, never reveals resource existence or upstream credentials
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

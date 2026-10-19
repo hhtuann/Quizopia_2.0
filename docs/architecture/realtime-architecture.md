@@ -1,6 +1,6 @@
 # Realtime Architecture
 
-Status: **Accepted transport responsibilities v0.2**
+Status: **Accepted transport responsibilities v0.3**
 
 ## Decision
 
@@ -17,9 +17,18 @@ These transports coexist; one does not replace the others.
 
 Browser WebSocket connections are exposed through the public gateway/edge topology rather than exposing arbitrary service ports publicly.
 
-Exact internal WebSocket broker/relay topology for horizontal scale is still TBD.
+W4 freezes a Gateway-local native WebFlux WebSocket hub with no STOMP relay. Each
+Gateway instance owns its accepted sockets. The browser uses the exact
+default-disabled ticket and AUTH-frame flow in
+[ADR-016](../decisions/ADR-016-gateway-realtime-authentication-foundation.md):
+the HTTP handshake carries no credential and a successful upgrade remains
+`PENDING_AUTH` until one-use ticket redemption, JWT verification and fresh LD-05
+admission complete.
 
-RabbitMQ is accepted as the integration-event broker, but using RabbitMQ as a STOMP broker relay is not automatically implied unless explicitly chosen later.
+B1 exposes no successful subscription or resource-delivery path. B2 must add the
+Assessment-owned private authorization decision. B3 may distribute best-effort
+invalidation hints through RabbitMQ/outbox and fan them out over instance-local
+sockets; RabbitMQ is not a STOMP relay and does not become browser authority.
 
 ## REST
 
@@ -46,7 +55,10 @@ Use for:
 
 WebSocket delivery is not the database.
 
-Clients reconcile after reconnect/event loss.
+Clients reconcile authoritative state through REST after reconnect, detected
+gaps and a bounded periodic resync. Realtime hints may be lost, duplicated or
+reordered. The frozen RT-02 invalidation schema is published under
+`shared/event-contracts`; no B3 publisher/consumer is implemented by B1.
 
 ## WebRTC / LiveKit
 

@@ -14,10 +14,15 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
@@ -72,8 +77,22 @@ public class AuthorizationServerConfiguration {
     }
 
     @Bean
-    OAuth2TokenCustomizer<JwtEncodingContext> serviceAccessTokenCustomizer() {
-        return context -> context.getClaims().claim(QuizopiaTokenClaims.PRINCIPAL_TYPE, QuizopiaTokenClaims.SERVICE);
+    OAuth2TokenCustomizer<JwtEncodingContext> serviceAccessTokenCustomizer(AuthorizationServerProperties properties) {
+        return context -> {
+            context.getClaims().claim(QuizopiaTokenClaims.PRINCIPAL_TYPE, QuizopiaTokenClaims.SERVICE);
+            if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())
+                    || !AuthorizationGrantType.CLIENT_CREDENTIALS.equals(context.getAuthorizationGrantType())
+                    || !properties.isRealtimeGatewayClient(
+                            context.getRegisteredClient().getClientId())) {
+                return;
+            }
+            var requiredScopes = java.util.Set.of(AuthorizationServerProperties.REALTIME_AUTHORITY_SCOPE);
+            if (!requiredScopes.equals(context.getRegisteredClient().getScopes())
+                    || !requiredScopes.equals(context.getAuthorizedScopes())) {
+                throw new OAuth2AuthenticationException(new OAuth2Error(OAuth2ErrorCodes.INVALID_SCOPE));
+            }
+            context.getClaims().audience(java.util.List.of(AuthorizationServerProperties.REALTIME_AUTHORITY_AUDIENCE));
+        };
     }
 
     @Bean

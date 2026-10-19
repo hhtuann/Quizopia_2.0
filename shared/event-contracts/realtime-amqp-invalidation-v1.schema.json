@@ -1,0 +1,81 @@
+{
+  "title": "Quizopia W4-A1 R3: Realtime AMQP invalidation V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "eventVersion",
+    "resourceKind",
+    "resourceId",
+    "occurredAt"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "eventType": {
+      "enum": [
+        "PUBLICATION_INVALIDATED",
+        "ATTEMPT_INVALIDATED"
+      ]
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "resourceKind": {
+      "enum": [
+        "PUBLICATION",
+        "ATTEMPT"
+      ]
+    },
+    "resourceId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.quizopia.example/review/realtime-amqp-invalidation-v1.schema.json",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "eventType": {
+            "const": "PUBLICATION_INVALIDATED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "resourceKind": {
+            "const": "PUBLICATION"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "eventType": {
+            "const": "ATTEMPT_INVALIDATED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "resourceKind": {
+            "const": "ATTEMPT"
+          }
+        }
+      }
+    }
+  ],
+  "description": "Best-effort browser hint derived from transactional outbox; no answer/grade/monitoring data. Independent from W3; not production-approved."
+}

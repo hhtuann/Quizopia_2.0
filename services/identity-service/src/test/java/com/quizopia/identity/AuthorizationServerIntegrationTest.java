@@ -20,6 +20,7 @@ import com.quizopia.identity.application.account.AccountLifecycleStatus;
 import com.quizopia.identity.application.serviceclient.ServiceClientDescriptor;
 import com.quizopia.identity.application.serviceclient.ServiceClientRegistration;
 import com.quizopia.identity.application.serviceclient.ServiceClientRegistrationService;
+import com.quizopia.identity.configuration.AuthorizationServerProperties;
 import com.quizopia.identity.persistence.entity.UserAccountEntity;
 import com.quizopia.identity.persistence.entity.UserRole;
 import com.quizopia.identity.persistence.entity.UserRoleEntity;
@@ -92,6 +93,7 @@ class AuthorizationServerIntegrationTest {
     private static final String KEY_ID = "wave-1a-step-6-test-key";
     private static final Duration ACCESS_TOKEN_TTL = Duration.ofSeconds(45);
     private static final Duration USER_ACCESS_TOKEN_TTL = Duration.ofMinutes(5);
+    private static final String REALTIME_GATEWAY_CLIENT_ID = "gateway-realtime-test";
     private static final Instant USER_TOKEN_ISSUED_AT = Instant.parse("2026-09-13T00:00:00Z");
     private static final TestKeyMaterial KEY_MATERIAL = TestKeyMaterial.create();
 
@@ -149,6 +151,12 @@ class AuthorizationServerIntegrationTest {
         assertEquals(
                 QuizopiaTokenClaims.SERVICE,
                 signedJwt.getJWTClaimsSet().getStringClaim(QuizopiaTokenClaims.PRINCIPAL_TYPE));
+        assertEquals(
+                List.of(registration.clientId()), signedJwt.getJWTClaimsSet().getAudience());
+        assertFalse(signedJwt
+                .getJWTClaimsSet()
+                .getAudience()
+                .contains(AuthorizationServerProperties.REALTIME_AUTHORITY_AUDIENCE));
         assertNull(signedJwt.getJWTClaimsSet().getClaim(QuizopiaTokenClaims.ROLES));
         assertEquals(
                 ACCESS_TOKEN_TTL.toSeconds(),
@@ -172,6 +180,42 @@ class AuthorizationServerIntegrationTest {
         KeyPair unrelatedKeyPair = generateRsaKeyPair();
         assertFalse(signedJwt.verify(
                 new RSASSAVerifier((java.security.interfaces.RSAPublicKey) unrelatedKeyPair.getPublic())));
+    }
+
+    @Test
+    void dedicatedRealtimeGatewayReceivesOnlyNarrowAudienceAndScope() throws Exception {
+        ServiceClientRegistration registration = registrationService.register(
+                REALTIME_GATEWAY_CLIENT_ID, Set.of(AuthorizationServerProperties.REALTIME_AUTHORITY_SCOPE));
+
+        ResponseEntity<String> response = requestToken(
+                registration, "client_credentials", AuthorizationServerProperties.REALTIME_AUTHORITY_SCOPE);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        SignedJWT signedJwt = SignedJWT.parse(
+                objectMapper.readTree(response.getBody()).path("access_token").asText());
+        assertEquals(REALTIME_GATEWAY_CLIENT_ID, signedJwt.getJWTClaimsSet().getSubject());
+        assertEquals(
+                QuizopiaTokenClaims.SERVICE,
+                signedJwt.getJWTClaimsSet().getStringClaim(QuizopiaTokenClaims.PRINCIPAL_TYPE));
+        assertEquals(
+                List.of(AuthorizationServerProperties.REALTIME_AUTHORITY_AUDIENCE),
+                signedJwt.getJWTClaimsSet().getAudience());
+        assertEquals(
+                List.of(AuthorizationServerProperties.REALTIME_AUTHORITY_SCOPE),
+                signedJwt.getJWTClaimsSet().getStringListClaim(QuizopiaTokenClaims.SCOPE));
+        assertNull(signedJwt.getJWTClaimsSet().getClaim(QuizopiaTokenClaims.ROLES));
+        assertNotNull(signedJwt.getJWTClaimsSet().getIssueTime());
+        assertNotNull(signedJwt.getJWTClaimsSet().getExpirationTime());
+        assertSignedByConfiguredKey(signedJwt);
+
+        jdbcTemplate.update(
+                "INSERT INTO oauth2_service_client_scope(service_client_id, scope) VALUES (?, ?)",
+                registration.serviceClientId(),
+                "unrelated.scope");
+        ResponseEntity<String> broadened = requestToken(
+                registration, "client_credentials", AuthorizationServerProperties.REALTIME_AUTHORITY_SCOPE);
+        assertEquals(HttpStatus.BAD_REQUEST, broadened.getStatusCode());
+        assertTrue(broadened.getBody().contains("invalid_scope"));
     }
 
     @Test
@@ -488,6 +532,9 @@ class AuthorizationServerIntegrationTest {
         registry.add(
                 "quizopia.identity.security.authorization-server.user-access-token-ttl",
                 () -> USER_ACCESS_TOKEN_TTL.toString());
+        registry.add(
+                "quizopia.identity.security.authorization-server.realtime-gateway-client-id",
+                () -> REALTIME_GATEWAY_CLIENT_ID);
         registry.add("quizopia.identity.security.signing-key.kid", () -> KEY_ID);
         registry.add(
                 "quizopia.identity.security.signing-key.private-key-path",

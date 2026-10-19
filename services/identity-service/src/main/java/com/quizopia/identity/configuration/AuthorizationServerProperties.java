@@ -6,10 +6,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "quizopia.identity.security.authorization-server")
 public class AuthorizationServerProperties {
+    public static final String REALTIME_AUTHORITY_SCOPE = "assessment.realtime.subscription-authorize";
+    public static final String REALTIME_AUTHORITY_AUDIENCE = "quizopia-assessment-realtime-authority";
+
     private boolean enabled;
     private String issuer;
     private Duration serviceAccessTokenTtl;
     private Duration userAccessTokenTtl;
+    private String realtimeGatewayClientId = "";
 
     public boolean isEnabled() {
         return enabled;
@@ -43,6 +47,14 @@ public class AuthorizationServerProperties {
         this.userAccessTokenTtl = userAccessTokenTtl;
     }
 
+    public String getRealtimeGatewayClientId() {
+        return realtimeGatewayClientId;
+    }
+
+    public void setRealtimeGatewayClientId(String realtimeGatewayClientId) {
+        this.realtimeGatewayClientId = realtimeGatewayClientId;
+    }
+
     public void validateRequiredValues() {
         if (!enabled) {
             return;
@@ -65,6 +77,12 @@ public class AuthorizationServerProperties {
         if (userAccessTokenTtl != null && (userAccessTokenTtl.isZero() || userAccessTokenTtl.isNegative())) {
             throw new IllegalStateException("User access-token TTL must be positive when configured");
         }
+        if (realtimeGatewayClientId != null
+                && (!realtimeGatewayClientId.equals(realtimeGatewayClientId.trim())
+                        || realtimeGatewayClientId.chars().anyMatch(Character::isWhitespace)
+                        || realtimeGatewayClientId.length() > 255)) {
+            throw new IllegalStateException("Realtime Gateway client ID must be blank or an exact client ID");
+        }
     }
 
     public String requiredIssuer() {
@@ -80,5 +98,11 @@ public class AuthorizationServerProperties {
     public Duration requiredUserAccessTokenTtl() {
         validateRequiredValues();
         return userAccessTokenTtl == null ? serviceAccessTokenTtl : userAccessTokenTtl;
+    }
+
+    public boolean isRealtimeGatewayClient(String clientId) {
+        return realtimeGatewayClientId != null
+                && !realtimeGatewayClientId.isBlank()
+                && realtimeGatewayClientId.equals(clientId);
     }
 }

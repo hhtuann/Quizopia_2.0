@@ -1,0 +1,8 @@
+{
+  "eventId": "00000000-0000-0000-0000-000000000001",
+  "eventType": "ATTEMPT_INVALIDATED",
+  "eventVersion": 1,
+  "resourceKind": "ATTEMPT",
+  "resourceId": "00000000-0000-0000-0000-000000000002",
+  "occurredAt": "2026-10-19T00:00:00Z"
+}

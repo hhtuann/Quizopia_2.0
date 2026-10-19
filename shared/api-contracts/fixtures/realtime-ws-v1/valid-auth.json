@@ -1,0 +1,6 @@
+{
+  "protocolVersion": 1,
+  "type": "AUTH",
+  "ticket": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "accessToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUta2V5In0.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJwcmluY2lwYWxfdHlwZSI6IlVTRVIifQ.fixtureSignature"
+}

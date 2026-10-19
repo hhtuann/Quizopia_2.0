@@ -58,7 +58,11 @@ rules before it is included in an event contract.
 RabbitMQ integration events communicate business facts between services.
 Browser WebSocket events accelerate realtime UI behavior; they do not need to
 mirror integration events one-to-one and are not an authoritative integration
-store. WebSocket schemas are not defined here.
+store. Browser WebSocket envelope schemas remain under `shared/api-contracts`.
+
+ADR-016 maps the frozen W4 R3 best-effort invalidation contract to
+`realtime-amqp-invalidation-v1.schema.json`. This publishes the B3 coordination
+boundary only. B1 implements no outbox, RabbitMQ publisher/consumer or fanout.
 
 ## Open semantics and shared boundary
 

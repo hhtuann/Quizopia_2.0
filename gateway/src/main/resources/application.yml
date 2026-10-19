@@ -48,6 +48,18 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 quizopia:
+  realtime:
+    enabled: ${REALTIME_ENABLED:false}
+    ticket-ttl: ${REALTIME_TICKET_TTL:PT30S}
+    auth-timeout: ${REALTIME_AUTH_TIMEOUT:PT5S}
+    maximum-frame-bytes: ${REALTIME_MAXIMUM_FRAME_BYTES:17408}
+    maximum-outstanding-tickets: ${REALTIME_MAXIMUM_OUTSTANDING_TICKETS:10000}
+    ticket-issue-rate-per-actor: ${REALTIME_TICKET_ISSUE_RATE_PER_ACTOR:20}
+    ticket-issue-rate-per-origin: ${REALTIME_TICKET_ISSUE_RATE_PER_ORIGIN:200}
+    upgrade-rate-per-ip: ${REALTIME_UPGRADE_RATE_PER_IP:120}
+    maximum-connections: ${REALTIME_MAXIMUM_CONNECTIONS:512}
+    maximum-connections-per-ip: ${REALTIME_MAXIMUM_CONNECTIONS_PER_IP:64}
+    maximum-connections-per-origin: ${REALTIME_MAXIMUM_CONNECTIONS_PER_ORIGIN:128}
   publication:
     enabled: ${PUBLICATION_ENABLED:false}
   admission:

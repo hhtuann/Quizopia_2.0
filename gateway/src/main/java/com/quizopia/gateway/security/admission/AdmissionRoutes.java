@@ -29,6 +29,8 @@ public final class AdmissionRoutes {
                         "/attempts",
                         "/api/proctoring",
                         "/proctoring",
+                        "/api/realtime",
+                        "/ws/realtime",
                         "/internal",
                         "/oauth2",
                         "/.well-known")

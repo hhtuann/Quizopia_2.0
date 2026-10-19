@@ -1,0 +1,390 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.quizopia.example/review/realtime-ws-v1.schema.json",
+  "title": "Quizopia W4-A1 R3: Realtime WebSocket V1 protocol candidate",
+  "description": "R3: upgrade carries NO secret; first AUTH frame over WSS contains one-time ticket and JWT. Closed schema; state authorization enforced separately. NOT FROZEN.",
+  "oneOf": [
+    {
+      "title": "AUTH",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "ticket",
+        "accessToken"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "AUTH"
+        },
+        "accessToken": {
+          "type": "string",
+          "minLength": 100,
+          "maxLength": 16384,
+          "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+        },
+        "ticket": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "description": "One-use opaque secret sent only inside first WSS AUTH frame; never echoed or logged"
+        }
+      },
+      "description": "First and only permitted pre-auth client frame, delivered before AUTH deadline. Both secrets redacted everywhere."
+    },
+    {
+      "title": "WELCOME",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "connectionId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "WELCOME"
+        },
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    {
+      "title": "AUTHENTICATED",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "AUTHENTICATED"
+        }
+      },
+      "description": "No actor or stable identity/session field is returned. WELCOME connectionId is newly generated per socket and is not authorization evidence."
+    },
+    {
+      "title": "SUBSCRIBE",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "requestId",
+        "resource"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "SUBSCRIBE"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "resource": {
+          "title": "Resource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTEMPT_OWNER",
+                "PUBLICATION_TEACHER"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "title": "UNSUBSCRIBE",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "requestId",
+        "subscriptionId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "UNSUBSCRIBE"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    {
+      "title": "SUBSCRIBED",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "requestId",
+        "subscriptionId",
+        "resource"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "SUBSCRIBED"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "resource": {
+          "title": "Resource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTEMPT_OWNER",
+                "PUBLICATION_TEACHER"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "title": "UNSUBSCRIBED",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "requestId",
+        "subscriptionId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "UNSUBSCRIBED"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    {
+      "title": "RESOURCE_INVALIDATED",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "eventId",
+        "subscriptionId",
+        "resource",
+        "reason",
+        "occurredAt"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "RESOURCE_INVALIDATED"
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "resource": {
+          "title": "Resource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "id"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "ATTEMPT_OWNER",
+                "PUBLICATION_TEACHER"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        },
+        "reason": {
+          "const": "CHANGED"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    {
+      "title": "RESYNC_REQUIRED",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "subscriptionId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "RESYNC_REQUIRED"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    {
+      "title": "SUBSCRIPTION_REVOKED",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "subscriptionId",
+        "code"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "SUBSCRIPTION_REVOKED"
+        },
+        "subscriptionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "code": {
+          "enum": [
+            "NOT_ACCESSIBLE",
+            "AUTHORITY_UNAVAILABLE",
+            "TOKEN_EXPIRED"
+          ]
+        }
+      }
+    },
+    {
+      "title": "ERROR",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "type",
+        "code"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1
+        },
+        "type": {
+          "const": "ERROR"
+        },
+        "code": {
+          "enum": [
+            "INVALID_FRAME",
+            "UNSUPPORTED_VERSION",
+            "AUTH_REQUIRED",
+            "AUTH_FAILED",
+            "NOT_ACCESSIBLE",
+            "AUTHORITY_UNAVAILABLE",
+            "CAPACITY_EXCEEDED"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "description": "Required in runtime for request-scoped errors, omitted for connection-scoped errors"
+        }
+      },
+      "description": "For SUBSCRIBE/UNSUBSCRIBE failures include requestId equal to request; for connection-level errors omit requestId."
+    }
+  ]
+}

@@ -105,6 +105,7 @@ quizopia:
         issuer: ${IDENTITY_ISSUER:http://localhost:8081}
         service-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_SERVICE_ACCESS_TOKEN_TTL:PT1M}
         user-access-token-ttl: ${IDENTITY_AUTHORIZATION_SERVER_USER_ACCESS_TOKEN_TTL:PT5M}
+        realtime-gateway-client-id: ${IDENTITY_REALTIME_GATEWAY_CLIENT_ID:}
       signing-key:
         kid: ${IDENTITY_SIGNING_KEY_KID:}
         private-key-path: ${IDENTITY_SIGNING_KEY_PRIVATE_KEY_PATH:}
