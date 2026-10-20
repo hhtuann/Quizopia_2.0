@@ -1,5 +1,6 @@
 package com.quizopia.assessment.security;
 
+import com.quizopia.assessment.security.realtime.RealtimeAuthorityRoutes;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import org.springframework.security.access.AccessDeniedException;
@@ -13,13 +14,17 @@ public final class SecurityErrorHandler implements AuthenticationEntryPoint, Acc
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException error)
             throws IOException {
-        write(response, 401, "UNAUTHENTICATED");
+        if (RealtimeAuthorityRoutes.matches(request.getMethod(), request.getRequestURI()))
+            write(response, 401, "SERVICE_AUTHENTICATION_INVALID");
+        else write(response, 401, "UNAUTHENTICATED");
     }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException error)
             throws IOException {
-        write(response, 403, "ACCESS_DENIED");
+        if (RealtimeAuthorityRoutes.matches(request.getMethod(), request.getRequestURI()))
+            write(response, 403, "SERVICE_CALLER_FORBIDDEN");
+        else write(response, 403, "ACCESS_DENIED");
     }
 
     private void write(HttpServletResponse response, int status, String code) throws IOException {

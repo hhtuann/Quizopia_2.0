@@ -126,7 +126,9 @@ class PublicationTopologyTest {
                         "--quizopia.identity.user-admission.enabled=true",
                         "--quizopia.identity.user-admission.require-secure-transport=false",
                         "--quizopia.identity.user-admission.allowed-clients=gateway,classroom-service,quiz-service,assessment-service",
-                        "--quizopia.identity.user-admission.reconciliation-enabled=false"));
+                        "--quizopia.identity.user-admission.reconciliation-enabled=false",
+                        // W4-B2: mint the dedicated realtime authority audience only for this exact client.
+                        "--quizopia.identity.security.authorization-server.realtime-gateway-client-id=gateway-realtime"));
         awaitHttp(identity + "/oauth2/jwks");
         seed();
         redis = RedisClient.create("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
@@ -189,7 +191,10 @@ class PublicationTopologyTest {
                         "--quizopia.assessment.closure.cursor-keys.v1=" + encryption,
                         "--quizopia.publication.sources.enabled=true",
                         "--quizopia.publication.sources.quiz-base-url=" + quiz,
-                        "--quizopia.publication.sources.classroom-base-url=" + classroom));
+                        "--quizopia.publication.sources.classroom-base-url=" + classroom,
+                        "--quizopia.assessment.realtime-authority.enabled=true",
+                        "--quizopia.assessment.realtime-authority.gateway-client-id=gateway-realtime",
+                        "--quizopia.assessment.realtime-authority.allow-insecure-loopback=true"));
         var gatewayArgs = new ArrayList<String>(List.of(
                 "--server.port=" + URI.create(gateway).getPort(),
                 "--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + identity,
@@ -555,6 +560,257 @@ class PublicationTopologyTest {
             assertFalse(log.contains("sourceSnapshot="));
             assertFalse(log.contains("service-fixture-only"));
         }
+    }
+
+    /**
+     * W4-B2 real-credential compatibility: the real Identity issues the dedicated SERVICE token with
+     * audience minting, the real Assessment private authority validates it plus fresh USER admission
+     * and Classroom teacher authority, and the real Gateway negotiates the whole WS subscription flow.
+     */
+    @Test
+    @Order(3)
+    void realtimeSubscriptionsAuthorizeThroughRealIdentityAssessmentAndClassroom() throws Exception {
+        if (!namedProcesses.get("identity").isAlive()) {
+            startProcess("identity-restarted", processArtifacts.get("identity"), processArguments.get("identity"));
+            namedProcesses.put("identity", namedProcesses.get("identity-restarted"));
+            awaitHttp(identity + "/oauth2/jwks");
+        }
+        if (!namedProcesses.get("assessment").isAlive()) {
+            startProcess(
+                    "assessment-restarted-2", processArtifacts.get("assessment"), processArguments.get("assessment"));
+            namedProcesses.put("assessment", namedProcesses.get("assessment-restarted-2"));
+            awaitHttp(assessment + "/actuator/health");
+        }
+        var args = new ArrayList<String>(gatewayArguments);
+        args.addAll(List.of(
+                "--spring.data.redis.host=" + REDIS.getHost(),
+                "--spring.data.redis.port=" + REDIS.getMappedPort(6379),
+                "--quizopia.gateway.browser.allowed-origins=http://realtime.topology.test",
+                "--quizopia.realtime.enabled=true",
+                "--quizopia.realtime.authority.enabled=true",
+                "--quizopia.realtime.authority.identity-base-url=" + identity,
+                "--quizopia.realtime.authority.assessment-base-url=" + assessment,
+                "--quizopia.realtime.authority.client-id=gateway-realtime",
+                "--quizopia.realtime.authority.client-secret=" + SECRET,
+                "--quizopia.realtime.authority.allow-insecure-loopback=true"));
+        gatewayContext.close();
+        gatewayContext = new SpringApplicationBuilder(GatewayApplication.class)
+                .profiles("test")
+                .run(args.toArray(String[]::new));
+        String edge = "http://127.0.0.1:"
+                + ((WebServerApplicationContext) gatewayContext).getWebServer().getPort();
+
+        UUID classroomId = UUID.randomUUID();
+        try (var c = DriverManager.getConnection(
+                CLASSROOM_DB.getJdbcUrl(), CLASSROOM_DB.getUsername(), CLASSROOM_DB.getPassword())) {
+            execute(
+                    c,
+                    "INSERT INTO classrooms(id,owner_teacher_user_id,name,subject,grade) VALUES (?,?, 'Realtime Journey','Subject','Grade')",
+                    classroomId,
+                    ACTOR);
+            execute(
+                    c,
+                    "INSERT INTO classroom_memberships(id,classroom_id,user_id) VALUES (?,?,?)",
+                    UUID.randomUUID(),
+                    classroomId,
+                    ACTOR);
+        }
+        UUID publicPublication = openPublication(null);
+        UUID classPublication = openPublication(classroomId);
+        UUID ownedAttempt = UUID.randomUUID();
+        UUID foreignAttempt = UUID.randomUUID();
+        UUID foreignStudent = UUID.randomUUID();
+        try (var c = DriverManager.getConnection(
+                ASSESSMENT_DB.getJdbcUrl(), ASSESSMENT_DB.getUsername(), ASSESSMENT_DB.getPassword())) {
+            for (UUID student : List.of(ACTOR, foreignStudent)) {
+                execute(
+                        c,
+                        "INSERT INTO attempts(id,publication_id,student_id,ordinal,snapshot_id,grading_policy_version,answer_schema_version,state,duration_minutes,started_at,deadline_at) VALUES (?,?,?,1,?,1,1,'ACTIVE',30,now()-interval '1 minute',now()+interval '29 minutes')",
+                        student.equals(ACTOR) ? ownedAttempt : foreignAttempt,
+                        publicPublication,
+                        student,
+                        publicPublication);
+            }
+        }
+
+        var ticketResponse = send(
+                "POST",
+                edge + "/api/realtime/tickets",
+                userToken,
+                "{}",
+                Map.of("Origin", "http://realtime.topology.test"));
+        assertEquals(201, ticketResponse.statusCode(), ticketResponse.body());
+        var ticket = JSON.readTree(ticketResponse.body()).path("ticket").asString();
+        var socket = new java.util.concurrent.LinkedBlockingQueue<String>();
+        var closed = new java.util.concurrent.atomic.AtomicInteger(-1);
+        var webSocket = HttpClient.newHttpClient()
+                .newWebSocketBuilder()
+                .header("Origin", "http://realtime.topology.test")
+                .subprotocols("quizopia.realtime.v1")
+                .buildAsync(URI.create(edge.replace("http", "ws") + "/ws/realtime"), new WebSocket.Listener() {
+                    private final StringBuilder text = new StringBuilder();
+
+                    @Override
+                    public void onOpen(WebSocket webSocket) {
+                        webSocket.request(1);
+                    }
+
+                    @Override
+                    public java.util.concurrent.CompletionStage<?> onText(
+                            WebSocket webSocket, CharSequence data, boolean last) {
+                        text.append(data);
+                        if (last) {
+                            socket.add(text.toString());
+                            text.setLength(0);
+                        }
+                        webSocket.request(1);
+                        return null;
+                    }
+
+                    @Override
+                    public java.util.concurrent.CompletionStage<?> onClose(
+                            WebSocket webSocket, int statusCode, String reason) {
+                        closed.set(statusCode);
+                        return null;
+                    }
+
+                    @Override
+                    public void onError(WebSocket webSocket, Throwable error) {
+                        System.out.println("RTJOURNEY ws-error: " + error);
+                    }
+                })
+                .join();
+        try {
+            webSocket
+                    .sendText(
+                            "{\"protocolVersion\":1,\"type\":\"AUTH\",\"ticket\":\"" + ticket + "\",\"accessToken\":\""
+                                    + userToken + "\"}",
+                            true)
+                    .join();
+            String welcome = socket.poll(10, TimeUnit.SECONDS);
+            assertNotNull(welcome, "No WELCOME; close status " + closed.get());
+            assertTrue(welcome.contains("\"type\":\"WELCOME\""), welcome);
+            assertEquals("{\"protocolVersion\":1,\"type\":\"AUTHENTICATED\"}", socket.poll(10, TimeUnit.SECONDS));
+
+            webSocket
+                    .sendText(realtimeFrame("SUBSCRIBE", UUID.randomUUID(), "ATTEMPT_OWNER", ownedAttempt), true)
+                    .join();
+            String subscribed = socket.poll(10, TimeUnit.SECONDS);
+            assertTrue(subscribed.contains("\"type\":\"SUBSCRIBED\""), subscribed);
+            String attemptSubscription =
+                    JSON.readTree(subscribed).path("subscriptionId").asString();
+            assertFalse(attemptSubscription.equals(ownedAttempt.toString()));
+
+            webSocket
+                    .sendText(
+                            realtimeFrame("SUBSCRIBE", UUID.randomUUID(), "PUBLICATION_TEACHER", classPublication),
+                            true)
+                    .join();
+            String publication = socket.poll(10, TimeUnit.SECONDS);
+            assertTrue(publication.contains("\"type\":\"SUBSCRIBED\""), publication);
+
+            webSocket
+                    .sendText(realtimeFrame("SUBSCRIBE", UUID.randomUUID(), "ATTEMPT_OWNER", foreignAttempt), true)
+                    .join();
+            String foreign = socket.poll(10, TimeUnit.SECONDS);
+            assertTrue(foreign.contains("\"code\":\"NOT_ACCESSIBLE\""), foreign);
+
+            webSocket
+                    .sendText(
+                            "{\"protocolVersion\":1,\"type\":\"UNSUBSCRIBE\",\"requestId\":\"" + UUID.randomUUID()
+                                    + "\",\"subscriptionId\":\"" + attemptSubscription + "\"}",
+                            true)
+                    .join();
+            String unsubscribed = socket.poll(10, TimeUnit.SECONDS);
+            assertTrue(unsubscribed.contains("\"type\":\"UNSUBSCRIBED\""), unsubscribed);
+        } finally {
+            try {
+                webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "").join();
+            } catch (RuntimeException alreadyClosed) {
+                // The server may have closed first; teardown errors must not mask journey failures.
+            }
+        }
+    }
+
+    static String realtimeFrame(String type, UUID requestId, String kind, UUID id) {
+        return "{\"protocolVersion\":1,\"type\":\""
+                + type
+                + "\",\"requestId\":\""
+                + requestId
+                + "\",\"resource\":{\"kind\":\""
+                + kind
+                + "\",\"id\":\""
+                + id
+                + "\"}}";
+    }
+
+    static UUID openPublication(UUID classroomId) throws Exception {
+        UUID id = UUID.randomUUID(), quizId = UUID.randomUUID(), quizVersionId = UUID.randomUUID();
+        String audience = classroomId == null ? "PUBLIC" : "CLASS";
+        Instant start = Instant.now().minusSeconds(3600).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        Instant end = Instant.now().plusSeconds(7200).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        String configuration = "{\"title\":\"Realtime journey\",\"description\":\"Journey\",\"quizId\":\""
+                + quizId + "\",\"quizVersionId\":\"" + quizVersionId + "\",\"versionNumber\":1,\"audience\":\""
+                + audience + "\",\"classroomId\":"
+                + (classroomId == null ? "null" : "\"" + classroomId + "\"")
+                + ",\"startAt\":\""
+                + start
+                + "\",\"endAt\":\""
+                + end
+                + "\",\"durationMinutes\":30,\"monitoringChoice\":\"DISABLED\"}";
+        String payload = "{\"schemaVersion\":1,\"quizId\":\""
+                + quizId
+                + "\",\"quizVersionId\":\""
+                + quizVersionId
+                + "\",\"versionNumber\":1,\"titleSnapshot\":\"Realtime journey\",\"descriptionSnapshot\":\"Journey\","
+                + "\"sourceSnapshot\":\"source\",\"structuredContent\":{\"questions\":[]},\"contentSchemaVersion\":1,\"createdAt\":\""
+                + Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+                + "\"}";
+        String locator = null, digest = null;
+        if (classroomId == null) {
+            byte[] random = new byte[32];
+            new java.security.SecureRandom().nextBytes(random);
+            locator = Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString(random)
+                    .substring(0, 43);
+            digest = java.util.HexFormat.of()
+                    .formatHex(
+                            java.security.MessageDigest.getInstance("SHA-256").digest(locator.getBytes()));
+        }
+        try (var c = DriverManager.getConnection(
+                ASSESSMENT_DB.getJdbcUrl(), ASSESSMENT_DB.getUsername(), ASSESSMENT_DB.getPassword())) {
+            c.setAutoCommit(false);
+            try {
+                execute(
+                        c,
+                        "INSERT INTO publications(id,owner_id,configuration,quiz_id,quiz_version_id,version_number,audience,classroom_id,start_at,end_at,duration_minutes,monitoring_choice,state,revision,private_locator,locator_digest,created_at) VALUES (?,?,?::jsonb,?,?,1,?,?,?,?,30,'DISABLED','DRAFT',0,?,?,now())",
+                        id,
+                        ACTOR,
+                        configuration,
+                        quizId,
+                        quizVersionId,
+                        audience,
+                        classroomId,
+                        Timestamp.from(start),
+                        Timestamp.from(end),
+                        locator,
+                        digest);
+                execute(
+                        c,
+                        "INSERT INTO publication_snapshots(publication_id,schema_version,grading_policy_version,payload,created_at) VALUES (?,1,1,?::jsonb,now())",
+                        id,
+                        payload);
+                execute(
+                        c,
+                        "UPDATE publications SET state='OPEN',snapshot_id=id,opened_at=now(),opened_from_revision=revision,revision=revision+1 WHERE id=?",
+                        id);
+                c.commit();
+            } finally {
+                c.setAutoCommit(true);
+            }
+        }
+        return id;
     }
 
     @AfterAll
@@ -1994,6 +2250,7 @@ class PublicationTopologyTest {
                     "classroom-service",
                     "quiz-service",
                     "assessment-service",
+                    "gateway-realtime",
                     "wrong-client",
                     "wrong-scope")) {
                 UUID id = UUID.randomUUID();
@@ -2010,9 +2267,14 @@ class PublicationTopologyTest {
                                 "identity.notice-recipient.read",
                                 "classroom.teacher-authority.read",
                                 "classroom.membership.read")
-                        : (client.equals("wrong-client")
-                                ? List.of("identity.user-admission", "quiz.version-snapshot.read")
-                                : List.of(client.equals("wrong-scope") ? "other.scope" : "identity.user-admission")))
+                        : (client.equals("gateway-realtime")
+                                ? List.of("assessment.realtime.subscription-authorize")
+                                : (client.equals("wrong-client")
+                                        ? List.of("identity.user-admission", "quiz.version-snapshot.read")
+                                        : List.of(
+                                                client.equals("wrong-scope")
+                                                        ? "other.scope"
+                                                        : "identity.user-admission"))))
                     execute(
                             c,
                             "INSERT INTO oauth2_service_client_scope(service_client_id,scope) VALUES (?,?)",

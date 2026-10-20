@@ -72,6 +72,10 @@ quizopia:
       enabled: ${ASSESSMENT_PROCTORING_AUTHORITY_ENABLED:false}
       client-id: ${ASSESSMENT_PROCTORING_CLIENT_ID:}
       allow-insecure-loopback: ${ASSESSMENT_PROCTORING_ALLOW_INSECURE_LOOPBACK:false}
+    realtime-authority:
+      enabled: ${ASSESSMENT_REALTIME_AUTHORITY_ENABLED:false}
+      gateway-client-id: ${ASSESSMENT_REALTIME_GATEWAY_CLIENT_ID:}
+      allow-insecure-loopback: ${ASSESSMENT_REALTIME_AUTHORITY_ALLOW_INSECURE_LOOPBACK:false}
     features:
       attempts-enabled: ${ATTEMPTS_ENABLED:false}
       results-enabled: ${RESULTS_ENABLED:false}

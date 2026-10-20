@@ -396,7 +396,7 @@ class RealtimeGatewayIntegrationTest {
     }
 
     @Test
-    void websocketAuthenticatesThenKeepsSubscriptionsFeatureDisabled() {
+    void websocketAuthenticatesThenFailsSubscriptionsClosedWithoutAuthority() {
         String token = userToken(Duration.ofMinutes(5));
         String ticket = ticket(issueBody(token, ORIGIN));
         UUID requestId = UUID.randomUUID();
@@ -410,7 +410,7 @@ class RealtimeGatewayIntegrationTest {
 
         assertTrue(messages.get(0).contains("\"type\":\"WELCOME\""));
         assertEquals("{\"protocolVersion\":1,\"type\":\"AUTHENTICATED\"}", messages.get(1));
-        assertTrue(messages.get(2).contains("\"code\":\"NOT_ACCESSIBLE\""));
+        assertTrue(messages.get(2).contains("\"code\":\"AUTHORITY_UNAVAILABLE\""));
         assertTrue(messages.get(2).contains(requestId.toString()));
         assertFalse(messages.stream().anyMatch(message -> message.contains("SUBSCRIBED")));
         assertEquals(2, ADMISSION_CALLS.get());

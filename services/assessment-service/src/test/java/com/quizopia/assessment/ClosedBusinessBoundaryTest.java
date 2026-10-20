@@ -31,6 +31,9 @@ class ClosedBusinessBoundaryTest {
     com.quizopia.assessment.application.ProctoringAuthorityStore proctoringAuthorityStore;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.quizopia.assessment.application.RealtimeAuthorityStore realtimeAuthorityStore;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.quizopia.assessment.application.ClosureStore closureStore;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean

@@ -74,12 +74,23 @@ capacity. Their defaults are engineering candidates, not production SLOs.
 
 The upgrade carries only Origin and exact `quizopia.realtime.v1` negotiation;
 never add ticket/JWT query parameters, cookies-as-auth, Authorization or custom
-credential headers. AUTH occurs in the first text frame. B1 reaches at most
-`AUTHENTICATED`: every valid SUBSCRIBE/UNSUBSCRIBE is denied with correlated
-`NOT_ACCESSIBLE` until B2 Assessment authorization exists. There is no broker
-fanout, business-data delivery or frontend client in B1.
+credential headers. AUTH occurs in the first text frame. Admission accepts
+STUDENT or TEACHER sessions; resource authorization is never decided at the
+edge. With the W4-B2 authority configured, every SUBSCRIBE is authorized by the
+Assessment private `/internal/realtime/subscription-authorizations` decision
+before `SUBSCRIBED`; without it (or on any authority uncertainty) SUBSCRIBE
+fails closed with request-correlated `AUTHORITY_UNAVAILABLE`. Subscription IDs
+are opaque, connection-scoped and bounded. There is still no broker fanout,
+business-data delivery or frontend client in B2.
 
-Production activation is prohibited until B2/B3 integration, proxy/ingress and
+`REALTIME_AUTHORITY_*` variables in `.env.example` configure the dedicated
+Gateway-to-Assessment client: the exact Identity-issued SERVICE credentials
+(audience `quizopia-assessment-realtime-authority`, scope
+`assessment.realtime.subscription-authorize`), private base URLs and strict
+timeouts. `REALTIME_AUTHORITY_ENABLED` defaults to `false` and never relaxes
+the B1 gates.
+
+Production activation is prohibited until B3 integration, proxy/ingress and
 load evidence, security acceptance and owner approval. See
 [ADR-016](../docs/decisions/ADR-016-gateway-realtime-authentication-foundation.md).
 
