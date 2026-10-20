@@ -90,6 +90,15 @@ Gateway-to-Assessment client: the exact Identity-issued SERVICE credentials
 timeouts. `REALTIME_AUTHORITY_ENABLED` defaults to `false` and never relaxes
 the B1 gates.
 
+W4-B3 adds a default-off best-effort RabbitMQ invalidation consumer
+(`REALTIME_INVALIDATION_*`). Each Gateway instance owns an exclusive
+auto-delete queue bound to `quizopia.realtime.invalidation.v1`, deduplicates
+event IDs, strictly validates the frozen envelope and fans out only to its own
+authorized subscriptions after revalidating current Assessment authority.
+Denied or stale authority revokes (`SUBSCRIPTION_REVOKED`); an unavailable
+authority emits `RESYNC_REQUIRED` and REST stays authoritative. Broker hints
+are never authorization evidence and carry no business data.
+
 Production activation is prohibited until B3 integration, proxy/ingress and
 load evidence, security acceptance and owner approval. See
 [ADR-016](../docs/decisions/ADR-016-gateway-realtime-authentication-foundation.md).

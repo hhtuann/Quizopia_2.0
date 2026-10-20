@@ -28,9 +28,10 @@ Well-formed SUBSCRIBE and UNSUBSCRIBE requests receive correlated
 
 RT-02 uses best-effort invalidation hints. Loss, duplication and reordering are
 expected. Clients reconcile authoritative state through REST after reconnect or
-gap detection and by a bounded periodic resync. RabbitMQ invalidation transport,
-outbox production and Gateway fanout remain B3 work; the schema published in
-`shared/event-contracts` is a frozen coordination contract, not an implementation.
+gap detection and by a bounded periodic resync. W4-B3 implements the RabbitMQ
+invalidation transport as an Assessment transactional outbox plus Gateway-local
+fanout over instance-owned exclusive queues, still default OFF; the schema
+published in `shared/event-contracts` remains the frozen coordination contract.
 
 Identity may add audience `quizopia-assessment-realtime-authority` only to an
 access token issued by `client_credentials` for the exact configured dedicated

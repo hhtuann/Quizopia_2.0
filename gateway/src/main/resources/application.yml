@@ -73,6 +73,18 @@ quizopia:
       max-connections: ${REALTIME_AUTHORITY_MAX_CONNECTIONS:8}
       pending-acquires: ${REALTIME_AUTHORITY_PENDING_ACQUIRES:32}
       maximum-subscriptions-per-connection: ${REALTIME_AUTHORITY_MAX_SUBSCRIPTIONS:16}
+    invalidation:
+      enabled: ${REALTIME_INVALIDATION_ENABLED:false}
+      allow-insecure-loopback: ${REALTIME_INVALIDATION_ALLOW_INSECURE_LOOPBACK:false}
+      host: ${REALTIME_INVALIDATION_BROKER_HOST:}
+      port: ${REALTIME_INVALIDATION_BROKER_PORT:5671}
+      virtual-host: ${REALTIME_INVALIDATION_BROKER_VHOST:}
+      username: ${REALTIME_INVALIDATION_BROKER_USERNAME:}
+      password: ${REALTIME_INVALIDATION_BROKER_PASSWORD:}
+      queue-prefix: ${REALTIME_INVALIDATION_QUEUE_PREFIX:quizopia.gateway.realtime-invalidation}
+      prefetch: ${REALTIME_INVALIDATION_PREFETCH:64}
+      deduplication-capacity: ${REALTIME_INVALIDATION_DEDUPLICATION_CAPACITY:4096}
+      maximum-registry-entries: ${REALTIME_INVALIDATION_MAXIMUM_REGISTRY_ENTRIES:8192}
   publication:
     enabled: ${PUBLICATION_ENABLED:false}
   admission:
