@@ -81,8 +81,6 @@ export function useRealtimeSubscriptions(options: {
     const credentialsProvider: RealtimeCredentialProvider = async () => {
       if (getSessionGeneration() !== boundGeneration)
         return { ok: false, error: "session" };
-      const accessToken = getAccessToken();
-      if (accessToken === null) return { ok: false, error: "session" };
       const ticket = await requester.requestTicket();
       if (getSessionGeneration() !== boundGeneration)
         return { ok: false, error: "session" };
@@ -91,6 +89,12 @@ export function useRealtimeSubscriptions(options: {
           ? { ok: false, error: "session" }
           : { ok: false, error: "retryable" };
       }
+      // Read the token only after issuance: the authenticated executor may have performed
+      // a 401→refresh→retry that rotated the vault token, and the ticket is fingerprint
+      // bound to the exact JWT that produced the successful grant. The AUTH frame must
+      // carry that same JWT, never a token captured before the request.
+      const accessToken = getAccessToken();
+      if (accessToken === null) return { ok: false, error: "session" };
       return { ok: true, ticket: ticket.ticket, accessToken };
     };
     const client = new RealtimeClient({
@@ -106,6 +110,12 @@ export function useRealtimeSubscriptions(options: {
             attempts: event.attempts,
             stopReason: event.stopReason,
           });
+          // A successful (re)connection closes the gap window in which hints may have
+          // been lost or reordered: reconcile authoritative REST state immediately even
+          // when no invalidation hint arrives.
+          if (event.state === "authenticated") {
+            onSignalRef.current({ type: "connected" });
+          }
           return;
         }
         if (getSessionGeneration() !== boundGeneration) return;
@@ -116,8 +126,13 @@ export function useRealtimeSubscriptions(options: {
     client.setResources(resourcesRef.current);
     client.start();
     const reconnectOnRecovery = () => {
-      if (document.visibilityState === "visible" && navigator.onLine)
-        client.restart();
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      client.restart();
+      // Visibility/online recovery may have missed hints while hidden or offline even on
+      // a still-open connection: request an authoritative REST reconciliation too.
+      if (getSessionGeneration() === boundGeneration) {
+        onSignalRef.current({ type: "connected" });
+      }
     };
     document.addEventListener("visibilitychange", reconnectOnRecovery);
     window.addEventListener("online", reconnectOnRecovery);
@@ -171,9 +186,14 @@ export function useRealtimeResync(options: {
 
   useEffect(() => {
     const scheduler = createResyncScheduler((reason) => {
-      if (reason === "periodic")
-        return void (periodicRunRef.current ?? runRef.current)();
-      return void runRef.current();
+      // Return the actual refresh Promise: the scheduler's in-flight guard must hold
+      // until the REST request settles, so overlapping signals and periodic ticks
+      // coalesce instead of starting concurrent refreshes.
+      const run =
+        reason === "periodic"
+          ? (periodicRunRef.current ?? runRef.current)
+          : runRef.current;
+      return run();
     }, {});
     schedulerRef.current = scheduler;
     return () => {

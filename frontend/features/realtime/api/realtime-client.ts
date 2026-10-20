@@ -40,7 +40,9 @@ export type RealtimeSignalEvent =
       readonly resource: RealtimeResource;
       readonly code:
         "NOT_ACCESSIBLE" | "AUTHORITY_UNAVAILABLE" | "TOKEN_EXPIRED";
-    };
+    }
+  /** Hook-level: a connection was (re)established or visibility/online recovered. */
+  | { readonly type: "connected" };
 
 export type RealtimeClientEvent =
   | {

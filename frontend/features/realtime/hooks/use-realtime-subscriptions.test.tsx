@@ -189,6 +189,7 @@ describe("useRealtimeSubscriptions", () => {
       `{"protocolVersion":1,"type":"RESOURCE_INVALIDATED","eventId":"${crypto.randomUUID()}","subscriptionId":"s1","resource":{"kind":"ATTEMPT_OWNER","id":"${attemptId}"},"reason":"CHANGED","occurredAt":"2026-10-20T10:00:00Z"}`,
     );
     expect(signals).toEqual([
+      { type: "connected" },
       {
         type: "invalidated",
         resource: { kind: "ATTEMPT_OWNER", id: attemptId },

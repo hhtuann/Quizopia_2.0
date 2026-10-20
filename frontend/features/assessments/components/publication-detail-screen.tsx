@@ -123,10 +123,16 @@ export function PublicationDetailScreen({
   }, [refresh]);
 
   // Best-effort teacher publication hints reconcile through the existing sequence-fenced
-  // REST read; realtime never mutates publication state directly.
+  // REST read; realtime never mutates publication state directly. PUBLICATION_TEACHER is
+  // subscribed only while the authorized Publication is OPEN, so DRAFT→OPEN subscribes
+  // and OPEN→CLOSED unsubscribes over the live connection without a manual reconnect.
+  const publicationState = publication?.state;
   const realtimeResources = useMemo<readonly RealtimeResource[]>(
-    () => [{ kind: "PUBLICATION_TEACHER" as const, id: publicationId }],
-    [publicationId],
+    () =>
+      publicationState === "OPEN"
+        ? [{ kind: "PUBLICATION_TEACHER" as const, id: publicationId }]
+        : [],
+    [publicationState, publicationId],
   );
   const realtimeResync = useRealtimeResync({ active: true, run: refresh });
   const realtimeStatus = useRealtimeSubscriptions({
