@@ -388,11 +388,12 @@ class AssessmentMonitoringOutboxIntegrationTest {
                 .schemas(schema)
                 .defaultSchema(schema)
                 .load();
-        assertEquals(1, upgraded.migrate().migrationsExecuted);
+        assertEquals(2, upgraded.migrate().migrationsExecuted);
         assertEquals(
                 old,
-                db.queryForList("SELECT version,checksum FROM " + schema
-                        + ".flyway_schema_history WHERE version IS NOT NULL AND version<>'6' ORDER BY installed_rank"));
+                db.queryForList(
+                        "SELECT version,checksum FROM " + schema
+                                + ".flyway_schema_history WHERE version IS NOT NULL AND version<>'6' AND version<>'7' ORDER BY installed_rank"));
         assertEquals(0, upgraded.migrate().migrationsExecuted);
         upgraded.validate();
     }

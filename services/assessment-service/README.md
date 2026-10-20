@@ -25,6 +25,22 @@ cache and the route is never exposed through the public Gateway.
 
 Independent Spring Boot 4.1.1 / Java 21 Assessment service.
 
+## W4-B3 realtime invalidation outbox
+
+A dedicated transactional outbox (V7, independent from the W3 monitoring
+outbox) captures committed Publication OPEN/meaningful-extend/CLOSED and
+Attempt creation/submitted/abandoned transitions via AFTER triggers gated by
+the `quizopia.realtime_invalidation` connection GUC. Only the frozen six-field
+metadata (`eventId`, `eventType`, `eventVersion`, `resourceKind`,
+`resourceId`, `occurredAt`) is stored; no answers, grades, identities or
+monitoring data. Rollback discards events; an outbox failure aborts the
+writer. The bounded publisher dispatches with confirms to
+`quizopia.realtime.invalidation.v1` (mandatory=false per R3 best-effort
+semantics), with leased claims, exponential backoff and poison-event
+quarantine. `ASSESSMENT_REALTIME_INVALIDATION_CAPTURE_ENABLED=false` and
+`ASSESSMENT_REALTIME_INVALIDATION_PUBLISHER_ENABLED=false` default OFF;
+production activation requires owner acceptance.
+
 Run independently from this directory:
 
 - Windows: `mvnw.cmd test` or `mvnw.cmd verify`

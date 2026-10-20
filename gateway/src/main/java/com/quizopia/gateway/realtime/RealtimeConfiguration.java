@@ -17,11 +17,35 @@ import org.springframework.web.reactive.socket.server.upgrade.ReactorNettyReques
 import reactor.netty.http.server.WebsocketServerSpec;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({RealtimeProperties.class, RealtimeAuthorityProperties.class})
+@EnableConfigurationProperties({
+    RealtimeProperties.class,
+    RealtimeAuthorityProperties.class,
+    com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationProperties.class
+})
 public class RealtimeConfiguration {
     @Bean
     Clock realtimeClock() {
         return Clock.systemUTC();
+    }
+
+    @Bean
+    com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry realtimeSubscriptionRegistry(
+            com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationProperties properties) {
+        return new com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry(
+                properties.getMaximumRegistryEntries());
+    }
+
+    @Bean(initMethod = "start", destroyMethod = "close")
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+            name = "quizopia.realtime.invalidation.enabled",
+            havingValue = "true")
+    com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationConsumer realtimeInvalidationConsumer(
+            com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationProperties properties,
+            com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry registry,
+            MeterRegistry meters,
+            org.springframework.core.env.Environment environment) {
+        return new com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationConsumer(
+                properties, registry, meters, environment.matchesProfiles("prod"));
     }
 
     @Bean
@@ -50,6 +74,7 @@ public class RealtimeConfiguration {
             QuizopiaJwtAuthenticationConverter converter,
             IdentityAdmissionClient admission,
             RealtimeAuthorityClient authority,
+            com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry registry,
             MeterRegistry meters,
             Clock realtimeClock) {
         return new RealtimeWebSocketHandler(
@@ -61,6 +86,7 @@ public class RealtimeConfiguration {
                 converter,
                 admission,
                 authority,
+                registry,
                 meters,
                 realtimeClock);
     }

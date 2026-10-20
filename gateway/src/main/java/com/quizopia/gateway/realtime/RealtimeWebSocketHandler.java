@@ -51,6 +51,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
     private final QuizopiaJwtAuthenticationConverter converter;
     private final IdentityAdmissionClient admission;
     private final RealtimeAuthorityClient authority;
+    private final com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry registry;
     private final MeterRegistry meters;
     private final Clock clock;
     private final JsonMapper json = JsonMapper.builder()
@@ -67,6 +68,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             QuizopiaJwtAuthenticationConverter converter,
             IdentityAdmissionClient admission,
             RealtimeAuthorityClient authority,
+            com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry registry,
             MeterRegistry meters,
             Clock clock) {
         this.properties = properties;
@@ -77,6 +79,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
         this.converter = converter;
         this.admission = admission;
         this.authority = authority;
+        this.registry = registry;
         this.meters = meters;
         this.clock = clock;
     }
@@ -127,6 +130,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             if (expiryTimer != null) expiryTimer.dispose();
             state.set(State.CLOSED);
             userEvidence.set(null);
+            for (String subscriptionId : subscriptions.ids()) registry.unregister(subscriptionId);
             subscriptions.clear();
             outbound.tryEmitComplete();
             lease.close();
@@ -150,7 +154,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             return authenticate(session, text, state, expiry, userEvidence, outbound);
         }
         if (state.get() == State.AUTHENTICATED) {
-            return authenticatedFrame(session, text, userEvidence, subscriptions, outbound);
+            return authenticatedFrame(session, text, state, userEvidence, subscriptions, outbound);
         }
         return Mono.empty();
     }
@@ -212,13 +216,14 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
     private Mono<Void> authenticatedFrame(
             WebSocketSession session,
             String text,
+            AtomicReference<State> state,
             AtomicReference<String> userEvidence,
             Subscriptions subscriptions,
             Sinks.Many<WebSocketMessage> outbound) {
         JsonNode root = parseObject(text);
         String type = text(root, "type");
         if ("AUTH".equals(type)) return Mono.error(RealtimeFailure.malformed());
-        if ("SUBSCRIBE".equals(type)) return subscribe(session, root, userEvidence, subscriptions, outbound);
+        if ("SUBSCRIBE".equals(type)) return subscribe(session, root, state, userEvidence, subscriptions, outbound);
         if ("UNSUBSCRIBE".equals(type)) return unsubscribe(session, root, subscriptions, outbound);
         return Mono.error(RealtimeFailure.malformed());
     }
@@ -226,6 +231,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
     private Mono<Void> subscribe(
             WebSocketSession session,
             JsonNode root,
+            AtomicReference<State> state,
             AtomicReference<String> userEvidence,
             Subscriptions subscriptions,
             Sinks.Many<WebSocketMessage> outbound) {
@@ -251,11 +257,29 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                         if (!subscriptions.add(subscriptionId, kind, resourceId)) {
                             subscriptionMetric("duplicate");
                             emit(outbound, session.textMessage(requestError(requestId, "NOT_ACCESSIBLE")));
-                        } else {
+                        } else if (registry.register(
+                                kind,
+                                resourceId,
+                                subscriptionId,
+                                invalidationListener(
+                                        session,
+                                        state,
+                                        userEvidence,
+                                        subscriptions,
+                                        outbound,
+                                        subscriptionId,
+                                        kind,
+                                        resourceId))) {
                             subscriptionMetric("authorized");
                             emit(
                                     outbound,
                                     session.textMessage(subscribed(requestId, subscriptionId, kind, resourceId)));
+                        } else {
+                            // Registry saturation rolls the local subscription back; SUBSCRIBED is
+                            // never emitted for a subscription that can no longer be invalidated.
+                            subscriptions.remove(subscriptionId);
+                            subscriptionMetric("capacity_exceeded");
+                            emit(outbound, session.textMessage(requestError(requestId, "CAPACITY_EXCEEDED")));
                         }
                         yield Mono.<Void>empty();
                     }
@@ -274,6 +298,90 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                 });
     }
 
+    /**
+     * Best-effort invalidation delivery: revalidates current Assessment authority and USER evidence
+     * before any frame; revoked or stale authority never forwards a hint. No raw AMQP content,
+     * business data or identity details are exposed beyond the frozen allowlist.
+     */
+    private com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry.Listener invalidationListener(
+            WebSocketSession session,
+            AtomicReference<State> state,
+            AtomicReference<String> userEvidence,
+            Subscriptions subscriptions,
+            Sinks.Many<WebSocketMessage> outbound,
+            String subscriptionId,
+            String kind,
+            String resourceId) {
+        return (eventId, occurredAt) -> {
+            if (state.get() != State.AUTHENTICATED || !subscriptions.contains(subscriptionId)) return;
+            String evidence = userEvidence.get();
+            if (evidence == null) return;
+            authority.authorize(evidence, kind, resourceId).subscribe(decision -> {
+                if (state.get() != State.AUTHENTICATED) return;
+                switch (decision.outcome()) {
+                    case AUTHORIZED -> {
+                        if (!subscriptions.contains(subscriptionId)) return;
+                        if (tryEmit(
+                                outbound,
+                                session.textMessage(
+                                        resourceInvalidated(eventId, subscriptionId, kind, resourceId, occurredAt)))) {
+                            subscriptionMetric("invalidated");
+                        } else if (tryEmit(outbound, session.textMessage(resyncRequired(subscriptionId)))) {
+                            // The hint was dropped, so the client is explicitly told to reconcile
+                            // through REST; it must never be left silently desynchronized.
+                            subscriptionMetric("overflow");
+                        } else {
+                            // Even the resync signal cannot be queued: close so the reconnect
+                            // path performs a full REST resync. Bounded queues are preserved.
+                            subscriptionMetric("overflow");
+                            closeIfState(
+                                    session,
+                                    outbound,
+                                    state,
+                                    State.AUTHENTICATED,
+                                    RealtimeFailure.authorityUnavailable());
+                        }
+                    }
+                    case NOT_ACCESSIBLE, FORBIDDEN -> {
+                        if (subscriptions.remove(subscriptionId)) registry.unregister(subscriptionId);
+                        if (tryEmit(
+                                outbound, session.textMessage(subscriptionRevoked(subscriptionId, "NOT_ACCESSIBLE")))) {
+                            subscriptionMetric("revoked");
+                        } else {
+                            // The client may believe it is still subscribed; close to force a safe
+                            // reconnect instead of leaving a stale subscription impression.
+                            subscriptionMetric("revoked");
+                            closeIfState(
+                                    session,
+                                    outbound,
+                                    state,
+                                    State.AUTHENTICATED,
+                                    RealtimeFailure.authorityUnavailable());
+                        }
+                    }
+                    case USER_EVIDENCE_INVALID -> {
+                        subscriptionMetric("revoked");
+                        emit(outbound, session.textMessage(subscriptionRevoked(subscriptionId, "TOKEN_EXPIRED")));
+                        closeIfState(session, outbound, state, State.AUTHENTICATED, RealtimeFailure.authentication());
+                    }
+                    case UNAVAILABLE -> {
+                        if (tryEmit(outbound, session.textMessage(resyncRequired(subscriptionId)))) {
+                            subscriptionMetric("resync");
+                        } else {
+                            subscriptionMetric("overflow");
+                            closeIfState(
+                                    session,
+                                    outbound,
+                                    state,
+                                    State.AUTHENTICATED,
+                                    RealtimeFailure.authorityUnavailable());
+                        }
+                    }
+                }
+            });
+        };
+    }
+
     private Mono<Void> unsubscribe(
             WebSocketSession session,
             JsonNode root,
@@ -283,6 +391,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
         String requestId = root.path("requestId").asString();
         String subscriptionId = root.path("subscriptionId").asString();
         if (subscriptions.remove(subscriptionId)) {
+            registry.unregister(subscriptionId);
             subscriptionMetric("unsubscribed");
             emit(outbound, session.textMessage(unsubscribed(requestId, subscriptionId)));
         } else {
@@ -429,6 +538,13 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
         if (outbound.tryEmitNext(message).isFailure()) message.release();
     }
 
+    /** Reports queueing failures so invalidation fanout never silently discards a hint. */
+    private static boolean tryEmit(Sinks.Many<WebSocketMessage> outbound, WebSocketMessage message) {
+        boolean emitted = outbound.tryEmitNext(message).isSuccess();
+        if (!emitted) message.release();
+        return emitted;
+    }
+
     private static boolean constantTimeEquals(String first, String second) {
         return MessageDigest.isEqual(
                 first.getBytes(StandardCharsets.US_ASCII), second.getBytes(StandardCharsets.US_ASCII));
@@ -462,6 +578,33 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                 + "\",\"subscriptionId\":\""
                 + subscriptionId
                 + "\"}";
+    }
+
+    private static String resourceInvalidated(
+            String eventId, String subscriptionId, String kind, String resourceId, Instant occurredAt) {
+        return "{\"protocolVersion\":1,\"type\":\"RESOURCE_INVALIDATED\",\"eventId\":\""
+                + eventId
+                + "\",\"subscriptionId\":\""
+                + subscriptionId
+                + "\",\"resource\":{\"kind\":\""
+                + kind
+                + "\",\"id\":\""
+                + resourceId
+                + "\"},\"reason\":\"CHANGED\",\"occurredAt\":\""
+                + occurredAt
+                + "\"}";
+    }
+
+    private static String subscriptionRevoked(String subscriptionId, String code) {
+        return "{\"protocolVersion\":1,\"type\":\"SUBSCRIPTION_REVOKED\",\"subscriptionId\":\""
+                + subscriptionId
+                + "\",\"code\":\""
+                + code
+                + "\"}";
+    }
+
+    private static String resyncRequired(String subscriptionId) {
+        return "{\"protocolVersion\":1,\"type\":\"RESYNC_REQUIRED\",\"subscriptionId\":\"" + subscriptionId + "\"}";
     }
 
     private static String subscriptionId() {
@@ -504,6 +647,14 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             if (resourceKey == null) return false;
             resources.remove(resourceKey);
             return true;
+        }
+
+        boolean contains(String subscriptionId) {
+            return byId.containsKey(subscriptionId);
+        }
+
+        java.util.Set<String> ids() {
+            return java.util.Set.copyOf(byId.keySet());
         }
 
         void clear() {
