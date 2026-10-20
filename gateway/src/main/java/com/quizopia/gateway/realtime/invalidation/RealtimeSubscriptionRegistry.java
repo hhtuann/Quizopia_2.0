@@ -1,14 +1,15 @@
 package com.quizopia.gateway.realtime.invalidation;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Bounded instance-local registry: resource key to currently subscribed connections. Hints fan out
  * only to this instance's own subscriptions; the registry is never authorization evidence.
+ * Mutations are serialized so the entry bound and bucket lifecycle hold under concurrency; a
+ * rejected registration never leaves an empty resource bucket behind.
  */
 public final class RealtimeSubscriptionRegistry {
     public interface Listener {
@@ -16,49 +17,60 @@ public final class RealtimeSubscriptionRegistry {
     }
 
     private final int maximum;
-    private final Map<String, Map<String, Listener>> byResource = new ConcurrentHashMap<>();
-    private final Map<String, String> subscriptionResources = new ConcurrentHashMap<>();
-    private final AtomicLong rejections = new AtomicLong();
+    private final Map<String, Map<String, Listener>> byResource = new HashMap<>();
+    private final Map<String, String> subscriptionResources = new HashMap<>();
+    private long rejections;
 
     public RealtimeSubscriptionRegistry(int maximum) {
+        if (maximum < 1) throw new IllegalArgumentException("Registry bound must be positive");
         this.maximum = maximum;
     }
 
-    /** Returns false when the registry is full; the subscription then simply receives no hints. */
-    public boolean register(String kind, String resourceId, String subscriptionId, Listener listener) {
-        String resourceKey = kind + ":" + resourceId;
-        var existing = byResource.computeIfAbsent(resourceKey, ignored -> new ConcurrentHashMap<>());
-        if (existing.putIfAbsent(subscriptionId, listener) == null) {
-            if (subscriptionResources.putIfAbsent(subscriptionId, resourceKey) != null) {
-                existing.remove(subscriptionId);
-                return false;
-            }
-            if (subscriptionResources.size() > maximum) {
-                subscriptionResources.remove(subscriptionId);
-                existing.remove(subscriptionId);
-                rejections.incrementAndGet();
-                return false;
-            }
+    /**
+     * Returns false when the registry is full or the id is already bound; the caller must then
+     * withhold the subscription instead of receiving hints it can no longer be told about.
+     */
+    public synchronized boolean register(String kind, String resourceId, String subscriptionId, Listener listener) {
+        if (subscriptionResources.containsKey(subscriptionId)) {
+            rejections++;
+            return false;
         }
+        if (subscriptionResources.size() >= maximum) {
+            rejections++;
+            return false;
+        }
+        String resourceKey = kind + ":" + resourceId;
+        Map<String, Listener> bucket = byResource.get(resourceKey);
+        boolean createdBucket = false;
+        if (bucket == null) {
+            bucket = new HashMap<>();
+            createdBucket = true;
+        }
+        bucket.put(subscriptionId, listener);
+        if (createdBucket) byResource.put(resourceKey, bucket);
+        subscriptionResources.put(subscriptionId, resourceKey);
         return true;
     }
 
-    public boolean unregister(String subscriptionId) {
+    public synchronized boolean unregister(String subscriptionId) {
         String resourceKey = subscriptionResources.remove(subscriptionId);
         if (resourceKey == null) return false;
-        var listeners = byResource.get(resourceKey);
-        if (listeners != null) {
-            listeners.remove(subscriptionId);
-            if (listeners.isEmpty()) byResource.remove(resourceKey, listeners);
+        var bucket = byResource.get(resourceKey);
+        if (bucket != null) {
+            bucket.remove(subscriptionId);
+            if (bucket.isEmpty()) byResource.remove(resourceKey);
         }
         return true;
     }
 
-    /** Returns how many local subscriptions matched; iterates a snapshot safe against mutation. */
+    /** Returns how many local subscriptions matched; listeners run outside the registry lock. */
     public int invalidate(String kind, String resourceId, String eventId, Instant occurredAt) {
-        var listeners = byResource.get(kind + ":" + resourceId);
-        if (listeners == null || listeners.isEmpty()) return 0;
-        for (Listener listener : List.copyOf(listeners.values())) {
+        List<Listener> listeners;
+        synchronized (this) {
+            var bucket = byResource.get(kind + ":" + resourceId);
+            listeners = bucket == null || bucket.isEmpty() ? List.of() : List.copyOf(bucket.values());
+        }
+        for (Listener listener : listeners) {
             try {
                 listener.invalidated(eventId, occurredAt);
             } catch (RuntimeException ignored) {
@@ -68,11 +80,21 @@ public final class RealtimeSubscriptionRegistry {
         return listeners.size();
     }
 
-    public int size() {
+    /** Test and operations hygiene only; normal lifecycle uses unsubscribe and teardown. */
+    public synchronized void clear() {
+        byResource.clear();
+        subscriptionResources.clear();
+    }
+
+    public synchronized int size() {
         return subscriptionResources.size();
     }
 
-    public long registryFullRejections() {
-        return rejections.get();
+    public synchronized int resourceCount() {
+        return byResource.size();
+    }
+
+    public synchronized long registryFullRejections() {
+        return rejections;
     }
 }

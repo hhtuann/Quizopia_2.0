@@ -154,10 +154,17 @@ class RealtimeInvalidationFanoutIntegrationTest {
     @Autowired
     private RealtimeInvalidationConsumer consumer;
 
+    @Autowired
+    private com.quizopia.gateway.realtime.invalidation.RealtimeSubscriptionRegistry registry;
+
+    @Autowired
+    private com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationProperties invalidationProperties;
+
     @BeforeEach
     void reset() throws Exception {
         AUTHORITY_STATUS.set("DECIDE");
         AUTHORITY_CALLS.set(0);
+        registry.clear();
         awaitConsumer();
     }
 
@@ -465,6 +472,133 @@ class RealtimeInvalidationFanoutIntegrationTest {
             String hint = socket.next();
             assertTrue(hint.contains("\"type\":\"RESOURCE_INVALIDATED\""), hint);
         }
+    }
+
+    @Test
+    void registrySaturationRollsBackTheSubscriptionAndReportsCapacity() throws Exception {
+        for (int i = registry.size(); i < invalidationProperties.getMaximumRegistryEntries(); i++)
+            assertTrue(registry.register(
+                    "ATTEMPT_OWNER", UUID.randomUUID().toString(), "filler-" + i, (eventId, occurredAt) -> {}));
+        assertEquals(invalidationProperties.getMaximumRegistryEntries(), registry.size());
+        UUID attempt = UUID.randomUUID();
+        try (var socket = authenticated(userToken())) {
+            UUID first = UUID.randomUUID();
+            socket.send("{\"protocolVersion\":1,\"type\":\"SUBSCRIBE\",\"requestId\":\"" + first
+                    + "\",\"resource\":{\"kind\":\"ATTEMPT_OWNER\",\"id\":\"" + attempt + "\"}}");
+            String rejected = socket.next();
+            assertTrue(rejected.contains("\"type\":\"ERROR\""), rejected);
+            assertTrue(rejected.contains("\"code\":\"CAPACITY_EXCEEDED\""), rejected);
+            assertTrue(rejected.contains(first.toString()), "The capacity error must be request correlated");
+            assertFalse(rejected.contains("\"type\":\"SUBSCRIBED\""));
+
+            // SUBSCRIBED was never emitted and the local state was rolled back: the same resource
+            // is not flagged as a duplicate and the retry fails for the same bounded reason.
+            socket.send(subscribe("ATTEMPT_OWNER", attempt));
+            String retry = socket.next();
+            assertTrue(retry.contains("\"code\":\"CAPACITY_EXCEEDED\""), retry);
+            assertFalse(retry.contains("\"code\":\"NOT_ACCESSIBLE\""), "A rolled-back resource is not a duplicate");
+
+            registry.clear();
+            socket.send(subscribe("ATTEMPT_OWNER", attempt));
+            assertTrue(socket.next().contains("\"type\":\"SUBSCRIBED\""));
+            socket.send(subscribe("ATTEMPT_OWNER", attempt));
+            assertTrue(socket.next().contains("\"code\":\"NOT_ACCESSIBLE\""), "Duplicate detection is intact");
+        }
+    }
+
+    @Test
+    void slowSocketOutboundOverflowClosesForcedResyncInsteadOfSilentLoss() throws Exception {
+        UUID attempt = UUID.randomUUID();
+        String token = userToken();
+        var socket = new java.net.Socket();
+        // A pinned tiny receive buffer keeps the unread stall deterministic.
+        socket.setReceiveBufferSize(4096);
+        socket.setSoTimeout(60_000);
+        socket.connect(new java.net.InetSocketAddress("127.0.0.1", port));
+        var output = socket.getOutputStream();
+        byte[] secKey = new byte[16];
+        new java.security.SecureRandom().nextBytes(secKey);
+        output.write(("GET /ws/realtime HTTP/1.1\r\nHost: 127.0.0.1:" + port
+                        + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: "
+                        + Base64.getEncoder().encodeToString(secKey)
+                        + "\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: "
+                        + RealtimeIngressFilter.SUBPROTOCOL
+                        + "\r\nOrigin: "
+                        + ORIGIN
+                        + "\r\n\r\n")
+                .getBytes(StandardCharsets.UTF_8));
+        output.flush();
+        var input = new java.io.BufferedInputStream(socket.getInputStream());
+        StringBuilder handshake = new StringBuilder();
+        while (!handshake.toString().endsWith("\r\n\r\n")) {
+            int read = input.read();
+            assertTrue(read >= 0, "Upgrade failed");
+            handshake.append((char) read);
+        }
+        assertTrue(handshake.toString().contains(" 101 "), handshake.toString());
+        sendMaskedText(output, auth(ticket(token), token));
+        sendMaskedText(output, subscribe("ATTEMPT_OWNER", attempt));
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+        while (registry.size() < 1 && System.nanoTime() < deadline) Thread.sleep(20);
+        assertEquals(1, registry.size(), "The stalled client's subscription must be registered");
+
+        try (var connection = admin();
+                var channel = connection.createChannel()) {
+            for (int i = 0; i < 500; i++) {
+                String body = "{\"eventId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"eventType\":\"ATTEMPT_INVALIDATED\",\"eventVersion\":1,\"resourceKind\":\"ATTEMPT\",\"resourceId\":\""
+                        + attempt + "\",\"occurredAt\":\"" + Instant.now() + "\"}";
+                channel.basicPublish(EXCHANGE, "attempt.invalidated.v1", null, body.getBytes(StandardCharsets.UTF_8));
+            }
+        }
+
+        // Drain the stalled stream: the only close path during an authorized burst is the
+        // overflow fallback, so the connection must end with close code 4503 after the frames
+        // the pipeline had already accepted.
+        int textFrames = 0;
+        Integer closeCode = null;
+        long closeDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (closeCode == null) {
+            assertTrue(System.nanoTime() < closeDeadline, "The stalled socket was never closed");
+            int headerByte = input.read();
+            assertTrue(headerByte >= 0, "Stream ended without a close frame");
+            int opcode = headerByte & 0x0F;
+            int lengthByte = input.read();
+            assertTrue((lengthByte & 0x80) == 0, "Server frames must be unmasked");
+            int length = lengthByte & 0x7F;
+            if (length == 126) length = (input.read() << 8) | input.read();
+            else if (length == 127) {
+                long extended = 0;
+                for (int i = 0; i < 8; i++) extended = (extended << 8) | input.read();
+                length = (int) extended;
+            }
+            byte[] payload = input.readNBytes(length);
+            assertEquals(length, payload.length);
+            if (opcode == 0x1) textFrames++;
+            if (opcode == 0x8) closeCode = ((payload[0] & 0xFF) << 8) | (payload[1] & 0xFF);
+        }
+        assertEquals(4503, closeCode, "Overflow must close so reconnect triggers REST resync");
+        assertTrue(textFrames >= 1, "Some authorized hints were accepted before the stall");
+        socket.close();
+    }
+
+    static void sendMaskedText(java.io.OutputStream output, String text) throws Exception {
+        byte[] payload = text.getBytes(StandardCharsets.UTF_8);
+        var frame = new java.io.ByteArrayOutputStream();
+        frame.write(0x81);
+        if (payload.length < 126) frame.write(0x80 | payload.length);
+        else {
+            frame.write(0x80 | 126);
+            frame.write((payload.length >>> 8) & 0xFF);
+            frame.write(payload.length & 0xFF);
+        }
+        byte[] mask = new byte[4];
+        new java.security.SecureRandom().nextBytes(mask);
+        frame.write(mask);
+        for (int i = 0; i < payload.length; i++) frame.write(payload[i] ^ mask[i & 3]);
+        output.write(frame.toByteArray());
+        output.flush();
     }
 
     private static com.nimbusds.jose.jwk.RSAKey key() {

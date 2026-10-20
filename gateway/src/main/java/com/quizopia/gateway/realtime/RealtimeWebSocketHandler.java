@@ -257,24 +257,29 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                         if (!subscriptions.add(subscriptionId, kind, resourceId)) {
                             subscriptionMetric("duplicate");
                             emit(outbound, session.textMessage(requestError(requestId, "NOT_ACCESSIBLE")));
-                        } else {
-                            registry.register(
-                                    kind,
-                                    resourceId,
-                                    subscriptionId,
-                                    invalidationListener(
-                                            session,
-                                            state,
-                                            userEvidence,
-                                            subscriptions,
-                                            outbound,
-                                            subscriptionId,
-                                            kind,
-                                            resourceId));
+                        } else if (registry.register(
+                                kind,
+                                resourceId,
+                                subscriptionId,
+                                invalidationListener(
+                                        session,
+                                        state,
+                                        userEvidence,
+                                        subscriptions,
+                                        outbound,
+                                        subscriptionId,
+                                        kind,
+                                        resourceId))) {
                             subscriptionMetric("authorized");
                             emit(
                                     outbound,
                                     session.textMessage(subscribed(requestId, subscriptionId, kind, resourceId)));
+                        } else {
+                            // Registry saturation rolls the local subscription back; SUBSCRIBED is
+                            // never emitted for a subscription that can no longer be invalidated.
+                            subscriptions.remove(subscriptionId);
+                            subscriptionMetric("capacity_exceeded");
+                            emit(outbound, session.textMessage(requestError(requestId, "CAPACITY_EXCEEDED")));
                         }
                         yield Mono.<Void>empty();
                     }
@@ -316,16 +321,43 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                 switch (decision.outcome()) {
                     case AUTHORIZED -> {
                         if (!subscriptions.contains(subscriptionId)) return;
-                        subscriptionMetric("invalidated");
-                        emit(
+                        if (tryEmit(
                                 outbound,
                                 session.textMessage(
-                                        resourceInvalidated(eventId, subscriptionId, kind, resourceId, occurredAt)));
+                                        resourceInvalidated(eventId, subscriptionId, kind, resourceId, occurredAt)))) {
+                            subscriptionMetric("invalidated");
+                        } else if (tryEmit(outbound, session.textMessage(resyncRequired(subscriptionId)))) {
+                            // The hint was dropped, so the client is explicitly told to reconcile
+                            // through REST; it must never be left silently desynchronized.
+                            subscriptionMetric("overflow");
+                        } else {
+                            // Even the resync signal cannot be queued: close so the reconnect
+                            // path performs a full REST resync. Bounded queues are preserved.
+                            subscriptionMetric("overflow");
+                            closeIfState(
+                                    session,
+                                    outbound,
+                                    state,
+                                    State.AUTHENTICATED,
+                                    RealtimeFailure.authorityUnavailable());
+                        }
                     }
                     case NOT_ACCESSIBLE, FORBIDDEN -> {
                         if (subscriptions.remove(subscriptionId)) registry.unregister(subscriptionId);
-                        subscriptionMetric("revoked");
-                        emit(outbound, session.textMessage(subscriptionRevoked(subscriptionId, "NOT_ACCESSIBLE")));
+                        if (tryEmit(
+                                outbound, session.textMessage(subscriptionRevoked(subscriptionId, "NOT_ACCESSIBLE")))) {
+                            subscriptionMetric("revoked");
+                        } else {
+                            // The client may believe it is still subscribed; close to force a safe
+                            // reconnect instead of leaving a stale subscription impression.
+                            subscriptionMetric("revoked");
+                            closeIfState(
+                                    session,
+                                    outbound,
+                                    state,
+                                    State.AUTHENTICATED,
+                                    RealtimeFailure.authorityUnavailable());
+                        }
                     }
                     case USER_EVIDENCE_INVALID -> {
                         subscriptionMetric("revoked");
@@ -333,8 +365,17 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                         closeIfState(session, outbound, state, State.AUTHENTICATED, RealtimeFailure.authentication());
                     }
                     case UNAVAILABLE -> {
-                        subscriptionMetric("resync");
-                        emit(outbound, session.textMessage(resyncRequired(subscriptionId)));
+                        if (tryEmit(outbound, session.textMessage(resyncRequired(subscriptionId)))) {
+                            subscriptionMetric("resync");
+                        } else {
+                            subscriptionMetric("overflow");
+                            closeIfState(
+                                    session,
+                                    outbound,
+                                    state,
+                                    State.AUTHENTICATED,
+                                    RealtimeFailure.authorityUnavailable());
+                        }
                     }
                 }
             });
@@ -495,6 +536,13 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     private static void emit(Sinks.Many<WebSocketMessage> outbound, WebSocketMessage message) {
         if (outbound.tryEmitNext(message).isFailure()) message.release();
+    }
+
+    /** Reports queueing failures so invalidation fanout never silently discards a hint. */
+    private static boolean tryEmit(Sinks.Many<WebSocketMessage> outbound, WebSocketMessage message) {
+        boolean emitted = outbound.tryEmitNext(message).isSuccess();
+        if (!emitted) message.release();
+        return emitted;
     }
 
     private static boolean constantTimeEquals(String first, String second) {
