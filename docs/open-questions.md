@@ -444,9 +444,14 @@ result/gradebook events are not resolved by this metadata fact.
 
 ## Realtime
 
-**RT-01.** Exact horizontally scalable WebSocket/STOMP broker/relay topology?
+**RT-01 — RESOLVED by ADR-016.** Gateway-local native WebFlux hubs own their
+sockets; no STOMP broker/relay and no new service. B3 may fan best-effort
+RabbitMQ invalidations to instance-local sockets.
 
-**RT-02.** WebSocket event sequencing/gap-detection contract?
+**RT-02 — RESOLVED by ADR-016.** Invalidation signals are best effort and may be
+lost, duplicated or reordered. Browser clients use authoritative REST resync
+after reconnect/gap detection plus bounded periodic resync. The frozen V1 schema
+is in `shared/event-contracts`; B3 transport implementation remains pending.
 
 ## API
 

@@ -62,6 +62,27 @@ business feature or Identity activation is enabled by this prerequisite.
 Do not route activated protected traffic to bypass-capable older Gateway or
 downstream instances. Drain/block old instances before activation or rollback.
 
+## W4-B1 realtime authentication foundation
+
+The native WebFlux edge reserves exact `POST /api/realtime/tickets` and
+`GET /ws/realtime` surfaces. `REALTIME_ENABLED` defaults to `false`.
+For controlled local tests only, set it to `true`, keep
+`GATEWAY_ALLOWED_ORIGINS` exact, and provide working LD-05 Identity admission and
+Redis configuration. The remaining `REALTIME_*` variables in `.env.example`
+bound ticket TTL, AUTH timeout, frame size, issuance, upgrade and connection
+capacity. Their defaults are engineering candidates, not production SLOs.
+
+The upgrade carries only Origin and exact `quizopia.realtime.v1` negotiation;
+never add ticket/JWT query parameters, cookies-as-auth, Authorization or custom
+credential headers. AUTH occurs in the first text frame. B1 reaches at most
+`AUTHENTICATED`: every valid SUBSCRIBE/UNSUBSCRIBE is denied with correlated
+`NOT_ACCESSIBLE` until B2 Assessment authorization exists. There is no broker
+fanout, business-data delivery or frontend client in B1.
+
+Production activation is prohibited until B2/B3 integration, proxy/ingress and
+load evidence, security acceptance and owner approval. See
+[ADR-016](../docs/decisions/ADR-016-gateway-realtime-authentication-foundation.md).
+
 ## W3-B3 exact boundary
 
 The eight implemented closure/results/inbox operations require independent

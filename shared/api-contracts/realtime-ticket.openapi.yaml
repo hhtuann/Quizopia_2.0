@@ -1,0 +1,146 @@
+openapi: 3.1.0
+info:
+  title: Quizopia W4-A1 Gateway Realtime Ticket (R3 DESIGN CANDIDATE)
+  version: 0.3.0-review
+  description: 'R3: ticket issued over protected REST; secret is sent ONLY in first WSS AUTH frame, never handshake
+    URL/header/subprotocol. No coding or release authorization.'
+paths:
+  /api/realtime/tickets:
+    post:
+      operationId: createRealtimeConnectionTicket
+      summary: Issue a one-use browser WebSocket connection ticket
+      description: USER-only exact POST with canonical bearer, fresh Identity admission, strict approved Origin,
+        Redis ticket SHA256 storage; Service JWT refused. Ticket sent only later inside first WSS AUTH frame;
+        no ticket in upgrade headers, URLs or selected subprotocol. All negative paths closed.
+      security:
+      - bearerUserJwt: []
+      parameters:
+      - in: header
+        name: Origin
+        required: true
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 256
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+      responses:
+        '201':
+          description: One-time ticket; cache prohibited
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '405':
+          $ref: '#/components/responses/Error'
+      x-route-security:
+        exactMethod: POST
+        exactPath: /api/realtime/tickets
+        requiredPrincipalType: USER
+        requiredAdmission: identity.user-admission, current, no positive cache
+        noFallbackOnAuthorityFailure: true
+        reservedPathPrefixes:
+        - /api/realtime
+        - /ws/realtime
+      x-credential-no-log: Ticket issue response, bearer Authorization and AUTH frame credentials must never
+        be logged/traced/reflected. No secret in reverse-proxy-visible WS handshake URL, headers or subprotocol.
+      x-upgrade-contract: Exact GET /ws/realtime with HTTP Upgrade, strict allowlisted Origin, no query or
+        Authorization header, Sec-WebSocket-Protocol exactly quizopia.realtime.v1 (no ticket). Pre-101 malformed
+        400, disallowed Origin 403, capacity 429; successful 101 yields PENDING_AUTH. First WSS AUTH frame
+        contains ticket + USER accessToken and must validate one-use Redis redemption, fingerprint, actor and
+        fresh Identity admission. Post-101 failures are WS close codes, NEVER HTTP statuses.
+      x-exact-route-matrix:
+        POST /api/realtime/tickets: 201 on success; 400 invalid payload, 401 USER token invalid, 403 Origin
+          forbidden or SERVICE-only, 429 overload, 503 required authority/Redis unavailable
+        OPTIONS /api/realtime/tickets: 204 only valid Origin preflight for POST with allowed headers, otherwise
+          fixed 403; no admission token issued
+        GET|PUT|PATCH|DELETE /api/realtime/tickets: 405 sanitized
+        ANY /api/realtime/tickets/*: 404 sanitized
+        GET /ws/realtime + valid Upgrade: 101 PENDING_AUTH (not yet authenticated)
+        GET /ws/realtime without Upgrade: 400 sanitized
+        OPTIONS|POST|PUT|PATCH|DELETE /ws/realtime: 405 sanitized
+        ANY /ws/realtime/*: 404 sanitized
+        ANY other /api/realtime/* or /ws/realtime/*: 404 sanitized
+components:
+  securitySchemes:
+    bearerUserJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Quizopia-issued RS256 USER JWT, fresh Identity admission required
+  schemas:
+    TicketResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - ticket
+      - expiresInSeconds
+      - protocolVersion
+      properties:
+        ticket:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{43}$
+          description: 256-bit CSPRNG base64url; must be used only inside WSS AUTH frame, not headers/URL/subprotocol;
+            no logging.
+        expiresInSeconds:
+          type: integer
+          const: 30
+          description: Candidate; not a production SLO
+        protocolVersion:
+          type: integer
+          const: 1
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      properties:
+        code:
+          type: string
+          enum:
+          - INVALID_REQUEST
+          - UNAUTHENTICATED
+          - ACCESS_DENIED
+          - RATE_LIMITED
+          - AUTHORITY_UNAVAILABLE
+  responses:
+    Error:
+      description: Fixed sanitized error code; status determined by response key
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+x-w4-ws-first-frame-contract:
+  url: /ws/realtime
+  upgradeMethod: GET
+  offeredSubprotocol:
+  - quizopia.realtime.v1
+  authFrame: AUTH {protocolVersion:1, ticket, accessToken}
+  postUpgrade: No resource subscription before AUTH success
+  timeouts: AUTH within candidate 5s; implementation benchmark

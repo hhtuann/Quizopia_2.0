@@ -87,6 +87,40 @@ class GatewayProductionRoutesTest {
                 .isForbidden();
     }
 
+    @Test
+    void realtimeTicketAndWebSocketAreDefaultOffAtTheIngressBoundary() {
+        var http =
+                WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port).build();
+        http.post()
+                .uri("/api/realtime/tickets")
+                .header("Origin", "https://quizopia.example")
+                .headers(headers -> headers.setBearerAuth(user()))
+                .header("Content-Type", "application/json")
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store")
+                .expectBody()
+                .json("{\"code\":\"AUTHORITY_UNAVAILABLE\"}", true);
+        http.get()
+                .uri("/ws/realtime")
+                .header("Origin", "https://quizopia.example")
+                .header("Upgrade", "websocket")
+                .header("Connection", "Upgrade")
+                .header("Sec-WebSocket-Protocol", "quizopia.realtime.v1")
+                .header("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+                .header("Sec-WebSocket-Version", "13")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store")
+                .expectBody()
+                .json("{\"code\":\"AUTHORITY_UNAVAILABLE\"}", true);
+    }
+
     static java.util.List<String[]> studentRoutes() {
         String a = "/api/assessments/attempts/" + ACTOR, p = "/api/assessments/publications/" + ACTOR;
         return java.util.List.of(

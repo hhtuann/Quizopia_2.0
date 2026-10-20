@@ -1,5 +1,10 @@
 package com.quizopia.gateway.configuration;
 
+import com.quizopia.gateway.realtime.RealtimeHttpResponses;
+import com.quizopia.gateway.realtime.RealtimeIngressFilter;
+import com.quizopia.gateway.realtime.RealtimeProperties;
+import com.quizopia.gateway.realtime.RealtimeTicketStore;
+import com.quizopia.gateway.realtime.RealtimeTicketWebFilter;
 import com.quizopia.gateway.security.QuizopiaJwtAuthenticationConverter;
 import com.quizopia.gateway.security.QuizopiaTokenClaims;
 import com.quizopia.gateway.security.admission.AdmissionRoutes;
@@ -13,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -55,6 +61,39 @@ public class SecurityConfiguration {
 
     @Bean
     @Order(1)
+    SecurityWebFilterChain realtimeSecurityWebFilterChain(
+            ServerHttpSecurity http,
+            QuizopiaJwtAuthenticationConverter jwtAuthenticationConverter,
+            IdentityAdmissionClient admissionClient,
+            RealtimeProperties realtime,
+            RealtimeTicketStore tickets,
+            io.micrometer.core.instrument.MeterRegistry meters,
+            CorsConfigurationSource corsConfigurationSource) {
+        return http.securityMatcher(ServerWebExchangeMatchers.pathMatchers("/api/realtime/**", "/ws/realtime/**"))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers(HttpMethod.POST, RealtimeIngressFilter.TICKET_PATH)
+                        .hasAuthority(QuizopiaTokenClaims.USER_AUTHORITY)
+                        .anyExchange()
+                        .permitAll())
+                .addFilterAfter(
+                        new RealtimeTicketWebFilter(realtime, admissionClient, tickets, meters),
+                        SecurityWebFiltersOrder.AUTHORIZATION)
+                .exceptionHandling(errors -> errors.authenticationEntryPoint((exchange, ignored) ->
+                                RealtimeHttpResponses.error(exchange, HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED"))
+                        .accessDeniedHandler((exchange, ignored) ->
+                                RealtimeHttpResponses.error(exchange, HttpStatus.FORBIDDEN, "ACCESS_DENIED")))
+                .oauth2ResourceServer(oauth2 -> oauth2.authenticationEntryPoint((exchange, ignored) ->
+                                RealtimeHttpResponses.error(exchange, HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED"))
+                        .accessDeniedHandler((exchange, ignored) ->
+                                RealtimeHttpResponses.error(exchange, HttpStatus.FORBIDDEN, "ACCESS_DENIED"))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
+                .build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityWebFilterChain securityWebFilterChain(
             ServerHttpSecurity http,
             QuizopiaJwtAuthenticationConverter jwtAuthenticationConverter,
