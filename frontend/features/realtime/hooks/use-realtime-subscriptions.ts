@@ -81,21 +81,23 @@ export function useRealtimeSubscriptions(options: {
     const credentialsProvider: RealtimeCredentialProvider = async () => {
       if (getSessionGeneration() !== boundGeneration)
         return { ok: false, error: "session" };
-      const ticket = await requester.requestTicket();
+      // The requester pins the exact vault token for ticket issuance and returns it as
+      // part of the bound pair: whatever concurrent rotation happens around the request,
+      // the AUTH frame carries the precise JWT the ticket was issued under. A stale pin
+      // is recovered once through the refresh-aware executor and re-pinned.
+      const bound = await requester.requestBoundTicket({ getAccessToken });
       if (getSessionGeneration() !== boundGeneration)
         return { ok: false, error: "session" };
-      if (!ticket.ok) {
-        return ticket.error.kind === "session"
+      if (!bound.ok) {
+        return bound.error.kind === "session"
           ? { ok: false, error: "session" }
           : { ok: false, error: "retryable" };
       }
-      // Read the token only after issuance: the authenticated executor may have performed
-      // a 401→refresh→retry that rotated the vault token, and the ticket is fingerprint
-      // bound to the exact JWT that produced the successful grant. The AUTH frame must
-      // carry that same JWT, never a token captured before the request.
-      const accessToken = getAccessToken();
-      if (accessToken === null) return { ok: false, error: "session" };
-      return { ok: true, ticket: ticket.ticket, accessToken };
+      return {
+        ok: true,
+        ticket: bound.ticket,
+        accessToken: bound.accessToken,
+      };
     };
     const client = new RealtimeClient({
       credentialsProvider,

@@ -87,8 +87,8 @@ function fixtures() {
       async executeOnce() {
         throw new Error("unused");
       },
-      async executeOnceWithAccessToken() {
-        throw new Error("unused");
+      async executeOnceWithAccessToken(request: unknown) {
+        return this.execute(request as never);
       },
     },
     readAccessToken: () => accessToken,

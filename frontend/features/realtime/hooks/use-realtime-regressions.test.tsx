@@ -57,26 +57,31 @@ afterEach(() => {
 });
 
 describe("ticket/AUTH token binding", () => {
-  it("sends the exact JWT that produced the ticket after a 401→refresh→rotation during the request", async () => {
+  // The executor records the exact Bearer token each request was sent with; pinned
+  // ticket issuance uses executeOnceWithAccessToken, so the recorded grant token is
+  // provably the one the server bound the issued ticket to.
+  function bindingHarness(input: {
+    readonly initialVault: string;
+    readonly rotateVaultTo?: string;
+    readonly stalePinReturns401?: boolean;
+  }) {
     const sockets: ScriptedSocket[] = [];
     const transport: RealtimeTransport = {
       open({ url, subprotocol, handlers }) {
         expect(url).not.toContain("token");
+        expect(url).not.toContain("?");
         expect(subprotocol).toBe(REALTIME_SUBPROTOCOL);
         const socket = new ScriptedSocket(handlers);
         sockets.push(socket);
         return socket;
       },
     };
-    // Simulated vault: the authenticated executor's 401→refresh→retry rotates the token
-    // mid-request; the grant succeeds with the rotated JWT, which the server binds to the
-    // issued ticket fingerprint.
-    let vaultToken = "user-token-original";
-    let grantToken: string | null = null;
-    const vault = createAccessTokenVault();
-    const runtime = createSessionRuntime(vault);
+    let vaultToken = input.initialVault;
+    const grants: { token: string; ticket: string }[] = [];
+    let pinCalls = 0;
+    const runtime = createSessionRuntime(createAccessTokenVault());
     runtime.establishAuthenticatedSession({
-      accessToken: "user-token-original",
+      accessToken: input.initialVault,
       user: createAuthenticatedUser({
         email: "learner01@gmail.com",
         id: crypto.randomUUID(),
@@ -84,27 +89,56 @@ describe("ticket/AUTH token binding", () => {
         username: "learner01",
       }),
     });
+    const grantResponse = (token: string) => {
+      const issued = `T${grants.length}${token.slice(-1)}`.padEnd(43, "x");
+      grants.push({ token, ticket: issued });
+      return {
+        kind: "response",
+        response: {
+          status: 201,
+          body: {
+            kind: "json",
+            value: { ticket: issued, expiresInSeconds: 30, protocolVersion: 1 },
+          },
+        },
+      };
+    };
     const service: AuthSessionService = {
       authenticatedRequests: {
         async execute() {
-          vaultToken = "user-token-rotated";
-          grantToken = vaultToken;
-          return {
-            kind: "response",
-            response: {
-              status: 201,
-              body: {
-                kind: "json",
-                value: { ticket, expiresInSeconds: 30, protocolVersion: 1 },
-              },
-            },
-          } as never;
+          // Refresh-aware fallback: rotates the vault and succeeds (its ticket is
+          // discarded by the bound flow; only the vault refresh matters).
+          if (input.rotateVaultTo !== undefined)
+            vaultToken = input.rotateVaultTo;
+          return grantResponse(vaultToken) as never;
         },
         async executeOnce() {
           throw new Error("unused");
         },
-        async executeOnceWithAccessToken() {
-          throw new Error("unused");
+        async executeOnceWithAccessToken(
+          _request: unknown,
+          accessToken: string,
+        ) {
+          pinCalls++;
+          if (input.stalePinReturns401 && pinCalls === 1) {
+            // A concurrent request rotates the vault while the stale pin is rejected.
+            if (input.rotateVaultTo !== undefined)
+              vaultToken = input.rotateVaultTo;
+            return {
+              kind: "response",
+              response: {
+                status: 401,
+                body: { kind: "json", value: { code: "X" } },
+              },
+            } as never;
+          }
+          // The pin is sent verbatim; a concurrent rotation right after this grant
+          // must not change what the AUTH frame carries.
+          const result = grantResponse(accessToken);
+          if (input.rotateVaultTo !== undefined && !input.stalePinReturns401) {
+            vaultToken = input.rotateVaultTo;
+          }
+          return result as never;
         },
       },
       readAccessToken: () => vaultToken,
@@ -118,31 +152,77 @@ describe("ticket/AUTH token binding", () => {
       retryVerification: vi.fn(),
       runtime,
     };
+    return { sockets, transport, service, grants: () => grants };
+  }
+
+  function BindingProbe(props: {
+    transport: RealtimeTransport;
+    onSignal: (event: RealtimeClientEvent) => void;
+  }) {
+    const status = useRealtimeSubscriptions({
+      enabled: true,
+      resources: [{ kind: "ATTEMPT_OWNER", id: attemptId }],
+      onSignal: props.onSignal,
+      transport: props.transport,
+    });
+    return <div data-state={status.state} />;
+  }
+
+  it("AUTH uses the pinned JWT A even when the vault rotates to B after ticket issuance", async () => {
+    const h = bindingHarness({
+      initialVault: "jwt-A",
+      rotateVaultTo: "jwt-B",
+    });
     const signals: RealtimeClientEvent[] = [];
-    function Probe() {
-      const status = useRealtimeSubscriptions({
-        enabled: true,
-        resources: [{ kind: "ATTEMPT_OWNER", id: attemptId }],
-        onSignal: (signal) => signals.push(signal),
-        transport,
-      });
-      return <div data-state={status.state} />;
-    }
     render(
-      <AuthProvider service={service}>
-        <Probe />
+      <AuthProvider service={h.service}>
+        <BindingProbe
+          transport={h.transport}
+          onSignal={(signal) => signals.push(signal)}
+        />
       </AuthProvider>,
     );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(50);
     });
-    expect(sockets).toHaveLength(1);
-    sockets[0].serverOpen();
-    const auth = JSON.parse(sockets[0].sent[0]);
+    expect(h.sockets).toHaveLength(1);
+    h.sockets[0].serverOpen();
+    const auth = JSON.parse(h.sockets[0].sent[0]);
     expect(auth.type).toBe("AUTH");
-    expect(auth.ticket).toBe(ticket);
-    expect(auth.accessToken).toBe("user-token-rotated");
-    expect(auth.accessToken).toBe(grantToken);
+    expect(auth.accessToken).toBe("jwt-A");
+    // The single grant was issued under exactly the pinned JWT A.
+    expect(h.grants()).toEqual([{ token: "jwt-A", ticket: auth.ticket }]);
+    expect(JSON.stringify(signals)).not.toContain("jwt-A");
+    expect(JSON.stringify(signals)).not.toContain("jwt-B");
+    expect(JSON.stringify(h.sockets[0].sent[0])).not.toContain("jwt-B");
+  });
+
+  it("a stale pinned JWT recovers through one refresh fallback and re-pins to the fresh JWT", async () => {
+    const h = bindingHarness({
+      initialVault: "jwt-A",
+      rotateVaultTo: "jwt-C",
+      stalePinReturns401: true,
+    });
+    render(
+      <AuthProvider service={h.service}>
+        <BindingProbe transport={h.transport} onSignal={() => {}} />
+      </AuthProvider>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(h.sockets).toHaveLength(1);
+    h.sockets[0].serverOpen();
+    const auth = JSON.parse(h.sockets[0].sent[0]);
+    expect(auth.type).toBe("AUTH");
+    // The final AUTH pairs a ticket issued under the fresh JWT C with JWT C itself; the
+    // fallback's own grant is discarded and only the re-pinned ticket is used.
+    expect(auth.accessToken).toBe("jwt-C");
+    const grants = h.grants();
+    expect(grants.every((grant) => grant.token === "jwt-C")).toBe(true);
+    expect(grants.filter((grant) => grant.token === "jwt-C").length).toBe(2);
+    expect(auth.ticket).toBe(grants.at(-1)?.ticket);
+    expect(auth.ticket).not.toBe(grants[0]?.ticket);
   });
 });
 
@@ -184,8 +264,8 @@ describe("reconnection and recovery reconciliation", () => {
         async executeOnce() {
           throw new Error("unused");
         },
-        async executeOnceWithAccessToken() {
-          throw new Error("unused");
+        async executeOnceWithAccessToken(request: unknown) {
+          return this.execute(request as never);
         },
       },
       readAccessToken: () => "user-access-token",
@@ -378,8 +458,8 @@ describe("in-flight REST guard", () => {
         async executeOnce() {
           throw new Error("unused");
         },
-        async executeOnceWithAccessToken() {
-          throw new Error("unused");
+        async executeOnceWithAccessToken(request: unknown) {
+          return this.execute(request as never);
         },
       },
       readAccessToken: () => "user-access-token",
