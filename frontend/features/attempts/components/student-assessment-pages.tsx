@@ -48,6 +48,12 @@ import { useAttemptCoordinator } from "../hooks/use-attempt-coordinator";
 import { useAttemptEphemeralContext } from "../hooks/attempt-ephemeral-context";
 import { useUnsavedNavigationGuard } from "../hooks/use-unsaved-navigation-guard";
 import {
+  useRealtimeResync,
+  useRealtimeSubscriptions,
+} from "../../realtime/hooks/use-realtime-subscriptions";
+import { RealtimeStatusInline } from "../../realtime/components/realtime-status";
+import type { RealtimeResource } from "../../realtime/model/realtime-frame";
+import {
   ATTEMPT_QUESTION_PAGE_SIZE,
   boundedQuestionPage,
   canonicalUuid,
@@ -960,6 +966,27 @@ export function AttemptScreen({
     };
   }, [reconcileAuthority, setCoordinatorMutationPaused]);
 
+  // Best-effort realtime hints reconcile through the existing authoritative REST path;
+  // hints never alter answers, grades, deadlines or completion state directly.
+  const realtimeActive = attempt.state === "ACTIVE";
+  const realtimeResources = useMemo<readonly RealtimeResource[]>(
+    () =>
+      realtimeActive
+        ? [{ kind: "ATTEMPT_OWNER" as const, id: attempt.attemptId }]
+        : [],
+    [realtimeActive, attempt.attemptId],
+  );
+  const realtimeResync = useRealtimeResync({
+    active: realtimeActive,
+    run: reconcileAuthority,
+    periodicRun: refreshAttempt,
+  });
+  const realtimeStatus = useRealtimeSubscriptions({
+    enabled: realtimeActive,
+    resources: realtimeResources,
+    onSignal: realtimeResync.request,
+  });
+
   useEffect(() => {
     if (expired) setCoordinatorMutationPaused(true);
   }, [expired, setCoordinatorMutationPaused]);
@@ -1215,6 +1242,8 @@ export function AttemptScreen({
               <span>Deadline {formatUtc(attempt.deadlineAt)}</span>
             </>
           ) : null}
+          <span aria-hidden="true">·</span>
+          <RealtimeStatusInline status={realtimeStatus} />
         </div>
       </header>
 

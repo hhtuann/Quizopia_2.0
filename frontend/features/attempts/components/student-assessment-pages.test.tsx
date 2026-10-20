@@ -21,6 +21,38 @@ import {
   StudentAssessmentJoinScreen,
 } from "./student-assessment-pages";
 import { NO_ATTEMPT_MONITORING } from "../model/monitoring-boundary";
+import { AuthProvider } from "../../auth/auth-provider";
+import type { AuthSessionService } from "../../auth/session/auth-session-service";
+import { createAccessTokenVault } from "../../auth/session/access-token-vault";
+import { createSessionRuntime } from "../../auth/session/session-runtime";
+
+const authStub: AuthSessionService = {
+  authenticatedRequests: {
+    async execute() {
+      throw new Error("unused");
+    },
+    async executeOnce() {
+      throw new Error("unused");
+    },
+    async executeOnceWithAccessToken() {
+      throw new Error("unused");
+    },
+  },
+  readAccessToken: () => null,
+  bootstrap: vi.fn(async () => ({ status: "no-session" as const })),
+  confirmVerification: vi.fn(),
+  enableTeacher: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  register: vi.fn(),
+  requestVerification: vi.fn(),
+  retryVerification: vi.fn(),
+  runtime: createSessionRuntime(createAccessTokenVault()),
+};
+
+function withAuth(element: React.ReactElement) {
+  return <AuthProvider service={authStub}>{element}</AuthProvider>;
+}
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 const ephemeral = vi.hoisted(() => ({
@@ -338,11 +370,13 @@ describe("Student assessment entry and result boundaries", () => {
       value: { ...attempt, revision: "1" },
     });
     render(
-      <AttemptScreen
-        attempt={attempt}
-        client={api}
-        monitoring={NO_ATTEMPT_MONITORING}
-      />,
+      withAuth(
+        <AttemptScreen
+          attempt={attempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Submit attempt" }));
@@ -380,11 +414,13 @@ describe("Student assessment entry and result boundaries", () => {
       ),
     );
     render(
-      <AttemptScreen
-        attempt={attempt}
-        client={api}
-        monitoring={NO_ATTEMPT_MONITORING}
-      />,
+      withAuth(
+        <AttemptScreen
+          attempt={attempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Submit attempt" }));
     fireEvent.click(
@@ -467,11 +503,13 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
   it("renders AttemptScreen without proctoring overhead when projection is not-required", () => {
     const api = client();
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{ status: "not-required" }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{ status: "not-required" }}
+        />,
+      ),
     );
     expect(screen.queryByText(/monitoring/i)).not.toBeInTheDocument();
     expect(monitoringMock.controller.start).not.toHaveBeenCalled();
@@ -480,11 +518,13 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
   it("displays checking alert while projection is verifying without blocking interaction", () => {
     const api = client();
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{ status: "checking" }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{ status: "checking" }}
+        />,
+      ),
     );
     expect(
       screen.getByText("Checking monitoring requirement"),
@@ -500,11 +540,13 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
   it("displays monitoring authority unavailable warning when check fails", () => {
     const api = client();
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{ status: "unavailable" }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{ status: "unavailable" }}
+        />,
+      ),
     );
     expect(
       screen.getByText("Monitoring authority unavailable"),
@@ -516,20 +558,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
     const api = client();
     monitoringMock.controller.state = { status: "idle" };
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
     await waitFor(() =>
       expect(monitoringMock.controller.start).toHaveBeenCalledWith({
@@ -555,20 +599,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       activity: { getSnapshot: () => ({ delivery: "live" }) },
     };
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
     expect(screen.getByText("Activity monitoring active")).toBeInTheDocument();
     expect(screen.getByTestId("student-camera")).toBeInTheDocument();
@@ -587,20 +633,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       activity: { getSnapshot: () => ({ delivery: "live" }) },
     };
     render(
-      <IntegratedAttemptScreen
-        attempt={multiQuestionAttempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={multiQuestionAttempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     await waitFor(() =>
@@ -623,20 +671,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       error: { kind: "api", status: 503, message: "Service Unavailable" },
     };
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
@@ -664,20 +714,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       error: { kind: "api", status: 503, message: "Service Unavailable" },
     };
     render(
-      <IntegratedAttemptScreen
-        attempt={{ ...attempt, state: "SUBMITTED" }}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={{ ...attempt, state: "SUBMITTED" }}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     expect(
@@ -695,24 +747,26 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       error: { kind: "api", status: 503, message: "Service Unavailable" },
     };
     render(
-      <IntegratedAttemptScreen
-        attempt={{
-          ...attempt,
-          deadlineAt: "2026-10-16T08:00:00Z",
-          serverNow: "2026-10-16T08:05:00Z",
-        }}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={{
+            ...attempt,
             deadlineAt: "2026-10-16T08:00:00Z",
-          },
-        }}
-      />,
+            serverNow: "2026-10-16T08:05:00Z",
+          }}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T08:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     expect(
@@ -730,20 +784,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       error: { kind: "api", status: 403, code: "AUTHORITY_LOST" },
     };
     render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
@@ -759,20 +815,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
     const api = client();
     monitoringMock.controller.state = { status: "ended" };
     const { rerender } = render(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();
@@ -787,20 +845,22 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       reason: "Audience not monitored",
     };
     rerender(
-      <IntegratedAttemptScreen
-        attempt={attempt}
-        client={api}
-        projection={{
-          status: "eligible",
-          eligibility: {
-            attemptId,
-            audience: "CLASS",
-            monitoringRequired: true,
-            attemptStatus: "ACTIVE",
-            deadlineAt: "2026-10-16T12:00:00Z",
-          },
-        }}
-      />,
+      withAuth(
+        <IntegratedAttemptScreen
+          attempt={attempt}
+          client={api}
+          projection={{
+            status: "eligible",
+            eligibility: {
+              attemptId,
+              audience: "CLASS",
+              monitoringRequired: true,
+              attemptStatus: "ACTIVE",
+              deadlineAt: "2026-10-16T12:00:00Z",
+            },
+          }}
+        />,
+      ),
     );
 
     expect(screen.getByText("Monitoring unavailable")).toBeInTheDocument();

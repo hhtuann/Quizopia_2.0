@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
@@ -22,6 +22,12 @@ import type {
 } from "../api/publication-contract.generated";
 import { newIdempotencyKey, sameConfiguration } from "../model/publication";
 import { instantMicroseconds } from "../utils/utc-time";
+import {
+  useRealtimeResync,
+  useRealtimeSubscriptions,
+} from "../../realtime/hooks/use-realtime-subscriptions";
+import { RealtimeStatusInline } from "../../realtime/components/realtime-status";
+import type { RealtimeResource } from "../../realtime/model/realtime-frame";
 import { PrivatePublicationLocator } from "./private-publication-locator";
 import { PublicationConfigurationForm } from "./publication-configuration-form";
 import { PublicationConfirmation } from "./publication-confirmation";
@@ -115,6 +121,19 @@ export function PublicationDetailScreen({
       readController.current?.abort();
     };
   }, [refresh]);
+
+  // Best-effort teacher publication hints reconcile through the existing sequence-fenced
+  // REST read; realtime never mutates publication state directly.
+  const realtimeResources = useMemo<readonly RealtimeResource[]>(
+    () => [{ kind: "PUBLICATION_TEACHER" as const, id: publicationId }],
+    [publicationId],
+  );
+  const realtimeResync = useRealtimeResync({ active: true, run: refresh });
+  const realtimeStatus = useRealtimeSubscriptions({
+    enabled: true,
+    resources: realtimeResources,
+    onSignal: realtimeResync.request,
+  });
 
   async function send(command: Command) {
     if (
@@ -288,6 +307,9 @@ export function PublicationDetailScreen({
               Revision {publication.revision}
             </span>
           </p>
+          <div className="mt-2">
+            <RealtimeStatusInline status={realtimeStatus} />
+          </div>
         </div>
         <Button
           aria-label={loading ? "Refreshing authoritative details" : undefined}
