@@ -6,6 +6,23 @@ Identity/Classroom target-Student scopes and current checks; historical evidence
 authorization cannot be reused for media. All new target checks default disabled.
 See [the correction contract/evidence](../../docs/architecture/w3m-correction-evidence.md).
 
+## W4-B2 realtime subscription authority
+
+The private `POST /internal/realtime/subscription-authorizations` decision is
+default-disabled (`ASSESSMENT_REALTIME_AUTHORITY_ENABLED=false`) and requires the
+exact dedicated Gateway realtime SERVICE client: RS256 `principal_type=SERVICE`,
+`sub` equal to `ASSESSMENT_REALTIME_GATEWAY_CLIENT_ID`, audience exactly
+`quizopia-assessment-realtime-authority` and scope
+`assessment.realtime.subscription-authorize`. The original USER JWT is validated
+independently (signature, issuer, timestamps, roles, fresh LD-05 admission).
+`ATTEMPT_OWNER` requires current Student ownership of an ACTIVE attempt under an
+OPEN publication before its deadline; `PUBLICATION_TEACHER` requires the owning
+Teacher of an OPEN publication. CLASS publications re-verify current Classroom
+membership/teacher authority through the existing authorized integration.
+Missing, ineligible or foreign resources are masked with 404 `NOT_ACCESSIBLE`;
+uncertain dependencies fail closed with 503. There is no positive decision
+cache and the route is never exposed through the public Gateway.
+
 Independent Spring Boot 4.1.1 / Java 21 Assessment service.
 
 Run independently from this directory:

@@ -90,9 +90,23 @@ public final class IdentityAdmissionClient implements AutoCloseable {
     }
 
     public Mono<Void> admit(Jwt user, String requiredRole) {
+        return admit(user, java.util.Set.of(requiredRole), true);
+    }
+
+    /**
+     * Admission for sessions where any one of the allowed roles qualifies; response roles must still
+     * equal the token roles exactly. Does not require the STUDENT base role so dedicated TEACHER
+     * sessions can be admitted without weakening any other admission path.
+     */
+    public Mono<Void> admitAny(Jwt user, Set<String> allowedRoles) {
+        return admit(user, java.util.Set.copyOf(allowedRoles), false);
+    }
+
+    private Mono<Void> admit(Jwt user, Set<String> qualifyingRoles, boolean requireStudentMembership) {
         return Mono.<Void>defer(() -> {
                     List<String> localRoles = userRoles(user);
-                    if (!localRoles.contains(requiredRole)) return Mono.error(AdmissionFailure.forbidden());
+                    if (localRoles.stream().noneMatch(qualifyingRoles::contains))
+                        return Mono.error(AdmissionFailure.forbidden());
                     if (!properties.isEnabled()) return Mono.error(AdmissionFailure.unavailable());
                     var request = OAuth2AuthorizeRequest.withClientRegistrationId("identity-admission")
                             .principal(new UsernamePasswordAuthenticationToken(
@@ -128,7 +142,12 @@ public final class IdentityAdmissionClient implements AutoCloseable {
                                                     .defaultIfEmpty("")
                                                     .flatMap(body -> {
                                                         if (status == 200) {
-                                                            validateResponse(body, user, localRoles, requiredRole);
+                                                            validateResponse(
+                                                                    body,
+                                                                    user,
+                                                                    localRoles,
+                                                                    qualifyingRoles,
+                                                                    requireStudentMembership);
                                                             return Mono.<Void>empty();
                                                         }
                                                         if (status == 401 && invalidUserError(body))
@@ -164,7 +183,12 @@ public final class IdentityAdmissionClient implements AutoCloseable {
         return roles.stream().sorted().toList();
     }
 
-    private void validateResponse(String body, Jwt user, List<String> tokenRoles, String requiredRole) {
+    private void validateResponse(
+            String body,
+            Jwt user,
+            List<String> tokenRoles,
+            Set<String> qualifyingRoles,
+            boolean requireStudentMembership) {
         var root = json.readTree(body);
         if (!root.isObject()
                 || root.size() != 2
@@ -183,9 +207,10 @@ public final class IdentityAdmissionClient implements AutoCloseable {
         }
         if (roles.isEmpty()
                 || roles.size() > 3
-                || !roles.contains("STUDENT")
+                || (requireStudentMembership && !roles.contains("STUDENT"))
                 || !roles.equals(roles.stream().sorted().toList())) throw AdmissionFailure.unavailable();
-        if (!roles.contains(requiredRole) || !roles.equals(tokenRoles)) throw AdmissionFailure.forbidden();
+        if (roles.stream().noneMatch(qualifyingRoles::contains) || !roles.equals(tokenRoles))
+            throw AdmissionFailure.forbidden();
     }
 
     private boolean invalidUserError(String body) {

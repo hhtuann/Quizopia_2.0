@@ -17,7 +17,7 @@ import org.springframework.web.reactive.socket.server.upgrade.ReactorNettyReques
 import reactor.netty.http.server.WebsocketServerSpec;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(RealtimeProperties.class)
+@EnableConfigurationProperties({RealtimeProperties.class, RealtimeAuthorityProperties.class})
 public class RealtimeConfiguration {
     @Bean
     Clock realtimeClock() {
@@ -35,18 +35,34 @@ public class RealtimeConfiguration {
         return new RealtimeConnectionLimiter(properties, realtimeClock);
     }
 
+    @Bean(destroyMethod = "close")
+    RealtimeAuthorityClient realtimeAuthorityClient(RealtimeAuthorityProperties properties) {
+        return new RealtimeAuthorityClient(properties);
+    }
+
     @Bean
     RealtimeWebSocketHandler realtimeWebSocketHandler(
             RealtimeProperties properties,
+            RealtimeAuthorityProperties authorityProperties,
             RealtimeTicketStore tickets,
             RealtimeConnectionLimiter limiter,
             ReactiveJwtDecoder decoder,
             QuizopiaJwtAuthenticationConverter converter,
             IdentityAdmissionClient admission,
+            RealtimeAuthorityClient authority,
             MeterRegistry meters,
             Clock realtimeClock) {
         return new RealtimeWebSocketHandler(
-                properties, tickets, limiter, decoder, converter, admission, meters, realtimeClock);
+                properties,
+                authorityProperties,
+                tickets,
+                limiter,
+                decoder,
+                converter,
+                admission,
+                authority,
+                meters,
+                realtimeClock);
     }
 
     @Bean

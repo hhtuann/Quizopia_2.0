@@ -58,7 +58,7 @@ public final class RealtimeTicketWebFilter implements WebFilter {
                 .cast(JwtAuthenticationToken.class)
                 .switchIfEmpty(Mono.error(AdmissionFailure.invalidUser()))
                 .flatMap(authentication -> strictEmptyBody(exchange)
-                        .then(admission.admit(authentication.getToken(), "STUDENT"))
+                        .then(admission.admitAny(authentication.getToken(), RealtimeWebSocketHandler.CONNECTION_ROLES))
                         .then(tickets.issue(
                                 UUID.fromString(authentication.getToken().getSubject()),
                                 authentication.getToken().getTokenValue(),

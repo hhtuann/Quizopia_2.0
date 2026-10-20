@@ -7,12 +7,16 @@ import com.quizopia.gateway.security.admission.IdentityAdmissionClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -30,19 +34,23 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 public final class RealtimeWebSocketHandler implements WebSocketHandler {
+    static final Set<String> CONNECTION_ROLES = Set.of("STUDENT", "TEACHER");
     private static final Pattern TICKET = Pattern.compile("[A-Za-z0-9_-]{43}");
     private static final Pattern JWT = Pattern.compile("[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
     private static final Pattern UUID_PATTERN =
             Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final java.util.Set<String> RESOURCE_KINDS =
             java.util.Set.of("ATTEMPT_OWNER", "PUBLICATION_TEACHER");
+    private static final SecureRandom SUBSCRIPTION_RANDOM = new SecureRandom();
 
     private final RealtimeProperties properties;
+    private final RealtimeAuthorityProperties authorityBounds;
     private final RealtimeTicketStore tickets;
     private final RealtimeConnectionLimiter limiter;
     private final ReactiveJwtDecoder decoder;
     private final QuizopiaJwtAuthenticationConverter converter;
     private final IdentityAdmissionClient admission;
+    private final RealtimeAuthorityClient authority;
     private final MeterRegistry meters;
     private final Clock clock;
     private final JsonMapper json = JsonMapper.builder()
@@ -52,19 +60,23 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
 
     public RealtimeWebSocketHandler(
             RealtimeProperties properties,
+            RealtimeAuthorityProperties authorityBounds,
             RealtimeTicketStore tickets,
             RealtimeConnectionLimiter limiter,
             ReactiveJwtDecoder decoder,
             QuizopiaJwtAuthenticationConverter converter,
             IdentityAdmissionClient admission,
+            RealtimeAuthorityClient authority,
             MeterRegistry meters,
             Clock clock) {
         this.properties = properties;
+        this.authorityBounds = authorityBounds;
         this.tickets = tickets;
         this.limiter = limiter;
         this.decoder = decoder;
         this.converter = converter;
         this.admission = admission;
+        this.authority = authority;
         this.meters = meters;
         this.clock = clock;
     }
@@ -86,6 +98,8 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
         }
         AtomicReference<State> state = new AtomicReference<>(State.PENDING_AUTH);
         AtomicReference<Disposable> expiry = new AtomicReference<>();
+        AtomicReference<String> userEvidence = new AtomicReference<>();
+        Subscriptions subscriptions = new Subscriptions(authorityBounds.getMaximumSubscriptionsPerConnection());
         Sinks.Many<WebSocketMessage> outbound =
                 Sinks.many().unicast().onBackpressureBuffer(new ArrayBlockingQueue<>(16));
         emit(outbound, session.textMessage(welcome()));
@@ -98,7 +112,8 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                                 session, outbound, state, State.PENDING_AUTH, RealtimeFailure.authorityUnavailable()));
 
         Mono<Void> receive = session.receive()
-                .concatMap(message -> Mono.defer(() -> process(session, message, state, expiry, outbound))
+                .concatMap(message -> Mono.defer(
+                                () -> process(session, message, state, expiry, userEvidence, subscriptions, outbound))
                         .onErrorResume(RealtimeFailure.class, failure -> close(session, outbound, state, failure))
                         .onErrorResume(
                                 ignored -> close(session, outbound, state, RealtimeFailure.authorityUnavailable())))
@@ -111,6 +126,8 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             Disposable expiryTimer = expiry.getAndSet(null);
             if (expiryTimer != null) expiryTimer.dispose();
             state.set(State.CLOSED);
+            userEvidence.set(null);
+            subscriptions.clear();
             outbound.tryEmitComplete();
             lease.close();
         });
@@ -121,6 +138,8 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             WebSocketMessage message,
             AtomicReference<State> state,
             AtomicReference<Disposable> expiry,
+            AtomicReference<String> userEvidence,
+            Subscriptions subscriptions,
             Sinks.Many<WebSocketMessage> outbound) {
         if (message.getType() != WebSocketMessage.Type.TEXT
                 || message.getPayload().readableByteCount() > properties.getMaximumFrameBytes()) {
@@ -128,10 +147,10 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
         }
         String text = message.getPayloadAsText(StandardCharsets.UTF_8);
         if (state.get() == State.PENDING_AUTH) {
-            return authenticate(session, text, state, expiry, outbound);
+            return authenticate(session, text, state, expiry, userEvidence, outbound);
         }
         if (state.get() == State.AUTHENTICATED) {
-            return authenticatedFrame(session, text, outbound);
+            return authenticatedFrame(session, text, userEvidence, subscriptions, outbound);
         }
         return Mono.empty();
     }
@@ -141,6 +160,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
             String text,
             AtomicReference<State> state,
             AtomicReference<Disposable> expiry,
+            AtomicReference<String> userEvidence,
             Sinks.Many<WebSocketMessage> outbound) {
         AuthFrame frame = parseAuth(text);
         String origin = session.getHandshakeInfo().getHeaders().getOrigin();
@@ -161,7 +181,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                             .onErrorMap(ignored -> RealtimeFailure.authentication())
                             .flatMap(jwt -> validateUser(jwt, metadata))
                             .flatMap(jwt -> admission
-                                    .admit(jwt, "STUDENT")
+                                    .admitAny(jwt, CONNECTION_ROLES)
                                     .onErrorMap(AdmissionFailure.class, this::mapAdmissionFailure)
                                     .thenReturn(jwt));
                 })
@@ -171,6 +191,7 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
                     }
                     meters.counter("gateway.realtime.websocket", "outcome", "authenticated")
                             .increment();
+                    userEvidence.set(frame.accessToken());
                     emit(outbound, session.textMessage("{\"protocolVersion\":1,\"type\":\"AUTHENTICATED\"}"));
                     scheduleExpiry(session, outbound, state, expiry, jwt.getExpiresAt());
                     return Mono.empty();
@@ -189,27 +210,90 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> authenticatedFrame(
-            WebSocketSession session, String text, Sinks.Many<WebSocketMessage> outbound) {
+            WebSocketSession session,
+            String text,
+            AtomicReference<String> userEvidence,
+            Subscriptions subscriptions,
+            Sinks.Many<WebSocketMessage> outbound) {
         JsonNode root = parseObject(text);
         String type = text(root, "type");
         if ("AUTH".equals(type)) return Mono.error(RealtimeFailure.malformed());
-        if ("SUBSCRIBE".equals(type)) {
-            requireSubscribe(root);
-            emit(
-                    outbound,
-                    session.textMessage(requestError(root.path("requestId").asString())));
-            meters.counter("gateway.realtime.subscription", "outcome", "feature_disabled")
-                    .increment();
-            return Mono.empty();
-        }
-        if ("UNSUBSCRIBE".equals(type)) {
-            requireUnsubscribe(root);
-            emit(
-                    outbound,
-                    session.textMessage(requestError(root.path("requestId").asString())));
-            return Mono.empty();
-        }
+        if ("SUBSCRIBE".equals(type)) return subscribe(session, root, userEvidence, subscriptions, outbound);
+        if ("UNSUBSCRIBE".equals(type)) return unsubscribe(session, root, subscriptions, outbound);
         return Mono.error(RealtimeFailure.malformed());
+    }
+
+    private Mono<Void> subscribe(
+            WebSocketSession session,
+            JsonNode root,
+            AtomicReference<String> userEvidence,
+            Subscriptions subscriptions,
+            Sinks.Many<WebSocketMessage> outbound) {
+        requireSubscribe(root);
+        String requestId = root.path("requestId").asString();
+        String kind = text(root.path("resource"), "kind");
+        String resourceId = root.path("resource").path("id").asString();
+        if (subscriptions.containsResource(kind, resourceId)) {
+            subscriptionMetric("duplicate");
+            emit(outbound, session.textMessage(requestError(requestId, "NOT_ACCESSIBLE")));
+            return Mono.empty();
+        }
+        if (subscriptions.atCapacity()) {
+            subscriptionMetric("capacity_exceeded");
+            emit(outbound, session.textMessage(requestError(requestId, "CAPACITY_EXCEEDED")));
+            return Mono.empty();
+        }
+        return authority
+                .authorize(userEvidence.get(), kind, resourceId)
+                .flatMap(decision -> switch (decision.outcome()) {
+                    case AUTHORIZED -> {
+                        String subscriptionId = subscriptionId();
+                        if (!subscriptions.add(subscriptionId, kind, resourceId)) {
+                            subscriptionMetric("duplicate");
+                            emit(outbound, session.textMessage(requestError(requestId, "NOT_ACCESSIBLE")));
+                        } else {
+                            subscriptionMetric("authorized");
+                            emit(
+                                    outbound,
+                                    session.textMessage(subscribed(requestId, subscriptionId, kind, resourceId)));
+                        }
+                        yield Mono.<Void>empty();
+                    }
+                    case NOT_ACCESSIBLE, FORBIDDEN -> {
+                        subscriptionMetric("not_accessible");
+                        emit(outbound, session.textMessage(requestError(requestId, "NOT_ACCESSIBLE")));
+                        yield Mono.<Void>empty();
+                    }
+                    case UNAVAILABLE -> {
+                        subscriptionMetric("authority_unavailable");
+                        emit(outbound, session.textMessage(requestError(requestId, "AUTHORITY_UNAVAILABLE")));
+                        yield Mono.<Void>empty();
+                    }
+                    // Stale or revoked USER evidence terminates the whole session; fail closed.
+                    case USER_EVIDENCE_INVALID -> Mono.<Void>error(RealtimeFailure.authentication());
+                });
+    }
+
+    private Mono<Void> unsubscribe(
+            WebSocketSession session,
+            JsonNode root,
+            Subscriptions subscriptions,
+            Sinks.Many<WebSocketMessage> outbound) {
+        requireUnsubscribe(root);
+        String requestId = root.path("requestId").asString();
+        String subscriptionId = root.path("subscriptionId").asString();
+        if (subscriptions.remove(subscriptionId)) {
+            subscriptionMetric("unsubscribed");
+            emit(outbound, session.textMessage(unsubscribed(requestId, subscriptionId)));
+        } else {
+            subscriptionMetric("unknown_subscription");
+            emit(outbound, session.textMessage(requestError(requestId, "NOT_ACCESSIBLE")));
+        }
+        return Mono.empty();
+    }
+
+    private void subscriptionMetric(String outcome) {
+        meters.counter("gateway.realtime.subscription", "outcome", outcome).increment();
     }
 
     private AuthFrame parseAuth(String text) {
@@ -354,10 +438,82 @@ public final class RealtimeWebSocketHandler implements WebSocketHandler {
         return "{\"protocolVersion\":1,\"type\":\"WELCOME\",\"connectionId\":\"" + UUID.randomUUID() + "\"}";
     }
 
-    private static String requestError(String requestId) {
-        return "{\"protocolVersion\":1,\"type\":\"ERROR\",\"code\":\"NOT_ACCESSIBLE\",\"requestId\":\""
+    private static String requestError(String requestId, String code) {
+        return "{\"protocolVersion\":1,\"type\":\"ERROR\",\"code\":\"" + code + "\",\"requestId\":\""
                 + requestId
                 + "\"}";
+    }
+
+    private static String subscribed(String requestId, String subscriptionId, String kind, String resourceId) {
+        return "{\"protocolVersion\":1,\"type\":\"SUBSCRIBED\",\"requestId\":\""
+                + requestId
+                + "\",\"subscriptionId\":\""
+                + subscriptionId
+                + "\",\"resource\":{\"kind\":\""
+                + kind
+                + "\",\"id\":\""
+                + resourceId
+                + "\"}}";
+    }
+
+    private static String unsubscribed(String requestId, String subscriptionId) {
+        return "{\"protocolVersion\":1,\"type\":\"UNSUBSCRIBED\",\"requestId\":\""
+                + requestId
+                + "\",\"subscriptionId\":\""
+                + subscriptionId
+                + "\"}";
+    }
+
+    private static String subscriptionId() {
+        byte[] random = new byte[18];
+        SUBSCRIPTION_RANDOM.nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    }
+
+    /** Connection-scoped, bounded, opaque subscription state; no global registry. */
+    private static final class Subscriptions {
+        private final int maximum;
+        private final java.util.Map<String, String> byId = new ConcurrentHashMap<>();
+        private final java.util.Set<String> resources = ConcurrentHashMap.newKeySet();
+
+        Subscriptions(int maximum) {
+            this.maximum = maximum;
+        }
+
+        boolean containsResource(String kind, String resourceId) {
+            return resources.contains(key(kind, resourceId));
+        }
+
+        boolean atCapacity() {
+            return byId.size() >= maximum;
+        }
+
+        boolean add(String subscriptionId, String kind, String resourceId) {
+            if (byId.size() >= maximum) return false;
+            String resourceKey = key(kind, resourceId);
+            if (!resources.add(resourceKey)) return false;
+            if (byId.putIfAbsent(subscriptionId, resourceKey) != null) {
+                resources.remove(resourceKey);
+                return false;
+            }
+            return true;
+        }
+
+        boolean remove(String subscriptionId) {
+            String resourceKey = byId.remove(subscriptionId);
+            if (resourceKey == null) return false;
+            resources.remove(resourceKey);
+            return true;
+        }
+
+        void clear() {
+            byId.clear();
+            resources.clear();
+        }
+
+        private static String key(String kind, String resourceId) {
+            return kind + ":" + resourceId;
+        }
     }
 
     private enum State {

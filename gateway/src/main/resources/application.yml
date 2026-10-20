@@ -60,6 +60,19 @@ quizopia:
     maximum-connections: ${REALTIME_MAXIMUM_CONNECTIONS:512}
     maximum-connections-per-ip: ${REALTIME_MAXIMUM_CONNECTIONS_PER_IP:64}
     maximum-connections-per-origin: ${REALTIME_MAXIMUM_CONNECTIONS_PER_ORIGIN:128}
+    authority:
+      enabled: ${REALTIME_AUTHORITY_ENABLED:false}
+      assessment-base-url: ${REALTIME_AUTHORITY_ASSESSMENT_BASE_URL:}
+      identity-base-url: ${REALTIME_AUTHORITY_IDENTITY_BASE_URL:}
+      client-id: ${REALTIME_AUTHORITY_CLIENT_ID:}
+      client-secret: ${REALTIME_AUTHORITY_CLIENT_SECRET:}
+      allow-insecure-loopback: ${REALTIME_AUTHORITY_ALLOW_INSECURE_LOOPBACK:false}
+      connect-timeout: ${REALTIME_AUTHORITY_CONNECT_TIMEOUT:PT1S}
+      response-timeout: ${REALTIME_AUTHORITY_RESPONSE_TIMEOUT:PT3S}
+      total-timeout: ${REALTIME_AUTHORITY_TOTAL_TIMEOUT:PT5S}
+      max-connections: ${REALTIME_AUTHORITY_MAX_CONNECTIONS:8}
+      pending-acquires: ${REALTIME_AUTHORITY_PENDING_ACQUIRES:32}
+      maximum-subscriptions-per-connection: ${REALTIME_AUTHORITY_MAX_SUBSCRIPTIONS:16}
   publication:
     enabled: ${PUBLICATION_ENABLED:false}
   admission:
