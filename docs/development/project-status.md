@@ -177,7 +177,7 @@ W5-A Product Decisions & Contract Freeze → W5-B Community → W5-C Practice �
 W5-D AI Authoring → W5-E AI Tutor → W5-F Integration & Acceptance.
 
 Unresolved decisions are recorded in `docs/open-questions.md` under
-Community (COMM-01..06), Practice (PRACTICE-01..04) and AI sections; none
+Community (COMM-01..07), Practice (PRACTICE-01..04) and AI sections; none
 has been decided by this status update.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
@@ -617,18 +617,17 @@ errors are described in the current Assessment service OpenAPI. Guest identity/a
 
 Later product areas:
 
-- AI behavior monitoring/inference, media/audio recording and mandatory/strict
-  screen sharing; preserve future Proctoring design and extension points;
-  **DEFERRED** — not implemented or accepted
+Community, Practice, AI Authoring and AI Tutor are **Wave 5 planning scope**
+(see the Wave 5 section above); they are not authorized for implementation.
+
+The following remain **separately gated or deferred** and are **not authorized
+Wave 5 implementation work**:
+
 - Recording and Screen Sharing: **DEFERRED**
 - AI Proctoring: **future design/implementation subject to separate privacy,
   policy and security gates; not implemented or accepted**
-- Community;
-- Practice/flashcards;
-- AI tutor/generation.
-
-These are Wave 5 scope areas; see section 2 Wave 5 for the current planning
-status.
+- AI behavior monitoring/inference, media/audio recording and mandatory/strict
+  screen sharing; preserve future Proctoring design and extension points
 
 ## 10. Macro roadmap
 
