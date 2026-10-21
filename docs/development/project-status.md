@@ -2,11 +2,11 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-18
+> **Last updated:** 2026-10-21
 >
-> **Checkpoint baseline:** merged `develop` `77ede6171bb6279580f5db403eeb0e68853d862c`
-> (PR #101); the bounded runtime used checkpoint
-> `01e975d2c7639570986906e4cd2b2937a382198b`.
+> **Checkpoint baseline:** merged `develop` `2d837e5f853cc2c929d8433e62b2da3f07a60cd2`
+> (PR #107, W4-E integration & acceptance). W4 implementation and local-test
+> acceptance are complete; production rollout is **HOLD / NOT AUTHORIZED**.
 >
 > This file answers: **where are we, what is done, what is next, and what is blocking us?**
 >
@@ -100,6 +100,85 @@ Wave 2 has:
   save/reload/publish E2E.
 
 Wave 2 remaining: **none for milestone closure**.
+
+### Wave 4 — Realtime Implementation and Acceptance
+
+**Status: IMPLEMENTATION COMPLETE / LOCAL-TEST ACCEPTANCE PASS.
+PRODUCTION ROLLOUT: HOLD / NOT AUTHORIZED.**
+
+All five Wave 4 milestones are merged:
+
+| Milestone | PR   | Merge SHA                                  | Scope                                                                                                                     |
+| --------- | ---- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| W4-B1     | #103 | `2466e20466ab39ca07cd9d47a043b796badb11c0` | Gateway Realtime Authentication (ticket, WS AUTH, Origin, admission)                                                      |
+| W4-B2     | #104 | `2676ee80d18fc648e3139725f65d8962cfd05efd` | Assessment Subscription Authority (dedicated SERVICE client, frozen private authorization API)                            |
+| W4-B3     | #105 | `d87a3b37b12d125d0586bd38a565ae0192337dca` | Outbox / RabbitMQ / Gateway Invalidation (V7 outbox, confirmed publisher, per-instance consumer, fanout)                  |
+| W4-B4     | #106 | `cad2d25c73232653e65f037b5ebf71d076b2b42d` | Frontend Realtime & REST Resynchronization (typed WS client, bound ticket/JWT pair, coalesced resync, draft preservation) |
+| W4-E      | #107 | `2d837e5f853cc2c929d8433e62b2da3f07a60cd2` | Integration & Acceptance (15/15 real-runtime journeys PASS; evidence + harness)                                           |
+
+W4-E final head: `92929e127260d93ce6d25ab2fe01d59af3dc7830`.
+
+#### Acceptance evidence summary
+
+Full evidence: [W4 Realtime Acceptance Evidence](w4-acceptance-evidence.md).
+
+- **15/15 local/test acceptance journeys PASS** (14 real-runtime protocol + 1
+  real-Chromium browser journey).
+- Real Chromium Playwright: **2/2 browser tests passed** (teacher publication
+  WebSocket AUTH → real invalidation → authoritative REST resync; student attempt
+  draft preservation across visibility-triggered and terminal resyncs).
+- Real services: Identity, Classroom, Assessment (real OS processes, Maven-built
+  JARs), Redis, RabbitMQ, PostgreSQL ×3 — plus **two real Gateway instances**
+  (one in-JVM, one separate OS process, each with its own invalidation queue).
+- Ticket/AUTH handshake secrecy, dedicated-client subscription authorization,
+  event propagation through committed business transitions (outbox → broker →
+  consumer → authorized WebSocket), authoritative REST reconciliation, broker
+  outage/recovery, resource isolation, broker ACL separation, and credential
+  redaction in all process logs — all demonstrated on real infrastructure.
+- All applicable CI checks passed on PR #107; the `full-validation` workflow was
+  SKIPPED by workflow configuration.
+
+This is implementation acceptance on disposable local/test infrastructure.
+**Production acceptance has NOT been performed and production deployment is NOT
+authorized.**
+
+#### Remaining production rollout gates
+
+- Production TLS and certificate/hostname verification (all edges: gateway,
+  inter-service, broker).
+- Proxy/ingress WebSocket behavior under real network topology.
+- Performance, load and scaling evidence for WebSocket fan-out, broker
+  throughput and outbox drain.
+- RabbitMQ production provisioning (vhost/exchange/queues/ACL) and operational
+  monitoring.
+- Outbox lag/retry/quarantine alerting.
+- Assessment Prometheus exposure decision (currently security-gated behind
+  authenticated business routes).
+- Independent security review and release approval.
+
+All production feature flags remain OFF unless separately approved.
+
+### Wave 5 — Community, Practice & AI
+
+**Status: PLANNING / CODING NOT AUTHORIZED.**
+
+Approved broad scope (see product documents and `docs/open-questions.md`):
+
+- **Community:** contributions, discovery, comments, reactions, ratings,
+  copy/fork and moderation.
+- **Practice:** self-paced sessions, feedback and learning progress.
+- **AI Authoring:** document-grounded assistance, structured generation,
+  editable canonical Quiz Markdown.
+- **AI Tutor:** policy-controlled learning assistance.
+
+Proposed sequence (for planning only, not yet approved engineering contracts):
+
+W5-A Product Decisions & Contract Freeze → W5-B Community → W5-C Practice →
+W5-D AI Authoring → W5-E AI Tutor → W5-F Integration & Acceptance.
+
+Unresolved decisions are recorded in `docs/open-questions.md` under
+Community (COMM-01..07), Practice (PRACTICE-01..04) and AI sections; none
+has been decided by this status update.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
@@ -219,13 +298,15 @@ reconciliation are not new implementation, CI or E2E evidence.
 
 ## 3. Current merged checkpoint and historical chronology
 
-The current merged baseline is PR #101 at
-`77ede6171bb6279580f5db403eeb0e68853d862c`; it carries the final bounded evidence
-package and status correction. Merge does not confer production approval.
-Consult the [final evidence report](w3-acceptance-final-evidence.md) for exact
-source/test receipts and remaining gates. The following records the earlier
-documentation checkpoint at `87ff6b064b972400cd4903f7bc4fec9375e559a1`
-(2026-10-11), not current implementation status:
+The current merged baseline is PR #107 (W4-E) at
+`2d837e5f853cc2c929d8433e62b2da3f07a60cd2`. The preceding W3 implementation
+checkpoint was PR #101 at `77ede6171bb6279580f5db403eeb0e68853d862c`. Merge does
+not confer production approval. The W4 acceptance evidence is in
+[the W4 acceptance report](w4-acceptance-evidence.md); the W3 bounded evidence
+remains in [the final evidence report](w3-acceptance-final-evidence.md). The
+following records the earlier documentation checkpoint at
+`87ff6b064b972400cd4903f7bc4fec9375e559a1` (2026-10-11), not current
+implementation status:
 
 PR #72 adds Assessment policy/contract documentation; PR #73 (`d699bd3`) adds
 W3-A scope reconciliation. The latest checkpoint also includes the frontend
@@ -237,31 +318,36 @@ real-topology E2E run is claimed by this reconciliation.
 
 Important merged checkpoints:
 
-| PR  | Merge commit | Result                                                                    |
-| --- | ------------ | ------------------------------------------------------------------------- |
-| #49 | `91b68ea`    | Wave 1A Identity/Auth core                                                |
-| #51 | `eb0112f`    | USER/SERVICE access-token principal contract                              |
-| #52 | `c5fb0bf`    | Classroom core                                                            |
-| #53 | `6a3f15f`    | Frontend auth/application-shell foundation                                |
-| #54 | `d697e40`    | Quiz Library/Draft backend core                                           |
-| #55 | `de7e164`    | Identity Auth HTTP orchestration                                          |
-| #56 | `7aeb079`    | Gateway auth/browser transport hardening                                  |
-| #57 | `0f2e480`    | Frontend Identity integration + real auth E2E                             |
-| #58 | `5a1083d`    | Project status + MVP delivery plan                                        |
-| #59 | `06f1af7`    | Accepted Quiz Markdown contract                                           |
-| #60 | `58fd7c2`    | Quiz Markdown parser + immutable publishing                               |
-| #61 | `c6c81fc`    | Teacher Quiz Library cursor listing                                       |
-| #62 | `f6664fb`    | Identity login-test expiry rollover hardening                             |
-| #63 | `4d21b97`    | Persistent teacher Quiz Library frontend                                  |
-| #64 | `7919aba`    | Focused Quiz authoring UX                                                 |
-| #65 | `8a4a7cb`    | Branding/editor polish                                                    |
-| #66 | `848ecf6`    | Identity teacher self-enablement backend                                  |
-| #67 | `d39b76b`    | Frontend teacher self-enablement                                          |
-| #68 | `c977d78`    | Teacher-owned immutable QuizVersion history/detail backend                |
-| #69 | `3684ecb`    | Published QuizVersion history/preview frontend                            |
-| #70 | `00265c3`    | Frontend navigation/authoring polish                                      |
-| #71 | `8361946`    | FE-05–FE-09 editor UX, math, navigation, registration OTP; Wave 2 closure |
-| #72 | `0290c6f`    | Wave 3 Assessment policy/contract documentation foundation                |
+| PR   | Merge commit | Result                                                                    |
+| ---- | ------------ | ------------------------------------------------------------------------- |
+| #49  | `91b68ea`    | Wave 1A Identity/Auth core                                                |
+| #51  | `eb0112f`    | USER/SERVICE access-token principal contract                              |
+| #52  | `c5fb0bf`    | Classroom core                                                            |
+| #53  | `6a3f15f`    | Frontend auth/application-shell foundation                                |
+| #54  | `d697e40`    | Quiz Library/Draft backend core                                           |
+| #55  | `de7e164`    | Identity Auth HTTP orchestration                                          |
+| #56  | `7aeb079`    | Gateway auth/browser transport hardening                                  |
+| #57  | `0f2e480`    | Frontend Identity integration + real auth E2E                             |
+| #58  | `5a1083d`    | Project status + MVP delivery plan                                        |
+| #59  | `06f1af7`    | Accepted Quiz Markdown contract                                           |
+| #60  | `58fd7c2`    | Quiz Markdown parser + immutable publishing                               |
+| #61  | `c6c81fc`    | Teacher Quiz Library cursor listing                                       |
+| #62  | `f6664fb`    | Identity login-test expiry rollover hardening                             |
+| #63  | `4d21b97`    | Persistent teacher Quiz Library frontend                                  |
+| #64  | `7919aba`    | Focused Quiz authoring UX                                                 |
+| #65  | `8a4a7cb`    | Branding/editor polish                                                    |
+| #66  | `848ecf6`    | Identity teacher self-enablement backend                                  |
+| #67  | `d39b76b`    | Frontend teacher self-enablement                                          |
+| #68  | `c977d78`    | Teacher-owned immutable QuizVersion history/detail backend                |
+| #69  | `3684ecb`    | Published QuizVersion history/preview frontend                            |
+| #70  | `00265c3`    | Frontend navigation/authoring polish                                      |
+| #71  | `8361946`    | FE-05–FE-09 editor UX, math, navigation, registration OTP; Wave 2 closure |
+| #72  | `0290c6f`    | Wave 3 Assessment policy/contract documentation foundation                |
+| #103 | `2466e20`    | W4-B1 Gateway Realtime Authentication                                     |
+| #104 | `2676ee8`    | W4-B2 Assessment Subscription Authority                                   |
+| #105 | `d87a3b3`    | W4-B3 Outbox / RabbitMQ / Gateway Invalidation                            |
+| #106 | `cad2d25`    | W4-B4 Frontend Realtime & REST Resynchronization                          |
+| #107 | `2d837e5`    | W4-E Integration & Acceptance (15/15 PASS)                                |
 
 PR #73 (`d699bd3`) is the subsequent merged W3-A documentation checkpoint;
 LD-01..05 is a later approval record, not historical PR #73 content.
@@ -531,12 +617,17 @@ errors are described in the current Assessment service OpenAPI. Guest identity/a
 
 Later product areas:
 
+Community, Practice, AI Authoring and AI Tutor are **Wave 5 planning scope**
+(see the Wave 5 section above); they are not authorized for implementation.
+
+The following remain **separately gated or deferred** and are **not authorized
+Wave 5 implementation work**:
+
+- Recording and Screen Sharing: **DEFERRED**
+- AI Proctoring: **future design/implementation subject to separate privacy,
+  policy and security gates; not implemented or accepted**
 - AI behavior monitoring/inference, media/audio recording and mandatory/strict
-  screen sharing; preserve future Proctoring design and extension points;
-- broader product realtime beyond required W3-M1/M2;
-- Community;
-- Practice/flashcards;
-- AI tutor/generation.
+  screen sharing; preserve future Proctoring design and extension points
 
 ## 10. Macro roadmap
 
@@ -549,8 +640,8 @@ cut defined in `docs/development/mvp-plan.md`.
 - **Wave 3 — Assessment + eligible CLASS monitoring:** IMPLEMENTATION HANDED OFF; bounded real-runtime Assessment/B3 evidence delivered in PR #101, while production acceptance remains tracked as BLOCKED/NOT VERIFIED in issue #97
 - **Broader minimal Classroom product integration:** MVP-C creation/invites/discovery/gradebook; W3-A/B mandatory eligibility is earlier
 - **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
-- **Wave 4 — broader Realtime + future Proctoring:** post-MVP; AI behavior monitoring and any separately approved recording/strict screen-sharing evolution, beyond required W3-M1/M2
-- **Wave 5 — Community + Practice + AI:** post-MVP unless explicitly promoted
+- **Wave 4 — Realtime:** IMPLEMENTATION COMPLETE / LOCAL-TEST ACCEPTANCE PASS (PRs #103–#107); production rollout HOLD / NOT AUTHORIZED
+- **Wave 5 — Community + Practice + AI:** PLANNING / CODING NOT AUTHORIZED
 - **Wave 6 — broader product hardening / release evolution**
 
 The first MVP does **not** require completion of Waves 4–5. The authoritative
