@@ -24,6 +24,39 @@ import {
   PublicationDetailScreen,
 } from "./publication-pages";
 import { PublicationConfigurationForm } from "./publication-configuration-form";
+import { AuthProvider } from "../../auth/auth-provider";
+import type { AuthSessionService } from "../../auth/session/auth-session-service";
+import { createAccessTokenVault } from "../../auth/session/access-token-vault";
+import { createSessionRuntime } from "../../auth/session/session-runtime";
+
+const authRuntime = createSessionRuntime(createAccessTokenVault());
+const authStub: AuthSessionService = {
+  authenticatedRequests: {
+    async execute() {
+      throw new Error("unused");
+    },
+    async executeOnce() {
+      throw new Error("unused");
+    },
+    async executeOnceWithAccessToken() {
+      throw new Error("unused");
+    },
+  },
+  readAccessToken: () => null,
+  bootstrap: vi.fn(async () => ({ status: "no-session" as const })),
+  confirmVerification: vi.fn(),
+  enableTeacher: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  register: vi.fn(),
+  requestVerification: vi.fn(),
+  retryVerification: vi.fn(),
+  runtime: authRuntime,
+};
+
+function renderDetail(element: React.ReactElement) {
+  return render(<AuthProvider service={authStub}>{element}</AuthProvider>);
+}
 
 const navigation = vi.hoisted(() => ({
   push: vi.fn(),
@@ -461,7 +494,7 @@ describe("Authoritative Publication lifecycle", () => {
         privateLocator: null,
       },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     expect(
       await screen.findByRole("button", { name: "Review and OPEN" }),
     ).toBeDisabled();
@@ -487,7 +520,7 @@ describe("Authoritative Publication lifecycle", () => {
       ok: false,
       error: { kind: "api", status: 409, code: "PUBLICATION_CONFLICT" },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit DRAFT" }));
     fireEvent.change(screen.getByLabelText("Publication title"), {
       target: { value: "Local unsaved title" },
@@ -524,7 +557,7 @@ describe("Authoritative Publication lifecycle", () => {
       ok: false,
       error: { kind: "unavailable", reason: "network" },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and OPEN" }),
     );
@@ -548,7 +581,7 @@ describe("Authoritative Publication lifecycle", () => {
         error: { kind: "unavailable", reason: "timeout" },
       })
       .mockResolvedValueOnce({ ok: true, value: opened });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and OPEN" }),
     );
@@ -571,7 +604,7 @@ describe("Authoritative Publication lifecycle", () => {
       ok: false,
       error: { kind: "unavailable", reason: "refresh" },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and OPEN" }),
     );
@@ -614,7 +647,7 @@ describe("Authoritative Publication lifecycle", () => {
       ok: false,
       error: { kind: "api", status: 409, code: "REVISION_CONFLICT" },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Extend participation schedule",
@@ -669,7 +702,7 @@ describe("Authoritative Publication lifecycle", () => {
         },
       },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Extend participation schedule",
@@ -737,7 +770,7 @@ describe("Authoritative Publication lifecycle", () => {
           closedAt: "2026-10-16T08:30:00Z",
         },
       });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
@@ -775,7 +808,7 @@ describe("Authoritative Publication lifecycle", () => {
           closedAt: "2026-10-16T08:30:00Z",
         },
       });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
@@ -809,7 +842,7 @@ describe("Authoritative Publication lifecycle", () => {
           closedAt: "2026-10-16T08:30:00Z",
         },
       });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
@@ -844,7 +877,7 @@ describe("Authoritative Publication lifecycle", () => {
         ok: false,
         error: { kind: "api", status: 409, code: "REVISION_CONFLICT" },
       });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
@@ -878,7 +911,7 @@ describe("Authoritative Publication lifecycle", () => {
       ok: false,
       error: { kind: "unavailable", reason: "timeout" },
     });
-    render(<PublicationDetailScreen client={api} publicationId={id} />);
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     fireEvent.click(
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
@@ -896,7 +929,9 @@ describe("Authoritative Publication lifecycle", () => {
       configurable: true,
       value: { writeText },
     });
-    render(<PublicationDetailScreen client={client()} publicationId={id} />);
+    renderDetail(
+      <PublicationDetailScreen client={client()} publicationId={id} />,
+    );
     await screen.findByRole("heading", { name: configuration.title });
     expect(screen.queryByText(locator)).not.toBeInTheDocument();
     fireEvent.click(

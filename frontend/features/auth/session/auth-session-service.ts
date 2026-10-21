@@ -25,6 +25,8 @@ import { withBrowserAuthLock } from "./browser-auth-lock";
 
 export interface AuthSessionService {
   readonly authenticatedRequests: AuthenticatedRequestExecutor;
+  /** In-memory only; read for same-session realtime frame authentication, never persisted. */
+  readonly readAccessToken: () => string | null;
   readonly runtime: SessionRuntime;
   bootstrap(): Promise<RefreshResult>;
   confirmVerification(input: {
@@ -362,6 +364,7 @@ export function createAuthSessionService(
 
   const service: AuthSessionService = {
     authenticatedRequests,
+    readAccessToken: () => accessTokenVault.read(),
     runtime,
 
     bootstrap,

@@ -108,6 +108,7 @@ function renderAuthenticated(
     register: vi.fn(),
     requestVerification: vi.fn(),
     retryVerification: vi.fn(),
+    readAccessToken: () => null,
     runtime,
   };
 

@@ -25,6 +25,8 @@ import type { SessionRuntime } from "./session/session-runtime";
 
 export interface AuthContextValue {
   readonly getSessionGeneration: () => number | null;
+  /** In-memory access token reader for same-session realtime frame authentication. */
+  readonly getAccessToken: () => string | null;
   readonly activeWorkspace: Workspace | null;
   readonly authenticatedRequests: AuthenticatedRequestExecutor | null;
   readonly availableWorkspaces: readonly Workspace[];
@@ -91,6 +93,7 @@ export function AuthProvider({
 
     return {
       getSessionGeneration: activeRuntime.getSessionGeneration,
+      getAccessToken: activeService?.readAccessToken ?? (() => null),
       activeWorkspace: hasAuthenticatedIdentity(session)
         ? session.activeWorkspace
         : null,

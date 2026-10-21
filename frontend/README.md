@@ -78,6 +78,22 @@ Access tokens remain in memory and feature clients reuse the existing authentica
 request executor. The frontend never connects directly to business services or
 receives SERVICE credentials. Teacher workspace selection does not grant authority.
 
+## Realtime hints (W4-B4, default OFF)
+
+`features/realtime` adds a strict browser WebSocket client for best-effort
+invalidation hints over the same-origin `/ws/realtime` surface with only the
+`quizopia.realtime.v1` subprotocol. A one-time ticket is fetched through the
+authenticated executor with the exact `{}` body; the ticket and the current
+in-memory USER token travel only inside the first AUTH frame — never in URLs,
+storage, subprotocols or logs. Active student Attempt views subscribe to
+`ATTEMPT_OWNER` and authorized teacher Publication views to
+`PUBLICATION_TEACHER`; every hint, resync signal, reconnect, visibility
+recovery and a bounded periodic tick reconcile through the existing REST
+clients, so drafts, autosave, revision and idempotency rules are untouched and
+REST keeps working when realtime is unavailable. Build-time activation requires
+`NEXT_PUBLIC_REALTIME_ENABLED=true` plus the enabled W4 gateway stack; without
+it no sockets are opened at all.
+
 Real W3-A verification requires an isolated, revision-identified Gateway, Identity,
 Assessment, Quiz, Classroom, PostgreSQL and Redis runtime with migrations, exact
 Publication/CLOSE routes, admission/source/Classroom clients, scopes and allowlists
