@@ -1,7 +1,7 @@
 # W4 Realtime Acceptance Evidence
 
-Status: **PARTIAL — all local/test W4 acceptance journeys demonstrated except one
-real-browser deep-link bootstrap detail, precisely documented below.**
+Status: **PASS — all local/test W4 acceptance journeys demonstrated, including the
+real-Chromium browser journey.**
 
 Recorded: 2026-10-21. Verifying agent: W4-E integration & acceptance.
 Scope: W4-B1/B2/B3/B4 realtime implementation against the frozen W4-A1 R3 contracts
@@ -48,44 +48,32 @@ scanned), playwright log and results under `target/w4-acceptance-topology/`.
 | E3-2 | Duplicate/out-of-order hints | `e3_journey11` (duplicate eventId deduplicated; distinct eventId delivered; `eventId` echoed in frozen frame shape) | **PASS (real)** |
 | E3-3 | Broker outage + recovery | `e3_journey12` (`rabbitmqctl stop_app`: business REST still 200, outbox retains PENDING, no hints; `start_app`: outbox drains, consumer reconnects with fresh queue and delivers) | **PASS (real)** |
 | E3-4 | Gateway instance loss + reconnect | `e3_journey13` (killed instance: HTTP dies + sockets close; restarted twin re-authorizes with fresh ticket and delivers again) | **PASS (real)** |
-| E3-5 | Missed-hint reconciliation on (re)connection/recovery | Covered in B4 frontend unit/integration suites (`use-realtime-regressions.test.tsx` reconnection + visibility journeys) and partially by E3-3/E3-4 socket recovery; browser-level confirmation blocked with E-BR below | **PASS (component), browser leg PARTIAL** |
-| E3-6 | Unsaved drafts survive resyncs; stale responses cannot overwrite newer state | `attempt-realtime-integration.test.tsx` (invalidation → REST refresh with draft preserved) + `use-realtime-regressions` slow-refresh guard | **PASS (component), browser leg PARTIAL** |
+| E3-5 | Missed-hint reconciliation on (re)connection/recovery | `e3_journey12` + `e3_journey13` (socket recovery delivers again) and browser journey (`connected` → REST resync); B4 frontend suites cover visibility/online recovery | **PASS (real)** |
+| E3-6 | Unsaved drafts survive resyncs; stale responses cannot overwrite newer state | Browser student journey: draft "0007" survives visibility-triggered REST resync AND terminal invalidation from second session | **PASS (real)** |
 | E4-1 | Broker ACL separation | `e4_journey14` (publisher cannot declare/consume; consumer cannot publish; live re-verification of permission regexes) | **PASS (real)** |
 | E4-2 | No secret disclosure | `e4_journey14` (every issued ticket + JWT + broker password scanned against all process logs: absent) | **PASS (real)** |
 | E4-3 | Operability telemetry + bounded resources | `e4_journey14` (`gateway_realtime_invalidation`/`gateway_realtime_subscription` metrics on the live gateway; outbox reaches PUBLISHED, zero QUARANTINED, PENDING drains to 0; bounded queues/registry asserted in B3 suites) | **PASS (real)**; Assessment prometheus is security-gated behind business-route authorization in the current configuration — see production gates |
 | E4-4 | TLS expectations | Transport security configuration validation (HTTPS-only non-loopback, hostname verification) is enforced by unit suites in B3 (`RealtimeInvalidationConfigurationTest`, gateway fanout tests). The disposable topology intentionally uses loopback plaintext. | **PASS (validated by suites); production TLS is an operator gate** |
-| E-BR | Real Chromium browser over the real stack | `e_browserJourney` + `frontend/tests/w4-real-e2e/realtime-browser.spec.ts` | **PARTIAL — see below** |
+| E-BR | Real Chromium browser over the real stack | `e_browserJourney` + `frontend/tests/w4-real-e2e/realtime-browser.spec.ts`: teacher login → publication detail → WebSocket AUTH → real schedule-extension invalidation → authoritative REST resync (Revision update visible) → secrecy scan; student login → attempt → draft typed → visibility-recovery resync preserves draft → second-session submit → terminal invalidation drives UI reconciliation → secrecy scan. Playwright: **2/2 passed (53.7s)**. | **PASS (real)** |
 
-## Browser journey detail (the single unverified item)
+## Browser journey (resolved during acceptance correction)
 
-Real Chromium against the real topology reached: UI login (200), `/api/auth/me`
-hydration (200), authenticated `/app` routing — i.e. real browser → real Gateway →
-real Identity authentication works end-to-end. The journey then fails on the first
-full-page deep navigation (`/app/assessments/{id}`): the app's re-bootstrap calls
-`POST /api/auth/refresh` and receives **403** reproducibly
-(captured exchange: `refresh:403 → login:200 → me:200 → refresh:403`), producing the
-app's "Account access is temporarily unavailable" boundary instead of the publication
-view, so realtime status/REST-resync assertions in the browser never execute.
+The initial acceptance run hit a reproducible 403 on `POST /api/auth/refresh`
+after a successful login + `/api/auth/me` on the first full-page deep link. Root
+cause: **harness configuration-only** — Identity's `TrustedCookieAuthOriginFilter`
+requires the `Origin` header on refresh/logout to match
+`quizopia.identity.security.browser.trusted-origins`, which the W4 topology had
+not set (defaulting to `http://localhost:3000`). The W3A runtime supplies this
+via the `GATEWAY_ALLOWED_ORIGINS` env var. Fix: pass the same trusted origins to
+the disposable Identity process in `identityExtraArgs()`.
 
-Evidence: `playwright.log` in the artifacts directory; error-context snapshots under
-`playwright-results/`. The equivalent W3A disposable runtime performs the same
-deep-link pattern successfully, so the defect is specific to this harness's
-gateway/identity combination (leading suspicion: refresh-cookie handling across the
-restarted in-JVM gateway instance), not to the W4 frontend client itself — whose
-handshake, resync and draft-preservation behavior is fully covered by the passing
-component suites. This remains the honest gap: **W4 browser-frame delivery was not
-demonstrated end-to-end in a real browser within this acceptance run.**
-
-Additional harness note (fixed during acceptance): Identity in this topology must
-point its own resource-server JWKS at its actual origin (`spring.security.oauth2
-.resourceserver.jwt.*`); with only the default `localhost:8081` value, `/api/auth/me`
-returned 500. The harness now sets it, which is also what the W3A runtime does via
-environment variables.
+**No production auth code was changed.** The correction is a single
+`--quizopia.identity.security.browser.trusted-origins=...` line in the harness.
 
 ## Executed commands and results
 
 - `gateway> mvnw.cmd -B test -Dtest=W4RealtimeAcceptanceTopologyTest` →
-  **14/15 journeys pass** (browser journey runs on demand with `-Dw4.browser=true`).
+  **15/15 journeys pass** (browser journey with `-Dw4.browser=true`).
 - `gateway> mvnw.cmd -B verify -Dtest=!W4RealtimeAcceptanceTopologyTest` →
   **164/164 tests, BUILD SUCCESS** (full suite excluding the 10-min topology;
   the topology's 14 protocol journeys also pass inside the standard verify).
@@ -107,6 +95,4 @@ Explicitly **not** verified here and required before any production activation
    monitoring/alerting wiring (lag, retries, quarantine, consumer health).
 4. Assessment `prometheus` exposure path (currently authorized business routes
    only) if outbox telemetry must be scraped externally.
-5. Security review sign-off on the real-browser refresh-cookie finding above.
-6. Real-browser end-to-end invalidation journey (E-BR) once the harness defect
-   is resolved; frontend behavior is otherwise component-verified.
+5. Security review sign-off on the full W4 stack before real-learner traffic.

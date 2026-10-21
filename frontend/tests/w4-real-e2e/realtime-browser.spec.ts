@@ -186,7 +186,9 @@ test.describe("W4 real-browser realtime acceptance", () => {
       await page
         .getByRole("button", { name: "Switch to Teaching workspace" })
         .click();
-    await expect(page.getByText("W4 acceptance publication")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "W4 acceptance publication" }),
+    ).toBeVisible();
 
     // E1: the real browser completes ticket → WS AUTH → AUTHENTICATED (status inline).
     const status = page.locator("[data-realtime-state]");
@@ -301,7 +303,15 @@ test.describe("W4 real-browser realtime acceptance", () => {
     const submit = await second.fetch(
       `/api/assessments/attempts/${started.body.attemptId}/submit`,
       "POST",
-      { expectedRevision: view.body.revision, answers: [] },
+      {
+        expectedRevision: view.body.revision,
+        answers: [
+          {
+            questionNumber: 1,
+            answer: { type: "NUMERIC_FILL", value: "0001" },
+          },
+        ],
+      },
       crypto.randomUUID(),
     );
     expect(submit.status).toBe(200);

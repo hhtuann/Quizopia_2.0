@@ -1229,6 +1229,9 @@ class W4RealtimeAcceptanceTopologyTest {
 
     static List<String> identityExtraArgs() {
         return List.of(
+                // Identity's refresh/logout cookie flow requires the browser Origin to be
+                // trusted (same property the W3A runtime supplies via GATEWAY_ALLOWED_ORIGINS).
+                "--quizopia.identity.security.browser.trusted-origins=" + ORIGIN + ",http://127.0.0.1:" + frontendPort,
                 "--spring.data.redis.host=" + REDIS.getHost(),
                 "--spring.data.redis.port=" + REDIS.getMappedPort(6379),
                 "--quizopia.identity.email-outbox.encryption.active-key-version=v1",
