@@ -46,14 +46,13 @@ function TeacherResultsRouterPage({
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId}`;
   return (
     <ApplicationShell currentSection="assessments">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6">
         <Link
           className={OUTLINE_LINK_CLASSES}
           href={`/app/assessments/${publicationId}`}
         >
           Back to Publication details
         </Link>
-        <p className="text-sm font-semibold text-primary">Teaching · Results</p>
       </div>
       {!user?.roles.includes("TEACHER") ? (
         <Alert title="Teacher access required" variant="warning">
@@ -205,7 +204,7 @@ export function TeacherResultsScreen({
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">

@@ -5,6 +5,30 @@ import { useEffect } from "react";
 const DEFAULT_MESSAGE =
   "This Attempt has unsaved or unresolved work. Leave this page anyway?";
 
+interface UnsavedWorkEntry {
+  readonly confirmLeave: () => boolean;
+}
+
+/**
+ * Guards registered by screens with unsaved work. The authenticated user menu
+ * consults this registry before performing an in-app navigation such as a
+ * workspace switch, so SPA route changes cannot silently discard work the
+ * same way the link/unload interception below protects document navigation.
+ */
+const activeEntries = new Set<UnsavedWorkEntry>();
+
+/**
+ * Ask every active unsaved-work guard whether leaving is acceptable.
+ * Returns false as soon as one guard is cancelled by the user; workspace
+ * state and the current URL must then remain untouched.
+ */
+export function confirmUnsavedWorkLeaving(): boolean {
+  for (const entry of activeEntries) {
+    if (!entry.confirmLeave()) return false;
+  }
+  return true;
+}
+
 export function useUnsavedNavigationGuard(
   active: boolean,
   message = DEFAULT_MESSAGE,
@@ -54,6 +78,18 @@ export function useUnsavedNavigationGuard(
     window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("click", beforeLinkNavigation, true);
     navigation?.addEventListener("navigate", beforeHistoryNavigation);
+    if (active) {
+      const entry: UnsavedWorkEntry = {
+        confirmLeave: () => window.confirm(message),
+      };
+      activeEntries.add(entry);
+      return () => {
+        activeEntries.delete(entry);
+        window.removeEventListener("beforeunload", beforeUnload);
+        document.removeEventListener("click", beforeLinkNavigation, true);
+        navigation?.removeEventListener("navigate", beforeHistoryNavigation);
+      };
+    }
     return () => {
       window.removeEventListener("beforeunload", beforeUnload);
       document.removeEventListener("click", beforeLinkNavigation, true);

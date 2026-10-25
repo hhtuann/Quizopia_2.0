@@ -28,6 +28,7 @@ import { AuthProvider } from "../../auth/auth-provider";
 import type { AuthSessionService } from "../../auth/session/auth-session-service";
 import { createAccessTokenVault } from "../../auth/session/access-token-vault";
 import { createSessionRuntime } from "../../auth/session/session-runtime";
+import { confirmUnsavedWorkLeaving } from "../../attempts/hooks/use-unsaved-navigation-guard";
 
 const authRuntime = createSessionRuntime(createAccessTokenVault());
 const authStub: AuthSessionService = {
@@ -74,6 +75,16 @@ const source = {
   versionNumber: 3,
 };
 const locator = "A".repeat(43);
+
+/** Timezone-safe local date/time parts for filling DateTimeField inputs. */
+function localParts(utc: string): { date: string; time: string } {
+  const d = new Date(utc);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
 const configuration: Configuration = {
   ...source,
   title: "Immutable network assessment",
@@ -670,10 +681,14 @@ describe("Authoritative Publication lifecycle", () => {
         name: "Extend participation schedule",
       }),
     );
+    const extendedParts = localParts("2026-10-16T10:00:00Z");
     fireEvent.change(
-      screen.getByLabelText("Extended participation end (UTC)"),
-      { target: { value: "2026-10-16T10:00" } },
+      screen.getByLabelText("Extended participation end", { exact: true }),
+      { target: { value: extendedParts.date } },
     );
+    fireEvent.change(screen.getByLabelText("Extended participation end time"), {
+      target: { value: extendedParts.time },
+    });
     fireEvent.change(
       screen.getByLabelText("Extended Attempt duration (minutes)"),
       { target: { value: "45" } },
@@ -686,8 +701,11 @@ describe("Authoritative Publication lifecycle", () => {
       name: "Use server schedule (discard local extension)",
     });
     expect(
-      screen.getByLabelText("Extended participation end (UTC)"),
-    ).toHaveValue("2026-10-16T10:00");
+      screen.getByLabelText("Extended participation end", { exact: true }),
+    ).toHaveValue(extendedParts.date);
+    expect(
+      screen.getByLabelText("Extended participation end time"),
+    ).toHaveValue(extendedParts.time);
     expect(
       screen.getByLabelText("Extended Attempt duration (minutes)"),
     ).toHaveValue(45);
@@ -695,9 +713,13 @@ describe("Authoritative Publication lifecycle", () => {
       screen.getByRole("button", { name: "Review schedule extension" }),
     ).toBeDisabled();
     fireEvent.click(discard);
+    const serverParts = localParts("2026-10-16T11:00:00Z");
     expect(
-      screen.getByLabelText("Extended participation end (UTC)"),
-    ).toHaveValue("2026-10-16T11:00:00");
+      screen.getByLabelText("Extended participation end", { exact: true }),
+    ).toHaveValue(serverParts.date);
+    expect(
+      screen.getByLabelText("Extended participation end time"),
+    ).toHaveValue(serverParts.time);
     expect(
       screen.getByLabelText("Extended Attempt duration (minutes)"),
     ).toHaveValue(50);
@@ -725,22 +747,26 @@ describe("Authoritative Publication lifecycle", () => {
         name: "Extend participation schedule",
       }),
     );
+    const decreaseParts = localParts("2026-10-16T08:30:00Z");
     fireEvent.change(
-      screen.getByLabelText("Extended participation end (UTC)"),
-      { target: { value: "2026-10-16T08:30" } },
+      screen.getByLabelText("Extended participation end", { exact: true }),
+      { target: { value: decreaseParts.date } },
     );
+    fireEvent.change(screen.getByLabelText("Extended participation end time"), {
+      target: { value: decreaseParts.time },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "Review schedule extension" }),
     );
     expect(
       screen.getByText(
-        "Participation end must be valid UTC and cannot decrease.",
+        "Participation end cannot decrease and must resolve to a valid instant.",
       ),
     ).toBeInTheDocument();
-    fireEvent.change(
-      screen.getByLabelText("Extended participation end (UTC)"),
-      { target: { value: "2026-10-16T10:00" } },
-    );
+    const extendedParts = localParts("2026-10-16T10:00:00Z");
+    fireEvent.change(screen.getByLabelText("Extended participation end time"), {
+      target: { value: extendedParts.time },
+    });
     fireEvent.change(
       screen.getByLabelText("Extended Attempt duration (minutes)"),
       { target: { value: "0" } },
@@ -765,9 +791,79 @@ describe("Authoritative Publication lifecycle", () => {
     await waitFor(() => expect(api.extend).toHaveBeenCalledTimes(1));
     expect(api.extend.mock.calls[0]?.[1]).toEqual({
       expectedRevision: 1,
-      endAt: "2026-10-16T10:00:00Z",
+      endAt: "2026-10-16T10:00:00.000Z",
       durationMinutes: 45,
     });
+  });
+
+  it("resubmits the authoritative end exactly when the field is untouched, preserving microseconds", async () => {
+    const api = client();
+    const microsecondEnd = {
+      ...opened,
+      configuration: {
+        ...configuration,
+        endAt: "2026-10-16T09:00:00.654321Z",
+      },
+    };
+    api.get.mockResolvedValue({ ok: true, value: microsecondEnd });
+    api.extend.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    fireEvent.change(
+      screen.getByLabelText("Extended Attempt duration (minutes)"),
+      { target: { value: "45" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review schedule extension" }),
+    );
+    confirm("Save schedule extension");
+    await waitFor(() => expect(api.extend).toHaveBeenCalledTimes(1));
+    expect(api.extend.mock.calls[0]?.[1]).toEqual({
+      expectedRevision: 1,
+      endAt: "2026-10-16T09:00:00.654321Z",
+      durationMinutes: 45,
+    });
+  });
+
+  it("rejects a re-entered same-minute end that would shorten a microsecond end", async () => {
+    const api = client();
+    const microsecondEnd = {
+      ...opened,
+      configuration: {
+        ...configuration,
+        endAt: "2026-10-16T09:00:00.654321Z",
+      },
+    };
+    api.get.mockResolvedValue({ ok: true, value: microsecondEnd });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    // Re-entering the same displayed wall clock emits a millisecond instant,
+    // which is strictly earlier than the authoritative microsecond end.
+    // (React dedupes identical change events, so nudge away and back.)
+    const sameParts = localParts("2026-10-16T09:00:00Z");
+    fireEvent.change(screen.getByLabelText("Extended participation end time"), {
+      target: { value: "12:34" },
+    });
+    fireEvent.change(screen.getByLabelText("Extended participation end time"), {
+      target: { value: sameParts.time },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review schedule extension" }),
+    );
+    expect(
+      screen.getByText(
+        "Participation end cannot decrease and must resolve to a valid instant.",
+      ),
+    ).toBeInTheDocument();
+    expect(api.extend).not.toHaveBeenCalled();
   });
 
   it("renders ACTIVE_ATTEMPTS honestly and keeps OPEN until a minimal server CLOSE acknowledgement", async () => {
@@ -969,5 +1065,129 @@ describe("Authoritative Publication lifecycle", () => {
       screen.getByRole("button", { name: "Hide private locator" }),
     );
     expect(screen.queryByText(locator)).not.toBeInTheDocument();
+  });
+
+  it("hiding a dirty schedule extension confirms; cancel keeps values, accept hides", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    const duration = screen.getByLabelText(
+      "Extended Attempt duration (minutes)",
+    );
+    fireEvent.change(duration, { target: { value: "45" } });
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    );
+    // Cancel: the extension stays open with the entered value intact.
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Extended Attempt duration (minutes)"),
+    ).toHaveValue(45);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    );
+    // Accept: the extension is hidden.
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Extended Attempt duration (minutes)"),
+    ).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("hiding a clean schedule extension never asks for confirmation", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    ).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("a dirty schedule extension registers unsaved work for workspace switches", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    // Clean extension: leaving is allowed without any confirmation.
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(true);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    // Dirty extension: the registry blocks the leave and the switch must not
+    // change workspace state or URL.
+    fireEvent.change(
+      screen.getByLabelText("Extended Attempt duration (minutes)"),
+      { target: { value: "45" } },
+    );
+    expect(confirmUnsavedWorkLeaving()).toBe(false);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
+  });
+
+  it("a revision-conflicted (disabled) DRAFT form remains protected as unsaved work", () => {
+    // The form is disabled exactly as a revision conflict or blocked state
+    // does; entered values must still be protected from silent discard.
+    render(
+      <PublicationConfigurationForm
+        disabled
+        initial={configuration}
+        mode="edit"
+        onSubmit={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Publication title"), {
+      target: { value: "Unsaved conflicting edit" },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(false);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
+  });
+
+  it("a clean form does not request leave confirmation", () => {
+    render(
+      <PublicationConfigurationForm
+        initial={configuration}
+        mode="edit"
+        onSubmit={() => {}}
+      />,
+    );
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(true);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

@@ -18,6 +18,7 @@ import {
   PRIMARY_LINK_CLASSES,
 } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
+import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import { useAuth } from "../../auth/auth-provider";
@@ -71,6 +72,16 @@ import {
 import { AnswerField, AnswerSummary, SaveStatus } from "./answer-fields";
 
 type EntryMode = "PUBLIC" | "CLASS";
+
+/** Semantic StateBadge variants for server-returned Attempt states. */
+const attemptStateVariants: Record<
+  "ACTIVE" | "SUBMITTED" | "ABANDONED",
+  "info" | "success" | "warning" | "neutral"
+> = {
+  ACTIVE: "info",
+  SUBMITTED: "success",
+  ABANDONED: "neutral",
+};
 
 function StudentPageBoundary({
   children,
@@ -295,10 +306,7 @@ export function StudentAssessmentJoinScreen({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-          Learning · Assessments
-        </p>
-        <h1 className="mt-2 font-heading text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
+        <h1 className="font-heading text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
           Enter an assessment
         </h1>
         <p className="mt-3 max-w-2xl leading-7 text-foreground-secondary">
@@ -1206,14 +1214,19 @@ export function AttemptScreen({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-              Attempt {attempt.ordinal} · {attempt.state}
+              Attempt {attempt.ordinal}
             </p>
             <h1 className="mt-2 font-heading text-2xl font-bold sm:text-3xl">
               Student assessment
             </h1>
-            <p className="mt-2 font-mono text-xs text-foreground-muted">
-              Attempt {attempt.attemptId}
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <StateBadge variant={attemptStateVariants[attempt.state]}>
+                {attempt.state}
+              </StateBadge>
+              <span className="font-mono text-xs text-foreground-muted">
+                Attempt {attempt.attemptId}
+              </span>
+            </div>
           </div>
           <div className="rounded-xl border border-border bg-background px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
@@ -1641,7 +1654,7 @@ export function ResultScreen({
     );
   if (result === null) return <AttemptLoading />;
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
           Server-issued result

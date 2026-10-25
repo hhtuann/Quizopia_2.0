@@ -127,6 +127,19 @@ export const closedPublicationSchema = z
 export type PublicationConfiguration = Configuration;
 export type Publication = OwnerView;
 
+/**
+ * Semantic StateBadge variants for server-returned Publication states.
+ * Presentation only; labels always come from the authoritative state.
+ */
+export const publicationStateVariants: Record<
+  "DRAFT" | "OPEN" | "CLOSED",
+  "info" | "success" | "warning" | "neutral"
+> = {
+  DRAFT: "neutral",
+  OPEN: "success",
+  CLOSED: "info",
+};
+
 export function newIdempotencyKey(): string {
   const bytes = new Uint8Array(32);
   globalThis.crypto.getRandomValues(bytes);

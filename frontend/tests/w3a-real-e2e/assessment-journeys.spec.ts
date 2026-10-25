@@ -19,6 +19,7 @@ import {
   publishMultiQuestionSource,
   registerTeacher,
   utcField,
+  utcLocalParts,
 } from "./helpers";
 
 test("real PUBLIC Assessment: Teacher OPEN, Student locator entry, 4 question types autosave/revision, submit, result, teacher CLOSE, results table and student closed review", async ({
@@ -36,10 +37,16 @@ test("real PUBLIC Assessment: Teacher OPEN, Student locator entry, 4 question ty
 
   // 2. Teacher creates and OPENs PUBLIC Assessment
   await page.getByRole("radio", { name: "Public", exact: true }).check();
+  const scheduleParts = utcLocalParts(-2);
   await page
-    .getByLabel("Participation start (UTC)")
-    .fill(utcField(-2, "123456"));
-  await page.getByLabel("Participation end (UTC)").fill(utcField(60, "654321"));
+    .getByLabel("Participation start", { exact: true })
+    .fill(scheduleParts.date);
+  await page.getByLabel("Participation start time").fill(scheduleParts.time);
+  const endParts = utcLocalParts(60);
+  await page
+    .getByLabel("Participation end", { exact: true })
+    .fill(endParts.date);
+  await page.getByLabel("Participation end time").fill(endParts.time);
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   const createdResponse = commandResponse(page, publicationBase, "POST");
   await confirm(page, "Create DRAFT");
@@ -405,10 +412,16 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
   // Create CLASS Assessment with monitoring DISABLED
   await page.getByRole("radio", { name: "Classroom", exact: true }).check();
   await page.getByLabel("Classroom ID").fill(classroom.body.id);
+  const scheduleParts = utcLocalParts(-2);
   await page
-    .getByLabel("Participation start (UTC)")
-    .fill(utcField(-2, "123456"));
-  await page.getByLabel("Participation end (UTC)").fill(utcField(60, "654321"));
+    .getByLabel("Participation start", { exact: true })
+    .fill(scheduleParts.date);
+  await page.getByLabel("Participation start time").fill(scheduleParts.time);
+  const endParts = utcLocalParts(60);
+  await page
+    .getByLabel("Participation end", { exact: true })
+    .fill(endParts.date);
+  await page.getByLabel("Participation end time").fill(endParts.time);
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   const createdResponse = commandResponse(page, publicationBase, "POST");
   await confirm(page, "Create DRAFT");

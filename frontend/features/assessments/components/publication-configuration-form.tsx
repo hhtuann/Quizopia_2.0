@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
 import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type { Configuration } from "../api/publication-contract.generated";
 import { configurationSchema } from "../model/publication";
 import { PublicationConfirmation } from "./publication-confirmation";
@@ -18,6 +19,7 @@ export function PublicationConfigurationForm({
   initial,
   disabled = false,
   isPending = false,
+  onDirtyChange,
   onSubmit,
   mode,
 }: {
@@ -26,6 +28,14 @@ export function PublicationConfigurationForm({
   readonly isPending?: boolean;
   readonly onSubmit: (configuration: Configuration) => void;
   readonly mode: "create" | "edit";
+  /**
+   * Notifies the parent whenever the form has unsaved values. The parent owns
+   * destructive close controls (e.g. Cancel editing) and must confirm before
+   * discarding them. Unsaved-work protection itself is registered here and is
+   * deliberately independent of disabled: a form disabled by a revision
+   * conflict or blocked state still holds unsaved entered values.
+   */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   const id = useId();
   // Datetime fields store full UTC instants (e.g. "2026-10-16T01:30:00.000Z");
@@ -44,6 +54,41 @@ export function PublicationConfigurationForm({
   const [review, setReview] = useState<Configuration | null>(null);
   const set = (field: keyof typeof fields, value: string) =>
     setFields((current) => ({ ...current, [field]: value }));
+
+  // A pending create/edit form is unsaved work: leaving via links, reloads or
+  // a workspace switch must be cancellable without losing entered values.
+  // Protection is NOT gated on disabled: a revision conflict or pending
+  // command disables editing but the entered values remain unsaved, and a
+  // workspace switch must not silently discard them. Successful saves unmount
+  // or navigate this form programmatically, which the guard does not
+  // intercept, so clean and saved flows never see a confirmation.
+  const initialFields = useMemo(
+    () => ({
+      title: initial.title,
+      description: initial.description ?? "",
+      audience: initial.audience,
+      classroomId: initial.classroomId ?? "",
+      monitoringChoice: initial.monitoringChoice,
+      startAt: initial.startAt,
+      endAt: initial.endAt,
+      durationMinutes: String(initial.durationMinutes),
+    }),
+    [initial],
+  );
+  const formDirty = useMemo(
+    () =>
+      (Object.keys(fields) as (keyof typeof fields)[]).some(
+        (key) => fields[key] !== initialFields[key],
+      ),
+    [fields, initialFields],
+  );
+  useUnsavedNavigationGuard(
+    formDirty,
+    "This form has unsaved changes. Leave this page and discard them?",
+  );
+  useEffect(() => {
+    onDirtyChange?.(formDirty);
+  }, [formDirty, onDirtyChange]);
 
   function submit(event: FormEvent) {
     event.preventDefault();

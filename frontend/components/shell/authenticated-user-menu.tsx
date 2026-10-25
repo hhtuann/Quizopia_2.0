@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
+import { confirmUnsavedWorkLeaving } from "../../features/attempts/hooks/use-unsaved-navigation-guard";
+import { useWorkspaceTransition } from "./workspace-transition-overlay";
 import { BookOpenIcon } from "../ui/icons";
 
 const workspaceLabels = {
@@ -20,6 +22,7 @@ export function AuthenticatedUserMenu() {
     notice,
     requestTeacherEnablement,
   } = useTeacherEnablement();
+  const { isTransitioning, startTransition } = useWorkspaceTransition();
   const [open, setOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -90,10 +93,25 @@ export function AuthenticatedUserMenu() {
   }
 
   function switchTo(workspaceToOpen: "LEARNING" | "TEACHING") {
+    // One transition at a time: repeated switch clicks during an in-flight
+    // transition must not duplicate the overlay or navigation.
+    if (isTransitioning) return;
+    // A workspace switch navigates away from the current screen. Screens with
+    // unsaved work (Quiz drafts, pending assessment forms, active attempts)
+    // must be able to cancel; cancelling keeps workspace state and URL intact.
+    if (!confirmUnsavedWorkLeaving()) return;
     if (switchWorkspace(workspaceToOpen)) {
+      // Cover the old workspace immediately; the overlay settles when the
+      // destination workspace home reports that it has rendered.
+      startTransition(workspaceToOpen);
       setMessage(null);
       clearNotice();
-      closeAndRestoreFocus();
+      setOpen(false);
+      // The previous workspace's URL is no longer meaningful; land on the
+      // workspace home instead of leaving a Teaching screen open under a
+      // Learning workspace (and vice versa). Client navigation only: roles,
+      // tokens and refresh state are untouched.
+      router.replace("/app");
     }
   }
 

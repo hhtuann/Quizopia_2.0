@@ -255,3 +255,359 @@ test("student enables teacher only after refresh and authoritative current-user 
     })),
   ).toEqual({ indexedDb: 0, localStorage: 0, sessionStorage: 0 });
 });
+
+// Workspace-switch journeys chain several SPA navigations. They run serially
+// with a generous budget: parallel workers contend for the shared dev server's
+// on-demand route compilation on developer machines, so a single retry guards
+// against that environment-level flakiness without weakening assertions.
+test.describe("workspace switching", () => {
+  test.describe.configure({ mode: "serial", retries: 1 });
+  test.setTimeout(90_000);
+
+  test("workspace switch from a teacher route lands on /app with the new workspace home", async ({
+    page,
+  }) => {
+    await mockAuthenticatedBootstrap(page);
+    await page.goto("/app");
+    // Wait for a fully authenticated render before interacting: under heavy
+    // parallel dev-server load the bootstrap can still be in flight.
+    await expect(
+      page.getByRole("heading", { name: "Your Quizopia workspace" }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Enter Teaching and navigate to a Teaching-only route.
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
+    ).toBeVisible();
+    // The transition overlay intercepts interaction for its minimum display
+    // window; wait for it to settle before continuing.
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0, {
+      timeout: 10_000,
+    });
+    await page
+      .getByRole("link", { name: "Quiz authoring", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/app\/quizzes$/);
+    await expect(
+      page.getByRole("heading", { name: "Quiz authoring" }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Switching back to Learning must leave the Teaching URL behind.
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Learning" }).click();
+
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(
+      page.getByRole("heading", { name: "Your Quizopia workspace" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Enter an assessment", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Learning workspace/,
+      }),
+    ).toBeVisible();
+  });
+
+  test("workspace switch from a student route lands on /app in the Teaching workspace", async ({
+    page,
+  }) => {
+    await mockAuthenticatedBootstrap(page);
+    await page.goto("/app/assessments/join");
+    await expect(
+      page.getByRole("heading", { name: "Enter an assessment" }),
+    ).toBeVisible();
+
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Teaching workspace/,
+      }),
+    ).toBeVisible();
+  });
+  test("unsaved assessment form can cancel a workspace switch without losing state or URL", async ({
+    page,
+  }) => {
+    const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
+    const quizVersionId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";
+    await mockAuthenticatedBootstrap(page);
+    await page.route(`**/api/quizzes`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          items: [
+            {
+              quizId,
+              title: "Guarded quiz",
+              description: "Draft",
+              createdAt: "2026-10-16T07:00:00Z",
+              updatedAt: "2026-10-16T07:00:00Z",
+              latestVersionNumber: null,
+            },
+          ],
+          nextCursor: null,
+        }),
+      }),
+    );
+    await page.route(`**/api/quizzes/${quizId}/draft`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          quizId,
+          title: "Guarded quiz",
+          description: "Draft",
+          authoringSource: "Câu 1 [NUMERIC_FILL]: Source?\nĐáp án: 42",
+          createdAt: "2026-10-16T07:00:00Z",
+          updatedAt: "2026-10-16T07:00:00Z",
+        }),
+      }),
+    );
+    await page.route(`**/api/quizzes/${quizId}/versions**`, async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const value = path.endsWith("/versions")
+        ? {
+            items: [
+              {
+                id: quizVersionId,
+                quizId,
+                versionNumber: 3,
+                titleSnapshot: "Guarded quiz",
+                descriptionSnapshot: "Version three",
+                contentSchemaVersion: 1,
+                createdAt: "2026-10-16T07:00:00Z",
+              },
+            ],
+            nextCursor: null,
+          }
+        : {
+            id: quizVersionId,
+            quizId,
+            versionNumber: 3,
+            titleSnapshot: "Guarded quiz",
+            descriptionSnapshot: "Version three",
+            contentSchemaVersion: 1,
+            createdAt: "2026-10-16T07:00:00Z",
+            sourceSnapshot: "Câu 1 [NUMERIC_FILL]: Source?\nĐáp án: 42",
+            structuredContent: {
+              questions: [
+                {
+                  number: 1,
+                  type: "NUMERIC_FILL",
+                  stemMarkdown: "Source?",
+                  options: [],
+                  numericAnswer: "42",
+                  explanationMarkdown: null,
+                },
+              ],
+            },
+          };
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify(value),
+      });
+    });
+
+    await page.goto("/app");
+    // Enter Teaching and reach the assessment create form via client-side
+    // navigation only: workspace state is per-session and a full reload would
+    // re-derive LEARNING.
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Open quiz authoring" }).click();
+    await expect(page).toHaveURL(/\/app\/quizzes$/);
+    await page.getByRole("link", { name: "Guarded quiz" }).click();
+    const editorTitle = page.getByRole("textbox", { name: "Quiz title" });
+    await expect(editorTitle).toBeVisible();
+
+    // The editor draft stays clean: navigate to the version history dialog and
+    // create an assessment from version 3 (client-side navigation).
+    await page.getByRole("button", { name: "Published versions" }).click();
+    await page
+      .getByRole("list", { name: "Published version history" })
+      .getByRole("button", { name: /Version 3/ })
+      .click();
+    await page
+      .getByRole("button", { name: "Create assessment from version 3" })
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(
+        `/app/assessments/new\\?quizId=${quizId}&quizVersionId=${quizVersionId}&versionNumber=3$`,
+      ),
+    );
+    await page.getByRole("radio", { name: "Public", exact: true }).check();
+
+    // Make the create form dirty.
+    const title = page.getByRole("textbox", { name: "Publication title" });
+    await title.fill("Unsaved draft configuration");
+
+    // Cancel the switch: workspace, URL and form content stay intact — and
+    // the cancelled transition never shows the loading overlay.
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.getByRole("menuitem", { name: "Switch to Learning" }).click();
+    await expect(page).toHaveURL(/\/app\/assessments\/new/);
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Teaching workspace/,
+      }),
+    ).toBeVisible();
+    await expect(title).toHaveValue("Unsaved draft configuration");
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+
+    // The guard cancel kept the menu open (the user may reconsider); accepting
+    // the guard on the directly re-clicked item completes the switch to /app.
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("menuitem", { name: "Switch to Learning" }).click();
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(
+      page.getByRole("link", { name: "Enter an assessment", exact: true }),
+    ).toBeVisible();
+  });
+
+  test("workspace switch shows the transition overlay until the destination home renders", async ({
+    page,
+  }) => {
+    await mockAuthenticatedBootstrap(page);
+    // Hold the client-side /app navigation briefly so the transition overlay
+    // is deterministically observable; document loads pass through untouched.
+    await page.route("**/app", async (route) => {
+      const request = route.request();
+      if (
+        new URL(request.url()).pathname === "/app" &&
+        request.headers().rsc === "1"
+      ) {
+        await page.waitForTimeout(700);
+      }
+      await route.continue();
+    });
+
+    // Learning → Teaching from a student route.
+    await page.goto("/app/assessments/join");
+    await expect(
+      page.getByRole("heading", { name: "Enter an assessment" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+    await expect(
+      page.getByText("Switching to Teaching workspace"),
+    ).toBeVisible();
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(1);
+    await expect(
+      page.locator('[role="status"]', {
+        hasText: "Switching to Teaching workspace",
+      }),
+    ).toHaveAttribute("aria-live", "polite");
+
+    // The held navigation releases at ~700ms; the minimum display window
+    // (2500ms) keeps the overlay on screen even though the destination home
+    // rendered quickly. Verify it is still covering mid-window.
+    await page.waitForTimeout(1_500);
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+
+    // Once both the minimum window and destination readiness are satisfied,
+    // the overlay disappears.
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Teaching workspace/,
+      }),
+    ).toBeVisible();
+
+    // Teaching → Learning while already on /app: the same-URL switch also
+    // keeps the overlay for its minimum display window.
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Learning" }).click();
+    await expect(
+      page.getByText("Switching to Learning workspace"),
+    ).toBeVisible();
+    await page.waitForTimeout(1_500);
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Enter an assessment", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Learning workspace/,
+      }),
+    ).toBeVisible();
+  });
+
+  test("workspace transition overlay fits a 390px viewport", async ({
+    page,
+  }) => {
+    await mockAuthenticatedBootstrap(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/app", async (route) => {
+      const request = route.request();
+      if (
+        new URL(request.url()).pathname === "/app" &&
+        request.headers().rsc === "1"
+      ) {
+        await page.waitForTimeout(700);
+      }
+      await route.continue();
+    });
+
+    await page.goto("/app/assessments/join");
+    await expect(
+      page.getByRole("heading", { name: "Enter an assessment" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+    await expect(
+      page.getByText("Switching to Teaching workspace"),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
+    ).toBeVisible();
+  });
+});

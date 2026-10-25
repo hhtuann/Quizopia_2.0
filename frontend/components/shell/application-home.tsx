@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
 import type { AuthRole } from "../../features/auth/model/authenticated-user";
 import type { Workspace } from "../../features/auth/model/workspace";
 import { Alert } from "../ui/alert";
 import { OUTLINE_LINK_CLASSES } from "../ui/button";
+import { HeroOrb } from "../ui/hero-orb";
 import { ArrowRightIcon } from "../ui/icons";
 import { Surface } from "../ui/surface";
+import { useWorkspaceTransition } from "./workspace-transition-overlay";
 
 const roleLabels: Record<AuthRole, string> = {
   STUDENT: "Student",
@@ -22,6 +25,15 @@ const workspaceLabels: Record<Workspace, string> = {
 
 export function ApplicationHome() {
   const { activeWorkspace, user } = useAuth();
+  const { notifyWorkspaceHomeRendered } = useWorkspaceTransition();
+
+  // Ends a pending workspace transition once this home has actually rendered
+  // content for the destination workspace (no-op outside a transition). This
+  // also covers switching while already on /app: the re-rendered home reports
+  // the new workspace and the overlay settles.
+  useEffect(() => {
+    notifyWorkspaceHomeRendered(activeWorkspace);
+  }, [activeWorkspace, notifyWorkspaceHomeRendered]);
 
   if (user === null) {
     return null;
@@ -31,10 +43,7 @@ export function ApplicationHome() {
   return (
     <>
       <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-surface px-6 py-9 shadow-card sm:px-10 sm:py-12">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-12 -top-20 size-80 rounded-full bg-primary/5 blur-3xl"
-        />
+        <HeroOrb className="-right-12 -top-20 size-80" />
         <div className="relative max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
             Application home

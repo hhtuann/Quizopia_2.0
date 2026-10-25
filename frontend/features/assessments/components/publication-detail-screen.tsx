@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
+import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import {
   isUncertain,
@@ -20,7 +21,11 @@ import type {
   Schedule,
   TeacherCommand,
 } from "../api/publication-contract.generated";
-import { newIdempotencyKey, sameConfiguration } from "../model/publication";
+import {
+  newIdempotencyKey,
+  publicationStateVariants,
+  sameConfiguration,
+} from "../model/publication";
 import { instantMicroseconds } from "../utils/utc-time";
 import {
   useRealtimeResync,
@@ -87,7 +92,13 @@ export function PublicationDetailScreen({
   );
   const [editBase, setEditBase] = useState<OwnerView | null>(null);
   const [editReset, setEditReset] = useState(0);
+  // Unsaved-value flags reported by the edit form / schedule extension so the
+  // parent's destructive close controls (Cancel editing, Hide schedule
+  // extension) can confirm instead of silently discarding entered values.
+  // Remounting the child (key change / reopen) resets its report to false.
+  const [editDirty, setEditDirty] = useState(false);
   const [extension, setExtension] = useState<OwnerView | null>(null);
+  const [extensionDirty, setExtensionDirty] = useState(false);
 
   const refresh = useCallback((): Promise<OwnerView | null> => {
     const sequence = ++readSequence.current;
@@ -257,7 +268,7 @@ export function PublicationDetailScreen({
 
   if (publication === null)
     return (
-      <Surface className="mx-auto max-w-3xl p-6">
+      <Surface className="p-6">
         <h1 className="font-heading text-3xl font-bold">Publication details</h1>
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
@@ -296,7 +307,7 @@ export function PublicationDetailScreen({
     (editBase.revision !== publication.revision ||
       publication.state !== "DRAFT");
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">
@@ -305,11 +316,11 @@ export function PublicationDetailScreen({
           <h1 className="mt-1 break-words font-heading text-3xl font-bold">
             {publication.configuration.title}
           </h1>
-          <p className="mt-2 text-sm">
-            <span className="rounded-full bg-primary/10 px-3 py-1 font-semibold text-primary">
+          <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+            <StateBadge variant={publicationStateVariants[publication.state]}>
               {publication.state}
-            </span>
-            <span className="ml-3 text-foreground-muted">
+            </StateBadge>
+            <span className="text-foreground-muted">
               Revision {publication.revision}
             </span>
           </p>
@@ -477,6 +488,7 @@ export function PublicationDetailScreen({
             isPending={busy}
             key={editReset}
             mode="edit"
+            onDirtyChange={setEditDirty}
             onSubmit={(configuration) =>
               void send({
                 kind: "update",
@@ -486,7 +498,18 @@ export function PublicationDetailScreen({
           />
           <Button
             disabled={blocked}
-            onClick={() => setEditBase(null)}
+            onClick={() => {
+              // Cancel editing discards unsaved values; confirm first.
+              // Cancelling keeps the form open with values intact.
+              if (
+                editDirty &&
+                !window.confirm(
+                  "This form has unsaved changes. Discard them and stop editing?",
+                )
+              )
+                return;
+              setEditBase(null);
+            }}
             variant="secondary"
           >
             Cancel editing
@@ -498,9 +521,22 @@ export function PublicationDetailScreen({
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={blocked || readFailure !== null}
-              onClick={() =>
-                setExtension((value) => (value ? null : publication))
-              }
+              onClick={() => {
+                if (extension === null) {
+                  setExtension(publication);
+                  return;
+                }
+                // The Hide toggle discards unsaved extension values; confirm
+                // first. Cancelling keeps the form open with values intact.
+                if (
+                  extensionDirty &&
+                  !window.confirm(
+                    "The schedule extension has unsaved values. Hide it and discard them?",
+                  )
+                )
+                  return;
+                setExtension(null);
+              }}
               variant="secondary"
             >
               {extension
@@ -553,6 +589,7 @@ export function PublicationDetailScreen({
                 }
                 isPending={busy}
                 key={extension.revision}
+                onDirtyChange={setExtensionDirty}
                 onSubmit={(input) => void send({ kind: "extend", input })}
                 publication={extension}
               />

@@ -35,13 +35,21 @@ async function mockTeacher(page: Page) {
 }
 
 async function switchToTeaching(page: Page) {
-  const userMenu = page.getByRole("button", { name: /Open user menu/ });
-  if ((await userMenu.count()) > 0) {
-    await userMenu.click();
-    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
-  } else {
-    await page.getByRole("button", { name: "Switch to Teaching" }).click();
+  // Prefer the on-page workspace gate: menu switches land on /app by design
+  // (UX-07), while these tests must stay on the current quiz route. The gate
+  // wait tolerates slow first hydration; count() alone would race.
+  const gate = page.getByRole("button", { name: "Switch to Teaching" });
+  const gateVisible = await gate
+    .waitFor({ state: "visible", timeout: 3_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (gateVisible) {
+    await gate.click();
+    return;
   }
+  const userMenu = page.getByRole("button", { name: /Open user menu/ });
+  await userMenu.click();
+  await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
 }
 
 const longSource = Array.from({ length: 45 }, (_, i) =>
