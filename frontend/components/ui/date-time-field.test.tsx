@@ -129,6 +129,45 @@ describe("timezoneLabel", () => {
       expect(july).toContain("-04:00");
     },
   );
+
+  it.skipIf(!dstTimezoneActive)(
+    "offset follows the exact selected time on the spring-forward day",
+    () => {
+      // 2026-03-08 in America/New_York: 02:00 jumps to 03:00 (EST -> EDT).
+      expect(timezoneLabel("2026-03-08", "01:30")).toContain("-05:00");
+      expect(timezoneLabel("2026-03-08", "03:30")).toContain("-04:00");
+    },
+  );
+
+  it.skipIf(!dstTimezoneActive)(
+    "ambiguous fall-back time shows the first-occurrence offset",
+    () => {
+      // 2026-11-01 01:30 America/New_York occurs twice: EDT (UTC-4) then
+      // EST (UTC-5). The accepted policy resolves to the first occurrence.
+      expect(timezoneLabel("2026-11-01", "01:30")).toContain("-04:00");
+    },
+  );
+
+  it.skipIf(!dstTimezoneActive)(
+    "nonexistent gap time falls back to the date's noon offset, not the normalized one",
+    () => {
+      // 02:30 on 2026-03-08 does not exist; noon that day is EDT (UTC-4).
+      expect(timezoneLabel("2026-03-08", "02:30")).toContain("-04:00");
+    },
+  );
+
+  it("Asia/Ho_Chi_Minh is fixed UTC+07:00 for the exact selected time", () => {
+    process.env.TZ = "Asia/Ho_Chi_Minh";
+    const offsetIsPlus7 =
+      new Date("2026-06-15T12:00:00Z").getTimezoneOffset() === -420;
+    try {
+      if (!offsetIsPlus7) return; // TZ override inactive (non-POSIX) and not UTC+7
+      expect(timezoneLabel("2026-10-16", "08:00")).toContain("+07:00");
+      expect(timezoneLabel("2026-03-08", "01:30")).toContain("+07:00");
+    } finally {
+      process.env.TZ = "America/New_York";
+    }
+  });
 });
 
 describe("DateTimeField", () => {

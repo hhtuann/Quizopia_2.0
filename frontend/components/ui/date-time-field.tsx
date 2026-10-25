@@ -46,23 +46,57 @@ export function localPartsToInstant(date: string, time: string): string | null {
 }
 
 /**
- * Returns a timezone label with the UTC offset calculated for the given date
- * (or the current date when no date is selected), not always today's offset.
- * DST-sensitive: the offset changes correctly across transition boundaries.
+ * Returns a timezone label with the UTC offset calculated for the exact
+ * selected local date and time when both are valid. DST-transition aware: on
+ * spring-forward/fall-back days the offset follows the selected time, not the
+ * date as a whole.
+ *
+ * Fallbacks for incomplete input, chosen so a misleading selected-instant
+ * offset is never displayed:
+ * - date only (no time yet): offset at local noon of that date;
+ * - both parts present but the local time is nonexistent (DST gap, rejected by
+ *   localPartsToInstant): local noon of that date rather than the normalized
+ *   interpretation;
+ * - no date: current instant.
+ *
+ * Ambiguous fall-back times (a local time occurring twice) display the offset
+ * of the first occurrence, matching the documented first-occurrence policy of
+ * localPartsToInstant.
  */
-export function timezoneLabel(selectedDate?: string): string {
+export function timezoneLabel(
+  selectedDate?: string,
+  selectedTime?: string,
+): string {
   try {
-    // Use noon to avoid midnight edge cases during DST transitions
-    const d = selectedDate ? new Date(`${selectedDate}T12:00:00`) : new Date();
-    if (isNaN(d.getTime())) return "Local time";
-    const offsetMinutes = -d.getTimezoneOffset();
+    let instant: Date;
+    if (selectedDate && selectedTime) {
+      const candidate = new Date(`${selectedDate}T${selectedTime}`);
+      const gapFree =
+        !isNaN(candidate.getTime()) &&
+        (() => {
+          const back = instantToLocalParts(candidate.toISOString());
+          return (
+            back !== null &&
+            back.date === selectedDate &&
+            back.time === selectedTime
+          );
+        })();
+      // Exact selected instant when it is a real local time; otherwise noon.
+      instant = gapFree ? candidate : new Date(`${selectedDate}T12:00:00`);
+    } else if (selectedDate) {
+      instant = new Date(`${selectedDate}T12:00:00`);
+    } else {
+      instant = new Date();
+    }
+    if (isNaN(instant.getTime())) return "Local time";
+    const offsetMinutes = -instant.getTimezoneOffset();
     const sign = offsetMinutes >= 0 ? "+" : "-";
     const abs = Math.abs(offsetMinutes);
     const hh = String(Math.floor(abs / 60)).padStart(2, "0");
     const mm = String(abs % 60).padStart(2, "0");
     const tzName =
       Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
-        .formatToParts(d)
+        .formatToParts(instant)
         .find((p) => p.type === "timeZoneName")?.value ?? "";
     return `${tzName} (UTC${sign}${hh}:${mm})`;
   } catch {
@@ -118,7 +152,7 @@ export function DateTimeField({
   const [dateValue, setDateValue] = useState(initial?.date ?? "");
   const [timeValue, setTimeValue] = useState(initial?.time ?? "");
 
-  const tz = timezoneLabel(dateValue || undefined);
+  const tz = timezoneLabel(dateValue || undefined, timeValue || undefined);
 
   function handleDateChange(newDate: string) {
     setDateValue(newDate);
