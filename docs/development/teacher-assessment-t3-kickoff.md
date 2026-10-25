@@ -176,7 +176,7 @@ and live reports; documentation finalization does not claim a fresh full-suite r
 | --- | --- |
 | Assessment Java 21 Maven verification (`target/t3-fe01`) | 421 tests, zero failures/errors/skips. |
 | Classroom Maven `verify` (`target/t3-directory-verification`) | 133 tests passed; owner/keyset/UUID ties, cursor integrity, safe projections, admission and existing authority regressions. |
-| Gateway Maven `verify` (`target/t3-directory-verification`) | 181 passed, zero failures/errors; one additional opt-in W4 browser journey skipped (requires `-Dw4.browser=true`). |
+| Gateway Maven `verify` (`target/t3-directory-verification`) | 181 tests, zero failures/errors; one opt-in W4 browser journey skipped (requires `-Dw4.browser=true`). |
 | Gateway strengthened targeted rerun | All 36 passed, no skips: `GatewayAdmissionIntegrationTest`, `GatewayProductionRoutesTest`, `OwnerDirectoryInventoryTest`, `RealIdentityAdmissionTopologyTest`. |
 | Generated-contract checks | Both generators' `--check` passed. |
 | Isolated frontend | 779 unit tests in 70 files; 109 intercepted Playwright E2E passed, zero failures/skips/not-run; typecheck, lint, final format check and production build all passed. |
@@ -250,10 +250,16 @@ remain for inspection; no existing business records were changed.
 - Inherited [release gates](w3-production-release-gates.md) and
   [release decision pack](w3-production-release-decision-pack.md) remain **NO-GO**;
   local green suites and smoke evidence do not authorize production activation.
-- Final implementation SHA: **PENDING — primary to fill after scoped commit**.
-  CI run URL/status and verified head SHA: **PENDING — primary to fill**.
-  PR URL: **PENDING — primary to fill**. Independent review / Leader merge decision:
-  **PENDING**. No final-SHA CI or merge success is claimed.
+- Implementation SHA: `8d39379b8b2091c01879a8981195ce980c407cf9`.
+  PR: [#111](https://github.com/hhtuann/Quizopia_2.0/pull/111), targeting `develop`,
+  **open and unmerged**. Independent source/security review found no concrete
+  correctness or security blockers; Leader review and merge approval remain pending.
+- CI verified on that implementation SHA: [Frontend CI](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40222677692)
+  **PASS**; [Backend CI](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40222677628)
+  **all eight matrix projects PASS**; [repository validation](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40222677617)
+  compose-config **PASS**, full-validation **SKIPPED by repository configuration**.
+  A documentation-only handoff commit records these results; its hash and checks
+  are available from the PR head. No merge or production acceptance is claimed.
 - Documentation finalization edits only this kickoff, the BR-01 memo and project
   status. Unrelated `docs/development/windows-local-runtime.md`, runtime helpers,
   secrets and the user's unstaged overlay change are outside this documentation edit.

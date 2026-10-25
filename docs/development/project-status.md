@@ -15,17 +15,18 @@
 > accepted specification/ADR, the authoritative document wins and this status file
 > must be updated.
 
-## T3 branch checkpoint — pending independent/CI review
+## T3 branch checkpoint — ready for Leader review, not merged
 
 `feature/teacher-assessment-classroom-management`, based on reviewed T2 merge
 PR #110 (`9d16d0ed20fffb0eca6ef4a05b9b3cd820866519`), implements owner-scoped
 My Assessments and owned Classroom selection (FE-01/FE-02). **Not merged**;
-independent review, CI and Leader merge approval remain pending. Actual contracts,
+independent source/security review and implementation CI passed; Leader review
+and merge approval remain pending. Actual contracts,
 V8/V2 migrations, LD-05 boundaries and evidence are in the
 [T3 delivery record](teacher-assessment-t3-kickoff.md#t3-branch-delivery-record--2026-10-26).
 
-Recorded local checks: Assessment 421, Classroom 133 and Gateway 181 passed
-(one additional opt-in W4 browser skip), plus 36 targeted Gateway tests. Isolated
+Recorded local checks: Assessment 421 and Classroom 133 passed; Gateway 181 tests
+with no failures/errors and one opt-in W4 browser skip, plus 36 targeted Gateway tests. Isolated
 frontend: 779 unit / 109 intercepted E2E all green, with typecheck/lint/format/build.
 The user's unrelated 2500→1500 ms overlay edit remains untouched and unstaged;
 main-worktree baseline timer failures are not attributed to T3. Real-service T3
@@ -36,8 +37,11 @@ Positive CLOSED live rows and >20-row UI paging were not exercised live.
 [BR-01 memo](../decisions/teacher-self-attempt-br01-decision-memo.md): **PENDING
 LEADER PRODUCT APPROVAL**; recommendation only, no self-attempt policy enforcement
 or Preview/Test implementation. Inherited release **NO-GO / production activation
-NOT AUTHORIZED** remains. Final implementation SHA, PR URL and head-bound CI
-URL/status: **PENDING — primary to fill**; no final CI or merge claim.
+NOT AUTHORIZED** remains. Implementation SHA:
+`8d39379b8b2091c01879a8981195ce980c407cf9`, [PR #111](https://github.com/hhtuann/Quizopia_2.0/pull/111).
+Frontend, all eight backend matrix jobs and compose-config passed on that SHA;
+full-validation skipped by workflow configuration. Exact run links are recorded
+in the T3 delivery record; the PR head includes the documentation-only handoff.
 
 ## 1. Resume protocol
 
