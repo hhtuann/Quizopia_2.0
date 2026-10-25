@@ -1,11 +1,30 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   DateTimeField,
   instantToLocalParts,
   localPartsToInstant,
   timezoneLabel,
 } from "./date-time-field";
+
+// DST tests require a timezone with transitions. Node honors a runtime
+// process.env.TZ change on POSIX (CI); Windows ignores it. Detect whether the
+// America/New_York override actually took effect and skip DST-specific
+// assertions when it did not (e.g. local Windows development).
+const previousTz = process.env.TZ;
+let dstTimezoneActive = false;
+try {
+  process.env.TZ = "America/New_York";
+  const januaryOffset = new Date("2026-01-15T12:00:00Z").getTimezoneOffset();
+  const julyOffset = new Date("2026-07-15T12:00:00Z").getTimezoneOffset();
+  dstTimezoneActive = januaryOffset !== julyOffset;
+} catch {
+  dstTimezoneActive = false;
+}
+afterAll(() => {
+  if (previousTz === undefined) delete process.env.TZ;
+  else process.env.TZ = previousTz;
+});
 
 describe("instantToLocalParts", () => {
   it("converts UTC instant to local date/time parts", () => {
@@ -54,14 +73,62 @@ describe("localPartsToInstant", () => {
     expect(back!.date).toBe("2026-10-16");
     expect(back!.time).toBe("00:00");
   });
+
+  it.skipIf(!dstTimezoneActive)(
+    "rejects nonexistent spring-forward local time instead of normalizing",
+    () => {
+      // 2026-03-08 02:30 America/New_York does not exist (02:00 -> 03:00).
+      const result = localPartsToInstant("2026-03-08", "02:30");
+      expect(result).toBeNull();
+      // A time after the gap is valid and round-trips.
+      expect(localPartsToInstant("2026-03-08", "03:30")).not.toBeNull();
+    },
+  );
+
+  it.skipIf(!dstTimezoneActive)(
+    "accepts ambiguous fall-back local time resolving to a valid occurrence",
+    () => {
+      // 2026-11-01 01:30 America/New_York occurs twice (EDT then EST).
+      const result = localPartsToInstant("2026-11-01", "01:30");
+      expect(result).not.toBeNull();
+      const epoch = new Date(result!).getTime();
+      // The engine must resolve to one of the two legal occurrences.
+      expect([
+        Date.parse("2026-11-01T05:30:00Z"),
+        Date.parse("2026-11-01T06:30:00Z"),
+      ]).toContain(epoch);
+      // Round-trip preserves the selected wall clock.
+      const back = instantToLocalParts(result!);
+      expect(back).toMatchObject({ date: "2026-11-01", time: "01:30" });
+    },
+  );
 });
 
 describe("timezoneLabel", () => {
-  it("returns a non-empty label with UTC offset", () => {
+  it("returns a non-empty label with UTC offset for the current date", () => {
     const label = timezoneLabel();
     expect(label.length).toBeGreaterThan(0);
     expect(label).toMatch(/UTC[+-]\d{2}:\d{2}/);
   });
+
+  it("formats an offset for a provided date", () => {
+    expect(timezoneLabel("2026-10-16")).toMatch(/UTC[+-]\d{2}:\d{2}/);
+    expect(timezoneLabel("2026-10-16")).not.toBeNull();
+  });
+
+  it("falls back gracefully for an invalid date", () => {
+    expect(timezoneLabel("not-a-date")).toBe("Local time");
+  });
+
+  it.skipIf(!dstTimezoneActive)(
+    "computes the offset for the selected date, not today (DST-aware)",
+    () => {
+      const january = timezoneLabel("2026-01-15"); // EST UTC-5
+      const july = timezoneLabel("2026-07-15"); // EDT UTC-4
+      expect(january).toContain("-05:00");
+      expect(july).toContain("-04:00");
+    },
+  );
 });
 
 describe("DateTimeField", () => {
@@ -123,6 +190,13 @@ describe("DateTimeField", () => {
     expect(timeInput.value).toBe(parts!.time);
   });
 
+  it("does not emit onChange on mount, preserving the caller's UTC instant", () => {
+    const onChange = vi.fn();
+    const initial = "2026-10-16T08:00:00.123456Z"; // microsecond precision
+    render(<DateTimeField label="Start" onChange={onChange} value={initial} />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("disables both inputs when disabled", () => {
     render(
       <DateTimeField disabled label="Start" onChange={() => {}} value="" />,
@@ -130,4 +204,19 @@ describe("DateTimeField", () => {
     expect(screen.getByLabelText("Start")).toBeDisabled();
     expect(screen.getByLabelText("Start time")).toBeDisabled();
   });
+
+  it.skipIf(!dstTimezoneActive)(
+    "emits empty string for a nonexistent spring-forward local time",
+    () => {
+      const onChange = vi.fn();
+      render(<DateTimeField label="Start" onChange={onChange} value="" />);
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "2026-03-08" },
+      });
+      fireEvent.change(screen.getByLabelText("Start time"), {
+        target: { value: "02:30" },
+      });
+      expect(onChange).toHaveBeenLastCalledWith("");
+    },
+  );
 });

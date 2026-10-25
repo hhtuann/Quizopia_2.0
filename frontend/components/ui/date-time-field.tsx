@@ -25,28 +25,44 @@ export function instantToLocalParts(
 
 /**
  * Converts local date + time strings to a UTC instant using the browser timezone.
- * Returns null when either part is empty or the combination is invalid.
+ * Performs a round-trip validation: if the UTC instant converts back to a different
+ * local wall-clock time, the input represents a nonexistent local time (DST
+ * spring-forward gap) and is rejected rather than silently normalized.
+ *
+ * Ambiguous DST fall-back times (a local time that occurs twice) are accepted;
+ * JavaScript's Date constructor resolves them to the first occurrence (pre-transition),
+ * which is the standard behavior for native date/time inputs.
  */
 export function localPartsToInstant(date: string, time: string): string | null {
   if (!date || !time) return null;
   const d = new Date(`${date}T${time}`);
   if (isNaN(d.getTime())) return null;
-  return d.toISOString();
+  const utc = d.toISOString();
+  // Round-trip: if the instant maps back to a different wall-clock, the local
+  // time is nonexistent (e.g., 02:30 during spring-forward) — reject it.
+  const back = instantToLocalParts(utc);
+  if (!back || back.date !== date || back.time !== time) return null;
+  return utc;
 }
 
 /**
- * Returns a user-friendly timezone label with UTC offset.
+ * Returns a timezone label with the UTC offset calculated for the given date
+ * (or the current date when no date is selected), not always today's offset.
+ * DST-sensitive: the offset changes correctly across transition boundaries.
  */
-export function timezoneLabel(): string {
+export function timezoneLabel(selectedDate?: string): string {
   try {
-    const offsetMinutes = -new Date().getTimezoneOffset();
+    // Use noon to avoid midnight edge cases during DST transitions
+    const d = selectedDate ? new Date(`${selectedDate}T12:00:00`) : new Date();
+    if (isNaN(d.getTime())) return "Local time";
+    const offsetMinutes = -d.getTimezoneOffset();
     const sign = offsetMinutes >= 0 ? "+" : "-";
     const abs = Math.abs(offsetMinutes);
     const hh = String(Math.floor(abs / 60)).padStart(2, "0");
     const mm = String(abs % 60).padStart(2, "0");
     const tzName =
       Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
-        .formatToParts()
+        .formatToParts(d)
         .find((p) => p.type === "timeZoneName")?.value ?? "";
     return `${tzName} (UTC${sign}${hh}:${mm})`;
   } catch {
@@ -68,6 +84,15 @@ interface DateTimeFieldProps {
 /**
  * Reusable date/time selection field displaying user-local time and emitting UTC instants.
  * Uses native date and time inputs for accessibility, keyboard navigation, and mobile support.
+ *
+ * Layout: flex-wrap with minimum widths (date ≥ 9rem, time ≥ 7.5rem) so inputs sit
+ * side-by-side when the component has enough width and stack vertically in narrow
+ * containers (nested grid columns, sidebar, mobile) without clipping native controls.
+ *
+ * Timezone/DST: the UTC offset label updates to reflect the selected date (not just
+ * today). Nonexistent local times (DST spring-forward gaps) are rejected; ambiguous
+ * fall-back times are accepted and resolved to the first occurrence.
+ *
  * The value prop is a UTC instant string used for initial display; subsequent edits are
  * tracked internally and converted to UTC via the browser timezone before calling onChange.
  */
@@ -93,7 +118,7 @@ export function DateTimeField({
   const [dateValue, setDateValue] = useState(initial?.date ?? "");
   const [timeValue, setTimeValue] = useState(initial?.time ?? "");
 
-  const tz = timezoneLabel();
+  const tz = timezoneLabel(dateValue || undefined);
 
   function handleDateChange(newDate: string) {
     setDateValue(newDate);
@@ -113,7 +138,7 @@ export function DateTimeField({
       >
         {label}
       </label>
-      <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <input
           aria-describedby={
             [error ? errorId : null, helperText ? helperId : null]
@@ -121,7 +146,7 @@ export function DateTimeField({
               .join(" ") || undefined
           }
           aria-invalid={error ? true : undefined}
-          className={`${CONTROL_CLASSES} min-[420px]:min-w-0 min-[420px]:flex-[2]`}
+          className={`${CONTROL_CLASSES} min-w-[9rem] flex-[2_1_9rem]`}
           disabled={disabled}
           id={fieldId}
           onChange={(e) => handleDateChange(e.target.value)}
@@ -131,7 +156,7 @@ export function DateTimeField({
         />
         <input
           aria-label={`${label} time`}
-          className={`${CONTROL_CLASSES} min-[420px]:min-w-[7.5rem] min-[420px]:flex-1`}
+          className={`${CONTROL_CLASSES} min-w-[7.5rem] flex-[1_1_7.5rem]`}
           disabled={disabled}
           id={timeId}
           onChange={(e) => handleTimeChange(e.target.value)}
