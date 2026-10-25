@@ -1,5 +1,45 @@
 # Classroom Service
 
+## T3 FE-02 owned directory
+
+`GET /classrooms?limit=20&cursor=...` is available through Gateway and independently
+protected by Classroom. Both boundaries require a validated USER with JWT and
+fresh authoritative LD-05 `TEACHER`; ADMIN does not imply Teacher. Admission
+disabled/unavailable/untrusted remains fail-closed (503), without a cached verdict.
+
+Response: `{ "items": [{ "id", "name", "subject", "grade", "description", "createdAt" }],
+"nextCursor": "opaque-or-null" }` (field names shown schematically). `description`
+and `nextCursor` may be null. No owner ID, memberships, invitations, student identity
+or publication data is projected. Empty directories return `items: []` and
+`nextCursor: null`. The collection contract is
+[`contracts/classroom-directory.openapi.yaml`](contracts/classroom-directory.openapi.yaml);
+Springdoc also publishes the implemented operation.
+
+`limit` defaults to 20 and must be 1–100. The database query filters by the JWT actor
+and fetches at most `limit + 1` safe projections, using immutable
+`createdAt DESC, id DESC` keyset ordering. Metadata edits do not reorder entries;
+newer insertions are visible on a first-page refresh. Pagination is not a multi-request
+database snapshot. Invalid/foreign/tampered cursors and invalid limits return
+400 `INVALID_REQUEST`. Treat cursors as opaque and pass them unchanged.
+
+Cursor authentication uses HMAC-SHA256 with a purpose-separated key derived from
+the service's existing `quizopia.admission.client-secret` / `USER_ADMISSION_CLIENT_SECRET`.
+No new secret or node-local random key is required. Instances using the same
+credential accept one another's cursors. Rotating that credential invalidates old
+cursors (400); restart from the first page. An absent credential cannot issue a
+directory response (503). Secret material is never included in cursors or errors.
+
+V2 adds database-default, JPA-read-only `created_at` and the index
+`(owner_teacher_user_id, created_at DESC, id DESC)`. Existing records receive V2's
+migration time because their historical creation time was never stored; the UUID
+tie-breaker keeps their order deterministic. Existing create/detail DTOs and
+internal Teacher/member authority retain their contracts. No event change is needed.
+
+Verification: Java 21 Maven `verify` in `target/t3-directory-verification` passed
+133 tests, including PostgreSQL 17
+owner/keyset, cursor integrity/foreign-owner, safe-field projection, admission failure
+and existing create/detail/internal-authority regression coverage.
+
 Independent Spring Boot 4.1.1 / Java 21 project for the Quizopia 2.0 platform scaffold.
 
 Run independently from this directory:

@@ -27,7 +27,10 @@ import tools.jackson.databind.ObjectMapper;
 @Testcontainers
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"quizopia.publication.enabled=true"})
+        properties = {
+            "quizopia.publication.enabled=true",
+            "quizopia.assessment.closure.cursor-keys.v1=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        })
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class PublicationIntegrationTest {
     @Container
@@ -45,6 +48,15 @@ class PublicationIntegrationTest {
 
     @Autowired
     PublicationService service;
+
+    @Autowired
+    ClosureStore closures;
+
+    @Autowired
+    com.quizopia.assessment.infrastructure.ClosureCursor directoryCursor;
+
+    @Autowired
+    org.springframework.transaction.PlatformTransactionManager transactions;
 
     @Autowired
     JdbcTemplate db;
@@ -758,6 +770,227 @@ class PublicationIntegrationTest {
                                 PublicationFailure.class,
                                 () -> service.update(actor, p.id(), 2, configuration, "evidence"))
                         .status());
+    }
+
+    PublicationConfiguration titled(String title) {
+        var c = configuration;
+        return new PublicationConfiguration(
+                title,
+                c.description(),
+                c.quizId(),
+                c.quizVersionId(),
+                c.versionNumber(),
+                c.audience(),
+                c.classroomId(),
+                c.startAt(),
+                c.endAt(),
+                c.durationMinutes(),
+                c.monitoringChoice());
+    }
+
+    @Test
+    void directoryOwnerIsolationTiesAndEditsKeepImmutableOrder() {
+        UUID owner = UUID.randomUUID();
+        var expected = new ArrayList<UUID>();
+        for (int i = 0; i < 5; i++)
+            expected.add(store.create(owner, UUID.randomUUID().toString(), configuration)
+                    .id());
+        // PostgreSQL UUID order is unsigned lexical byte order, unlike Java UUID.compareTo.
+        expected.sort(Comparator.comparing(UUID::toString).reversed());
+        store.create(UUID.randomUUID(), UUID.randomUUID().toString(), configuration);
+        var page = service.listOwned(owner, new PublicationDirectory.Query(2, null, null, null));
+        var seen = new ArrayList<UUID>();
+        seen.addAll(page.items().stream()
+                .map(PublicationDirectory.Summary::publicationId)
+                .toList());
+        assertEquals(expected.subList(0, 2), seen);
+        assertNotNull(page.nextCursor());
+        store.update(owner, expected.get(4), 0, titled("Edited while paging"));
+        store.update(owner, expected.getFirst(), 0, titled("Already seen edited"));
+        // A newer insert must not shift already-issued page boundaries.
+        when(clock.instant()).thenReturn(Instant.parse("2026-10-11T00:11:00Z"));
+        store.create(owner, UUID.randomUUID().toString(), configuration);
+        while (page.nextCursor() != null) {
+            page = service.listOwned(owner, new PublicationDirectory.Query(2, null, "", page.nextCursor()));
+            seen.addAll(page.items().stream()
+                    .map(PublicationDirectory.Summary::publicationId)
+                    .toList());
+        }
+        assertEquals(expected, seen);
+        assertEquals(1, page.items().getFirst().revision());
+        assertEquals("Edited while paging", page.items().getFirst().title());
+        assertThrows(
+                org.springframework.dao.DataAccessException.class,
+                () -> db.update(
+                        "UPDATE publications SET created_at=created_at+interval '1 second',revision=revision+1 WHERE id=?",
+                        expected.getFirst()));
+        assertTrue(service.listOwned(UUID.randomUUID(), new PublicationDirectory.Query(20, null, null, null))
+                .items()
+                .isEmpty());
+    }
+
+    @Test
+    void directoryFiltersAndSignedCursorBindOwnerAndNormalizedQuery() {
+        UUID owner = UUID.randomUUID();
+        for (int i = 0; i < 3; i++) store.create(owner, UUID.randomUUID().toString(), titled("Algebra %_ Exam"));
+        store.create(owner, UUID.randomUUID().toString(), titled("Other"));
+        var opened = store.create(owner, UUID.randomUUID().toString(), titled("Algebra Open"));
+        store.open(owner, opened.id(), 0, snapshot());
+        var closed = store.create(owner, UUID.randomUUID().toString(), titled("Algebra Closed"));
+        store.open(owner, closed.id(), 0, snapshot());
+        closures.close(
+                new ClosureStore.Teacher(owner, Instant.now().plusSeconds(300), "fixture"),
+                new ClosureStore.Command(
+                        closed.id(),
+                        null,
+                        1,
+                        com.quizopia.assessment.persistence.JdbcPublicationStore.digest(
+                                UUID.randomUUID().toString()),
+                        "CLOSE"));
+        for (var state : Publication.State.values()) {
+            var rows = service.listOwned(owner, new PublicationDirectory.Query(100, state, "AlGeBrA", null))
+                    .items();
+            assertEquals(state == Publication.State.DRAFT ? 3 : 1, rows.size());
+            assertTrue(rows.stream().allMatch(row -> row.state() == state));
+        }
+        var first =
+                service.listOwned(owner, new PublicationDirectory.Query(1, Publication.State.DRAFT, "  %_  ", null));
+        String cursor = first.nextCursor();
+        assertNotNull(cursor);
+        var normalized = service.listOwned(
+                owner, new PublicationDirectory.Query(1, Publication.State.DRAFT, "  AlGeBrA  ", null));
+        assertEquals(
+                2,
+                service.listOwned(
+                                owner,
+                                new PublicationDirectory.Query(
+                                        100, Publication.State.DRAFT, "algebra", normalized.nextCursor()))
+                        .items()
+                        .size());
+        assertEquals(
+                2,
+                service.listOwned(owner, new PublicationDirectory.Query(100, Publication.State.DRAFT, "%_", cursor))
+                        .items()
+                        .size());
+        var queries = List.of(
+                new PublicationDirectory.Query(1, Publication.State.OPEN, "%_", cursor),
+                new PublicationDirectory.Query(1, Publication.State.DRAFT, "other", cursor),
+                new PublicationDirectory.Query(1, null, "%_", cursor),
+                new PublicationDirectory.Query(1, Publication.State.DRAFT, "%_", "malformed"),
+                new PublicationDirectory.Query(1, Publication.State.DRAFT, "%_", "A" + cursor.substring(1)),
+                new PublicationDirectory.Query(1, Publication.State.DRAFT, "%_", cursor + "A"));
+        for (var query : queries)
+            assertEquals(
+                    400,
+                    assertThrows(PublicationFailure.class, () -> service.listOwned(owner, query))
+                            .status());
+        assertEquals(
+                400,
+                assertThrows(
+                                PublicationFailure.class,
+                                () -> service.listOwned(
+                                        UUID.randomUUID(),
+                                        new PublicationDirectory.Query(1, Publication.State.DRAFT, "%_", cursor)))
+                        .status());
+    }
+
+    @Test
+    void directoryRejectsOtherRouteAndInvalidSignedPositionAndFailsClosedWithoutKey() {
+        UUID owner = UUID.randomUUID();
+        for (int i = 0; i < 2; i++) store.create(owner, UUID.randomUUID().toString(), configuration);
+        String binding = com.quizopia.assessment.persistence.JdbcPublicationStore.digest("|");
+        for (String token : List.of(
+                directoryCursor.encode(owner, "results", binding, "1"),
+                directoryCursor.encode(owner, "publications", binding, "not-a-position"),
+                directoryCursor.encode(owner, "publications", binding, "2026-10-11T00:10:00Z,not-a-uuid"))) {
+            assertEquals(
+                    400,
+                    assertThrows(
+                                    PublicationFailure.class,
+                                    () -> service.listOwned(
+                                            owner, new PublicationDirectory.Query(1, null, null, token)))
+                            .status());
+        }
+        var noKey = new com.quizopia.assessment.persistence.JdbcPublicationStore(db, transactions, clock);
+        assertEquals(
+                503,
+                assertThrows(
+                                PublicationFailure.class,
+                                () -> noKey.listOwned(owner, new PublicationDirectory.Query(1, null, null, null)))
+                        .status());
+    }
+
+    @Test
+    void directoryHttpSafeProjectionValidationAndAdmission() {
+        String title = "Directory-" + UUID.randomUUID();
+        var mine = store.create(actor, UUID.randomUUID().toString(), titled(title));
+        store.create(UUID.randomUUID(), UUID.randomUUID().toString(), titled(title));
+        var allowed = call("GET", "?search=" + title, "", user());
+        assertEquals(200, allowed.status);
+        assertEquals("no-store", allowed.cache);
+        var page = json.readTree(allowed.body);
+        assertEquals(2, page.size());
+        assertTrue(page.path("nextCursor").isNull());
+        assertEquals(1, page.path("items").size());
+        var row = page.path("items").get(0);
+        assertEquals(11, row.size());
+        for (String field : List.of(
+                "publicationId",
+                "title",
+                "audience",
+                "state",
+                "startAt",
+                "endAt",
+                "createdAt",
+                "revision",
+                "quizId",
+                "quizVersionId",
+                "versionNumber")) assertTrue(row.has(field), field);
+        assertEquals(mine.id().toString(), row.path("publicationId").asString());
+        assertFalse(allowed.body.contains(mine.privateLocator()));
+        assertFalse(allowed.body.contains("Private notes"));
+        for (String query : List.of(
+                "?limit=0",
+                "?limit=101",
+                "?limit=-1",
+                "?limit=1.5",
+                "?limit=01",
+                "?state=INVALID",
+                "?state=",
+                "?cursor=",
+                "?cursor=invalid",
+                "?limit=1&limit=2",
+                "?search=a&search=b",
+                "?ownerId=" + actor,
+                "?search=" + "x".repeat(301))) assertEquals(400, call("GET", query, "", user()).status, query);
+        var now = Instant.now();
+        for (String token : List.of(
+                sign(
+                        KEY,
+                        ISSUER,
+                        ACTOR,
+                        "USER",
+                        Map.of("roles", List.of("STUDENT")),
+                        now.minusSeconds(2),
+                        now.plusSeconds(300)),
+                sign(
+                        KEY,
+                        ISSUER,
+                        "service",
+                        "SERVICE",
+                        Map.of("scope", List.of("identity.user-admission")),
+                        now.minusSeconds(2),
+                        now.plusSeconds(300)))) assertEquals(403, call("GET", "", "", token).status);
+        assertEquals(401, call("GET", "", "", "invalid").status);
+        verify(admission, atLeastOnce()).admit(any(), eq("TEACHER"));
+        when(admission.admit(any(), any())).thenReturn(Mono.error(AdmissionFailure.unavailable()));
+        var unavailable = call("GET", "?search=" + title, "", user());
+        assertEquals(503, unavailable.status);
+        assertFalse(unavailable.body.contains(title));
+        when(admission.admit(any(), any())).thenReturn(Mono.error(AdmissionFailure.invalidUser()));
+        assertEquals(401, call("GET", "", "", user()).status);
+        when(admission.admit(any(), any())).thenReturn(Mono.error(AdmissionFailure.forbidden()));
+        assertEquals(403, call("GET", "", "", user()).status);
     }
 
     record Response(int status, String body, String cache) {}

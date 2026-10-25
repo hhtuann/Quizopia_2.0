@@ -98,6 +98,30 @@ public class PublicationController {
         return owner(service.read(actor(user), id));
     }
 
+    @GetMapping
+    public PublicationDirectory.Page list(
+            @AuthenticationPrincipal Jwt user,
+            @RequestParam org.springframework.util.MultiValueMap<String, String> params) {
+        try {
+            for (var entry : params.entrySet()) {
+                if (!java.util.Set.of("limit", "cursor", "state", "search").contains(entry.getKey())
+                        || entry.getValue().size() != 1) throw new IllegalArgumentException();
+            }
+            String limit = params.getFirst("limit");
+            if (limit != null && !limit.matches("[1-9][0-9]{0,2}")) throw new IllegalArgumentException();
+            String state = params.getFirst("state");
+            return service.listOwned(
+                    actor(user),
+                    new PublicationDirectory.Query(
+                            limit == null ? 20 : Integer.parseInt(limit),
+                            state == null ? null : Publication.State.valueOf(state),
+                            params.getFirst("search"),
+                            params.getFirst("cursor")));
+        } catch (IllegalArgumentException ex) {
+            throw new PublicationFailure(400, "INVALID_REQUEST");
+        }
+    }
+
     @PutMapping("/{id}")
     public OwnerView update(@AuthenticationPrincipal Jwt user, @PathVariable("id") UUID id, @RequestBody Update body) {
         if (body.configuration() == null) throw new PublicationFailure(400, "INVALID_REQUEST");

@@ -2,7 +2,7 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-21
+> **Last updated:** 2026-10-26 (T3 branch checkpoint; historical merged checkpoint below retained)
 >
 > **Checkpoint baseline:** merged `develop` `2d837e5f853cc2c929d8433e62b2da3f07a60cd2`
 > (PR #107, W4-E integration & acceptance). W4 implementation and local-test
@@ -14,6 +14,30 @@
 > `docs/open-questions.md`. When this file conflicts with an authoritative
 > accepted specification/ADR, the authoritative document wins and this status file
 > must be updated.
+
+## T3 branch checkpoint — pending independent/CI review
+
+`feature/teacher-assessment-classroom-management`, based on reviewed T2 merge
+PR #110 (`9d16d0ed20fffb0eca6ef4a05b9b3cd820866519`), implements owner-scoped
+My Assessments and owned Classroom selection (FE-01/FE-02). **Not merged**;
+independent review, CI and Leader merge approval remain pending. Actual contracts,
+V8/V2 migrations, LD-05 boundaries and evidence are in the
+[T3 delivery record](teacher-assessment-t3-kickoff.md#t3-branch-delivery-record--2026-10-26).
+
+Recorded local checks: Assessment 421, Classroom 133 and Gateway 181 passed
+(one additional opt-in W4 browser skip), plus 36 targeted Gateway tests. Isolated
+frontend: 779 unit / 109 intercepted E2E all green, with typecheck/lint/format/build.
+The user's unrelated 2500→1500 ms overlay edit remains untouched and unstaged;
+main-worktree baseline timer failures are not attributed to T3. Real-service T3
+evidence: 63 successful assertions and eight screenshots; initial direct
+Teacher-results timeout retained, normal menu/directory Results recheck passed.
+Positive CLOSED live rows and >20-row UI paging were not exercised live.
+
+[BR-01 memo](../decisions/teacher-self-attempt-br01-decision-memo.md): **PENDING
+LEADER PRODUCT APPROVAL**; recommendation only, no self-attempt policy enforcement
+or Preview/Test implementation. Inherited release **NO-GO / production activation
+NOT AUTHORIZED** remains. Final implementation SHA, PR URL and head-bound CI
+URL/status: **PENDING — primary to fill**; no final CI or merge claim.
 
 ## 1. Resume protocol
 

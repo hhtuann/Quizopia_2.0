@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "services/assessment-service/contracts/publications.openapi.yaml"
 TARGET = ROOT / "frontend/features/assessments/api/publication-contract.generated.ts"
 NAMES = (
+    "PublicationSummary",
+    "PublicationSummaryPage",
     "Configuration",
     "OwnerView",
     "StudentView",
@@ -87,7 +89,7 @@ def main():
         print("PASS Publication types match implemented OpenAPI")
     else:
         TARGET.parent.mkdir(parents=True, exist_ok=True)
-        TARGET.write_text(output)
+        TARGET.write_text(output, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

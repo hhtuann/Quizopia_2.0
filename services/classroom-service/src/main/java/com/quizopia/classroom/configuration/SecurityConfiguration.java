@@ -41,8 +41,9 @@ public class SecurityConfiguration {
                                         || request.getRequestURI().startsWith("/v3/api-docs/")
                                         || request.getRequestURI().startsWith("/swagger-ui/")))
                         .permitAll()
-                        .requestMatchers(request ->
-                                "POST".equals(request.getMethod()) && "/classrooms".equals(request.getRequestURI()))
+                        .requestMatchers(
+                                request -> ("POST".equals(request.getMethod()) || "GET".equals(request.getMethod()))
+                                        && "/classrooms".equals(request.getRequestURI()))
                         .hasAllAuthorities(QuizopiaTokenClaims.USER_AUTHORITY, "ROLE_TEACHER")
                         .requestMatchers(request ->
                                 UserAdmissionFilter.requiredRole(request.getMethod(), request.getRequestURI()) != null)

@@ -37,6 +37,7 @@ class ClassroomPersistenceIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.flyway.enabled", () -> true);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+        registry.add("quizopia.admission.client-secret", () -> "directory-fixture-only-credential");
     }
 
     @Autowired
@@ -66,6 +67,9 @@ class ClassroomPersistenceIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    ClassroomDirectoryService directory;
+
     private Classroom classroom() {
         var value = new Classroom(UUID.randomUUID(), UUID.randomUUID(), "Class", "Any subject", "Mixed grade", null);
         classrooms.insert(value);
@@ -74,7 +78,7 @@ class ClassroomPersistenceIntegrationTest {
 
     @Test
     void migrationAndHibernateValidation() {
-        assertEquals("1", flyway.info().current().getVersion().getVersion());
+        assertEquals("2", flyway.info().current().getVersion().getVersion());
         assertEquals(0, flyway.info().pending().length);
         flyway.validate();
         assertTrue(emf.isOpen());
@@ -89,6 +93,53 @@ class ClassroomPersistenceIntegrationTest {
         var described = new Classroom(UUID.randomUUID(), UUID.randomUUID(), "N", "S", "G", "Description");
         classrooms.insert(described);
         assertEquals(described, classrooms.findById(described.id()).orElseThrow());
+    }
+
+    @Test
+    void directoryKeysetFiltersOwnerInDatabaseAndRemainsStableAcrossTiesAndMetadataUpdates() {
+        UUID owner = UUID.randomUUID(), other = UUID.randomUUID();
+        var time = java.time.Instant.parse("2026-10-01T12:00:00.123456Z");
+        for (int n = 1; n <= 5; n++) {
+            UUID id = new UUID(0, n);
+            jdbc.update(
+                    "insert into classrooms(id,owner_teacher_user_id,name,subject,grade,description,created_at) values(?,?,?,'Subject','Grade',null,?)",
+                    id,
+                    owner,
+                    "Class " + n,
+                    java.sql.Timestamp.from(time));
+        }
+        jdbc.update(
+                "insert into classrooms(id,owner_teacher_user_id,name,subject,grade,created_at) values(?,?,'Private','S','G',?)",
+                new UUID(0, 6),
+                other,
+                java.sql.Timestamp.from(time));
+        var first = directory.listOwned(owner, 2, null);
+        assertEquals(
+                List.of(new UUID(0, 5), new UUID(0, 4)),
+                first.items().stream().map(ClassroomDirectory.Item::id).toList());
+        assertEquals(time, first.items().getFirst().createdAt());
+        assertNotNull(first.nextCursor());
+        assertThrows(
+                InvalidClassroomDirectoryRequestException.class,
+                () -> directory.listOwned(other, 2, first.nextCursor()));
+        jdbc.update("update classrooms set name='Renamed', description='New metadata' where id=?", new UUID(0, 3));
+        jdbc.update(
+                "insert into classrooms(id,owner_teacher_user_id,name,subject,grade,created_at) values(?,?,'New','S','G',?)",
+                new UUID(0, 7),
+                owner,
+                java.sql.Timestamp.from(time.plusSeconds(1)));
+        var second = directory.listOwned(owner, 2, first.nextCursor());
+        assertEquals(
+                List.of(new UUID(0, 3), new UUID(0, 2)),
+                second.items().stream().map(ClassroomDirectory.Item::id).toList());
+        assertEquals("Renamed", second.items().getFirst().name());
+        var last = directory.listOwned(owner, 2, second.nextCursor());
+        assertEquals(
+                List.of(new UUID(0, 1)),
+                last.items().stream().map(ClassroomDirectory.Item::id).toList());
+        assertNull(last.nextCursor());
+        assertTrue(directory.listOwned(UUID.randomUUID(), 100, null).items().isEmpty());
+        assertEquals(6, directory.listOwned(owner, 100, null).items().size());
     }
 
     @Test

@@ -86,6 +86,15 @@ export function ApplicationShell({
               Assessments
             </Link>
           ) : null}
+          {showQuizAuthoring ? (
+            <Link
+              aria-current={isAssessments ? "page" : undefined}
+              className={`${navLinkClasses} ${isAssessments ? "bg-primary/10 text-primary" : "text-foreground-secondary hover:bg-surface-muted"}`}
+              href="/app/assessments"
+            >
+              My Assessments
+            </Link>
+          ) : null}
           {showStudentInbox ? (
             <Link
               aria-current={isNotifications ? "page" : undefined}

@@ -81,6 +81,12 @@ class ClosedBusinessBoundaryTest {
 
     @Test
     void publicationIsDefaultDisabled() {
+        http().get()
+                .uri("/api/assessments/publications")
+                .headers(h -> h.setBearerAuth(user()))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503);
         http().post()
                 .uri("/api/assessments/publications")
                 .headers(h -> h.setBearerAuth(user()))

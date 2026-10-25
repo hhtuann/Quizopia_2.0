@@ -72,11 +72,14 @@ class ClassroomApiSecurityIntegrationTest {
     ClassroomApplicationService classroomApplicationService;
 
     @Autowired
+    com.quizopia.classroom.application.ClassroomDirectoryService directory;
+
+    @Autowired
     JwtDecoder jwtDecoder;
 
     @BeforeEach
     void resetMocks() {
-        reset(classroomApplicationService, jwtDecoder);
+        reset(classroomApplicationService, jwtDecoder, directory);
     }
 
     @Test
@@ -267,7 +270,25 @@ class ClassroomApiSecurityIntegrationTest {
         JsonNode paths = objectMapper.readTree(body).path("paths");
 
         org.junit.jupiter.api.Assertions.assertTrue(paths.path("/classrooms").has("post"));
-        org.junit.jupiter.api.Assertions.assertFalse(paths.path("/classrooms").has("get"));
+        org.junit.jupiter.api.Assertions.assertTrue(paths.path("/classrooms").has("get"));
+        JsonNode operation = paths.path("/classrooms").path("get");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "listOwnedClassrooms", operation.path("operationId").asString());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                operation.path("responses").path("200").path("content").has("application/json"));
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "integer",
+                operation.path("parameters").get(0).path("schema").path("type").asString());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "#/components/schemas/ClassroomApiError",
+                operation
+                        .path("responses")
+                        .path("400")
+                        .path("content")
+                        .path("application/json")
+                        .path("schema")
+                        .path("$ref")
+                        .asString());
         org.junit.jupiter.api.Assertions.assertTrue(
                 paths.path("/classrooms/{classroomId}").has("get"));
         org.junit.jupiter.api.Assertions.assertFalse(paths.has("/classrooms/{classroomId}/members"));
@@ -283,6 +304,52 @@ class ClassroomApiSecurityIntegrationTest {
                                 QuizopiaTokenClaims.USER,
                                 QuizopiaTokenClaims.ROLES,
                                 roles)));
+    }
+
+    @Test
+    void listUsesJwtActorAndOnlySafeMetadata() throws Exception {
+        UUID owner = UUID.randomUUID(), id = UUID.randomUUID();
+        configureUserToken("teacher", owner, List.of("STUDENT", "TEACHER"));
+        when(directory.listOwned(owner, 20, null))
+                .thenReturn(new com.quizopia.classroom.application.ClassroomDirectory.Page(
+                        List.of(new com.quizopia.classroom.application.ClassroomDirectory.Item(
+                                id, "Class", "Subject", "Grade", null, Instant.parse("2026-10-01T00:00:00Z"))),
+                        null));
+        String body = mvc.perform(get("/classrooms").header("Authorization", "Bearer teacher.payload.signature"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.items[0].id").value(id.toString()))
+                .andExpect(jsonPath("$.items[0].createdAt").value("2026-10-01T00:00:00Z"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode root = objectMapper.readTree(body);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("items", "nextCursor"), root.propertyNames());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                java.util.Set.of("id", "name", "subject", "grade", "description", "createdAt"),
+                root.path("items").get(0).propertyNames());
+        verify(directory).listOwned(owner, 20, null);
+    }
+
+    @Test
+    void collectionRequiresTeacherUserAndMapsInvalidPagination() throws Exception {
+        mvc.perform(get("/classrooms")).andExpect(status().isUnauthorized());
+        configureServiceToken("service");
+        configureUserToken("student", UUID.randomUUID(), List.of("STUDENT"));
+        configureUserToken("admin", UUID.randomUUID(), List.of("STUDENT", "ADMIN"));
+        for (String token : List.of("service", "student", "admin")) {
+            mvc.perform(get("/classrooms").header("Authorization", "Bearer " + token + ".payload.signature"))
+                    .andExpect(status().isForbidden());
+        }
+        UUID owner = UUID.randomUUID();
+        configureUserToken("teacher", owner, List.of("STUDENT", "TEACHER"));
+        when(directory.listOwned(owner, 0, "bad"))
+                .thenThrow(new com.quizopia.classroom.application.InvalidClassroomDirectoryRequestException());
+        mvc.perform(get("/classrooms?limit=0&cursor=bad").header("Authorization", "Bearer teacher.payload.signature"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(get("/classrooms?limit=not-an-integer").header("Authorization", "Bearer teacher.payload.signature"))
+                .andExpect(status().isBadRequest());
     }
 
     private void configureServiceToken(String token) {
@@ -330,6 +397,11 @@ class ClassroomApiSecurityIntegrationTest {
             var client = mock(IdentityAdmissionClient.class);
             when(client.admit(any(), any())).thenReturn(Mono.empty());
             return client;
+        }
+
+        @Bean
+        com.quizopia.classroom.application.ClassroomDirectoryService directory() {
+            return mock(com.quizopia.classroom.application.ClassroomDirectoryService.class);
         }
 
         @Bean

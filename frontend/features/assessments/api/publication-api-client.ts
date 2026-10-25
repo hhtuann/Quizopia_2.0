@@ -21,6 +21,7 @@ import type {
   Schedule,
   ClosedPublication,
   TeacherCommand,
+  PublicationSummaryPage,
 } from "./publication-contract.generated";
 
 export const PUBLICATION_REQUEST_TIMEOUT = 15_000;
@@ -39,6 +40,10 @@ export type PublicationResult<T> =
   | { readonly ok: false; readonly error: PublicationFailure };
 
 export interface PublicationApiClient {
+  list(
+    query?: PublicationDirectoryQuery,
+    signal?: AbortSignal,
+  ): Promise<PublicationResult<PublicationSummaryPage>>;
   create(
     input: Configuration,
     key: string,
@@ -67,6 +72,43 @@ export interface PublicationApiClient {
     signal?: AbortSignal,
   ): Promise<PublicationResult<ClosedPublication>>;
 }
+
+export interface PublicationDirectoryQuery {
+  readonly state?: "DRAFT" | "OPEN" | "CLOSED";
+  readonly search?: string;
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+
+const summarySchema = z
+  .object({
+    publicationId: canonicalUuid,
+    title: z.string().min(1).max(300),
+    audience: z.enum(["CLASS", "PUBLIC"]),
+    state: z.enum(["DRAFT", "OPEN", "CLOSED"]),
+    startAt: instantSchema,
+    endAt: instantSchema,
+    createdAt: instantSchema,
+    revision: revisionSchema,
+    quizId: canonicalUuid,
+    quizVersionId: canonicalUuid,
+    versionNumber: z.number().int().min(1).max(999999999),
+  })
+  .strict();
+const summaryPageSchema = z
+  .object({
+    items: z.array(summarySchema).max(100),
+    nextCursor: z.string().min(1).max(1024).nullable(),
+  })
+  .strict();
+const directoryQuerySchema = z
+  .object({
+    state: z.enum(["DRAFT", "OPEN", "CLOSED"]).optional(),
+    search: z.string().max(300).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    cursor: z.string().min(1).max(1024).optional(),
+  })
+  .strict();
 
 const keySchema = z.string().regex(/^[A-Za-z0-9_-]{16,128}$/);
 const commandSchema = z.object({ expectedRevision: revisionSchema }).strict();
@@ -118,7 +160,7 @@ export function publicationFailureMessage(error: PublicationFailure): string {
     CAPACITY_EXCEEDED:
       "The server is temporarily throttling this operation. Retry the same operation key after a short wait.",
     CLASSROOM_NOT_ACCESSIBLE:
-      "The Classroom is unavailable or you are not authorized to assign to it. Check its ID.",
+      "The Classroom is unavailable or you are not authorized to assign to it. Choose another owned Classroom or retry access verification.",
     SOURCE_NOT_ACCESSIBLE:
       "The selected immutable QuizVersion is unavailable or no longer accessible to you.",
     PUBLICATION_NOT_FOUND:
@@ -296,6 +338,22 @@ export function createPublicationApiClient(options: {
   }
 
   return Object.freeze({
+    list(query = {}, signal) {
+      if (!directoryQuerySchema.safeParse(query).success)
+        return Promise.resolve(failed({ kind: "invalid-input" }));
+      const params = new URLSearchParams({ limit: String(query.limit ?? 20) });
+      if (query.state) params.set("state", query.state);
+      if (query.search?.trim()) params.set("search", query.search.trim());
+      if (query.cursor) params.set("cursor", query.cursor);
+      return execute(
+        "GET",
+        `?${params}`,
+        summaryPageSchema,
+        undefined,
+        undefined,
+        signal,
+      );
+    },
     create(input, key, signal) {
       if (
         !configurationSchema.safeParse(input).success ||

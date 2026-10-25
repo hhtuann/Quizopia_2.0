@@ -11,6 +11,7 @@ import type { Configuration } from "../api/publication-contract.generated";
 import { configurationSchema } from "../model/publication";
 import { PublicationConfirmation } from "./publication-confirmation";
 import { PublicationSummary } from "./publication-summary";
+import { OwnedClassroomSelector } from "../../classrooms/classroom-selector";
 
 const controlClasses =
   "min-h-11 w-full rounded-xl border border-border-strong bg-surface px-4 py-2.5 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:bg-surface-muted";
@@ -52,6 +53,7 @@ export function PublicationConfigurationForm({
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [review, setReview] = useState<Configuration | null>(null);
+  const [classroomValid, setClassroomValid] = useState(false);
   const set = (field: keyof typeof fields, value: string) =>
     setFields((current) => ({ ...current, [field]: value }));
 
@@ -116,6 +118,9 @@ export function PublicationConfigurationForm({
     if (next.durationMinutes === 0 && initial.durationMinutes !== 0)
       nextErrors.durationMinutes =
         "Enter a whole number from 5 to 240 minutes.";
+    if (fields.audience === "CLASS" && !classroomValid)
+      nextErrors.classroomId =
+        "Select an accessible owned Classroom before continuing.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length === 0 && parsed.success)
       setReview(parsed.data);
@@ -219,12 +224,13 @@ export function PublicationConfigurationForm({
             </fieldset>
             {fields.audience === "CLASS" ? (
               <div className="mt-4 space-y-4">
-                <TextField
+                <OwnedClassroomSelector
                   error={errors.classroomId}
-                  helperText="Enter the canonical ID of one Classroom. The server verifies your authority; no Classroom directory is available here."
-                  label="Classroom ID"
-                  onChange={(event) => set("classroomId", event.target.value)}
-                  required
+                  onChange={(value) => {
+                    setClassroomValid(false);
+                    set("classroomId", value);
+                  }}
+                  onValidityChange={setClassroomValid}
                   value={fields.classroomId}
                 />
                 <fieldset aria-describedby={`${id}-monitoring-help`}>

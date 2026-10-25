@@ -342,7 +342,9 @@ test("real CLASS ownership/membership, explicit monitoring, STUDENT denial and A
   assertStatus(classroom.status, 201, "real Teacher-owned Classroom creation");
   const source = await publishExactSource(page);
   await page.getByRole("radio", { name: "Classroom", exact: true }).check();
-  await page.getByLabel("Classroom ID").fill(classroom.body.id);
+  await page
+    .getByRole("radio", { name: "Disposable W3-A Classroom", exact: true })
+    .check();
   const scheduleParts = utcLocalParts(-2);
   await page
     .getByLabel("Participation start", { exact: true })

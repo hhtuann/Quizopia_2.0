@@ -36,6 +36,8 @@ already used by repository tooling):
 ```sh
 python3 scripts/local/generate-publication-types.py
 python3 scripts/local/generate-publication-types.py --check
+python3 scripts/local/generate-classroom-types.py
+python3 scripts/local/generate-classroom-types.py --check
 ```
 
 ## Teacher Assessment Publications
@@ -46,16 +48,30 @@ Quiz ID, QuizVersion ID and version number and confirms the selection through th
 existing Quiz API. It never uses the mutable draft or silently selects a newer version.
 Unsaved Quiz Draft changes retain their existing navigation confirmation.
 
-`/app/assessments/new` provides entry instructions and a known Publication ID lookup.
-There is no owner Publication list API, browser inventory or fabricated Classroom
-selector. CLASS accepts one known canonical Classroom ID; the server checks authority.
+`/app/assessments` is the **My Assessments** owner directory, discoverable from
+Teaching navigation and application home. Search submits a title query to the
+server; state changes apply DRAFT/OPEN/CLOSED filters immediately. Both reset
+continuation. The authenticated client calls GET `/api/assessments/publications`
+with limit 20, optional search/state, and the unchanged opaque nextCursor. Safe
+metadata rows adapt to stacked cards on narrow screens; OPEN/CLOSED expose the
+existing protected results destination. Obsolete requests are aborted and their
+responses ignored. Loading, empty, error, retry and load-more states are explicit.
+
+`/app/assessments/new` consumes the exact QuizVersion source triple. CLASS create
+and DRAFT edit use a native-radio owned-Classroom selector backed by Gateway
+GET `/classrooms?limit=20&cursor=...`. It never selects automatically. A saved
+selection outside the loaded pages is resolved with existing GET `/classrooms/{id}`;
+the client verifies its resource and owner binding and retains only safe metadata.
+Inaccessible/unverified selection blocks form review, preserving entered fields
+and allowing another selection or retry. PUBLIC clears classroomId and disables
+monitoring. The backend remains authoritative for assignment access. Zero-class
+copy explains the prerequisite; there is no fabricated create-Classroom route.
+
 `/app/assessments/[publicationId]` displays owner-authorized details and the supported
 DRAFT edit, OPEN, OPEN schedule extension and direct CLOSE actions.
 
-Schedule fields explicitly use UTC, independent of device timezone. Enter
-`YYYY-MM-DDTHH:mm:ss` with optional microseconds, for example
-`2026-10-16T08:30:00.123456`; requests include `Z`. No ambiguous local DST conversion
-occurs. New bounded durations are whole minutes 5–240. Existing unlimited duration
+Schedule fields use the existing local DateTimeField and convert instants to UTC
+for requests. New bounded durations are whole minutes 5–240. Existing unlimited duration
 and maxAttempts values remain visible and are preserved. Participation-window end,
 OPEN, individual Attempt deadlines and durable CLOSE are distinct.
 
@@ -70,6 +86,19 @@ uncertain commands require authoritative detail reconciliation before an explici
 original-command retry. No mutation is automatically replayed with a fresh key or
 revision. Reloading loses the in-memory uncertain-create receipt; do not speculate
 about creating again after an unknown outcome.
+
+### FE-01 / FE-02 verification
+
+Focused client/RTL coverage lives in `features/assessments` and
+`features/classrooms`. `tests/e2e/teacher-directories.spec.ts` exercises the real
+Chromium UI and authenticated executor with intercepted Gateway contracts:
+directory filtering/paging/retry/race cancellation, role gates, Teaching-home
+discovery, CLASS creation, saved off-page Classroom resolution, inaccessible
+selection, keyboard selection, PUBLIC clearing, and cancelled unsaved navigation.
+It writes full-page directory and selector PNGs at widths 1920, 1440, 768 and 390
+under each test's `test-results/teacher-directories-*/` directory and checks
+document overflow. These browser-contract checks do not establish live
+Browser → Gateway → service ownership or LD-05 admission acceptance.
 
 ## API and real integration
 

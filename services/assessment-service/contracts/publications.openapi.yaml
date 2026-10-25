@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Assessment Publication, Attempt, closure and inbox backend
-  version: 1.3.0
+  version: 1.4.0
   description:
     Implemented W3-A/B1/C1/B2/B3, default disabled pending independent security/runtime review and Leader
     merge approval. Gateway and Assessment independently enforce RS256 USER issued/current role and LD-05 admission.
@@ -11,6 +11,72 @@ info:
     authorized.
 paths:
   /api/assessments/publications:
+    get:
+      operationId: listOwnedPublications
+      description: >-
+        TEACHER USER only, with fresh LD-05 admission and the existing Publication feature gate.
+        Owner is derived exclusively from the validated JWT; database query restricts owner.
+        Safe metadata only, never locator, configuration, snapshot, learners or attempts.
+        Ordered by immutable createdAt DESC then UUID id DESC. Cursors are opaque HMAC-authenticated
+        and bound to owner, route and normalized state/search filters. Changing limit is allowed.
+        Invalid, tampered, other-route, other-owner or filter-mismatched cursors return 400 INVALID_REQUEST.
+        Unknown or duplicate query parameters are rejected. Empty search equals omitted search.
+        Pagination is a live keyset traversal, not a frozen snapshot; edits do not move creation order,
+        but filter membership reflects current committed data. No total count.
+      security:
+        - userBearer: []
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+        - name: cursor
+          in: query
+          schema: {type: string, minLength: 1, maxLength: 1024}
+        - name: state
+          in: query
+          schema: {type: string, enum: [DRAFT, OPEN, CLOSED]}
+        - name: search
+          in: query
+          description: >-
+            Literal case-insensitive title substring; maximum 300 characters before normalization.
+            Leading/trailing whitespace is stripped and text lowercased with Locale.ROOT.
+            Percent, underscore and backslash are literal characters, not SQL wildcards.
+          schema: {type: string, maxLength: 300}
+      responses:
+        "200":
+          description: Owned summary page, including an empty items array when no matches exist.
+          headers:
+            Cache-Control: &directoryNoStore
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicationSummaryPage"}
+        "400":
+          description: Invalid parameters or cursor; INVALID_REQUEST.
+          headers: {Cache-Control: *directoryNoStore}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "401":
+          description: Missing, invalid, expired or currently rejected USER evidence.
+          headers: {Cache-Control: *directoryNoStore}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "403":
+          description: Wrong principal or missing issued/current TEACHER role.
+          headers: {Cache-Control: *directoryNoStore}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+        "503":
+          description: >-
+            Publication feature disabled, authority unavailable/untrustworthy, persistence unavailable,
+            or signing key unavailable when a continuation must be issued. No JWT-only fallback.
+          headers: {Cache-Control: *directoryNoStore}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
     post:
       operationId: createPublication
       description:
@@ -2399,6 +2465,35 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    PublicationSummaryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: {$ref: "#/components/schemas/PublicationSummary"}
+        nextCursor:
+          type: [string, "null"]
+          maxLength: 1024
+          description: Null when no further matches exist; otherwise opaque continuation.
+    PublicationSummary:
+      type: object
+      additionalProperties: false
+      required: [publicationId, title, audience, state, startAt, endAt, createdAt, revision, quizId, quizVersionId, versionNumber]
+      properties:
+        publicationId: {type: string, format: uuid}
+        title: {type: string, minLength: 1, maxLength: 300}
+        audience: {type: string, enum: [CLASS, PUBLIC]}
+        state: {type: string, enum: [DRAFT, OPEN, CLOSED]}
+        startAt: {type: string, format: date-time}
+        endAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        revision: {type: integer, format: int64, minimum: 0}
+        quizId: {type: string, format: uuid}
+        quizVersionId: {type: string, format: uuid}
+        versionNumber: {type: integer, minimum: 1, maximum: 999999999}
     Error:
       type: object
       additionalProperties: false
