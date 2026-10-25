@@ -56,6 +56,8 @@ function renderProbe() {
   );
 }
 
+const MINIMUM_DISPLAY_MS = 2_500;
+
 describe("WorkspaceTransitionProvider", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -64,7 +66,7 @@ describe("WorkspaceTransitionProvider", () => {
     vi.useRealTimers();
   });
 
-  it("shows an accessible Teaching overlay and settles when the destination home renders", () => {
+  it("shows an accessible Teaching overlay with branding", () => {
     renderProbe();
     fireEvent.click(screen.getByRole("button", { name: "start" }));
     const status = screen
@@ -79,20 +81,54 @@ describe("WorkspaceTransitionProvider", () => {
     expect(screen.getByText("transitioning")).toBeInTheDocument();
     // Branding is part of the transition cover.
     expect(screen.getByTestId("quizopia-brand-mark")).toBeVisible();
+  });
 
-    // A home rendered for a different workspace does not end the transition.
-    fireEvent.click(screen.getByRole("button", { name: "notify learning" }));
+  it("keeps the overlay for the minimum display window when the destination is ready quickly", () => {
+    renderProbe();
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
+    // Destination home renders after 100ms — far before the minimum window.
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "notify teaching" }));
     expect(screen.getByText("Changing your workspace…")).toBeInTheDocument();
 
-    // The destination home ends it and moves focus to the main landmark.
+    // Still visible right before the minimum window elapses…
+    act(() => {
+      vi.advanceTimersByTime(MINIMUM_DISPLAY_MS - 200);
+    });
+    expect(screen.getByText("Changing your workspace…")).toBeInTheDocument();
+    // …and dismissed exactly when both conditions are satisfied.
     const main = document.getElementById("main-content");
-    fireEvent.click(screen.getByRole("button", { name: "notify teaching" }));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
     expect(screen.queryByText("Changing your workspace…")).toBeNull();
     expect(screen.getByText("idle")).toBeInTheDocument();
     act(() => {
       vi.runAllTimers();
     });
     expect(document.activeElement).toBe(main);
+  });
+
+  it("dismisses when a slow destination becomes ready after the minimum window", () => {
+    renderProbe();
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
+    // Minimum window elapses without readiness: the overlay must NOT dismiss
+    // merely because time passed.
+    act(() => {
+      vi.advanceTimersByTime(MINIMUM_DISPLAY_MS + 500);
+    });
+    expect(screen.getByText("Changing your workspace…")).toBeInTheDocument();
+
+    // A different workspace's home never ends the transition.
+    fireEvent.click(screen.getByRole("button", { name: "notify learning" }));
+    expect(screen.getByText("Changing your workspace…")).toBeInTheDocument();
+
+    // The destination home arriving at ~3000ms dismisses immediately.
+    fireEvent.click(screen.getByRole("button", { name: "notify teaching" }));
+    expect(screen.queryByText("Changing your workspace…")).toBeNull();
+    expect(screen.getByText("idle")).toBeInTheDocument();
   });
 
   it("identifies the Learning destination", () => {
@@ -113,6 +149,10 @@ describe("WorkspaceTransitionProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "start" }));
     fireEvent.click(screen.getByRole("button", { name: "start again" }));
     // One overlay only.
+    expect(screen.getAllByText("Changing your workspace…")).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(MINIMUM_DISPLAY_MS);
+    });
     expect(screen.getAllByText("Changing your workspace…")).toHaveLength(1);
   });
 

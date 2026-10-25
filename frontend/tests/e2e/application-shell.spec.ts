@@ -283,6 +283,11 @@ test.describe("workspace switching", () => {
     await expect(
       page.getByRole("link", { name: "Quiz authoring", exact: true }),
     ).toBeVisible();
+    // The transition overlay intercepts interaction for its minimum display
+    // window; wait for it to settle before continuing.
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0, {
+      timeout: 10_000,
+    });
     await page
       .getByRole("link", { name: "Quiz authoring", exact: true })
       .click();
@@ -522,7 +527,14 @@ test.describe("workspace switching", () => {
       }),
     ).toHaveAttribute("aria-live", "polite");
 
-    // Once the destination home renders, the overlay disappears.
+    // The held navigation releases at ~700ms; the minimum display window
+    // (2500ms) keeps the overlay on screen even though the destination home
+    // rendered quickly. Verify it is still covering mid-window.
+    await page.waitForTimeout(1_500);
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+
+    // Once both the minimum window and destination readiness are satisfied,
+    // the overlay disappears.
     await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
     await expect(page).toHaveURL(/\/app$/);
     await expect(
@@ -534,11 +546,17 @@ test.describe("workspace switching", () => {
       }),
     ).toBeVisible();
 
-    // Teaching → Learning (same-URL switch settles via the re-rendered home).
+    // Teaching → Learning while already on /app: the same-URL switch also
+    // keeps the overlay for its minimum display window.
     await page
       .getByRole("button", { name: /Open user menu for learner01/ })
       .click();
     await page.getByRole("menuitem", { name: "Switch to Learning" }).click();
+    await expect(
+      page.getByText("Switching to Learning workspace"),
+    ).toBeVisible();
+    await page.waitForTimeout(1_500);
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
     await expect(page).toHaveURL(/\/app$/);
     await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
     await expect(

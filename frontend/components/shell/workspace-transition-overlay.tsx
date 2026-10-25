@@ -60,9 +60,18 @@ export function useWorkspaceTransition(): WorkspaceTransitionApi {
 /**
  * Failure recovery, not an artificial loading delay: if the destination home
  * never reports readiness (for example a failed navigation), the overlay is
- * cleared instead of blocking the screen forever.
+ * cleared instead of blocking the screen forever. The safety limit includes
+ * the minimum display window.
  */
 const TRANSITION_SAFETY_LIMIT_MS = 10_000;
+
+/**
+ * The overlay stays on screen at least this long so the transition reads as a
+ * deliberate, calm change of context instead of a flash. Dismissal requires
+ * BOTH the minimum duration AND destination-home readiness; the safety limit
+ * above remains the only path that can dismiss without readiness.
+ */
+const MINIMUM_DISPLAY_MS = 2_500;
 
 export function WorkspaceTransitionProvider({
   children,
@@ -71,41 +80,76 @@ export function WorkspaceTransitionProvider({
 }) {
   const [destination, setDestination] = useState<Workspace | null>(null);
   const destinationRef = useRef<Workspace | null>(null);
+  const destinationReadyRef = useRef(false);
+  const minDisplayTimerRef = useRef<number | null>(null);
+  const safetyTimerRef = useRef<number | null>(null);
+  const focusTimerRef = useRef<number | null>(null);
+
+  const clearTimers = useCallback(() => {
+    for (const timer of [minDisplayTimerRef, safetyTimerRef, focusTimerRef]) {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+        timer.current = null;
+      }
+    }
+  }, []);
 
   const endTransition = useCallback(() => {
+    clearTimers();
+    destinationReadyRef.current = false;
     setDestination((current) => {
       if (current === null) return null;
       destinationRef.current = null;
       // Focus the workspace home landmark once the transition settles so
       // keyboard users land on the new context, not on a stale control.
-      window.setTimeout(() => {
+      focusTimerRef.current = window.setTimeout(() => {
+        focusTimerRef.current = null;
         document.getElementById("main-content")?.focus();
       }, 0);
       return null;
     });
-  }, []);
+  }, [clearTimers]);
 
-  const startTransition = useCallback((next: Workspace) => {
-    if (destinationRef.current !== null) return false;
-    destinationRef.current = next;
-    setDestination(next);
-    return true;
-  }, []);
-
-  const notifyWorkspaceHomeRendered = useCallback(
-    (workspace: Workspace | null) => {
-      if (workspace !== null && workspace === destinationRef.current) {
+  const startTransition = useCallback(
+    (next: Workspace) => {
+      if (destinationRef.current !== null) return false;
+      destinationRef.current = next;
+      destinationReadyRef.current = false;
+      setDestination(next);
+      // Minimum display window: when it elapses, dismiss only if the
+      // destination home already reported readiness.
+      minDisplayTimerRef.current = window.setTimeout(() => {
+        minDisplayTimerRef.current = null;
+        if (destinationReadyRef.current) endTransition();
+      }, MINIMUM_DISPLAY_MS);
+      // Stuck-navigation safety recovery (runs regardless of readiness).
+      safetyTimerRef.current = window.setTimeout(() => {
+        safetyTimerRef.current = null;
         endTransition();
-      }
+      }, TRANSITION_SAFETY_LIMIT_MS);
+      return true;
     },
     [endTransition],
   );
 
-  useEffect(() => {
-    if (destination === null) return;
-    const timer = window.setTimeout(endTransition, TRANSITION_SAFETY_LIMIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [destination, endTransition]);
+  const notifyWorkspaceHomeRendered = useCallback(
+    (workspace: Workspace | null) => {
+      if (
+        workspace === null ||
+        workspace !== destinationRef.current ||
+        destinationRef.current === null
+      ) {
+        return;
+      }
+      // Readiness alone never dismisses early: only when the minimum display
+      // window has already elapsed (its timer fired and cleaned itself up).
+      destinationReadyRef.current = true;
+      if (minDisplayTimerRef.current === null) endTransition();
+    },
+    [endTransition],
+  );
+
+  useEffect(() => clearTimers, [clearTimers]);
 
   const api = useMemo<WorkspaceTransitionApi>(
     () => ({
