@@ -458,7 +458,8 @@ test.describe("workspace switching", () => {
     const title = page.getByRole("textbox", { name: "Publication title" });
     await title.fill("Unsaved draft configuration");
 
-    // Cancel the switch: workspace, URL and form content stay intact.
+    // Cancel the switch: workspace, URL and form content stay intact — and
+    // the cancelled transition never shows the loading overlay.
     await page
       .getByRole("button", { name: /Open user menu for learner01/ })
       .click();
@@ -471,6 +472,7 @@ test.describe("workspace switching", () => {
       }),
     ).toBeVisible();
     await expect(title).toHaveValue("Unsaved draft configuration");
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
 
     // The guard cancel kept the menu open (the user may reconsider); accepting
     // the guard on the directly re-clicked item completes the switch to /app.
@@ -479,6 +481,115 @@ test.describe("workspace switching", () => {
     await expect(page).toHaveURL(/\/app$/);
     await expect(
       page.getByRole("link", { name: "Enter an assessment", exact: true }),
+    ).toBeVisible();
+  });
+
+  test("workspace switch shows the transition overlay until the destination home renders", async ({
+    page,
+  }) => {
+    await mockAuthenticatedBootstrap(page);
+    // Hold the client-side /app navigation briefly so the transition overlay
+    // is deterministically observable; document loads pass through untouched.
+    await page.route("**/app", async (route) => {
+      const request = route.request();
+      if (
+        new URL(request.url()).pathname === "/app" &&
+        request.headers().rsc === "1"
+      ) {
+        await page.waitForTimeout(700);
+      }
+      await route.continue();
+    });
+
+    // Learning → Teaching from a student route.
+    await page.goto("/app/assessments/join");
+    await expect(
+      page.getByRole("heading", { name: "Enter an assessment" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+    await expect(
+      page.getByText("Switching to Teaching workspace"),
+    ).toBeVisible();
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(1);
+    await expect(
+      page.locator('[role="status"]', {
+        hasText: "Switching to Teaching workspace",
+      }),
+    ).toHaveAttribute("aria-live", "polite");
+
+    // Once the destination home renders, the overlay disappears.
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Teaching workspace/,
+      }),
+    ).toBeVisible();
+
+    // Teaching → Learning (same-URL switch settles via the re-rendered home).
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Learning" }).click();
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Enter an assessment", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Open user menu for learner01, Learning workspace/,
+      }),
+    ).toBeVisible();
+  });
+
+  test("workspace transition overlay fits a 390px viewport", async ({
+    page,
+  }) => {
+    await mockAuthenticatedBootstrap(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/app", async (route) => {
+      const request = route.request();
+      if (
+        new URL(request.url()).pathname === "/app" &&
+        request.headers().rsc === "1"
+      ) {
+        await page.waitForTimeout(700);
+      }
+      await route.continue();
+    });
+
+    await page.goto("/app/assessments/join");
+    await expect(
+      page.getByRole("heading", { name: "Enter an assessment" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: /Open user menu for learner01/ })
+      .click();
+    await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
+
+    await expect(page.getByText("Changing your workspace…")).toBeVisible();
+    await expect(
+      page.getByText("Switching to Teaching workspace"),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await expect(page.getByText("Changing your workspace…")).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Quiz authoring", exact: true }),
     ).toBeVisible();
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
 import type { AuthRole } from "../../features/auth/model/authenticated-user";
 import type { Workspace } from "../../features/auth/model/workspace";
@@ -9,6 +10,7 @@ import { OUTLINE_LINK_CLASSES } from "../ui/button";
 import { HeroOrb } from "../ui/hero-orb";
 import { ArrowRightIcon } from "../ui/icons";
 import { Surface } from "../ui/surface";
+import { useWorkspaceTransition } from "./workspace-transition-overlay";
 
 const roleLabels: Record<AuthRole, string> = {
   STUDENT: "Student",
@@ -23,6 +25,15 @@ const workspaceLabels: Record<Workspace, string> = {
 
 export function ApplicationHome() {
   const { activeWorkspace, user } = useAuth();
+  const { notifyWorkspaceHomeRendered } = useWorkspaceTransition();
+
+  // Ends a pending workspace transition once this home has actually rendered
+  // content for the destination workspace (no-op outside a transition). This
+  // also covers switching while already on /app: the re-rendered home reports
+  // the new workspace and the overlay settles.
+  useEffect(() => {
+    notifyWorkspaceHomeRendered(activeWorkspace);
+  }, [activeWorkspace, notifyWorkspaceHomeRendered]);
 
   if (user === null) {
     return null;
