@@ -4,11 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Alert } from "../../../components/ui/alert";
-import {
-  Button,
-  OUTLINE_LINK_CLASSES,
-  PRIMARY_LINK_CLASSES,
-} from "../../../components/ui/button";
+import { Button, PRIMARY_LINK_CLASSES } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import { useAuth } from "../../auth/auth-provider";
@@ -62,14 +58,6 @@ function TeacherPublicationPage({
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId ?? `${source?.quizId}:${source?.quizVersionId}:${source?.versionNumber}`}`;
   return (
     <ApplicationShell currentSection="assessments">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link className={OUTLINE_LINK_CLASSES} href="/app/quizzes">
-          Back to Quiz Library
-        </Link>
-        <p className="text-sm font-semibold text-primary">
-          Teaching · Assessments
-        </p>
-      </div>
       {!user?.roles.includes("TEACHER") ? (
         <Alert title="Teacher access required" variant="warning">
           Current Teacher authority and ownership are required. Workspace

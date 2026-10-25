@@ -80,8 +80,8 @@ const configuration: Configuration = {
   description: "Original source",
   audience: "PUBLIC",
   classroomId: null,
-  startAt: "2026-10-16T08:00:00Z",
-  endAt: "2026-10-16T09:00:00Z",
+  startAt: "2026-10-16T08:00:00.000Z",
+  endAt: "2026-10-16T09:00:00.000Z",
   durationMinutes: 40,
   monitoringChoice: "DISABLED",
   maxAttempts: 2,
@@ -165,14 +165,31 @@ beforeEach(() => {
   });
 });
 
+function localPartsFor(utcInstant: string): { date: string; time: string } {
+  const d = new Date(utcInstant);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
 async function fillCreate() {
   await screen.findByLabelText("Publication title");
   fireEvent.click(screen.getByRole("radio", { name: "Public" }));
-  fireEvent.change(screen.getByLabelText("Participation start (UTC)"), {
-    target: { value: "2026-10-16T08:00" },
+  const start = localPartsFor("2026-10-16T08:00:00Z");
+  const end = localPartsFor("2026-10-16T09:00:00Z");
+  fireEvent.change(screen.getByLabelText("Participation start"), {
+    target: { value: start.date },
   });
-  fireEvent.change(screen.getByLabelText("Participation end (UTC)"), {
-    target: { value: "2026-10-16T09:00" },
+  fireEvent.change(screen.getByLabelText("Participation start time"), {
+    target: { value: start.time },
+  });
+  fireEvent.change(screen.getByLabelText("Participation end"), {
+    target: { value: end.date },
+  });
+  fireEvent.change(screen.getByLabelText("Participation end time"), {
+    target: { value: end.time },
   });
 }
 
@@ -217,7 +234,7 @@ describe("Teacher Publication creation", () => {
       audience: "PUBLIC",
       classroomId: null,
       monitoringChoice: "DISABLED",
-      startAt: "2026-10-16T08:00:00Z",
+      startAt: "2026-10-16T08:00:00.000Z",
     });
     expect(api.create.mock.calls[0]?.[1]).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
     expect(navigation.push).toHaveBeenCalledWith(`/app/assessments/${id}`);
@@ -446,8 +463,8 @@ describe("Publication configuration form", () => {
     fireEvent.change(screen.getByLabelText("Attempt duration (minutes)"), {
       target: { value: "5.5" },
     });
-    fireEvent.change(screen.getByLabelText("Participation end (UTC)"), {
-      target: { value: "2026-10-16T07:00" },
+    fireEvent.change(screen.getByLabelText("Participation end"), {
+      target: { value: "2026-10-16T07:00:00.000Z" },
     });
     fireEvent.click(
       screen.getByRole("button", { name: "Review DRAFT changes" }),

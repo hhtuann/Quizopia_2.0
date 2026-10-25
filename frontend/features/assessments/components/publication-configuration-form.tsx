@@ -1,13 +1,13 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
+import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import type { Configuration } from "../api/publication-contract.generated";
 import { configurationSchema } from "../model/publication";
-import { instantToUtcField, utcFieldToInstant } from "../utils/utc-time";
 import { PublicationConfirmation } from "./publication-confirmation";
 import { PublicationSummary } from "./publication-summary";
 
@@ -28,14 +28,16 @@ export function PublicationConfigurationForm({
   readonly mode: "create" | "edit";
 }) {
   const id = useId();
+  // Datetime fields store full UTC instants (e.g. "2026-10-16T01:30:00.000Z");
+  // DateTimeField converts to/from the user's local timezone for display.
   const [fields, setFields] = useState(() => ({
     title: initial.title,
     description: initial.description ?? "",
     audience: initial.audience,
     classroomId: initial.classroomId ?? "",
     monitoringChoice: initial.monitoringChoice,
-    startAt: instantToUtcField(initial.startAt),
-    endAt: instantToUtcField(initial.endAt),
+    startAt: initial.startAt,
+    endAt: initial.endAt,
     durationMinutes: String(initial.durationMinutes),
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -54,8 +56,8 @@ export function PublicationConfigurationForm({
       versionNumber: initial.versionNumber,
       audience: fields.audience,
       classroomId: fields.audience === "CLASS" ? fields.classroomId : null,
-      startAt: utcFieldToInstant(fields.startAt) ?? "",
-      endAt: utcFieldToInstant(fields.endAt) ?? "",
+      startAt: fields.startAt,
+      endAt: fields.endAt,
       durationMinutes:
         fields.durationMinutes === "" ? -1 : Number(fields.durationMinutes),
       monitoringChoice: fields.monitoringChoice,
@@ -74,9 +76,16 @@ export function PublicationConfigurationForm({
       setReview(parsed.data);
   }
 
+  const descriptionLabel = mode === "create" ? "New Publication" : "Edit DRAFT";
+
   return (
     <>
-      <form className="space-y-5" noValidate onSubmit={submit}>
+      <form
+        className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start"
+        noValidate
+        onSubmit={submit}
+      >
+        {/* Main column: form fields */}
         <fieldset
           className="min-w-0 space-y-5"
           disabled={disabled || isPending}
@@ -90,16 +99,6 @@ export function PublicationConfigurationForm({
               Immutable source: version {initial.versionNumber}. Creating a
               Publication does not publish or modify the Quiz Draft.
             </p>
-            <dl className="mt-3 space-y-1 break-all font-mono text-xs text-foreground-muted">
-              <div>
-                <dt className="inline font-semibold">Quiz ID: </dt>
-                <dd className="inline">{initial.quizId}</dd>
-              </div>
-              <div>
-                <dt className="inline font-semibold">QuizVersion ID: </dt>
-                <dd className="inline">{initial.quizVersionId}</dd>
-              </div>
-            </dl>
             <div className="mt-5 space-y-4">
               <TextField
                 error={errors.title}
@@ -251,29 +250,23 @@ export function PublicationConfigurationForm({
               Participation schedule
             </h2>
             <p className="mt-1 text-sm leading-6 text-foreground-muted">
-              All fields use UTC (offset +00:00), not your device timezone. This
-              avoids daylight-saving ambiguity. Participation end does not close
-              the Publication or shorten an existing Attempt.
+              Dates and times are shown in your local timezone and converted to
+              UTC automatically. Participation end does not close the
+              Publication or shorten an existing Attempt.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <TextField
+              <DateTimeField
                 error={errors.startAt}
-                helperText="UTC text: YYYY-MM-DDTHH:mm:ss, optionally .ffffff (up to six digits)."
-                label="Participation start (UTC)"
-                onChange={(event) => set("startAt", event.target.value)}
+                label="Participation start"
+                onChange={(instant) => set("startAt", instant)}
                 required
-                placeholder="2026-10-16T08:30:00.123456"
-                type="text"
                 value={fields.startAt}
               />
-              <TextField
+              <DateTimeField
                 error={errors.endAt}
-                helperText="UTC text with optional microseconds; no device-timezone conversion."
-                label="Participation end (UTC)"
-                onChange={(event) => set("endAt", event.target.value)}
+                label="Participation end"
+                onChange={(instant) => set("endAt", instant)}
                 required
-                placeholder="2026-10-16T09:30:00.123456"
-                type="text"
                 value={fields.endAt}
               />
             </div>
@@ -308,23 +301,66 @@ export function PublicationConfigurationForm({
               . This workflow preserves that setting.
             </p>
           </Surface>
+          {Object.keys(errors).length > 0 ? (
+            <Alert title="Check the highlighted fields" variant="danger">
+              The configuration was not sent. Review the field messages above.
+            </Alert>
+          ) : null}
         </fieldset>
-        {Object.keys(errors).length > 0 ? (
-          <Alert title="Check the highlighted fields" variant="danger">
-            The configuration was not sent. Review the field messages above.
-          </Alert>
-        ) : null}
-        <Button
-          aria-label={isPending ? "Saving Publication" : undefined}
-          disabled={disabled}
-          isLoading={isPending}
-          loadingLabel="Saving Publication"
-          type="submit"
+
+        {/* Contextual sidebar column */}
+        <aside
+          aria-label="Publication summary"
+          className="sticky top-20 space-y-4 lg:top-24"
         >
-          {mode === "create"
-            ? "Review and create DRAFT"
-            : "Review DRAFT changes"}
-        </Button>
+          <Surface className="p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground-muted">
+              {descriptionLabel}
+            </h2>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div>
+                <dt className="text-foreground-muted">Quiz version</dt>
+                <dd className="font-mono text-xs break-all text-foreground">
+                  {initial.versionNumber}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-foreground-muted">Audience</dt>
+                <dd className="font-semibold text-foreground">
+                  {fields.audience === "CLASS" ? "Classroom" : "Public"}
+                </dd>
+              </div>
+              {fields.audience === "CLASS" && fields.classroomId ? (
+                <div>
+                  <dt className="text-foreground-muted">Classroom</dt>
+                  <dd className="font-mono text-xs break-all text-foreground">
+                    {fields.classroomId}
+                  </dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-foreground-muted">Duration</dt>
+                <dd className="font-semibold text-foreground">
+                  {initial.durationMinutes === 0
+                    ? "Unlimited"
+                    : `${fields.durationMinutes || "—"} min`}
+                </dd>
+              </div>
+            </dl>
+          </Surface>
+          <Button
+            aria-label={isPending ? "Saving Publication" : undefined}
+            className="w-full"
+            disabled={disabled}
+            isLoading={isPending}
+            loadingLabel="Saving Publication"
+            type="submit"
+          >
+            {mode === "create"
+              ? "Review and create DRAFT"
+              : "Review DRAFT changes"}
+          </Button>
+        </aside>
       </form>
       {review !== null ? (
         <PublicationConfirmation
