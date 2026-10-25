@@ -310,9 +310,13 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
   await page
     .getByRole("button", { name: "Extend participation schedule" })
     .click();
+  const extendedParts = localPartsFor("2026-10-16T10:00:00Z");
   await page
-    .getByLabel("Extended participation end (UTC)")
-    .fill("2026-10-16T10:00:00.654321");
+    .getByLabel("Extended participation end", { exact: true })
+    .fill(extendedParts.date);
+  await page
+    .getByLabel("Extended participation end time")
+    .fill(extendedParts.time);
   await page.getByLabel("Extended Attempt duration (minutes)").fill("45");
   await page.getByRole("button", { name: "Review schedule extension" }).click();
   await confirm(page, "Save schedule extension");
@@ -355,7 +359,7 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
   expect(commands[2]?.body).toEqual({ expectedRevision: 1 });
   expect(commands[3]?.body).toEqual({
     expectedRevision: 2,
-    endAt: "2026-10-16T10:00:00.654321Z",
+    endAt: "2026-10-16T10:00:00.000Z",
     durationMinutes: 45,
   });
   expect(commands[4]?.body).toEqual({ expectedRevision: 3 });

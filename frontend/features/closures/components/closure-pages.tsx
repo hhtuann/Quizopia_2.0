@@ -24,6 +24,7 @@ import type {
 } from "../../assessments/api/publication-contract.generated";
 import { canonicalUuid } from "../../assessments/model/publication";
 import { newIdempotencyKey } from "../../assessments/model/publication";
+import { publicationStateVariants } from "../../assessments/model/publication";
 import { usePublicationClient } from "../../assessments/hooks/use-publication-client";
 import { formatUtc } from "../../assessments/utils/utc-time";
 import { useAuth } from "../../auth/auth-provider";
@@ -91,16 +92,13 @@ function TeacherClosurePage({
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId}`;
   return (
     <ApplicationShell currentSection="assessments">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6">
         <Link
           className={OUTLINE_LINK_CLASSES}
           href={`/app/assessments/${publicationId}`}
         >
           Back to Publication details
         </Link>
-        <p className="text-sm font-semibold text-primary">
-          Teaching · Closure workflow
-        </p>
       </div>
       {!user?.roles.includes("TEACHER") ? (
         <Alert title="Teacher access required" variant="warning">
@@ -281,7 +279,7 @@ export function ClosureManagementScreen({
 
   if (publication === null)
     return (
-      <Surface className="mx-auto max-w-3xl p-6">
+      <Surface className="p-6">
         <h1 className="font-heading text-3xl font-bold">Closure workflow</h1>
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
@@ -315,7 +313,7 @@ export function ClosureManagementScreen({
 
   const blocked = busy || loading || pending !== null;
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">
@@ -324,11 +322,11 @@ export function ClosureManagementScreen({
           <h1 className="mt-1 break-words font-heading text-3xl font-bold">
             {publication.configuration.title}
           </h1>
-          <p className="mt-2 text-sm">
-            <span className="rounded-full bg-primary/10 px-3 py-1 font-semibold text-primary">
+          <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+            <StateBadge variant={publicationStateVariants[publication.state]}>
               {publication.state}
-            </span>
-            <span className="ml-3 text-foreground-muted">
+            </StateBadge>
+            <span className="text-foreground-muted">
               Revision {publication.revision}
             </span>
           </p>
@@ -605,16 +603,13 @@ function TeacherClosureDetailPage({
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId}:${closureRequestId}`;
   return (
     <ApplicationShell currentSection="assessments">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6">
         <Link
           className={OUTLINE_LINK_CLASSES}
           href={`/app/assessments/${publicationId}/closure`}
         >
           Back to closure workflow
         </Link>
-        <p className="text-sm font-semibold text-primary">
-          Teaching · Closure request
-        </p>
       </div>
       {!user?.roles.includes("TEACHER") ? (
         <Alert title="Teacher access required" variant="warning">
@@ -817,7 +812,7 @@ export function ClosureDetailScreen({
 
   if (view === null)
     return (
-      <Surface className="mx-auto max-w-3xl p-6">
+      <Surface className="p-6">
         <h1 className="font-heading text-3xl font-bold">Closure request</h1>
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
@@ -852,7 +847,7 @@ export function ClosureDetailScreen({
   const cancellable = canCancelClosure(view) && readFailureText === null;
   const completable = canCompleteClosure(view) && readFailureText === null;
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="font-heading text-3xl font-bold">Closure request</h1>

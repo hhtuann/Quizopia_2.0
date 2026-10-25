@@ -2,17 +2,14 @@
 import { useState, type FormEvent } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
+import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import type {
   OwnerView,
   Schedule,
 } from "../api/publication-contract.generated";
-import {
-  instantMicroseconds,
-  instantToUtcField,
-  utcFieldToInstant,
-} from "../utils/utc-time";
+import { formatUtc, instantMicroseconds } from "../utils/utc-time";
 import { PublicationConfirmation } from "./publication-confirmation";
 import { PublicationSummary } from "./publication-summary";
 
@@ -27,9 +24,12 @@ export function ScheduleExtension({
   readonly isPending: boolean;
   readonly onSubmit: (input: Schedule) => void;
 }) {
-  const [endAt, setEndAt] = useState(() =>
-    instantToUtcField(publication.configuration.endAt),
-  );
+  // The authoritative end instant, kept verbatim: an untouched field must
+  // resubmit the exact server value, preserving seconds and microseconds.
+  const currentEnd = publication.configuration.endAt;
+  // Edited instant (millisecond ISO) once the user changes either part.
+  // null means "untouched" — submit the authoritative value unchanged.
+  const [editedEnd, setEditedEnd] = useState<string | null>(null);
   const [duration, setDuration] = useState(
     String(publication.configuration.durationMinutes),
   );
@@ -38,16 +38,23 @@ export function ScheduleExtension({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (disabled || review !== null) return;
-    const instant = utcFieldToInstant(endAt);
-    const nextDuration = duration === "" ? -1 : Number(duration);
-    if (
-      instant === null ||
-      instantMicroseconds(instant)! <
-        instantMicroseconds(publication.configuration.endAt)!
-    ) {
-      setError("Participation end must be valid UTC and cannot decrease.");
+    const instant = editedEnd === null ? currentEnd : editedEnd;
+    if (editedEnd === "") {
+      setError(
+        "Enter a valid local participation end date and time. Nonexistent local times (DST gaps) are not accepted.",
+      );
       return;
     }
+    if (
+      instantMicroseconds(instant) === null ||
+      instantMicroseconds(instant)! < instantMicroseconds(currentEnd)!
+    ) {
+      setError(
+        "Participation end cannot decrease and must resolve to a valid instant.",
+      );
+      return;
+    }
+    const nextDuration = duration === "" ? -1 : Number(duration);
     if (
       !Number.isInteger(nextDuration) ||
       (publication.configuration.durationMinutes === 0
@@ -78,14 +85,13 @@ export function ScheduleExtension({
       <form className="space-y-4" noValidate onSubmit={submit}>
         <fieldset className="min-w-0 space-y-4" disabled={disabled}>
           <legend className="sr-only">Schedule extension</legend>
-          <TextField
-            helperText="UTC text: YYYY-MM-DDTHH:mm:ss, optionally .ffffff (up to six digits)."
-            label="Extended participation end (UTC)"
-            onChange={(event) => setEndAt(event.target.value)}
+          <DateTimeField
+            error={error?.startsWith("Enter a valid local") ? error : undefined}
+            helperText={`Current authoritative end: ${formatUtc(currentEnd)}. Leave unchanged to keep it exactly, including seconds and microseconds.`}
+            label="Extended participation end"
+            onChange={(instant) => setEditedEnd(instant)}
             required
-            placeholder="2026-10-16T09:30:00.123456"
-            type="text"
-            value={endAt}
+            value={currentEnd}
           />
           {publication.configuration.durationMinutes > 0 ? (
             <TextField
@@ -102,7 +108,7 @@ export function ScheduleExtension({
             <p>Attempt duration remains unlimited.</p>
           )}
         </fieldset>
-        {error ? (
+        {error && !error.startsWith("Enter a valid local") ? (
           <Alert title="Check the schedule extension" variant="danger">
             {error}
           </Alert>

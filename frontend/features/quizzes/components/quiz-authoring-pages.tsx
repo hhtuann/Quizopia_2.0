@@ -26,6 +26,8 @@ import {
   SaveIcon,
 } from "../../../components/ui/icons";
 import { Surface } from "../../../components/ui/surface";
+import { HeroOrb } from "../../../components/ui/hero-orb";
+import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import { useAuth } from "../../auth/auth-provider";
 import {
   createQuizApiClient,
@@ -285,10 +287,7 @@ export function QuizLibraryPage() {
   return (
     <div className="space-y-8">
       <div className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-primary/10 bg-surface p-6 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-8">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-10 -top-20 size-72 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 blur-3xl"
-        />
+        <HeroOrb className="-right-10 -top-20 size-72" />
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
             Teaching workspace
@@ -337,7 +336,7 @@ export function QuizLibraryPage() {
             {libraryFailureMessage(initialFailure)}
           </Alert>
         ) : items.length === 0 ? (
-          <Surface className="mt-5 flex flex-col items-start bg-[radial-gradient(ellipse_at_top_right,rgba(79,70,229,0.06),transparent_65%)] p-8 sm:p-12">
+          <Surface className="mt-5 flex flex-col items-start p-8 sm:p-12">
             <div
               aria-hidden="true"
               className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-bold text-primary"
@@ -553,13 +552,15 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const dirty =
     savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
 
+  // Reuse the shared unsaved-work guard so link navigation, reloads and
+  // workspace switches (which navigate via the user menu) all offer the same
+  // cancel-without-loss protection as the editor's Back control.
+  const editorLeaveMessage =
+    "You have unsaved changes. Leave the editor and discard them?";
+  useUnsavedNavigationGuard(dirty, editorLeaveMessage);
+
   function backToApp() {
-    if (
-      !dirty ||
-      window.confirm(
-        "You have unsaved changes. Leave the editor and discard them?",
-      )
-    ) {
+    if (!dirty || window.confirm(editorLeaveMessage)) {
       router.push("/app/quizzes");
     }
   }
@@ -989,13 +990,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
       <PublishedVersionHistory
         client={client}
         onCreateAssessment={(version) => {
-          if (
-            dirty &&
-            !window.confirm(
-              "You have unsaved changes. Leave the editor and discard them?",
-            )
-          )
-            return;
+          if (dirty && !window.confirm(editorLeaveMessage)) return;
           const query = new URLSearchParams({
             quizId: version.quizId,
             quizVersionId: version.id,

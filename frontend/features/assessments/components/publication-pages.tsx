@@ -116,7 +116,7 @@ function PublicationEntry() {
     router.push(`/app/assessments/${id}`);
   }
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-4xl space-y-5">
       <h1 className="font-heading text-3xl font-bold">
         Assessment Publications
       </h1>

@@ -49,14 +49,6 @@ function StudentNotificationsPage() {
   const scope = `${user?.id}:${getSessionGeneration()}`;
   return (
     <ApplicationShell currentSection="notifications">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link className={OUTLINE_LINK_CLASSES} href="/app">
-          Back to application home
-        </Link>
-        <p className="text-sm font-semibold text-primary">
-          Learning · Assessment notices
-        </p>
-      </div>
       {!user?.roles.includes("STUDENT") ? (
         <Alert title="Student access required" variant="warning">
           The assessment inbox belongs to the authenticated recipient with
@@ -175,7 +167,7 @@ export function InboxScreen({
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-primary">
@@ -223,7 +215,10 @@ export function InboxScreen({
           </p>
         </Surface>
       ) : (
-        <ul aria-label="Assessment notifications" className="space-y-4">
+        <ul
+          aria-label="Assessment notifications"
+          className="grid gap-4 xl:grid-cols-2"
+        >
           {items.map((item) => {
             const cutoff = confirmedCutoff(item);
             return (
@@ -319,13 +314,10 @@ function StudentNotificationDetailPage({
   const scope = `${user?.id}:${getSessionGeneration()}:${notificationId}`;
   return (
     <ApplicationShell currentSection="notifications">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6">
         <Link className={OUTLINE_LINK_CLASSES} href="/app/notifications">
           Back to inbox
         </Link>
-        <p className="text-sm font-semibold text-primary">
-          Learning · Assessment notice
-        </p>
       </div>
       {!user?.roles.includes("STUDENT") ? (
         <Alert title="Student access required" variant="warning">
@@ -409,7 +401,7 @@ export function NotificationDetailScreen({
 
   if (notice === null)
     return (
-      <Surface className="mx-auto max-w-3xl p-6">
+      <Surface className="p-6">
         <h1 className="font-heading text-3xl font-bold">Assessment notice</h1>
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
@@ -442,7 +434,7 @@ export function NotificationDetailScreen({
 
   const cutoff = confirmedCutoff(notice);
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">
@@ -476,7 +468,7 @@ export function NotificationDetailScreen({
       ) : null}
       <Surface className="space-y-4 p-5 sm:p-6">
         <h2 className="font-heading text-xl font-bold">Notice message</h2>
-        <p className="break-words whitespace-pre-line text-sm leading-7 text-foreground-secondary">
+        <p className="max-w-3xl break-words whitespace-pre-line text-sm leading-7 text-foreground-secondary">
           {notice.message}
         </p>
       </Surface>

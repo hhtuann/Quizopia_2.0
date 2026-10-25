@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
+import { confirmUnsavedWorkLeaving } from "../../features/attempts/hooks/use-unsaved-navigation-guard";
 import { BookOpenIcon } from "../ui/icons";
 
 const workspaceLabels = {
@@ -90,10 +91,20 @@ export function AuthenticatedUserMenu() {
   }
 
   function switchTo(workspaceToOpen: "LEARNING" | "TEACHING") {
+    // A workspace switch navigates away from the current screen. Screens with
+    // unsaved work (Quiz drafts, pending assessment forms, active attempts)
+    // must be able to cancel; cancelling keeps workspace state and URL intact.
+    if (!confirmUnsavedWorkLeaving()) return;
     if (switchWorkspace(workspaceToOpen)) {
       setMessage(null);
       clearNotice();
-      closeAndRestoreFocus();
+      setOpen(false);
+      // The previous workspace's URL is no longer meaningful; land on the
+      // workspace home instead of leaving a Teaching screen open under a
+      // Learning workspace (and vice versa). Client navigation only: roles,
+      // tokens and refresh state are untouched.
+      router.replace("/app");
+      triggerRef.current?.focus();
     }
   }
 

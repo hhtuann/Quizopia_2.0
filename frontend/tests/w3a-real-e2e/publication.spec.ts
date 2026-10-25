@@ -17,6 +17,7 @@ import {
   publishExactSource,
   registerTeacher,
   utcField,
+  utcLocalParts,
 } from "./helpers";
 
 test("real PUBLIC pinned create/replay/edit/conflicts/503/OPEN/extend/CLOSE and confidential session", async ({
@@ -30,10 +31,16 @@ test("real PUBLIC pinned create/replay/edit/conflicts/503/OPEN/extend/CLOSE and 
     "Actual Quiz draft/save/publish/history selected immutable version one through frontend.",
   );
   await page.getByRole("radio", { name: "Public", exact: true }).check();
+  const scheduleParts = utcLocalParts(-2);
   await page
-    .getByLabel("Participation start (UTC)")
-    .fill(utcField(-2, "123456"));
-  await page.getByLabel("Participation end (UTC)").fill(utcField(60, "654321"));
+    .getByLabel("Participation start", { exact: true })
+    .fill(scheduleParts.date);
+  await page.getByLabel("Participation start time").fill(scheduleParts.time);
+  const endParts = utcLocalParts(60);
+  await page
+    .getByLabel("Participation end", { exact: true })
+    .fill(endParts.date);
+  await page.getByLabel("Participation end time").fill(endParts.time);
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   const createdResponse = commandResponse(page, publicationBase, "POST");
   await confirm(page, "Create DRAFT");
@@ -51,8 +58,12 @@ test("real PUBLIC pinned create/replay/edit/conflicts/503/OPEN/extend/CLOSE and 
   expect(current.configuration.quizVersionId === source.quizVersionId).toBe(
     true,
   );
-  expect(current.configuration.startAt.endsWith(".123456Z")).toBe(true);
-  expect(current.configuration.endAt.endsWith(".654321Z")).toBe(true);
+  expect(new Date(current.configuration.startAt).getTime()).toBe(
+    Date.parse(scheduleParts.instant),
+  );
+  expect(new Date(current.configuration.endAt).getTime()).toBe(
+    Date.parse(endParts.instant),
+  );
   expect(Boolean(current.privateLocator)).toBe(true);
   expect(await page.locator("code").count()).toBe(0);
   evidence(
@@ -225,9 +236,13 @@ test("real PUBLIC pinned create/replay/edit/conflicts/503/OPEN/extend/CLOSE and 
   await page
     .getByRole("button", { name: "Extend participation schedule" })
     .click();
+  const extendedParts = utcLocalParts(120);
   await page
-    .getByLabel("Extended participation end (UTC)")
-    .fill(utcField(120, "654321"));
+    .getByLabel("Extended participation end", { exact: true })
+    .fill(extendedParts.date);
+  await page
+    .getByLabel("Extended participation end time")
+    .fill(extendedParts.time);
   await page.getByLabel("Extended Attempt duration (minutes)").fill("65");
   await page.getByRole("button", { name: "Review schedule extension" }).click();
   const extendedResponse = commandResponse(page, "/schedule", "PATCH");
@@ -328,10 +343,16 @@ test("real CLASS ownership/membership, explicit monitoring, STUDENT denial and A
   const source = await publishExactSource(page);
   await page.getByRole("radio", { name: "Classroom", exact: true }).check();
   await page.getByLabel("Classroom ID").fill(classroom.body.id);
+  const scheduleParts = utcLocalParts(-2);
   await page
-    .getByLabel("Participation start (UTC)")
-    .fill(utcField(-2, "123456"));
-  await page.getByLabel("Participation end (UTC)").fill(utcField(60, "654321"));
+    .getByLabel("Participation start", { exact: true })
+    .fill(scheduleParts.date);
+  await page.getByLabel("Participation start time").fill(scheduleParts.time);
+  const endParts = utcLocalParts(60);
+  await page
+    .getByLabel("Participation end", { exact: true })
+    .fill(endParts.date);
+  await page.getByLabel("Participation end time").fill(endParts.time);
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   const createdResponse = commandResponse(page, publicationBase, "POST");
   await confirm(page, "Create DRAFT");
@@ -615,10 +636,16 @@ test("real committed creation with lost response retains original key and reconc
   const actorMe = await actor.fetch<{ id: string }>("/api/auth/me");
   const source = await publishExactSource(page);
   await page.getByRole("radio", { name: "Public", exact: true }).check();
+  const scheduleParts = utcLocalParts(-2);
   await page
-    .getByLabel("Participation start (UTC)")
-    .fill(utcField(-2, "123456"));
-  await page.getByLabel("Participation end (UTC)").fill(utcField(60, "654321"));
+    .getByLabel("Participation start", { exact: true })
+    .fill(scheduleParts.date);
+  await page.getByLabel("Participation start time").fill(scheduleParts.time);
+  const endParts = utcLocalParts(60);
+  await page
+    .getByLabel("Participation end", { exact: true })
+    .fill(endParts.date);
+  await page.getByLabel("Participation end time").fill(endParts.time);
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   const creationRequests: { key: string; body: string | null }[] = [];
   let receivedCreationResponse = false;

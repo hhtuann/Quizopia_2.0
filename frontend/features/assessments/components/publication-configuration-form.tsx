@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type { Configuration } from "../api/publication-contract.generated";
 import { configurationSchema } from "../model/publication";
 import { PublicationConfirmation } from "./publication-confirmation";
@@ -44,6 +45,33 @@ export function PublicationConfigurationForm({
   const [review, setReview] = useState<Configuration | null>(null);
   const set = (field: keyof typeof fields, value: string) =>
     setFields((current) => ({ ...current, [field]: value }));
+
+  // A pending create/edit form is unsaved work: leaving via links, reloads or
+  // a workspace switch must be cancellable without losing entered values.
+  const initialFields = useMemo(
+    () => ({
+      title: initial.title,
+      description: initial.description ?? "",
+      audience: initial.audience,
+      classroomId: initial.classroomId ?? "",
+      monitoringChoice: initial.monitoringChoice,
+      startAt: initial.startAt,
+      endAt: initial.endAt,
+      durationMinutes: String(initial.durationMinutes),
+    }),
+    [initial],
+  );
+  const formDirty = useMemo(
+    () =>
+      (Object.keys(fields) as (keyof typeof fields)[]).some(
+        (key) => fields[key] !== initialFields[key],
+      ),
+    [fields, initialFields],
+  );
+  useUnsavedNavigationGuard(
+    formDirty && !disabled,
+    "This form has unsaved changes. Leave this page and discard them?",
+  );
 
   function submit(event: FormEvent) {
     event.preventDefault();

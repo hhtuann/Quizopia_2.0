@@ -558,6 +558,24 @@ export function utcField(offsetMinutes: number, fraction: string) {
   return `${new Date(Date.now() + offsetMinutes * 60_000).toISOString().slice(0, 19)}.${fraction}`;
 }
 
+/**
+ * Local date/time parts (plus the exact emitted UTC instant) for filling the
+ * shared DateTimeField inputs with a now-offset instant in any runner timezone.
+ */
+export function utcLocalParts(offsetMinutes: number): {
+  date: string;
+  time: string;
+  instant: string;
+} {
+  const d = new Date(Date.now() + offsetMinutes * 60_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    instant: d.toISOString(),
+  };
+}
+
 export { publicationBase };
 
 export async function fixtureControl(
