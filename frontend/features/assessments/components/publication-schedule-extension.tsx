@@ -1,10 +1,11 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type {
   OwnerView,
   Schedule,
@@ -17,12 +18,20 @@ export function ScheduleExtension({
   publication,
   disabled,
   isPending,
+  onDirtyChange,
   onSubmit,
 }: {
   readonly publication: OwnerView;
   readonly disabled: boolean;
   readonly isPending: boolean;
   readonly onSubmit: (input: Schedule) => void;
+  /**
+   * Notifies the parent whenever the form has unsaved values. The parent owns
+   * the Hide toggle and must confirm before discarding them. Unsaved-work
+   * protection itself is registered here and stays active regardless of
+   * disabled state: a revision-conflicted form still holds unsaved values.
+   */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   // The authoritative end instant, kept verbatim: an untouched field must
   // resubmit the exact server value, preserving seconds and microseconds.
@@ -35,6 +44,16 @@ export function ScheduleExtension({
   );
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<Schedule | null>(null);
+  const dirty =
+    editedEnd !== null ||
+    duration !== String(publication.configuration.durationMinutes);
+  useUnsavedNavigationGuard(
+    dirty,
+    "This schedule extension has unsaved values. Leave this page and discard them?",
+  );
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   function submit(event: FormEvent) {
     event.preventDefault();
     if (disabled || review !== null) return;

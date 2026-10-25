@@ -28,6 +28,7 @@ import { AuthProvider } from "../../auth/auth-provider";
 import type { AuthSessionService } from "../../auth/session/auth-session-service";
 import { createAccessTokenVault } from "../../auth/session/access-token-vault";
 import { createSessionRuntime } from "../../auth/session/session-runtime";
+import { confirmUnsavedWorkLeaving } from "../../attempts/hooks/use-unsaved-navigation-guard";
 
 const authRuntime = createSessionRuntime(createAccessTokenVault());
 const authStub: AuthSessionService = {
@@ -1064,5 +1065,129 @@ describe("Authoritative Publication lifecycle", () => {
       screen.getByRole("button", { name: "Hide private locator" }),
     );
     expect(screen.queryByText(locator)).not.toBeInTheDocument();
+  });
+
+  it("hiding a dirty schedule extension confirms; cancel keeps values, accept hides", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    const duration = screen.getByLabelText(
+      "Extended Attempt duration (minutes)",
+    );
+    fireEvent.change(duration, { target: { value: "45" } });
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    );
+    // Cancel: the extension stays open with the entered value intact.
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Extended Attempt duration (minutes)"),
+    ).toHaveValue(45);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    );
+    // Accept: the extension is hidden.
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Extended Attempt duration (minutes)"),
+    ).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("hiding a clean schedule extension never asks for confirmation", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide schedule extension" }),
+    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    ).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("a dirty schedule extension registers unsaved work for workspace switches", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Extend participation schedule",
+      }),
+    );
+    // Clean extension: leaving is allowed without any confirmation.
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(true);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    // Dirty extension: the registry blocks the leave and the switch must not
+    // change workspace state or URL.
+    fireEvent.change(
+      screen.getByLabelText("Extended Attempt duration (minutes)"),
+      { target: { value: "45" } },
+    );
+    expect(confirmUnsavedWorkLeaving()).toBe(false);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
+  });
+
+  it("a revision-conflicted (disabled) DRAFT form remains protected as unsaved work", () => {
+    // The form is disabled exactly as a revision conflict or blocked state
+    // does; entered values must still be protected from silent discard.
+    render(
+      <PublicationConfigurationForm
+        disabled
+        initial={configuration}
+        mode="edit"
+        onSubmit={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Publication title"), {
+      target: { value: "Unsaved conflicting edit" },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(false);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    confirmSpy.mockRestore();
+  });
+
+  it("a clean form does not request leave confirmation", () => {
+    render(
+      <PublicationConfigurationForm
+        initial={configuration}
+        mode="edit"
+        onSubmit={() => {}}
+      />,
+    );
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(true);
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

@@ -92,7 +92,13 @@ export function PublicationDetailScreen({
   );
   const [editBase, setEditBase] = useState<OwnerView | null>(null);
   const [editReset, setEditReset] = useState(0);
+  // Unsaved-value flags reported by the edit form / schedule extension so the
+  // parent's destructive close controls (Cancel editing, Hide schedule
+  // extension) can confirm instead of silently discarding entered values.
+  // Remounting the child (key change / reopen) resets its report to false.
+  const [editDirty, setEditDirty] = useState(false);
   const [extension, setExtension] = useState<OwnerView | null>(null);
+  const [extensionDirty, setExtensionDirty] = useState(false);
 
   const refresh = useCallback((): Promise<OwnerView | null> => {
     const sequence = ++readSequence.current;
@@ -482,6 +488,7 @@ export function PublicationDetailScreen({
             isPending={busy}
             key={editReset}
             mode="edit"
+            onDirtyChange={setEditDirty}
             onSubmit={(configuration) =>
               void send({
                 kind: "update",
@@ -491,7 +498,18 @@ export function PublicationDetailScreen({
           />
           <Button
             disabled={blocked}
-            onClick={() => setEditBase(null)}
+            onClick={() => {
+              // Cancel editing discards unsaved values; confirm first.
+              // Cancelling keeps the form open with values intact.
+              if (
+                editDirty &&
+                !window.confirm(
+                  "This form has unsaved changes. Discard them and stop editing?",
+                )
+              )
+                return;
+              setEditBase(null);
+            }}
             variant="secondary"
           >
             Cancel editing
@@ -503,9 +521,22 @@ export function PublicationDetailScreen({
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={blocked || readFailure !== null}
-              onClick={() =>
-                setExtension((value) => (value ? null : publication))
-              }
+              onClick={() => {
+                if (extension === null) {
+                  setExtension(publication);
+                  return;
+                }
+                // The Hide toggle discards unsaved extension values; confirm
+                // first. Cancelling keeps the form open with values intact.
+                if (
+                  extensionDirty &&
+                  !window.confirm(
+                    "The schedule extension has unsaved values. Hide it and discard them?",
+                  )
+                )
+                  return;
+                setExtension(null);
+              }}
               variant="secondary"
             >
               {extension
@@ -558,6 +589,7 @@ export function PublicationDetailScreen({
                 }
                 isPending={busy}
                 key={extension.revision}
+                onDirtyChange={setExtensionDirty}
                 onSubmit={(input) => void send({ kind: "extend", input })}
                 publication={extension}
               />

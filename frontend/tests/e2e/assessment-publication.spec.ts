@@ -377,6 +377,48 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
   ).toBe(false);
 });
 
+test("hiding a dirty schedule extension requires confirmation and cancel keeps values", async ({
+  page,
+}) => {
+  await mockAuth(page);
+  await mockPublication(page, {
+    initial: {
+      ...draft,
+      state: "OPEN",
+      revision: 1,
+      openedAt: "2026-10-16T07:30:00Z",
+    },
+  });
+  await page.goto(`/app/assessments/${publicationId}`);
+  await page
+    .getByRole("button", { name: "Extend participation schedule" })
+    .click();
+  await page.getByLabel("Extended Attempt duration (minutes)").fill("45");
+
+  // Cancel: the extension stays open with the entered value intact.
+  page.once("dialog", (dialog) => {
+    expect(dialog.message()).toContain("unsaved values");
+    void dialog.dismiss();
+  });
+  await page.getByRole("button", { name: "Hide schedule extension" }).click();
+  await expect(
+    page.getByRole("button", { name: "Hide schedule extension" }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Extended Attempt duration (minutes)"),
+  ).toHaveValue("45");
+
+  // Accept: the extension is hidden.
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Hide schedule extension" }).click();
+  await expect(
+    page.getByRole("button", { name: "Extend participation schedule" }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Extended Attempt duration (minutes)"),
+  ).toHaveCount(0);
+});
+
 test("intercepted CLASS requires explicit monitoring and blocked CLOSE remains OPEN at 375px", async ({
   page,
 }) => {
