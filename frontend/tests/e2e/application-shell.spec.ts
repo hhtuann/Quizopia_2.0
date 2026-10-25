@@ -269,6 +269,11 @@ test.describe("workspace switching", () => {
   }) => {
     await mockAuthenticatedBootstrap(page);
     await page.goto("/app");
+    // Wait for a fully authenticated render before interacting: under heavy
+    // parallel dev-server load the bootstrap can still be in flight.
+    await expect(
+      page.getByRole("heading", { name: "Your Quizopia workspace" }),
+    ).toBeVisible({ timeout: 15_000 });
 
     // Enter Teaching and navigate to a Teaching-only route.
     await page
