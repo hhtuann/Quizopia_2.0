@@ -113,7 +113,7 @@ export function DateTimeField({
       >
         {label}
       </label>
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:gap-2">
         <input
           aria-describedby={
             [error ? errorId : null, helperText ? helperId : null]
@@ -121,7 +121,7 @@ export function DateTimeField({
               .join(" ") || undefined
           }
           aria-invalid={error ? true : undefined}
-          className={CONTROL_CLASSES}
+          className={`${CONTROL_CLASSES} min-[420px]:min-w-0 min-[420px]:flex-[2]`}
           disabled={disabled}
           id={fieldId}
           onChange={(e) => handleDateChange(e.target.value)}
@@ -131,7 +131,7 @@ export function DateTimeField({
         />
         <input
           aria-label={`${label} time`}
-          className={`${CONTROL_CLASSES} sm:w-28`}
+          className={`${CONTROL_CLASSES} min-[420px]:min-w-[7.5rem] min-[420px]:flex-1`}
           disabled={disabled}
           id={timeId}
           onChange={(e) => handleTimeChange(e.target.value)}

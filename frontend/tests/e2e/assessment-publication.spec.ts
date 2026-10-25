@@ -221,6 +221,18 @@ async function confirm(page: Page, label: string) {
     .click();
 }
 
+function localPartsFor(utcInstant: string): {
+  date: string;
+  time: string;
+} {
+  const d = new Date(utcInstant);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
 test("intercepted history selection completes reviewed create/edit/OPEN/extend/CLOSE with pinned source", async ({
   page,
 }) => {
@@ -258,22 +270,32 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
     ),
   );
   await page.getByRole("radio", { name: "Public", exact: true }).check();
+  const startParts = localPartsFor("2026-10-16T08:00:00Z");
+  const endParts = localPartsFor("2026-10-16T09:00:00Z");
   await page
-    .getByLabel("Participation start (UTC)")
-    .fill("2026-10-16T08:00:00.123456");
+    .getByLabel("Participation start", { exact: true })
+    .fill(startParts.date);
+  await page.getByLabel("Participation start time").fill(startParts.time);
   await page
-    .getByLabel("Participation end (UTC)")
-    .fill("2026-10-16T09:00:00.654321");
+    .getByLabel("Participation end", { exact: true })
+    .fill(endParts.date);
+  await page.getByLabel("Participation end time").fill(endParts.time);
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   await expect(page.getByRole("dialog").getByText(quizVersionId)).toBeVisible();
   await confirm(page, "Create DRAFT");
   await expect(page).toHaveURL(`/app/assessments/${publicationId}`);
   await page.getByRole("button", { name: "Edit DRAFT" }).click();
-  await expect(page.getByLabel("Participation start (UTC)")).toHaveValue(
-    "2026-10-16T08:00:00.123456",
+  await expect(
+    page.getByLabel("Participation start", { exact: true }),
+  ).toHaveValue(startParts.date);
+  await expect(page.getByLabel("Participation start time")).toHaveValue(
+    startParts.time,
   );
-  await expect(page.getByLabel("Participation end (UTC)")).toHaveValue(
-    "2026-10-16T09:00:00.654321",
+  await expect(
+    page.getByLabel("Participation end", { exact: true }),
+  ).toHaveValue(endParts.date);
+  await expect(page.getByLabel("Participation end time")).toHaveValue(
+    endParts.time,
   );
   await page.getByLabel("Publication title").fill("Reviewed edited assessment");
   await page.getByRole("button", { name: "Review DRAFT changes" }).click();
@@ -318,16 +340,16 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
     audience: "PUBLIC",
     monitoringChoice: "DISABLED",
     classroomId: null,
-    startAt: "2026-10-16T08:00:00.123456Z",
-    endAt: "2026-10-16T09:00:00.654321Z",
+    startAt: "2026-10-16T08:00:00.000Z",
+    endAt: "2026-10-16T09:00:00.000Z",
   });
   expect(commands[1]?.body).toMatchObject({
     expectedRevision: 0,
     configuration: {
       quizVersionId,
       versionNumber: 3,
-      startAt: "2026-10-16T08:00:00.123456Z",
-      endAt: "2026-10-16T09:00:00.654321Z",
+      startAt: "2026-10-16T08:00:00.000Z",
+      endAt: "2026-10-16T09:00:00.000Z",
     },
   });
   expect(commands[2]?.body).toEqual({ expectedRevision: 1 });
