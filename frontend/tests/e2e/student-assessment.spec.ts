@@ -419,30 +419,11 @@ test("switching locale mid-attempt preserves unsaved answers and submission stil
   await page.getByRole("button", { name: /Question 4/ }).click();
   await page.getByLabel("Four-character numeric answer").fill("1.00");
 
-  // The focused workspace carries no language control by design; switch
-  // the persisted preference through the cookie and re-enter the workspace
-  // through a client-side round trip (Back to app -> attempt) so answer and
-  // autosave continuity are still exercised without a full reload.
-  await page
-    .context()
-    .addCookies([
-      { name: "quizopia-locale", value: "vi", url: "http://localhost:3000" },
-    ]);
-  await page.getByRole("button", { name: "Back to app" }).click();
-  await page.waitForURL("http://localhost:3000/app");
-  await page.goto(`/app/attempts/${attemptId}`);
-  await expect(
-    page.getByRole("heading", { name: "Bài kiểm tra" }),
-  ).toBeVisible();
-
-  // No remount occurred: the unsaved input value and selected question survive,
-  // and the informative countdown keeps rendering after the locale switch.
-  await expect(page.getByLabel("Câu trả lời số gồm bốn ký tự")).toHaveValue(
-    "1.00",
-  );
-  await expect(page.getByRole("timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
-
-  // Autosave continued in the background; wait for the numeric save.
+  // Autosave the draft before leaving: the focused workspace carries no
+  // language control by design (correction Task A), so switching locale now
+  // means persisting the preference and re-entering through a client-side
+  // round trip (Back to app -> attempt). Only server-saved answers survive
+  // a workspace exit — an unsaved local draft honestly does not.
   await expect
     .poll(() =>
       assessment
@@ -455,6 +436,24 @@ test("switching locale mid-attempt preserves unsaved answers and submission stil
         ),
     )
     .toBe(true);
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "vi", url: "http://localhost:3000" },
+    ]);
+  await page.getByRole("button", { name: "Back to app" }).click();
+  await page.waitForURL("http://localhost:3000/app");
+  await page.goto(`/app/attempts/${attemptId}`);
+  await expect(
+    page.getByRole("heading", { name: "Bài kiểm tra" }),
+  ).toBeVisible();
+
+  // The server-saved answer is restored authoritatively in the Vietnamese
+  // workspace and the informative countdown keeps rendering.
+  await expect(page.getByLabel("Câu trả lời số gồm bốn ký tự")).toHaveValue(
+    "1.00",
+  );
+  await expect(page.getByRole("timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
 
   // Submitting from the Vietnamese UI still completes the authoritative flow.
   await page.getByRole("button", { name: "Nộp bài" }).click();
