@@ -18,6 +18,7 @@ import type { AuthSessionService } from "../../auth/session/auth-session-service
 import { createAccessTokenVault } from "../../auth/session/access-token-vault";
 import { createSessionRuntime } from "../../auth/session/session-runtime";
 import { I18nProvider } from "../../../lib/i18n/provider";
+import { LanguageMenu } from "../../../components/ui/language-menu";
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
@@ -46,8 +47,9 @@ const authStub: AuthSessionService = {
   runtime: createSessionRuntime(createAccessTokenVault()),
 };
 
-// The workspace header renders the only LanguageMenu; switching through it is
-// also the no-remount regression for locale changes mid-attempt.
+// The attempt workspace carries no language control by design (the account
+// menu owns switching); the harness mounts a LanguageMenu beside the screen
+// to drive the no-remount regression for locale changes mid-attempt.
 function withProviders(
   element: React.ReactElement,
   initialLocale: "vi" | "en" = "vi",
@@ -55,7 +57,10 @@ function withProviders(
   return (
     <I18nProvider initialLocale={initialLocale}>
       <AuthProvider service={authStub}>
-        <AttemptEphemeralProvider>{element}</AttemptEphemeralProvider>
+        <AttemptEphemeralProvider>
+          {element}
+          <LanguageMenu />
+        </AttemptEphemeralProvider>
       </AuthProvider>
     </I18nProvider>
   );
@@ -162,16 +167,15 @@ describe("Student attempt bilingual presentation", () => {
         />,
       ),
     );
-    expect(
-      screen.getByRole("heading", { name: "Bài kiểm tra của học sinh" }),
-    ).toBeVisible();
-    expect(screen.getByText("Đồng hồ đếm ngược tham khảo")).toBeVisible();
-    expect(screen.getByText("Đã trả lời 0 trên 2")).toBeVisible();
-    // Attempt state enum tokens remain canonical.
-    expect(screen.getByText("ACTIVE")).toBeVisible();
+    // Compact header: generic localized title (no authorized preview title
+    // in this harness), countdown time only, no state/UUID/ordinal chrome.
+    expect(screen.getByRole("heading", { name: "Bài kiểm tra" })).toBeVisible();
+    expect(screen.queryByText("Đồng hồ đếm ngược tham khảo")).toBeNull();
+    expect(screen.queryByText("ACTIVE")).toBeNull();
     expect(screen.getByRole("timer").textContent).toMatch(
       /^\d{2,}:\d{2}:\d{2}$/,
     );
+    expect(screen.getByText("Đã trả lời 0 trên 2")).toBeVisible();
     attemptView.unmount();
     vi.mocked(api.getResult).mockResolvedValue({ ok: true, value: result });
     vi.mocked(api.getAggregate).mockResolvedValue({
@@ -219,9 +223,7 @@ describe("Student attempt bilingual presentation", () => {
     switchLocale("English");
 
     // Same DOM nodes: no locale-keyed remount of the attempt screen.
-    expect(
-      screen.getByRole("heading", { name: "Student assessment" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Assessment" })).toBeVisible();
     expect(screen.getByLabelText("Four-character numeric answer")).toHaveValue(
       "2.50",
     );

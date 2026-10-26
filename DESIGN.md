@@ -408,6 +408,35 @@ Application:
 - dense editors and tables may use wider content regions;
 - reading-heavy pages should constrain line length.
 
+### 8.1.1 Dense functional workspaces (authoritative rule)
+
+**Dense functional workspaces — including the Student Attempt workspace, Quiz
+Editor, results dashboards and management screens — must use the available
+viewport width appropriately. Do not apply marketing-style or narrow centered
+content containers (`max-w-4xl`/`max-w-5xl`-style wrappers) to entire
+task-oriented workspaces.**
+
+This rule reconciles with §5 (typography) and §8.1 above as follows:
+
+- Narrow reading columns remain appropriate **for articles, prose and long-form
+  paragraphs** — constrain the *text inside* cards (for example a question
+  stem capped at `max-w-3xl`), never the entire workspace.
+- Narrow centered containers are **not the default** for complex application
+  workspaces; copy-pasting generic page wrappers onto task screens is a design
+  defect, not a convenience.
+- Sidebar layouts (question navigators, tool rails) must not create large
+  unused outer gutters; use fluid CSS Grid such as
+  `grid-cols-[minmax(0,1fr)_17–20rem]` with design-token gutters.
+- Dense UIs use responsive fluid grids; the main content column takes
+  `minmax(0, 1fr)` and sidebars stay compact.
+- Content width is selected by the actual task: dashboards/management wide,
+  prose reading-width, forms moderate.
+- Workspace geometry must be **visually reviewed at large desktop widths
+  (≥1920px)** as well as mobile — a 1920px viewport must not render a narrow
+  centered ~700–900px workspace with large empty sides.
+- Future frontend implementations follow this rule instead of copying narrow
+  generic page wrappers.
+
 ## 8.2 Horizontal Gutters
 
 Recommended:

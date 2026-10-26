@@ -404,9 +404,7 @@ test("same-document browser history warns before leaving an unsaved answer", asy
   await dialog.dismiss();
   await back;
   await expect(page.getByRole("radio", { name: /A.*Alpha/ })).toBeChecked();
-  await expect(
-    page.getByRole("heading", { name: "Student assessment" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
 });
 
 test("switching locale mid-attempt preserves unsaved answers and submission still succeeds", async ({
@@ -415,22 +413,27 @@ test("switching locale mid-attempt preserves unsaved answers and submission stil
   await mockStudentAuth(page);
   const assessment = await mockAssessment(page);
   await page.goto(`/app/attempts/${attemptId}`);
-  await expect(
-    page.getByRole("heading", { name: "Student assessment" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
 
   // Unsaved local work: a typed numeric answer not yet flushed to the server.
   await page.getByRole("button", { name: /Question 4/ }).click();
   await page.getByLabel("Four-character numeric answer").fill("1.00");
 
-  // Switch the application language to Vietnamese through the focused
-  // workspace header language menu (the application navbar is absent here).
-  await page.getByRole("button", { name: "Language: English" }).click();
-  await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
+  // The focused workspace carries no language control by design; switch
+  // the persisted preference through the cookie and re-enter the workspace
+  // through a client-side round trip (Back to app -> attempt) so answer and
+  // autosave continuity are still exercised without a full reload.
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "vi", url: "http://localhost:3000" },
+    ]);
+  await page.getByRole("button", { name: "Back to app" }).click();
+  await page.waitForURL("http://localhost:3000/app");
+  await page.goto(`/app/attempts/${attemptId}`);
   await expect(
-    page.getByRole("heading", { name: "Bài kiểm tra của học sinh" }),
+    page.getByRole("heading", { name: "Bài kiểm tra" }),
   ).toBeVisible();
-  await expect(page.getByText("Đồng hồ đếm ngược tham khảo")).toBeVisible();
 
   // No remount occurred: the unsaved input value and selected question survive,
   // and the informative countdown keeps rendering after the locale switch.
@@ -521,11 +524,9 @@ test("active attempt loads into a dedicated workspace without the application na
   await mockStudentAuth(page);
   await mockAssessment(page);
   await page.goto(`/app/attempts/${attemptId}`);
-  await expect(
-    page.getByRole("heading", { name: "Student assessment" }),
-  ).toBeVisible();
-  // No standard application navbar or account menu inside the focused
-  // workspace; its only chrome is the workspace header.
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
+  // No standard application navbar, account menu OR language control inside
+  // the focused workspace; its only chrome is the workspace header.
   await expect(
     page.getByRole("navigation", { name: "Primary navigation" }),
   ).toHaveCount(0);
@@ -533,13 +534,23 @@ test("active attempt loads into a dedicated workspace without the application na
     page.getByRole("button", { name: /Open user menu for/ }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Language: English" }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Back to app" })).toBeVisible();
+    page.getByRole("button", { name: /Language: |Ngôn ngữ: / }),
+  ).toHaveCount(0);
+  // Back control is the shared icon-only button (no visible text).
+  const back = page.getByRole("button", { name: "Back to app" });
+  await expect(back).toBeVisible();
+  await expect(back.locator("svg")).toBeVisible();
+  await expect(back).toHaveText("");
   await expect(
     page.getByRole("button", { name: "Submit attempt" }),
   ).toBeVisible();
   await expect(page.getByRole("timer")).toBeVisible();
+  // Compact timer: time only, no explanatory caption text.
+  await expect(page.getByRole("timer")).toHaveText(/^\d{2,}:\d{2}:\d{2}$/);
+  // No technical metadata in the visible header.
+  expect(await page.locator("header").innerText()).not.toMatch(
+    /ACTIVE|[0-9a-f]{8}-[0-9a-f]{4}|Revision/,
+  );
 });
 
 test("navigator jumps scroll the addressed question fully clear of the sticky header", async ({
@@ -587,9 +598,7 @@ test("workspace stays readable and overflow-free at 390px with the collapsible n
   const assessment = await mockAssessment(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/app/attempts/${attemptId}`);
-  await expect(
-    page.getByRole("heading", { name: "Student assessment" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,

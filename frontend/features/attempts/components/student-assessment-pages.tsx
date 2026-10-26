@@ -162,6 +162,7 @@ function StudentFocusedWorkspace({
 }: {
   readonly children: React.ReactNode;
 }) {
+  const router = useRouter();
   const { t } = useI18n();
   const blocked = useStudentAccessBlock();
   return (
@@ -178,21 +179,18 @@ function StudentFocusedWorkspace({
             <AttemptWorkspaceHeader
               actionsDisabled
               answeredCount={null}
-              attemptId={null}
               onAbandon={undefined}
+              onBack={() => router.push("/app")}
               onSubmit={undefined}
-              ordinal={null}
               realtime={null}
               remainingLabel={null}
               savePhase={null}
               showActions={false}
-              state={null}
-              title={t("Student assessment")}
+              studentName={null}
+              title={t("Assessment")}
               totalCount={null}
             />
-            <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
-              {blocked}
-            </div>
+            <div className="w-full px-4 py-10 sm:px-6 lg:px-8">{blocked}</div>
           </>
         )}
       </main>
@@ -307,7 +305,8 @@ export function StudentAssessmentJoinScreen({
   const router = useRouter();
   const { t } = useI18n();
   const localizeRef = useLocalizeRef();
-  const { rememberPublicLocator } = useAttemptEphemeralContext();
+  const { rememberPublicLocator, rememberPublicationTitle } =
+    useAttemptEphemeralContext();
   const [mode, setMode] = useState<EntryMode>("PUBLIC");
   const [locator, setLocator] = useState("");
   const [publicationId, setPublicationId] = useState("");
@@ -359,6 +358,9 @@ export function StudentAssessmentJoinScreen({
       return;
     }
     setPreview(result.value);
+    // Thread the authorized preview title into session memory so the focused
+    // attempt workspace can show the real exam title (AttemptView has none).
+    rememberPublicationTitle(result.value.publicationId, result.value.title);
     setUncertain(null);
   };
 
@@ -546,27 +548,25 @@ function FocusedWorkspaceFrame({
 }: {
   readonly children: React.ReactNode;
 }) {
+  const router = useRouter();
   const { t } = useI18n();
   return (
     <div className="flex min-h-dvh flex-col">
       <AttemptWorkspaceHeader
         actionsDisabled
         answeredCount={null}
-        attemptId={null}
         onAbandon={undefined}
+        onBack={() => router.push("/app")}
         onSubmit={undefined}
-        ordinal={null}
         realtime={null}
         remainingLabel={null}
         savePhase={null}
         showActions={false}
-        state={null}
-        title={t("Student assessment")}
+        studentName={null}
+        title={t("Assessment")}
         totalCount={null}
       />
-      <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-10 sm:px-6">
-        {children}
-      </div>
+      <div className="w-full flex-1 px-4 py-10 sm:px-6 lg:px-8">{children}</div>
     </div>
   );
 }
@@ -1048,6 +1048,7 @@ export function AttemptScreen({
 }) {
   const router = useRouter();
   const { t, localize, locale } = useI18n();
+  const { user } = useAuth();
   const localizeRef = useLocalizeRef();
   const locatorContext = useAttemptEphemeralContext();
   const coordinator = useAttemptCoordinator({
@@ -1055,6 +1056,19 @@ export function AttemptScreen({
     client,
   });
   const { attempt } = coordinator;
+  // Per-attempt review flags are client-side session state only: question
+  // numbers in React state, never sent to the backend, never persisted to
+  // browser storage, never touching answers, autosave or grading. Flags do
+  // not survive a hard reload; that limitation is documented.
+  const [flags, setFlags] = useState<ReadonlySet<number>>(() => new Set());
+  const toggleFlag = useCallback((questionNumber: number) => {
+    setFlags((current) => {
+      const next = new Set(current);
+      if (next.has(questionNumber)) next.delete(questionNumber);
+      else next.add(questionNumber);
+      return next;
+    });
+  }, []);
   // Current question tracks the navigator's current indicator; it is the
   // canonical question number, never an array index, so answer identity is
   // stable while scrolling and across locale changes.
@@ -1075,6 +1089,20 @@ export function AttemptScreen({
       "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
     ),
   );
+  /** Leaving the focused workspace confirms first while a terminal mutation
+   * outcome is unresolved; plain link navigation is guarded by the same hook. */
+  function backFromAttempt() {
+    if (
+      (uncertain !== null || terminalBusy) &&
+      !window.confirm(
+        t(
+          "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
+        ),
+      )
+    )
+      return;
+    router.push("/app");
+  }
   const { remaining, expired } = useInformativeCountdown(
     attempt,
     coordinator.refresh,
@@ -1434,26 +1462,25 @@ export function AttemptScreen({
       <AttemptWorkspaceHeader
         actionsDisabled={mutationsBlocked || uncertain !== null || terminalBusy}
         answeredCount={answered}
-        attemptId={attempt.attemptId}
         onAbandon={() => setConfirmation("abandon")}
+        onBack={backFromAttempt}
         onSubmit={() => setConfirmation("submit")}
-        ordinal={attempt.ordinal}
         realtime={<RealtimeStatusInline status={realtimeStatus} />}
         remainingLabel={
           remaining === null ? null : countdownLabel(remaining, localize)
         }
         savePhase={aggregateSavePhase(coordinator.statuses)}
         showActions={attempt.state === "ACTIVE"}
-        state={attempt.state}
-        title={t("Student assessment")}
+        studentName={user?.username ?? null}
+        title={
+          locatorContext.getPublicationTitle(attempt.publicationId) ??
+          t("Assessment")
+        }
         totalCount={attempt.questions.length}
       />
-      <div className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-4 py-6 sm:px-6">
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-foreground-muted">
-          <span>
-            {t("Revision {revision}", { revision: attempt.revision })}
-          </span>
-          {attempt.deadlineAt ? (
+      <div className="w-full flex-1 space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        {attempt.deadlineAt ? (
+          <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-foreground-muted">
             <span>
               {t("Deadline {deadline}", {
                 deadline: formatInstant(locale, attempt.deadlineAt, {
@@ -1461,8 +1488,8 @@ export function AttemptScreen({
                 }),
               })}
             </span>
-          ) : null}
-        </p>
+          </p>
+        ) : null}
 
         {attempt.closure?.closureCutoffAt ? (
           <Alert
@@ -1597,13 +1624,14 @@ export function AttemptScreen({
             ) : null}
           </Surface>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
             {/* DOM order keeps the navigator reachable first on narrow
               screens; the desktop grid places it beside the list. */}
             <div className="min-w-0 lg:col-start-2 lg:row-start-1">
               <AttemptQuestionNavigator
                 answers={coordinator.answers}
                 currentNumber={currentQuestion}
+                flags={flags}
                 onJump={jumpToQuestion}
                 questions={attempt.questions}
                 statuses={coordinator.statuses}
@@ -1616,6 +1644,7 @@ export function AttemptScreen({
                 answersDisabled={
                   mutationsBlocked || terminalBusy || uncertain !== null
                 }
+                flags={flags}
                 onAnswerChange={handleAnswerChange}
                 onCheckAuthoritative={(questionNumber) =>
                   void coordinator.checkAuthoritativeState(questionNumber)
@@ -1629,6 +1658,7 @@ export function AttemptScreen({
                 onRetryUncertain={(questionNumber) =>
                   void coordinator.retryUncertain(questionNumber)
                 }
+                onToggleFlag={toggleFlag}
                 onVisibleQuestionChange={handleVisibleQuestionChange}
                 questions={attempt.questions}
                 statuses={coordinator.statuses}

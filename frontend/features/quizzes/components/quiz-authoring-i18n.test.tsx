@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedRequestExecutor } from "../../../lib/api/authenticated-request";
 import type { HttpResponse } from "../../../lib/api/http-transport";
 import { I18nProvider } from "../../../lib/i18n/provider";
+import { LanguageMenu } from "../../../components/ui/language-menu";
 import { AuthProvider } from "../../auth/auth-provider";
 import { createAuthenticatedUser } from "../../auth/model/authenticated-user";
 import { createAccessTokenVault } from "../../auth/session/access-token-vault";
@@ -87,7 +88,13 @@ function renderAuthenticated(
 
   render(
     <I18nProvider initialLocale={options.locale ?? "vi"}>
-      <AuthProvider service={service}>{children}</AuthProvider>
+      <AuthProvider service={service}>
+        {children}
+        {/* The focused editor header no longer carries a language control;
+            mount one beside the screen so the locale-switch regression can
+            still drive a live switch without reloading. */}
+        <LanguageMenu />
+      </AuthProvider>
     </I18nProvider>,
   );
 }

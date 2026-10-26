@@ -18,20 +18,24 @@ export function AttemptQuestionCard({
   answer,
   actionsDisabled,
   answersDisabled,
+  flagged,
   onChange,
   onRetryFailed,
   onRetryUncertain,
   onCheckAuthoritative,
+  onToggleFlag,
   question,
   status,
 }: {
   readonly answer: Answer;
   readonly actionsDisabled: boolean;
   readonly answersDisabled: boolean;
+  readonly flagged: boolean;
   readonly onChange: (answer: Answer) => void;
   readonly onRetryFailed: () => void;
   readonly onRetryUncertain: () => void;
   readonly onCheckAuthoritative: () => void;
+  readonly onToggleFlag: () => void;
   readonly question: Question;
   readonly status: AnswerSaveStatus;
 }) {
@@ -53,13 +57,47 @@ export function AttemptQuestionCard({
             })}
           </p>
           <h2
-            className="mt-3 whitespace-pre-wrap break-words text-lg font-bold leading-8"
+            className="mt-3 max-w-3xl whitespace-pre-wrap break-words text-lg font-bold leading-8"
             id={headingId}
           >
             {question.stemMarkdown}
           </h2>
         </div>
-        <SaveStatus status={status} />
+        <div className="flex shrink-0 items-center gap-2">
+          <SaveStatus status={status} />
+          <button
+            aria-label={
+              flagged
+                ? t("Unflag question {number}", { number: question.number })
+                : t("Flag question {number}", { number: question.number })
+            }
+            aria-pressed={flagged}
+            className={`flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
+              flagged
+                ? "border-warning bg-warning/15 text-foreground"
+                : "border-border bg-surface text-foreground-secondary hover:border-warning/60 hover:text-foreground"
+            }`}
+            onClick={onToggleFlag}
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <line x1="4" x2="4" y1="22" y2="15" />
+            </svg>
+            <span className="sm:hidden">
+              {flagged ? t("Unflag") : t("Flag")}
+            </span>
+          </button>
+        </div>
       </div>
       <div className="mt-6">
         <AnswerField
@@ -118,10 +156,12 @@ export function AttemptQuestionList({
   actionsDisabled,
   answers,
   answersDisabled,
+  flags,
   onAnswerChange,
   onCheckAuthoritative,
   onRetryFailed,
   onRetryUncertain,
+  onToggleFlag,
   onVisibleQuestionChange,
   questions,
   statuses,
@@ -129,10 +169,12 @@ export function AttemptQuestionList({
   readonly actionsDisabled: boolean;
   readonly answers: Record<number, Answer>;
   readonly answersDisabled: boolean;
+  readonly flags: ReadonlySet<number>;
   readonly onAnswerChange: (questionNumber: number, answer: Answer) => void;
   readonly onCheckAuthoritative: (questionNumber: number) => void;
   readonly onRetryFailed: (questionNumber: number) => void;
   readonly onRetryUncertain: (questionNumber: number) => void;
+  readonly onToggleFlag: (questionNumber: number) => void;
   readonly onVisibleQuestionChange: (questionNumber: number) => void;
   readonly questions: readonly Question[];
   readonly statuses: Record<number, AnswerSaveStatus>;
@@ -175,11 +217,13 @@ export function AttemptQuestionList({
           actionsDisabled={actionsDisabled}
           answer={answers[question.number]!}
           answersDisabled={answersDisabled}
+          flagged={flags.has(question.number)}
           key={question.number}
           onChange={(answer) => onAnswerChange(question.number, answer)}
           onCheckAuthoritative={() => onCheckAuthoritative(question.number)}
           onRetryFailed={() => onRetryFailed(question.number)}
           onRetryUncertain={() => onRetryUncertain(question.number)}
+          onToggleFlag={() => onToggleFlag(question.number)}
           question={question}
           status={statuses[question.number] ?? { phase: "draft" }}
         />

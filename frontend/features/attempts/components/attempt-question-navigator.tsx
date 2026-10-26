@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState } from "react";
-import { CheckIcon } from "../../../components/ui/icons";
 import { useI18n } from "../../../lib/i18n/provider";
 import type { Answer, Question } from "../api/attempt-contract.generated";
 import type {
@@ -28,35 +27,49 @@ export function scrollQuestionIntoView(questionNumber: number): void {
     });
 }
 
+/**
+ * Numbered-box presentation. Precedence: flagged (amber) > unresolved save
+ * error (red honesty indicator) > in-flight save (blue) > answered (green) >
+ * unanswered (neutral). The current question keeps aria-current plus a
+ * restrained neutral ring that never overrides the state colors. No solid
+ * purple fills and no checkmarks.
+ */
 function boxClasses(
   current: boolean,
   answered: boolean,
+  flagged: boolean,
   phase: AnswerSavePhase,
 ): string {
-  if (current) return "border-primary bg-primary text-white";
+  let state = "border-border bg-surface text-foreground";
+  if (answered) state = "border-success/60 bg-success/10 text-foreground";
+  if (phase === "saving") state = "border-info/50 bg-info/5 text-foreground";
   if (phase === "failed" || phase === "conflict" || phase === "uncertain")
-    return "border-danger/50 bg-danger/5 text-foreground";
-  if (phase === "saving") return "border-info/50 bg-info/5 text-foreground";
-  if (phase === "saved" && answered)
-    return "border-success/40 bg-success/5 text-foreground";
-  return "border-border bg-surface text-foreground";
+    state = "border-danger/60 bg-danger/10 text-foreground";
+  if (flagged) state = "border-warning bg-warning/15 text-foreground";
+  const currentRing = current
+    ? " ring-1 ring-foreground/40 font-extrabold"
+    : "";
+  return `${state}${currentRing}`;
 }
 
 /**
  * One numbered box per question, keyed by the canonical question number from
- * the immutable publication snapshot. The accessible name carries both the
- * answered state and the exact save phase, so persistence is never implied
- * while a save is in flight, failed, conflicting or uncertain.
+ * the immutable publication snapshot. The accessible name carries the
+ * answered, flagged and exact save-phase state, so persistence is never
+ * implied while a save is in flight, failed, conflicting or uncertain.
  */
 export function AttemptQuestionNavigatorBoxes({
   answers,
   currentNumber,
+  flags,
   onJump,
   questions,
   statuses,
 }: {
   readonly answers: Record<number, Answer>;
   readonly currentNumber: number;
+  /** Question numbers the student flagged for review (client-side state). */
+  readonly flags: ReadonlySet<number>;
   readonly onJump: (questionNumber: number) => void;
   readonly questions: readonly Question[];
   readonly statuses: Record<number, AnswerSaveStatus>;
@@ -68,6 +81,7 @@ export function AttemptQuestionNavigatorBoxes({
         const answer = answers[question.number];
         const answered = answer !== undefined && !isUnanswered(answer);
         const phase = statuses[question.number]?.phase ?? "saved";
+        const flagged = flags.has(question.number);
         const current = currentNumber === question.number;
         return (
           <li key={question.number}>
@@ -75,16 +89,15 @@ export function AttemptQuestionNavigatorBoxes({
               aria-current={current ? "true" : undefined}
               aria-label={t("Question {number}, {status}", {
                 number: question.number,
-                status: `${answered ? t("Answered") : t("Unanswered")} · ${savePhaseLabel(phase, t)}`,
+                status: `${flagged ? `${t("Flagged")} · ` : ""}${
+                  answered ? t("Answered") : t("Unanswered")
+                } · ${savePhaseLabel(phase, t)}`,
               })}
-              className={`flex min-h-11 w-full items-center justify-center gap-1 rounded-lg border font-mono text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${boxClasses(current, answered, phase)}`}
+              className={`flex min-h-11 w-full items-center justify-center rounded-lg border font-mono text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${boxClasses(current, answered, flagged, phase)}`}
               onClick={() => onJump(question.number)}
               type="button"
             >
               {question.number}
-              {answered && phase === "saved" ? (
-                <CheckIcon aria-hidden="true" className="size-3 shrink-0" />
-              ) : null}
             </button>
           </li>
         );
@@ -102,12 +115,14 @@ export function AttemptQuestionNavigatorBoxes({
 export function AttemptQuestionNavigator({
   answers,
   currentNumber,
+  flags,
   onJump,
   questions,
   statuses,
 }: {
   readonly answers: Record<number, Answer>;
   readonly currentNumber: number;
+  readonly flags: ReadonlySet<number>;
   readonly onJump: (questionNumber: number) => void;
   readonly questions: readonly Question[];
   readonly statuses: Record<number, AnswerSaveStatus>;
@@ -126,6 +141,7 @@ export function AttemptQuestionNavigator({
           <AttemptQuestionNavigatorBoxes
             answers={answers}
             currentNumber={currentNumber}
+            flags={flags}
             onJump={onJump}
             questions={questions}
             statuses={statuses}
@@ -175,6 +191,7 @@ export function AttemptQuestionNavigator({
             <AttemptQuestionNavigatorBoxes
               answers={answers}
               currentNumber={currentNumber}
+              flags={flags}
               onJump={onJump}
               questions={questions}
               statuses={statuses}

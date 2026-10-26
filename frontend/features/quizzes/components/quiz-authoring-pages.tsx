@@ -18,8 +18,8 @@ import {
   OUTLINE_LINK_CLASSES,
   PRIMARY_LINK_CLASSES,
 } from "../../../components/ui/button";
-import { LanguageMenu } from "../../../components/ui/language-menu";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
+import { FocusedBackButton } from "../../../components/ui/focused-back-button";
 import {
   CheckIcon,
   PlusIcon,
@@ -878,28 +878,11 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             wordmarkClassName="hidden xl:flex"
           />
         </Link>
-        <Button
-          aria-label={t("Back to Quiz Library")}
-          className="size-11 shrink-0 p-0"
+        <FocusedBackButton
+          ariaLabel={t("Back to Quiz Library")}
           disabled={isSaving || isPublishing}
           onClick={backToApp}
-          variant="secondary"
-        >
-          <svg
-            aria-hidden="true"
-            className="size-5"
-            fill="none"
-            focusable="false"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-          >
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-        </Button>
-        <LanguageMenu />
+        />
         <span
           aria-hidden="true"
           className="hidden h-7 w-px bg-border sm:block"

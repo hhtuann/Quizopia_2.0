@@ -56,8 +56,10 @@ function withAuth(element: React.ReactElement) {
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 const ephemeral = vi.hoisted(() => ({
-  getPublicLocator: vi.fn(() => null),
+  getPublicLocator: vi.fn((): string | null => null),
   rememberPublicLocator: vi.fn(),
+  getPublicationTitle: vi.fn((): string | null => null),
+  rememberPublicationTitle: vi.fn(),
 }));
 const monitoringMock = vi.hoisted(() => ({
   controller: {
@@ -968,7 +970,7 @@ describe("Focused attempt workspace", () => {
     ).toBeVisible();
   });
 
-  it("shows the informative countdown and deadline only when a deadline exists", () => {
+  it("shows the compact countdown and deadline only when a deadline exists", () => {
     const api = client();
     render(
       withAuth(
@@ -980,7 +982,11 @@ describe("Focused attempt workspace", () => {
       ),
     );
     expect(screen.getByRole("timer")).toBeInTheDocument();
-    expect(screen.getByText("Informative countdown")).toBeVisible();
+    // Compact timer: time only, no visible explanatory label text.
+    expect(screen.getByRole("timer").textContent).toMatch(
+      /^\d{2,}:\d{2}:\d{2}$/,
+    );
+    expect(screen.queryByText("Informative countdown")).not.toBeInTheDocument();
     expect(screen.getByText(/^Deadline /)).toBeVisible();
   });
 
@@ -1035,6 +1041,104 @@ describe("Focused attempt workspace", () => {
       screen.getByRole("button", { name: "Question 3, Unanswered · Saved" }),
     ).toHaveAttribute("aria-current", "true");
     expect(first).not.toHaveAttribute("aria-current");
+  });
+
+  it("flags questions from the card toggle and reflects them in the navigator without touching answers", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    // Flag question 2 from its card toggle.
+    const toggle = screen.getByRole("button", {
+      name: "Flag question 2",
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(
+      screen.getByRole("button", { name: "Unflag question 2" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // The navigator box reports the flag; the accessible label keeps the
+    // underlying answered state available.
+    expect(
+      screen.getByRole("button", {
+        name: "Question 2, Flagged · Unanswered · Saved",
+      }),
+    ).toBeVisible();
+    // Flagging never mutates answers or autosave.
+    expect(api.save).not.toHaveBeenCalled();
+    // Unflagging returns the box to its underlying appearance.
+    fireEvent.click(screen.getByRole("button", { name: "Unflag question 2" }));
+    expect(
+      screen.getByRole("button", { name: "Question 2, Unanswered · Saved" }),
+    ).toBeVisible();
+  });
+
+  it("shows the authorized preview title and no technical chrome; candidate line only with a session user", () => {
+    const api = client();
+    vi.mocked(ephemeral.getPublicationTitle).mockReturnValue(
+      "Kiểm tra Toán học — Chương 1",
+    );
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Kiểm tra Toán học — Chương 1" }),
+    ).toBeVisible();
+    // No session user in this harness: the candidate line stays hidden
+    // rather than rendering an empty label.
+    expect(screen.queryByText(/^Candidate: /)).not.toBeInTheDocument();
+    // Technical metadata stays out of the visible header.
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(workspaceAttempt.attemptId),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Attempt 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Revision 0")).not.toBeInTheDocument();
+    vi.mocked(ephemeral.getPublicationTitle).mockReturnValue(null);
+  });
+
+  it("header renders the candidate line for a session student and a compact timer", async () => {
+    const { AttemptWorkspaceHeader } =
+      await import("./attempt-workspace-header");
+    render(
+      withAuth(
+        <AttemptWorkspaceHeader
+          actionsDisabled={false}
+          answeredCount={2}
+          onBack={() => {}}
+          remainingLabel="00:29:49"
+          savePhase="saved"
+          showActions
+          studentName="learner01"
+          title="Kiểm tra Toán học"
+          totalCount={4}
+          realtime={<span />}
+        />,
+      ),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Kiểm tra Toán học" }),
+    ).toBeVisible();
+    expect(screen.getByText("Candidate: learner01")).toBeVisible();
+    expect(screen.getByRole("timer").textContent).toBe("00:29:49");
+    // The timer carries its accessible label without visible caption text.
+    expect(screen.queryByText("Remaining time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Informative countdown")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Server time and refreshed status are authoritative."),
+    ).not.toBeInTheDocument();
   });
 
   it("hides terminal actions once the attempt is no longer ACTIVE", () => {

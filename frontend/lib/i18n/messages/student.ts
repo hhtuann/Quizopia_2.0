@@ -317,4 +317,11 @@ export const studentMessages = {
   off: "tắt",
   "Live update hints are best-effort; server state stays authoritative.":
     "Gợi ý cập nhật trực tiếp mang tính cố gắng tối đa; trạng thái máy chủ vẫn là chính thức.",
+  "Candidate: {name}": "Thí sinh: {name}",
+  "Remaining time": "Thời gian còn lại",
+  Flagged: "Đã gắn cờ",
+  "Flag question {number}": "Gắn cờ câu hỏi {number}",
+  "Unflag question {number}": "Bỏ gắn cờ câu hỏi {number}",
+  Flag: "Gắn cờ",
+  Unflag: "Bỏ cờ",
 } as const;
