@@ -57,6 +57,7 @@ const pendingView = {
 
 function publications(...reads: OwnerView[]): PublicationApiClient {
   return {
+    list: vi.fn(),
     create: vi.fn(),
     get: vi.fn<PublicationApiClient["get"]>().mockImplementation(async () => ({
       ok: true,

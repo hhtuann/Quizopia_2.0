@@ -19,6 +19,10 @@ public class PublicationService {
         return store.owned(actor, id);
     }
 
+    public PublicationDirectory.Page listOwned(UUID actor, PublicationDirectory.Query query) {
+        return store.listOwned(actor, query);
+    }
+
     private String prepare(UUID actor, PublicationConfiguration c, String evidence) {
         if (c.audience() == PublicationConfiguration.Audience.CLASS) sources.teacher(c.classroomId(), actor, evidence);
         return sources.snapshot(c, evidence);

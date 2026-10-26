@@ -71,6 +71,14 @@ export function ApplicationHome() {
               Enter an assessment <ArrowRightIcon className="size-4" />
             </Link>
           ) : null}
+          {activeWorkspace === "TEACHING" && user.roles.includes("TEACHER") ? (
+            <Link
+              className={`${OUTLINE_LINK_CLASSES} mt-4 sm:ml-3`}
+              href="/app/assessments"
+            >
+              My Assessments <ArrowRightIcon className="size-4" />
+            </Link>
+          ) : null}
         </div>
       </div>
 

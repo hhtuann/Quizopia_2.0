@@ -423,6 +423,35 @@ test("intercepted CLASS requires explicit monitoring and blocked CLOSE remains O
   page,
 }) => {
   await mockAuth(page);
+  await page.route("**/classrooms?**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: quizId,
+            name: "Owned Computer Science",
+            subject: "Computer Science",
+            grade: "12",
+            description: null,
+            createdAt: draft.createdAt,
+          },
+        ],
+        nextCursor: null,
+      },
+    }),
+  );
+  await page.route(`**/classrooms/${quizId}`, (route) =>
+    route.fulfill({
+      json: {
+        id: quizId,
+        name: "Owned Computer Science",
+        subject: "Computer Science",
+        grade: "12",
+        description: null,
+        ownerTeacherUserId: "a7a4c564-3c27-4e6d-91aa-a004334aa8f9",
+      },
+    }),
+  );
   const classDraft: OwnerView = {
     ...draft,
     privateLocator: null,
@@ -443,6 +472,9 @@ test("intercepted CLASS requires explicit monitoring and blocked CLOSE remains O
     page.getByRole("button", { name: "Review and OPEN" }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "Edit DRAFT" }).click();
+  await expect(
+    page.getByRole("radio", { name: "Owned Computer Science", exact: true }),
+  ).toBeChecked();
   await page.getByRole("radio", { name: "Disabled — no monitoring" }).check();
   await page.getByRole("button", { name: "Review DRAFT changes" }).click();
   await confirm(page, "Save DRAFT");

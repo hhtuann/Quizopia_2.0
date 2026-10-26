@@ -14,7 +14,7 @@ public final class AdmissionRoutes {
         if (monitoringRole != null) return monitoringRole;
         String publicationRole = PublicationRoutes.requiredRole(method, path);
         if (publicationRole != null) return publicationRole;
-        if (method.equals("POST") && path.equals("/classrooms")) return "TEACHER";
+        if ((method.equals("POST") || method.equals("GET")) && path.equals("/classrooms")) return "TEACHER";
         if (method.equals("GET") && OWNED.matcher(path).matches()) return "STUDENT";
         return null;
     }

@@ -163,6 +163,16 @@ class RealIdentityAdmissionTopologyTest {
                 Map.of("X-Quizopia-User-Evidence", "spoofed"));
         assertEquals(201, created.statusCode(), created.body());
         String id = JSON.readTree(created.body()).path("id").asString();
+        for (String base : List.of(gateway, classroom)) {
+            var page = send("GET", base + "/classrooms?limit=1", userToken, null, Map.of());
+            assertEquals(200, page.statusCode(), page.body());
+            var item = JSON.readTree(page.body()).path("items").get(0);
+            assertEquals(id, item.path("id").asString());
+            assertEquals(
+                    java.util.Set.of("id", "name", "subject", "grade", "description", "createdAt"),
+                    item.propertyNames());
+            assertTrue(JSON.readTree(page.body()).path("nextCursor").isNull());
+        }
         assertEquals(
                 200,
                 send("GET", classroom + "/classrooms/" + id, userToken, null, Map.of())
@@ -196,6 +206,16 @@ class RealIdentityAdmissionTopologyTest {
                 "{\"identifier\":\"other-user\",\"password\":\"" + PASSWORD + "\"}",
                 Map.of());
         String otherToken = JSON.readTree(login.body()).path("accessToken").asString();
+        for (String base : List.of(gateway, classroom)) {
+            assertEquals(
+                    403,
+                    send("GET", base + "/classrooms", otherToken, null, Map.of())
+                            .statusCode());
+            assertEquals(
+                    403,
+                    send("GET", base + "/classrooms", serviceToken, null, Map.of())
+                            .statusCode());
+        }
         assertEquals(
                 403,
                 send("GET", classroom + "/classrooms/" + id, otherToken, null, Map.of())

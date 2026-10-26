@@ -1,5 +1,31 @@
 # Gateway
 
+## T3 owner-directory inventory extension
+
+The exact `GET /classrooms` route forwards to Classroom without rewriting its path
+or query; base and production route definitions include it. Both Gateway and
+Classroom require USER + JWT/current `TEACHER` with fresh LD-05 admission. Existing
+`POST /classrooms` and `GET /classrooms/{canonical-UUID}` authorization is preserved.
+Classroom remains responsible for database ownership and the safe collection
+projection; see its [directory contract](../services/classroom-service/contracts/classroom-directory.openapi.yaml).
+
+Exact `GET /api/assessments/publications` now joins the existing Publication
+inventory as `TEACHER`, using the existing Assessment route and
+`PUBLICATION_ENABLED=false` default gate. This exposes Assessment's own safe,
+owner-filtered FE-01 directory; Gateway does not implement ownership or pagination.
+Wrong methods, aliases and future operations remain closed. Authority failure
+returns 503; it never permits JWT-only reads. No runtime flags/secrets are changed.
+
+Java 21 Maven `verify` with `-Dquizopia.build.directory=target/t3-directory-verification`
+passed 181 tests with zero failures/errors and one on-demand W4 browser journey
+skipped (`-Dw4.browser=true` is required). This includes PostgreSQL/Redis real
+Identity/Classroom topology regressions, exact production routes, admission and
+role enforcement, original USER forwarding, and closed-inventory tests.
+After strengthening the collection/query assertions and the real-Identity collection
+journey, a targeted `verify` rerun of `GatewayAdmissionIntegrationTest`,
+`GatewayProductionRoutesTest`, `OwnerDirectoryInventoryTest` and
+`RealIdentityAdmissionTopologyTest` passed all 36 tests without skips.
+
 Independent Spring Boot 4.1.1 / Java 21 project for the Quizopia 2.0 platform scaffold.
 
 Run independently from this directory:

@@ -63,6 +63,31 @@ Default local port: 8084. See `.env.example` and the root development documentat
 
 ## LD-05 admission boundary
 
+### T3 FE-01 owner Publication directory
+
+`GET /api/assessments/publications` requires a validated USER with TEACHER and
+fresh current LD-05 admission, behind the existing `PUBLICATION_ENABLED` gate.
+The database query filters exclusively by JWT-derived owner. Optional `state`
+(`DRAFT|OPEN|CLOSED`) and `search` (literal title substring, stripped/lowercased,
+maximum 300 characters) apply server-side. `limit` defaults to 20, range 1–100.
+Unknown/duplicate parameters and invalid/foreign/filter-mismatched cursors return
+400 `INVALID_REQUEST`. Responses are `Cache-Control: no-store`.
+
+The safe `{items,nextCursor}` projection contains only Publication id/title,
+audience/state, start/end/created times, revision and Quiz/version references.
+Ordering is immutable `created_at DESC,id DESC`, with V8 owner/order and
+owner/state/order indexes. Draft edits and lifecycle updates cannot move rows.
+This is live keyset pagination: filter membership can change during traversal;
+it is not a frozen snapshot. No total count or answer-bearing data is returned.
+
+Continuation uses the existing `ASSESSMENT_CURSOR_ACTIVE_KEY` /
+`ASSESSMENT_CURSOR_KEY_V1` deployment-backed HMAC key ring, domain-separated for
+this route and bound to owner plus normalized filters; changing page size is
+allowed. Provision the existing cursor key even if inbox/results are disabled.
+Without an active key, issuing a continuation fails closed with sanitized 503
+`PERSISTENCE_UNAVAILABLE`. Key rotation retains configured verification keys.
+The exact wire schema is in `contracts/publications.openapi.yaml`.
+
 See the [exact protected-route inventory and deployment gates](../../docs/architecture/ld05-enforcement.md).
 Admission and Publication are independently disabled by default. Exact Publication
 adapters enforce fresh authority; unknown/future business routes remain denied.

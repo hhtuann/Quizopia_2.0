@@ -35,6 +35,7 @@ class GatewayAdmissionIntegrationTest {
     static final AtomicInteger STATUS = new AtomicInteger(200);
     static final AtomicReference<String> BODY = new AtomicReference<>(),
             BACKEND_AUTH = new AtomicReference<>(),
+            BACKEND_URI = new AtomicReference<>(),
             EVIDENCE = new AtomicReference<>();
     static final AtomicBoolean SLOW = new AtomicBoolean();
     static final DisposableServer IDENTITY = HttpServer.create()
@@ -63,6 +64,7 @@ class GatewayAdmissionIntegrationTest {
             .port(0)
             .handle((request, response) -> {
                 BACKEND_CALLS.incrementAndGet();
+                BACKEND_URI.set(request.uri());
                 BACKEND_AUTH.set(request.requestHeaders().get("Authorization"));
                 assertNull(request.requestHeaders().get("X-Quizopia-User-Evidence"));
                 assertNull(request.requestHeaders().get("X-User-Id"));
@@ -190,6 +192,7 @@ class GatewayAdmissionIntegrationTest {
     void eachPublicationOperationRequiresFreshAdmissionAndPreservesOriginalUser() {
         String token = user();
         for (String operation : List.of(
+                "GET /api/assessments/publications",
                 "POST /api/assessments/publications",
                 "GET /api/assessments/publications/" + ACTOR,
                 "PUT /api/assessments/publications/" + ACTOR,
@@ -208,8 +211,8 @@ class GatewayAdmissionIntegrationTest {
                     .valueEquals("Cache-Control", "no-store");
             assertEquals("Bearer " + token, BACKEND_AUTH.get());
         }
-        assertEquals(7, ADMISSIONS.get());
-        assertEquals(7, BACKEND_CALLS.get());
+        assertEquals(8, ADMISSIONS.get());
+        assertEquals(8, BACKEND_CALLS.get());
         STATUS.set(503);
         http.post()
                 .uri("/api/assessments/publications")
@@ -217,7 +220,58 @@ class GatewayAdmissionIntegrationTest {
                 .exchange()
                 .expectStatus()
                 .isEqualTo(503);
-        assertEquals(7, BACKEND_CALLS.get());
+        assertEquals(8, BACKEND_CALLS.get());
+    }
+
+    @Test
+    void ownerDirectoriesRequireCurrentTeacherAndForwardQueryWithoutRewriting() {
+        String token = user();
+        for (String path : List.of("/classrooms", "/api/assessments/publications")) {
+            STATUS.set(200);
+            BODY.set("{\"actorId\":\"" + ACTOR + "\",\"roles\":[\"STUDENT\",\"TEACHER\"]}");
+            for (int n = 0; n < 2; n++) {
+                http.get()
+                        .uri(path + "?limit=2&cursor=opaque.token")
+                        .headers(h -> h.setBearerAuth(token))
+                        .exchange()
+                        .expectStatus()
+                        .isOk()
+                        .expectHeader()
+                        .valueEquals("Cache-Control", "no-store");
+                assertEquals(path + "?limit=2&cursor=opaque.token", BACKEND_URI.get());
+            }
+            assertEquals("Bearer " + token, BACKEND_AUTH.get());
+            int calls = BACKEND_CALLS.get();
+            BODY.set("{\"actorId\":\"" + ACTOR + "\",\"roles\":[\"STUDENT\"]}");
+            http.get()
+                    .uri(path)
+                    .headers(h -> h.setBearerAuth(token))
+                    .exchange()
+                    .expectStatus()
+                    .isForbidden();
+            STATUS.set(503);
+            http.get()
+                    .uri(path)
+                    .headers(h -> h.setBearerAuth(token))
+                    .exchange()
+                    .expectStatus()
+                    .isEqualTo(503);
+            assertEquals(calls, BACKEND_CALLS.get());
+            http.get().uri(path).exchange().expectStatus().isUnauthorized();
+            var now = Instant.now();
+            for (var roles : List.of(List.of("STUDENT"), List.of("STUDENT", "ADMIN"))) {
+                String student = sign(
+                        KEY, ISSUER, ACTOR, "USER", Map.of("roles", roles), now.minusSeconds(1), now.plusSeconds(60));
+                http.get()
+                        .uri(path)
+                        .headers(h -> h.setBearerAuth(student))
+                        .exchange()
+                        .expectStatus()
+                        .isForbidden();
+            }
+        }
+        assertEquals(4, BACKEND_CALLS.get());
+        assertEquals(8, ADMISSIONS.get());
     }
 
     @Test

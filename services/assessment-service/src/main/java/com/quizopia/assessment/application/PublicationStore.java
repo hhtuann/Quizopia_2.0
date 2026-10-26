@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 public interface PublicationStore {
+    PublicationDirectory.Page listOwned(UUID actor, PublicationDirectory.Query query);
+
     Publication owned(UUID actor, UUID id);
 
     Publication create(UUID actor, String key, PublicationConfiguration configuration);

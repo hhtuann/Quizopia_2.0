@@ -63,7 +63,7 @@ public final class UserAdmissionFilter extends OncePerRequestFilter {
     }
 
     public static String requiredRole(String method, String path) {
-        if (method.equals("POST") && path.equals("/classrooms")) return "TEACHER";
+        if ((method.equals("POST") || method.equals("GET")) && path.equals("/classrooms")) return "TEACHER";
         if (method.equals("GET")
                 && path.matches("/classrooms/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
             return "STUDENT";

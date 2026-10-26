@@ -411,7 +411,9 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
 
   // Create CLASS Assessment with monitoring DISABLED
   await page.getByRole("radio", { name: "Classroom", exact: true }).check();
-  await page.getByLabel("Classroom ID").fill(classroom.body.id);
+  await page
+    .getByRole("radio", { name: "Real Acceptance Class", exact: true })
+    .check();
   const scheduleParts = utcLocalParts(-2);
   await page
     .getByLabel("Participation start", { exact: true })

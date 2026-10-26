@@ -26,6 +26,9 @@ class ClassroomEntity {
     @Column(name = "description", nullable = true, columnDefinition = "text")
     private String description;
 
+    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    private java.time.Instant createdAt;
+
     protected ClassroomEntity() {}
 
     ClassroomEntity(Classroom value) {

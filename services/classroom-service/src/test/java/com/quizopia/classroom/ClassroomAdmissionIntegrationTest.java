@@ -75,11 +75,14 @@ class ClassroomAdmissionIntegrationTest {
     @Autowired
     ClassroomApplicationService service;
 
+    @Autowired
+    ClassroomDirectoryService directory;
+
     WebTestClient http;
 
     @BeforeEach
     void setup() {
-        reset(service);
+        reset(service, directory);
         CALLS.set(0);
         STATUS.set(200);
         SLOW.set(false);
@@ -210,6 +213,37 @@ class ClassroomAdmissionIntegrationTest {
                 .exchange();
     }
 
+    @Test
+    void collectionRequiresFreshTeacherAdmissionAndNeverUsesAnEarlierVerdict() {
+        when(directory.listOwned(UUID.fromString(ACTOR), 20, null))
+                .thenReturn(new ClassroomDirectory.Page(List.of(), null));
+        collection().expectStatus().isOk().expectHeader().valueEquals("Cache-Control", "no-store");
+        collection().expectStatus().isOk();
+        assertEquals(2, CALLS.get());
+        verify(directory, times(2)).listOwned(UUID.fromString(ACTOR), 20, null);
+        clearInvocations(directory);
+        BODY.set("{\"actorId\":\"" + ACTOR + "\",\"roles\":[\"STUDENT\"]}");
+        collection().expectStatus().isForbidden();
+        STATUS.set(503);
+        collection().expectStatus().isEqualTo(503);
+        STATUS.set(401);
+        BODY.set("{\"code\":\"USER_EVIDENCE_INVALID\"}");
+        collection().expectStatus().isUnauthorized();
+        STATUS.set(200);
+        BODY.set("{\"actorId\":\"" + UUID.randomUUID() + "\",\"roles\":[\"STUDENT\",\"TEACHER\"]}");
+        collection().expectStatus().isEqualTo(503);
+        SLOW.set(true);
+        collection().expectStatus().isEqualTo(503);
+        verifyNoInteractions(directory, service);
+    }
+
+    WebTestClient.ResponseSpec collection() {
+        return http.get()
+                .uri("/classrooms")
+                .headers(h -> h.setBearerAuth(user()))
+                .exchange();
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @Import({
@@ -222,6 +256,11 @@ class ClassroomAdmissionIntegrationTest {
         AuthenticatedUserIdResolver.class
     })
     static class App {
+        @Bean
+        ClassroomDirectoryService directory() {
+            return mock(ClassroomDirectoryService.class);
+        }
+
         @Bean
         ClassroomApplicationService service() {
             return mock(ClassroomApplicationService.class);

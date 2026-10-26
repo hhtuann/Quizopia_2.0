@@ -31,6 +31,9 @@ import { createSessionRuntime } from "../../auth/session/session-runtime";
 import { confirmUnsavedWorkLeaving } from "../../attempts/hooks/use-unsaved-navigation-guard";
 
 const authRuntime = createSessionRuntime(createAccessTokenVault());
+vi.mock("../../classrooms/use-classroom-client", () => ({
+  useClassroomClient: () => null,
+}));
 const authStub: AuthSessionService = {
   authenticatedRequests: {
     async execute() {
@@ -134,6 +137,7 @@ function deferred<T>() {
 
 function client() {
   return {
+    list: vi.fn<PublicationApiClient["list"]>(),
     create: vi.fn<PublicationApiClient["create"]>(),
     get: vi
       .fn<PublicationApiClient["get"]>()
@@ -447,7 +451,10 @@ describe("Publication configuration form", () => {
       }),
     );
     fireEvent.click(screen.getByRole("radio", { name: "Classroom" }));
-    expect(screen.getByLabelText("Classroom ID")).toHaveValue("");
+    expect(
+      screen.getByRole("group", { name: "Choose one Classroom" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Classroom ID")).not.toBeInTheDocument();
     expect(
       screen.getByRole("radio", { name: "Choose later — DRAFT only" }),
     ).toBeChecked();

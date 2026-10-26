@@ -41,7 +41,7 @@ class GatewayProductionRoutesTest {
     @Test
     void effectiveProdRoutesContainExactClassroomMethodsWithoutRewrite() {
         var routes = definitions.getRouteDefinitions().collectList().block();
-        for (String id : java.util.List.of("classroom-create", "classroom-owned-read")) {
+        for (String id : java.util.List.of("classroom-create", "classroom-owned-read", "classroom-owned-list")) {
             var route = routes.stream()
                     .filter(r -> r.getId().equals(id))
                     .findFirst()
@@ -52,7 +52,7 @@ class GatewayProductionRoutesTest {
                     .anyMatch(p -> p.getName().equals("Path")
                             && p.getArgs()
                                     .containsValue(
-                                            id.equals("classroom-create")
+                                            !id.equals("classroom-owned-read")
                                                     ? "/classrooms"
                                                     : "/classrooms/{classroomId}")));
             assertTrue(route.getPredicates().stream()
@@ -73,6 +73,12 @@ class GatewayProductionRoutesTest {
                 .isEqualTo(503)
                 .expectBody()
                 .json("{\"code\":\"AUTHORITY_UNAVAILABLE\"}");
+        http.get()
+                .uri("/classrooms")
+                .headers(h -> h.setBearerAuth(user()))
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503);
         http.get()
                 .uri("/classrooms/" + ACTOR)
                 .headers(h -> h.setBearerAuth(user()))

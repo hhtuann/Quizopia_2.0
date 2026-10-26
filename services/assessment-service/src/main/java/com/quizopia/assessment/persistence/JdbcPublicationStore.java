@@ -23,9 +23,26 @@ public class JdbcPublicationStore implements PublicationStore {
     private final TransactionTemplate transaction;
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
     private final SecureRandom random = new SecureRandom();
+    private final com.quizopia.assessment.infrastructure.ClosureCursor cursor;
 
     public JdbcPublicationStore(JdbcTemplate db, PlatformTransactionManager manager, Clock clock) {
+        this(
+                db,
+                manager,
+                clock,
+                new com.quizopia.assessment.infrastructure.ClosureCursor(
+                        new com.quizopia.assessment.configuration.ClosureProperties(
+                                false, false, false, false, 50, 50, "v1", Map.of())));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JdbcPublicationStore(
+            JdbcTemplate db,
+            PlatformTransactionManager manager,
+            Clock clock,
+            com.quizopia.assessment.infrastructure.ClosureCursor cursor) {
         this.db = db;
+        this.cursor = cursor;
         this.clock = clock;
         db.setQueryTimeout(3);
         transaction = new TransactionTemplate(manager);
@@ -86,6 +103,73 @@ public class JdbcPublicationStore implements PublicationStore {
 
     public Publication owned(UUID actor, UUID id) {
         return safe(() -> find("SELECT * FROM publications WHERE id=? AND owner_id=?", id, actor));
+    }
+
+    @Override
+    public PublicationDirectory.Page listOwned(UUID actor, PublicationDirectory.Query query) {
+        // Domain separation and a digest bind the signed cursor to both normalized filters.
+        String binding = digest((query.state() == null ? "" : query.state().name()) + "|" + query.search());
+        String position = cursor.decode(query.cursor(), actor, "publications", binding);
+        Instant created = null;
+        UUID id = null;
+        if (position != null) {
+            try {
+                String[] parts = position.split(",", -1);
+                if (parts.length != 2) throw new IllegalArgumentException();
+                created = Instant.parse(parts[0]);
+                id = UUID.fromString(parts[1]);
+                if (!position.equals(created + "," + id)) throw new IllegalArgumentException();
+            } catch (RuntimeException ex) {
+                throw new PublicationFailure(400, "INVALID_REQUEST");
+            }
+        }
+        var args = new ArrayList<Object>();
+        args.add(actor);
+        String sql = "SELECT id,configuration->>'title' AS title,audience,state,start_at,end_at,created_at,revision,"
+                + "quiz_id,quiz_version_id,version_number FROM publications WHERE owner_id=?";
+        if (query.state() != null) {
+            sql += " AND state=?";
+            args.add(query.state().name());
+        }
+        if (!query.search().isEmpty()) {
+            // strpos gives literal substring semantics: %, _ and backslash are not SQL wildcards.
+            sql += " AND strpos(lower(configuration->>'title'),?)>0";
+            args.add(query.search());
+        }
+        if (created != null) {
+            sql += " AND (created_at,id)<(?,?)";
+            args.add(Timestamp.from(created));
+            args.add(id);
+        }
+        sql += " ORDER BY created_at DESC,id DESC LIMIT ?";
+        args.add(query.limit() + 1);
+        String statement = sql;
+        return safe(() -> {
+            var rows = db.query(
+                    statement,
+                    (rs, n) -> new PublicationDirectory.Summary(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("title"),
+                            PublicationConfiguration.Audience.valueOf(rs.getString("audience")),
+                            Publication.State.valueOf(rs.getString("state")),
+                            rs.getTimestamp("start_at").toInstant(),
+                            rs.getTimestamp("end_at").toInstant(),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getLong("revision"),
+                            rs.getObject("quiz_id", UUID.class),
+                            rs.getObject("quiz_version_id", UUID.class),
+                            rs.getInt("version_number")),
+                    args.toArray());
+            boolean more = rows.size() > query.limit();
+            var items = rows.subList(0, Math.min(rows.size(), query.limit()));
+            var last = items.isEmpty() ? null : items.getLast();
+            return new PublicationDirectory.Page(
+                    items,
+                    more
+                            ? cursor.encode(
+                                    actor, "publications", binding, last.createdAt() + "," + last.publicationId())
+                            : null);
+        });
     }
 
     private Publication lock(UUID actor, UUID id) {

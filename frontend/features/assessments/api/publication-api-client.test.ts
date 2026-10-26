@@ -142,6 +142,61 @@ afterEach(() => {
 });
 
 describe("Publication Gateway requests through the production executor", () => {
+  it("lists only safe owner metadata with encoded server filters and opaque cursors", async () => {
+    const summary = {
+      publicationId: id,
+      title: configuration.title,
+      audience: configuration.audience,
+      state: owner.state,
+      startAt: configuration.startAt,
+      endAt: configuration.endAt,
+      createdAt: owner.createdAt,
+      revision: 0,
+      quizId: configuration.quizId,
+      quizVersionId: configuration.quizVersionId,
+      versionNumber: 3,
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        response(200, { items: [summary], nextCursor: "opaque+/=" }),
+      );
+    const { client } = harness(fetchMock);
+    expect(
+      await client.list({
+        search: "  network & quiz  ",
+        state: "DRAFT",
+        cursor: "opaque+/=",
+      }),
+    ).toEqual({
+      ok: true,
+      value: { items: [summary], nextCursor: "opaque+/=" },
+    });
+    const url = new URL(String(fetchMock.mock.calls[0]![0]));
+    expect(url.pathname).toBe("/api/assessments/publications");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      limit: "20",
+      search: "network & quiz",
+      state: "DRAFT",
+      cursor: "opaque+/=",
+    });
+    fetchMock.mockResolvedValue(
+      response(200, {
+        items: [{ ...summary, privateLocator: owner.privateLocator }],
+        nextCursor: null,
+      }),
+    );
+    expect(await client.list()).toMatchObject({
+      ok: false,
+      error: { kind: "invalid-response" },
+    });
+    const before = fetchMock.mock.calls.length;
+    expect(await client.list({ limit: 101 })).toMatchObject({
+      ok: false,
+      error: { kind: "invalid-input" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(before);
+  });
   it("sends the immutable source triple, exact configuration and explicit create operation identity", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

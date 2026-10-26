@@ -1,0 +1,88 @@
+openapi: 3.1.0
+info:
+  title: Quizopia owned Classroom directory
+  version: 1.0.0
+  description: FE-02 collection contract. Browser requests use Gateway without path rewriting.
+paths:
+  /classrooms:
+    get:
+      operationId: listOwnedClassrooms
+      summary: List the authenticated Teacher's own Classrooms
+      description: >-
+        Requires a validated USER with TEACHER in both JWT and fresh authoritative
+        LD-05 admission, independently at Gateway and Classroom. Ownership is filtered
+        in the database. Orders by immutable createdAt DESC, id DESC with PostgreSQL
+        UUID tie-breaking. A page reads at most limit+1 rows; there is no total count.
+        Cursors are opaque, HMAC-authenticated and owner-bound. Invalid, tampered,
+        foreign-owner and old-credential cursors return 400 INVALID_REQUEST.
+        Metadata updates do not move entries. Newly inserted entries ahead of the
+        cursor are seen on refresh, not injected into subsequent pages. This is
+        keyset traversal, not a transaction snapshot spanning multiple requests.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+        - in: query
+          name: cursor
+          description: Pass nextCursor from the preceding page unchanged; omit for the first page.
+          schema: {type: string, minLength: 1, maxLength: 512}
+      responses:
+        '200':
+          description: Owned safe metadata only; an empty directory has items [] and nextCursor null.
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClassroomPage'}
+        '400':
+          description: Invalid limit or cursor (INVALID_REQUEST).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '401':
+          description: Missing or invalid USER credentials (UNAUTHENTICATED).
+        '403':
+          description: USER lacks JWT/current TEACHER (ACCESS_DENIED). ADMIN alone is insufficient.
+        '503':
+          description: Required admission authority unavailable, disabled or untrusted (AUTHORITY_UNAVAILABLE).
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    ClassroomPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/ClassroomSummary'}
+        nextCursor:
+          type: [string, 'null']
+          description: Null when there is no subsequent page.
+    ClassroomSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, subject, grade, description, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        subject: {type: string}
+        grade: {type: string}
+        description: {type: [string, 'null']}
+        createdAt:
+          type: string
+          format: date-time
+          description: Database creation time; pre-V2 rows use migration time because no historical timestamp existed.
+    ApiError:
+      type: object
+      required: [code, message, status, path]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        status: {type: integer}
+        path: {type: string}

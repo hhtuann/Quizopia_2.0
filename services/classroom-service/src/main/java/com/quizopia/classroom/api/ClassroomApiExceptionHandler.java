@@ -18,10 +18,17 @@ public final class ClassroomApiExceptionHandler {
     @ExceptionHandler({
         MethodArgumentNotValidException.class,
         HttpMessageNotReadableException.class,
-        MethodArgumentTypeMismatchException.class
+        MethodArgumentTypeMismatchException.class,
+        com.quizopia.classroom.application.InvalidClassroomDirectoryRequestException.class
     })
     ResponseEntity<ClassroomApiError> invalidRequest(Exception exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Request is invalid", request);
+    }
+
+    @ExceptionHandler(com.quizopia.classroom.application.ClassroomDirectoryUnavailableException.class)
+    ResponseEntity<ClassroomApiError> directoryUnavailable(HttpServletRequest request) {
+        return response(
+                HttpStatus.SERVICE_UNAVAILABLE, "AUTHORITY_UNAVAILABLE", "Required authority is unavailable", request);
     }
 
     @ExceptionHandler(ClassroomNotFoundException.class)
