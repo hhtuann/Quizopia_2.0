@@ -1,4 +1,5 @@
 "use client";
+import { useI18n } from "../../lib/i18n/provider";
 
 import {
   forwardRef,
@@ -23,6 +24,7 @@ export const OtpInput = forwardRef<HTMLInputElement, OtpInputProps>(
     { value, onChange, onBlur, disabled, error },
     forwardedRef,
   ) {
+    const { t } = useI18n();
     const id = useId();
     const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -78,18 +80,21 @@ export const OtpInput = forwardRef<HTMLInputElement, OtpInputProps>(
     return (
       <fieldset className="min-w-0 space-y-2" disabled={disabled}>
         <legend className="text-sm font-semibold text-foreground-secondary">
-          Verification code
+          {t("Verification code")}
         </legend>
         <div
           className="grid grid-cols-6 gap-1.5 sm:gap-2.5"
           role="group"
-          aria-label="Verification code"
+          aria-label={t("Verification code")}
         >
           {Array.from({ length: DIGITS }, (_, index) => (
             <input
               aria-describedby={error ? `${id}-error` : undefined}
               aria-invalid={error ? true : undefined}
-              aria-label={`Verification code digit ${index + 1} of ${DIGITS}`}
+              aria-label={t("Verification code digit {index} of {total}", {
+                index: index + 1,
+                total: DIGITS,
+              })}
               autoCapitalize="off"
               autoComplete={index === 0 ? "one-time-code" : "off"}
               className={`min-h-12 min-w-0 w-full rounded-xl border bg-surface p-0 text-center text-xl font-semibold tabular-nums text-foreground shadow-sm transition-[border-color,box-shadow] focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus/30 disabled:cursor-not-allowed disabled:bg-surface-muted motion-reduce:transition-none ${error ? "border-danger" : "border-border-strong"}`}

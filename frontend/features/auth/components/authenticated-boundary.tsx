@@ -8,6 +8,8 @@ import { PageContainer } from "../../../components/ui/page-container";
 import { Surface } from "../../../components/ui/surface";
 import { useAuth } from "../auth-provider";
 import { SessionVerificationRecovery } from "./session-verification-recovery";
+import { useI18n } from "../../../lib/i18n/provider";
+import type { TranslationKey } from "../../../lib/i18n/core";
 
 export type BootstrappingPresentation = "loading" | "unavailable";
 
@@ -21,12 +23,12 @@ const loginLinkClasses =
 
 interface SessionMessageProps {
   readonly alertRole?: "alert" | "status";
-  readonly alertTitle: string;
+  readonly alertTitle: TranslationKey;
   readonly alertVariant?: AlertVariant;
   readonly children: ReactNode;
-  readonly description: string;
+  readonly description: TranslationKey;
   readonly showLoginAction?: boolean;
-  readonly title: string;
+  readonly title: TranslationKey;
 }
 
 function SessionMessage({
@@ -38,30 +40,31 @@ function SessionMessage({
   showLoginAction = false,
   title,
 }: SessionMessageProps) {
+  const { t } = useI18n();
   return (
     <main id="main-content" tabIndex={-1}>
       <PageContainer className="flex min-h-screen items-center justify-center py-8 sm:py-12">
         <Surface className="w-full max-w-lg p-6 sm:p-8">
           <p className="text-sm font-semibold text-primary">
-            Quizopia application
+            {t("Quizopia application")}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.02em] text-foreground">
-            {title}
+            {t(title)}
           </h1>
           <p className="mt-3 max-w-xl text-base leading-7 text-foreground-secondary">
-            {description}
+            {t(description)}
           </p>
           <Alert
             className="mt-6"
             role={alertRole}
-            title={alertTitle}
+            title={t(alertTitle)}
             variant={alertVariant}
           >
             {children}
           </Alert>
           {showLoginAction ? (
             <Link className={loginLinkClasses} href="/login">
-              Go to sign in
+              {t("Go to sign in")}
             </Link>
           ) : null}
         </Surface>
@@ -71,22 +74,23 @@ function SessionMessage({
 }
 
 function SessionBootstrapLoading() {
+  const { t } = useI18n();
   return (
     <main id="main-content" tabIndex={-1}>
       <PageContainer className="flex min-h-screen items-center justify-center py-8 sm:py-12">
         <Surface className="w-full max-w-lg p-6 sm:p-8">
           <p className="text-sm font-semibold text-primary">
-            Quizopia application
+            {t("Quizopia application")}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.02em] text-foreground">
-            Checking your session
+            {t("Checking your session")}
           </h1>
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
-            Please wait while Quizopia prepares your account.
+            {t("Please wait while Quizopia prepares your account.")}
           </p>
           <div className="mt-6 flex items-center gap-3 rounded-lg border border-border bg-surface-muted p-4 text-sm font-medium text-foreground-secondary">
-            <LoadingIndicator label="Checking your session" />
-            <span aria-hidden="true">Checking session</span>
+            <LoadingIndicator label={t("Checking your session")} />
+            <span aria-hidden="true">{t("Checking session")}</span>
           </div>
         </Surface>
       </PageContainer>
@@ -98,6 +102,7 @@ export function AuthenticatedBoundary({
   bootstrappingPresentation = "loading",
   children,
 }: AuthenticatedBoundaryProps) {
+  const { t } = useI18n();
   const { session } = useAuth();
 
   if (session.status === "bootstrapping") {
@@ -108,8 +113,9 @@ export function AuthenticatedBoundary({
         showLoginAction
         title="Open the Quizopia application"
       >
-        Sign in is required to continue. Account access is not available in this
-        version. No session was created.
+        {t(
+          "Sign in is required to continue. Account access is not available in this version. No session was created.",
+        )}
       </SessionMessage>
     ) : (
       <SessionBootstrapLoading />
@@ -124,7 +130,7 @@ export function AuthenticatedBoundary({
         showLoginAction
         title="Sign in to continue"
       >
-        Your current browser session is not signed in.
+        {t("Your current browser session is not signed in.")}
       </SessionMessage>
     );
   }
@@ -139,7 +145,7 @@ export function AuthenticatedBoundary({
         showLoginAction
         title="Open the Quizopia application"
       >
-        Sign in to continue. No authenticated content was shown.
+        {t("Sign in to continue. No authenticated content was shown.")}
       </SessionMessage>
     );
   }
@@ -154,7 +160,9 @@ export function AuthenticatedBoundary({
         showLoginAction
         title="Sign in again"
       >
-        Your local session has been cleared. No automatic sign-in was attempted.
+        {t(
+          "Your local session has been cleared. No automatic sign-in was attempted.",
+        )}
       </SessionMessage>
     );
   }
@@ -165,11 +173,11 @@ export function AuthenticatedBoundary({
         <PageContainer className="flex min-h-screen items-center justify-center py-8 sm:py-12">
           <Surface className="w-full max-w-lg p-6 sm:p-8">
             <h1 className="mb-6 text-3xl font-bold text-foreground">
-              Verify your account to continue
+              {t("Verify your account to continue")}
             </h1>
             <SessionVerificationRecovery />
             <Link className={loginLinkClasses} href="/login">
-              Go to sign in
+              {t("Go to sign in")}
             </Link>
           </Surface>
         </PageContainer>

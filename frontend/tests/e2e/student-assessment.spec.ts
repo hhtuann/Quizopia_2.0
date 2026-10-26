@@ -8,6 +8,16 @@ import type {
 
 // Browser contract tests: production UI/executor with intercepted Gateway traffic.
 // They do not establish real Assessment/Identity/Classroom/Redis compatibility.
+// These journeys assert English UI strings while the app defaults to
+// Vietnamese, so pin the locale cookie before any navigation (SSR reads it).
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 const studentId = "3ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const publicationId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const attemptId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
@@ -378,6 +388,69 @@ test("same-document browser history warns before leaving an unsaved answer", asy
   await expect(
     page.getByRole("heading", { name: "Student assessment" }),
   ).toBeVisible();
+});
+
+test("switching locale mid-attempt preserves unsaved answers and submission still succeeds", async ({
+  page,
+}) => {
+  await mockStudentAuth(page);
+  const assessment = await mockAssessment(page);
+  await page.goto(`/app/attempts/${attemptId}`);
+  await expect(
+    page.getByRole("heading", { name: "Student assessment" }),
+  ).toBeVisible();
+
+  // Unsaved local work: a typed numeric answer not yet flushed to the server.
+  await page.getByRole("button", { name: /Question 4/ }).click();
+  await page.getByLabel("Four-character numeric answer").fill("1.00");
+
+  // Switch the application language to Vietnamese through the shell control.
+  await page
+    .getByRole("combobox", { name: /^Language$|^Ngôn ngữ$/ })
+    .selectOption("vi");
+  await expect(
+    page.getByRole("heading", { name: "Bài kiểm tra của học sinh" }),
+  ).toBeVisible();
+  await expect(page.getByText("Đồng hồ đếm ngược tham khảo")).toBeVisible();
+
+  // No remount occurred: the unsaved input value and selected question survive,
+  // and the informative countdown keeps rendering after the locale switch.
+  await expect(page.getByLabel("Câu trả lời số gồm bốn ký tự")).toHaveValue(
+    "1.00",
+  );
+  await expect(page.getByRole("timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
+
+  // Autosave continued in the background; wait for the numeric save.
+  await expect
+    .poll(() =>
+      assessment
+        .read()
+        .saves.some(
+          (save) =>
+            save.questionNumber === 4 &&
+            save.answer.type === "NUMERIC_FILL" &&
+            save.answer.value === "1.00",
+        ),
+    )
+    .toBe(true);
+
+  // Submitting from the Vietnamese UI still completes the authoritative flow.
+  await page.getByRole("button", { name: "Nộp bài" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Nộp toàn bộ câu trả lời" })
+    .click();
+  await expect(page).toHaveURL(`/app/attempts/${attemptId}/result`);
+  // Exact decimal display is localized but never re-rounded: 81,25% in vi.
+  await expect(page.getByText("81,25%", { exact: true })).toBeVisible();
+  expect(assessment.read().submittedBody).toMatchObject({
+    answers: expect.arrayContaining([
+      {
+        questionNumber: 4,
+        answer: { type: "NUMERIC_FILL", value: "1.00" },
+      },
+    ]),
+  });
 });
 
 test("dependency 503 remains a feature error without logout or refresh cascade", async ({

@@ -28,6 +28,7 @@ import {
   sourceOffsetToVisualLocation,
   textareaOffsetFromSourceOffset,
 } from "../model/quiz-markdown-coordinates";
+import { useI18n } from "../../../lib/i18n/provider";
 import { EditorPaneHeader } from "./editor-pane-header";
 
 const EDITOR_LINE_HEIGHT = 24;
@@ -272,6 +273,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
   QuizMarkdownCodeEditorHandle,
   QuizMarkdownCodeEditorProps
 >(function QuizMarkdownCodeEditor({ disabled = false, onChange, value }, ref) {
+  const { localize, t } = useI18n();
   const editorFrameRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLUListElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -551,7 +553,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
       <EditorPaneHeader
         className="mb-3"
         htmlFor="quiz-markdown-source"
-        title="Quiz Markdown source"
+        title={t("Quiz Markdown source")}
         titleId="quiz-editor-title"
       />
 
@@ -657,7 +659,7 @@ export const QuizMarkdownCodeEditor = forwardRef<
         </div>
         {suggestions.length > 0 ? (
           <ul
-            aria-label="Quiz Markdown suggestions"
+            aria-label={t("Quiz Markdown suggestions")}
             className="absolute z-20 max-h-64 overflow-auto rounded-lg border border-border-strong bg-surface p-1 shadow-card"
             id="quiz-markdown-suggestions"
             ref={popupRef}
@@ -692,7 +694,9 @@ export const QuizMarkdownCodeEditor = forwardRef<
 
       <p aria-live="polite" className="sr-only">
         {suggestions.length > 0
-          ? `${suggestions.length} Quiz Markdown suggestions available.`
+          ? localize("{count} Quiz Markdown suggestions available.", {
+              count: suggestions.length,
+            })
           : ""}
       </p>
     </div>

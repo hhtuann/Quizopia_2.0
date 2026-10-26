@@ -11,13 +11,14 @@ import {
   type ReactNode,
 } from "react";
 import type { Workspace } from "../../features/auth/model/workspace";
+import { useI18n } from "../../lib/i18n/provider";
 import { QuizopiaLogo } from "../brand/quizopia-logo";
 import { LoadingIndicator } from "../ui/loading-indicator";
 
-const workspaceNames: Record<Workspace, string> = {
+const workspaceNames = {
   LEARNING: "Learning",
   TEACHING: "Teaching",
-};
+} as const;
 
 export interface WorkspaceTransitionApi {
   readonly isTransitioning: boolean;
@@ -185,6 +186,7 @@ function WorkspaceTransitionOverlay({
 }: {
   readonly destination: Workspace;
 }) {
+  const { t } = useI18n();
   const regionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -203,13 +205,15 @@ function WorkspaceTransitionOverlay({
       tabIndex={-1}
     >
       <QuizopiaLogo markClassName="size-12 rounded-xl" />
-      <LoadingIndicator label="Changing your workspace" size="medium" />
+      <LoadingIndicator label={t("Changing your workspace")} size="medium" />
       <div aria-live="polite" className="space-y-1.5" role="status">
         <p className="font-heading text-xl font-bold text-foreground sm:text-2xl">
-          Changing your workspace…
+          {t("Changing your workspace…")}
         </p>
         <p className="text-sm text-foreground-secondary">
-          Switching to {workspaceNames[destination]} workspace
+          {t("Switching to {workspace} workspace", {
+            workspace: t(workspaceNames[destination]),
+          })}
         </p>
       </div>
     </div>

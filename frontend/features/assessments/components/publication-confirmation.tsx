@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
+import { useI18n } from "../../../lib/i18n/provider";
 
 export function PublicationConfirmation({
   title,
@@ -18,6 +19,7 @@ export function PublicationConfirmation({
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   const id = useId();
@@ -73,7 +75,7 @@ export function PublicationConfirmation({
       </div>
       <div className="mt-6 flex flex-wrap justify-end gap-3">
         <Button onClick={onCancel} ref={cancel} variant="secondary">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           onClick={onConfirm}

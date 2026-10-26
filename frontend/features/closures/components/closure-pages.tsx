@@ -10,6 +10,7 @@ import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { useI18n } from "../../../lib/i18n/provider";
 import {
   assessmentFailureMessage,
   isUncertainAssessmentFailure,
@@ -87,6 +88,7 @@ function TeacherClosurePage({
 }) {
   const { user, activeWorkspace, switchWorkspace, getSessionGeneration } =
     useAuth();
+  const { t } = useI18n();
   const publicationClient = usePublicationClient();
   const closureClient = useClosureClient();
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId}`;
@@ -97,33 +99,38 @@ function TeacherClosurePage({
           className={OUTLINE_LINK_CLASSES}
           href={`/app/assessments/${publicationId}`}
         >
-          Back to Publication details
+          {t("Back to Publication details")}
         </Link>
       </div>
       {!user?.roles.includes("TEACHER") ? (
-        <Alert title="Teacher access required" variant="warning">
-          Current Teacher authority and Publication ownership are required.
-          Workspace selection does not grant a role.{" "}
-          <Link className="font-semibold underline" href="/app">
-            Return to application
+        <Alert title={t("Teacher access required")} variant="warning">
+          {t(
+            "Current Teacher authority and Publication ownership are required. Workspace selection does not grant a role.",
+          )}{" "}
+          <Link className="rounded py-2 font-semibold underline" href="/app">
+            {t("Return to application")}
           </Link>
           .
         </Alert>
       ) : activeWorkspace !== "TEACHING" ? (
         <Surface className="p-6">
-          <h1 className="text-2xl font-bold">Open the Teaching workspace</h1>
+          <h1 className="text-2xl font-bold">
+            {t("Open the Teaching workspace")}
+          </h1>
           <p className="mt-3 text-foreground-secondary">
-            The closure workflow uses your existing Teacher role. The server
-            checks ownership and admission for every operation.
+            {t(
+              "The closure workflow uses your existing Teacher role. The server checks ownership and admission for every operation.",
+            )}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
-            Switch to Teaching workspace
+            {t("Switch to Teaching workspace")}
           </Button>
         </Surface>
       ) : publicationClient === null || closureClient === null ? (
-        <Alert title="Closure access unavailable" variant="warning">
-          Your authenticated request service is unavailable. Sign in again
-          before continuing.
+        <Alert title={t("Closure access unavailable")} variant="warning">
+          {t(
+            "Your authenticated request service is unavailable. Sign in again before continuing.",
+          )}
         </Alert>
       ) : (
         <ClosureManagementScreen
@@ -147,6 +154,7 @@ export function ClosureManagementScreen({
   readonly publicationId: string;
 }) {
   const router = useRouter();
+  const { t, localize } = useI18n();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -280,21 +288,27 @@ export function ClosureManagementScreen({
   if (publication === null)
     return (
       <Surface className="p-6">
-        <h1 className="font-heading text-3xl font-bold">Closure workflow</h1>
+        <h1 className="font-heading text-3xl font-bold">
+          {t("Closure workflow")}
+        </h1>
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
-            <LoadingIndicator label="Loading Publication" />
-            Loading authoritative details…
+            <LoadingIndicator label={t("Loading Publication")} />
+            {t("Loading authoritative details…")}
           </div>
         ) : (
           <>
             <Alert
               className="mt-5"
-              title="Publication could not be loaded"
+              title={t("Publication could not be loaded")}
               variant="warning"
             >
-              {readFailure ?? "Publication metadata is unavailable."} The
-              closure workflow requires an owner-authorized Publication.
+              {readFailure
+                ? localize(readFailure)
+                : t("Publication metadata is unavailable.")}{" "}
+              {t(
+                "The closure workflow requires an owner-authorized Publication.",
+              )}
             </Alert>
             <Button
               className="mt-4"
@@ -304,7 +318,7 @@ export function ClosureManagementScreen({
               }}
               variant="secondary"
             >
-              Retry Publication details
+              {t("Retry Publication details")}
             </Button>
           </>
         )}
@@ -317,64 +331,71 @@ export function ClosureManagementScreen({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">
-            Delayed closure workflow
+            {t("Delayed closure workflow")}
           </p>
           <h1 className="mt-1 break-words font-heading text-3xl font-bold">
             {publication.configuration.title}
           </h1>
           <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+            {/* Canonical API state enum rendered verbatim by policy. */}
             <StateBadge variant={publicationStateVariants[publication.state]}>
               {publication.state}
             </StateBadge>
             <span className="text-foreground-muted">
-              Revision {publication.revision}
+              {t("Revision {revision}", { revision: publication.revision })}
             </span>
           </p>
         </div>
         <Button
           disabled={busy}
           isLoading={loading}
-          loadingLabel="Refreshing authoritative details"
+          loadingLabel={t("Refreshing authoritative details")}
           onClick={() => void reconcile()}
           variant="secondary"
         >
-          Refresh status
+          {t("Refresh status")}
         </Button>
       </header>
       <p className="break-all font-mono text-xs text-foreground-muted">
-        Publication ID: {publication.publicationId}
+        {t("Publication ID: {id}", { id: publication.publicationId })}
       </p>
       <p
         aria-live="polite"
         className="text-sm font-medium text-foreground-secondary"
         role="status"
       >
-        {status}
+        {localize(status)}
       </p>
       {readFailure ? (
-        <Alert title="Current state could not be refreshed" variant="warning">
-          {readFailure} Previously verified metadata remains visible; refresh
-          before changing anything.
+        <Alert
+          title={t("Current state could not be refreshed")}
+          variant="warning"
+        >
+          {localize(readFailure)}{" "}
+          {t(
+            "Previously verified metadata remains visible; refresh before changing it.",
+          )}
         </Alert>
       ) : null}
       {mutationFailureText ? (
         <Alert
           title={
-            pending ? "Request outcome is uncertain" : "Request was not created"
+            pending
+              ? t("Request outcome is uncertain")
+              : t("Request was not created")
           }
           variant="warning"
         >
-          {mutationFailureText}
+          {localize(mutationFailureText)}
         </Alert>
       ) : null}
       {pending ? (
         <Surface className="space-y-3 border-warning p-5">
-          <h2 className="font-semibold">Reconcile before continuing</h2>
+          <h2 className="font-semibold">{t("Reconcile before continuing")}</h2>
           <p className="text-sm leading-6">
-            The closure request may have committed. Refresh reads current
-            authority; it never repeats a mutation. An explicit retry re-sends
-            only the original revision with the same idempotency key; a matching
-            replay returns the existing request instead of creating another.
+            {t(
+              "The closure request may have committed. Refresh reads current authority; it never repeats a mutation. An explicit retry re-sends only the original revision with the same idempotency key; a matching replay returns the existing request instead of creating another.",
+            )}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
@@ -382,15 +403,15 @@ export function ClosureManagementScreen({
               onClick={() => void reconcile()}
               variant="secondary"
             >
-              Reconcile state
+              {t("Reconcile state")}
             </Button>
             <Button
               disabled={!reconciled || loading || readFailure !== null}
               isLoading={busy}
-              loadingLabel="Retrying original request"
+              loadingLabel={t("Retrying original request")}
               onClick={() => void sendRequest(pending)}
             >
-              Retry original request
+              {t("Retry original request")}
             </Button>
           </div>
         </Surface>
@@ -399,18 +420,20 @@ export function ClosureManagementScreen({
         <Surface className="space-y-3 p-5">
           <h2 className="font-heading text-xl font-bold">
             {createdIsNew
-              ? "Closure request created"
-              : "Existing closure request"}
+              ? t("Closure request created")
+              : t("Existing closure request")}
           </h2>
           <p className="text-sm leading-6 text-foreground-secondary">
-            A successful request records durable intent and starts recipient
-            notice preparation. It does <strong>not</strong> close the
-            Publication; track progress on the request page.
+            {t(
+              "A successful request records durable intent and starts recipient notice preparation. It does",
+            )}{" "}
+            <strong>{t("not")}</strong>{" "}
+            {t("close the Publication; track progress on the request page.")}
           </p>
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
               <dt className="text-xs font-medium text-foreground-muted">
-                Closure request ID
+                {t("Closure request ID")}
               </dt>
               <dd className="break-all font-mono text-xs">
                 {created.closureRequestId}
@@ -418,11 +441,11 @@ export function ClosureManagementScreen({
             </div>
             <div>
               <dt className="text-xs font-medium text-foreground-muted">
-                State
+                {t("State")}
               </dt>
               <dd>
                 <StateBadge variant={closureStateVariants[created.state]}>
-                  {closureStateLabels[created.state]}
+                  {localize(closureStateLabels[created.state])}
                 </StateBadge>
               </dd>
             </div>
@@ -431,18 +454,18 @@ export function ClosureManagementScreen({
             className={OUTLINE_LINK_CLASSES}
             href={`/app/assessments/${publicationId}/closure/${created.closureRequestId}`}
           >
-            Open closure request
+            {t("Open closure request")}
           </Link>
         </Surface>
       ) : null}
       <Surface className="p-5 sm:p-6">
         <h2 className="mb-4 font-heading text-xl font-bold">
-          Authoritative window
+          {t("Authoritative window")}
         </h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-sm font-medium text-foreground-muted">
-              Participation end (server authority)
+              {t("Participation end (server authority)")}
             </dt>
             <dd className="mt-1 text-sm">
               {formatUtc(publication.configuration.endAt)}
@@ -450,94 +473,95 @@ export function ClosureManagementScreen({
           </div>
           <div>
             <dt className="text-sm font-medium text-foreground-muted">
-              Unlimited attempt duration
+              {t("Unlimited attempt duration")}
             </dt>
             <dd className="mt-1 text-sm">
               {publication.configuration.durationMinutes === 0
-                ? "Yes — captured by delayed closure"
-                : "No — bounded attempts finalize by their own deadlines"}
+                ? t("Yes — captured by delayed closure")
+                : t("No — bounded attempts finalize by their own deadlines")}
             </dd>
           </div>
         </dl>
         <p className="mt-4 text-sm leading-6 text-foreground-secondary">
-          Delayed closure may be requested only after the server&apos;s
-          authoritative clock passes the participation end. This screen never
-          decides eligibility from browser time; the server rejects a request
-          that is too early.
+          {t(
+            "Delayed closure may be requested only after the server's authoritative clock passes the participation end. This screen never decides eligibility from browser time; the server rejects a request that is too early.",
+          )}
         </p>
       </Surface>
       {publication.state === "OPEN" ? (
         <Surface className="space-y-4 p-5 sm:p-6">
-          <h2 className="font-heading text-xl font-bold">Request closure</h2>
+          <h2 className="font-heading text-xl font-bold">
+            {t("Request closure")}
+          </h2>
           <p className="text-sm leading-6 text-foreground-secondary">
-            A closure request captures every currently ACTIVE unlimited Attempt
-            and queues durable warning preparation for each recipient. The
-            backend publishes each notice asynchronously and confirms it only
-            after proving recipient access; only a confirmed recipient gets a
-            48-hour cutoff before eligible saved answers may be finalized. An
-            unverifiable recipient may remain unconfirmed indefinitely. Zero
-            captured recipients is valid. While a request is live, schedule
-            changes and new attempts are blocked.
+            {t(
+              "A closure request captures every currently ACTIVE unlimited Attempt and queues durable warning preparation for each recipient. The backend publishes each notice asynchronously and confirms it only after proving recipient access; only a confirmed recipient gets a 48-hour cutoff before eligible saved answers may be finalized. An unverifiable recipient may remain unconfirmed indefinitely. Zero captured recipients is valid. While a request is live, schedule changes and new attempts are blocked.",
+            )}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={blocked || readFailure !== null}
               onClick={() => setConfirming(true)}
             >
-              Review and REQUEST closure
+              {t("Review and REQUEST closure")}
             </Button>
             <Link
               className={OUTLINE_LINK_CLASSES}
               href={`/app/assessments/${publicationId}`}
             >
-              Use direct CLOSE on Publication details
+              {t("Use direct CLOSE on Publication details")}
             </Link>
           </div>
         </Surface>
       ) : (
         <Alert
-          title="Closure requests require an OPEN Publication"
+          title={t("Closure requests require an OPEN Publication")}
           variant="info"
         >
-          This Publication is {publication.state}. Direct CLOSE and its
-          reconciliation remain on the{" "}
+          {t(
+            "This Publication is {state}. Direct CLOSE and its reconciliation remain on the",
+            {
+              state: publication.state,
+            },
+          )}{" "}
           <Link
             className="font-semibold underline"
             href={`/app/assessments/${publicationId}`}
           >
-            Publication details
+            {t("Publication details")}
           </Link>{" "}
-          screen; a delayed-closure workflow applies only while OPEN.
+          {t("screen; a delayed-closure workflow applies only while OPEN.")}
         </Alert>
       )}
       <Surface className="p-5 sm:p-6">
         <h2 className="font-heading text-xl font-bold">
-          Open a known closure request
+          {t("Open a known closure request")}
         </h2>
         <p className="mt-2 text-sm text-foreground-muted">
-          There is no closure-request list API. Enter a known request UUID; the
-          server verifies ownership.
+          {t(
+            "There is no closure-request list API. Enter a known request UUID; the server verifies ownership.",
+          )}
         </p>
         <form className="mt-4 space-y-4" noValidate onSubmit={openKnownRequest}>
           <TextField
             error={
               knownInvalid
-                ? "Enter a canonical lowercase closure request UUID."
+                ? t("Enter a canonical lowercase closure request UUID.")
                 : undefined
             }
-            label="Closure request ID"
+            label={t("Closure request ID")}
             onChange={(event) => setKnownId(event.target.value)}
             required
             value={knownId}
           />
           <Button type="submit" variant="secondary">
-            Open closure request
+            {t("Open closure request")}
           </Button>
         </form>
       </Surface>
       {confirming ? (
         <TypedConfirmation
-          confirmLabel="REQUEST delayed closure"
+          confirmLabel={t("REQUEST delayed closure")}
           destructive={false}
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
@@ -549,23 +573,23 @@ export function ClosureManagementScreen({
             });
           }}
           phrase="REQUEST"
-          title="Confirm delayed closure request"
+          title={t("Confirm delayed closure request")}
         >
           <p>
-            Current authoritative revision:{" "}
-            <strong>{publication.revision}</strong>. The request will be sent
-            with this revision and one durable operation key.
+            {t(
+              "Current authoritative revision: {revision}. The request will be sent with this revision and one durable operation key.",
+              { revision: publication.revision },
+            )}
           </p>
           <p>
-            Requesting closure does not close the Publication. Each recipient
-            first receives a durable notice; the 48-hour period for a recipient
-            starts only when the server confirms their notice is genuinely
-            accessible — never at this button click.
+            {t(
+              "Requesting closure does not close the Publication. Each recipient first receives a durable notice; the 48-hour period for a recipient starts only when the server confirms their notice is genuinely accessible — never at this button click.",
+            )}
           </p>
           <p>
-            An ineligible, disabled or unverifiable recipient can block closure
-            indefinitely; that accepted limitation has no force-close or
-            automatic workaround.
+            {t(
+              "An ineligible, disabled or unverifiable recipient can block closure indefinitely; that accepted limitation has no force-close or automatic workaround.",
+            )}
           </p>
         </TypedConfirmation>
       ) : null}
@@ -599,6 +623,7 @@ function TeacherClosureDetailPage({
 }) {
   const { user, activeWorkspace, switchWorkspace, getSessionGeneration } =
     useAuth();
+  const { t } = useI18n();
   const closureClient = useClosureClient();
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId}:${closureRequestId}`;
   return (
@@ -608,28 +633,33 @@ function TeacherClosureDetailPage({
           className={OUTLINE_LINK_CLASSES}
           href={`/app/assessments/${publicationId}/closure`}
         >
-          Back to closure workflow
+          {t("Back to closure workflow")}
         </Link>
       </div>
       {!user?.roles.includes("TEACHER") ? (
-        <Alert title="Teacher access required" variant="warning">
-          Current Teacher authority and Publication ownership are required.{" "}
-          <Link className="font-semibold underline" href="/app">
-            Return to application
+        <Alert title={t("Teacher access required")} variant="warning">
+          {t(
+            "Current Teacher authority and Publication ownership are required.",
+          )}{" "}
+          <Link className="rounded py-2 font-semibold underline" href="/app">
+            {t("Return to application")}
           </Link>
           .
         </Alert>
       ) : activeWorkspace !== "TEACHING" ? (
         <Surface className="p-6">
-          <h1 className="text-2xl font-bold">Open the Teaching workspace</h1>
+          <h1 className="text-2xl font-bold">
+            {t("Open the Teaching workspace")}
+          </h1>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
-            Switch to Teaching workspace
+            {t("Switch to Teaching workspace")}
           </Button>
         </Surface>
       ) : closureClient === null ? (
-        <Alert title="Closure access unavailable" variant="warning">
-          Your authenticated request service is unavailable. Sign in again
-          before continuing.
+        <Alert title={t("Closure access unavailable")} variant="warning">
+          {t(
+            "Your authenticated request service is unavailable. Sign in again before continuing.",
+          )}
         </Alert>
       ) : (
         <ClosureDetailScreen
@@ -658,6 +688,7 @@ export function ClosureDetailScreen({
   readonly publicationId: string;
   readonly closureRequestId: string;
 }) {
+  const { t, localize } = useI18n();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -813,20 +844,24 @@ export function ClosureDetailScreen({
   if (view === null)
     return (
       <Surface className="p-6">
-        <h1 className="font-heading text-3xl font-bold">Closure request</h1>
+        <h1 className="font-heading text-3xl font-bold">
+          {t("Closure request")}
+        </h1>
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
-            <LoadingIndicator label="Loading closure request" />
-            Loading authoritative status…
+            <LoadingIndicator label={t("Loading closure request")} />
+            {t("Loading authoritative status…")}
           </div>
         ) : (
           <>
             <Alert
               className="mt-5"
-              title="Closure request could not be loaded"
+              title={t("Closure request could not be loaded")}
               variant="warning"
             >
-              {readFailureText ?? "Closure request metadata is unavailable."}
+              {readFailureText
+                ? localize(readFailureText)
+                : t("Closure request metadata is unavailable.")}
             </Alert>
             <Button
               className="mt-4"
@@ -836,7 +871,7 @@ export function ClosureDetailScreen({
               }}
               variant="secondary"
             >
-              Retry closure request
+              {t("Retry closure request")}
             </Button>
           </>
         )}
@@ -850,24 +885,28 @@ export function ClosureDetailScreen({
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-heading text-3xl font-bold">Closure request</h1>
+          <h1 className="font-heading text-3xl font-bold">
+            {t("Closure request")}
+          </h1>
           <div className="mt-3">
             <StateBadge variant={closureStateVariants[view.state]}>
-              {closureStateLabels[view.state]}
+              {localize(closureStateLabels[view.state])}
             </StateBadge>
           </div>
           <p className="mt-2 text-sm text-foreground-muted">
-            Publication revision after this request: {view.publicationRevision}
+            {t("Publication revision after this request: {revision}", {
+              revision: view.publicationRevision,
+            })}
           </p>
         </div>
         <Button
           disabled={busy}
           isLoading={loading}
-          loadingLabel="Refreshing authoritative status"
+          loadingLabel={t("Refreshing authoritative status")}
           onClick={() => void reconcile()}
           variant="secondary"
         >
-          Refresh status
+          {t("Refresh status")}
         </Button>
       </header>
       <p
@@ -875,34 +914,35 @@ export function ClosureDetailScreen({
         className="text-sm font-medium text-foreground-secondary"
         role="status"
       >
-        {status}
+        {localize(status)}
       </p>
       {readFailureText ? (
-        <Alert title="Status could not be refreshed" variant="warning">
-          {readFailureText} Previously verified status remains visible; refresh
-          before issuing commands.
+        <Alert title={t("Status could not be refreshed")} variant="warning">
+          {localize(readFailureText)}{" "}
+          {t(
+            "Previously verified status remains visible; refresh before issuing commands.",
+          )}
         </Alert>
       ) : null}
       {mutationFailureText ? (
         <Alert
           title={
             pending
-              ? "Command outcome is uncertain"
-              : "Operation was not confirmed"
+              ? t("Command outcome is uncertain")
+              : t("Operation was not confirmed")
           }
           variant="warning"
         >
-          {mutationFailureText}
+          {localize(mutationFailureText)}
         </Alert>
       ) : null}
       {pending ? (
         <Surface className="space-y-3 border-warning p-5">
-          <h2 className="font-semibold">Reconcile before continuing</h2>
+          <h2 className="font-semibold">{t("Reconcile before continuing")}</h2>
           <p className="text-sm leading-6">
-            This command may have committed. Refresh reads current authority; it
-            never repeats a mutation. An explicit retry re-sends only the
-            original revision with the same idempotency key, preserving the
-            durable command identity.
+            {t(
+              "This command may have committed. Refresh reads current authority; it never repeats a mutation. An explicit retry re-sends only the original revision with the same idempotency key, preserving the durable command identity.",
+            )}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
@@ -910,27 +950,27 @@ export function ClosureDetailScreen({
               onClick={() => void reconcile()}
               variant="secondary"
             >
-              Reconcile state
+              {t("Reconcile state")}
             </Button>
             <Button
               disabled={!reconciled || loading || readFailureText !== null}
               isLoading={busy}
-              loadingLabel="Retrying original command"
+              loadingLabel={t("Retrying original command")}
               onClick={() => void send(pending)}
             >
-              Retry original command
+              {t("Retry original command")}
             </Button>
           </div>
         </Surface>
       ) : null}
       <Surface className="p-5 sm:p-6">
         <h2 className="mb-5 font-heading text-xl font-bold">
-          Durable request record
+          {t("Durable request record")}
         </h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <dt className="text-xs font-medium text-foreground-muted">
-              Closure request ID (exact)
+              {t("Closure request ID (exact)")}
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
               {view.closureRequestId}
@@ -938,7 +978,7 @@ export function ClosureDetailScreen({
           </div>
           <div className="sm:col-span-2">
             <dt className="text-xs font-medium text-foreground-muted">
-              Publication ID
+              {t("Publication ID")}
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
               {view.publicationId}
@@ -946,7 +986,7 @@ export function ClosureDetailScreen({
           </div>
           <div className="sm:col-span-2">
             <dt className="text-xs font-medium text-foreground-muted">
-              Requesting Teacher identity (as returned by the server)
+              {t("Requesting Teacher identity (as returned by the server)")}
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
               {view.requestingTeacherId}
@@ -954,110 +994,117 @@ export function ClosureDetailScreen({
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              Requested at
+              {t("Requested at")}
             </dt>
             <dd className="mt-1 text-sm">{formatUtc(view.requestedAt)}</dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              Finalization started at
+              {t("Finalization started at")}
             </dt>
             <dd className="mt-1 text-sm">
               {view.finalizationStartedAt === null
-                ? "Not started"
+                ? t("Not started")
                 : formatUtc(view.finalizationStartedAt)}
             </dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              Resolved at
+              {t("Resolved at")}
             </dt>
             <dd className="mt-1 text-sm">
               {view.resolvedAt === null
-                ? "Not resolved"
+                ? t("Not resolved")
                 : formatUtc(view.resolvedAt)}
             </dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              Authoritative Publication revision
+              {t("Authoritative Publication revision")}
             </dt>
             <dd className="mt-1 text-sm">{view.publicationRevision}</dd>
           </div>
         </dl>
         <p className="mt-5 text-sm leading-6 text-foreground-secondary">
-          {closureStateDescriptions[view.state]}
+          {localize(closureStateDescriptions[view.state])}
         </p>
         <p className="mt-3 text-sm leading-6 text-foreground-muted">
-          Recipient counts, per-recipient cutoffs and completion percentages are
-          not disclosed by the server for this workflow; none are shown.
+          {t(
+            "Recipient counts, per-recipient cutoffs and completion percentages are not disclosed by the server for this workflow; none are shown.",
+          )}
         </p>
       </Surface>
       {completion ? (
         <Alert
           title={
             completion.closed
-              ? "Publication CLOSED"
-              : "Bounded progress committed"
+              ? t("Publication CLOSED")
+              : t("Bounded progress committed")
           }
           variant={completion.closed ? "success" : "info"}
         >
           {completion.closed
-            ? "The server confirmed the durable CLOSED transition for this Publication."
-            : "This operation key committed its bounded batch (closed=false). Its acknowledgment is immutable; use the request status and a new deliberate command to continue."}
+            ? t(
+                "The server confirmed the durable CLOSED transition for this Publication.",
+              )
+            : t(
+                "This operation key committed its bounded batch (closed=false). Its acknowledgment is immutable; use the request status and a new deliberate command to continue.",
+              )}
         </Alert>
       ) : null}
       {isLiveClosureState(view.state) ? (
         <Surface className="space-y-4 p-5 sm:p-6">
           <h2 className="font-heading text-xl font-bold">
-            Manage this request
+            {t("Manage this request")}
           </h2>
           <p className="text-sm leading-6 text-foreground-secondary">
-            COMPLETE reconciles overdue bounded work and processes due confirmed
-            recipients in bounded batches; only the owning Teacher&apos;s
-            command can commit the final CLOSED transition. CANCEL is possible
-            only before the first closure-driven finalization.
+            {t(
+              "COMPLETE reconciles overdue bounded work and processes due confirmed recipients in bounded batches; only the owning Teacher's command can commit the final CLOSED transition. CANCEL is possible only before the first closure-driven finalization.",
+            )}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={blocked || !completable}
               onClick={() => setConfirming("complete")}
             >
-              Review and COMPLETE closure
+              {t("Review and COMPLETE closure")}
             </Button>
             <Button
               disabled={blocked || !cancellable}
               onClick={() => setConfirming("cancel")}
               variant="danger"
             >
-              Review and CANCEL request
+              {t("Review and CANCEL request")}
             </Button>
           </div>
           {!cancellable && view.state === "PENDING" ? (
             <p className="text-sm text-foreground-muted">
-              Cancellation is unavailable because finalization has started.
+              {t(
+                "Cancellation is unavailable because finalization has started.",
+              )}
             </p>
           ) : null}
           {view.state === "FINALIZING" ? (
             <p className="text-sm text-foreground-muted">
-              The request is FINALIZING; cancellation can no longer win. Use
-              COMPLETE to continue bounded batches.
+              {t(
+                "The request is FINALIZING; cancellation can no longer win. Use COMPLETE to continue bounded batches.",
+              )}
             </p>
           ) : null}
         </Surface>
       ) : (
-        <Alert title="This request is resolved" variant="info">
-          Resolved workflow states never return to live states. A replacement,
-          if still needed, is a new request with fresh notices and fresh 48-hour
-          periods.
+        <Alert title={t("This request is resolved")} variant="info">
+          {t(
+            "Resolved workflow states never return to live states. A replacement, if still needed, is a new request with fresh notices and fresh 48-hour periods.",
+          )}
         </Alert>
       )}
       {confirming !== null ? (
         <TypedConfirmation
           confirmLabel={
             confirming === "cancel"
-              ? "CANCEL closure request"
-              : "COMPLETE closure"
+              ? t("CANCEL closure request")
+              : t("COMPLETE closure")
           }
           destructive={confirming === "cancel"}
           onCancel={() => setConfirming(null)}
@@ -1073,29 +1120,27 @@ export function ClosureDetailScreen({
           phrase={confirming === "cancel" ? "CANCEL" : "COMPLETE"}
           title={
             confirming === "cancel"
-              ? "Confirm cancellation"
-              : "Confirm completion command"
+              ? t("Confirm cancellation")
+              : t("Confirm completion command")
           }
         >
           <p>
-            Command revision: <strong>{view.publicationRevision}</strong>. The
-            command is sent with this authoritative revision and one durable
-            operation key.
+            {t(
+              "Command revision: {revision}. The command is sent with this authoritative revision and one durable operation key.",
+              { revision: view.publicationRevision },
+            )}
           </p>
           {confirming === "cancel" ? (
             <p>
-              Cancellation resolves this request while preserving published
-              notices to recipients as non-actionable history. A later
-              replacement is a new request with new notices and fresh 48-hour
-              periods.
+              {t(
+                "Cancellation resolves this request while preserving published notices to recipients as non-actionable history. A later replacement is a new request with new notices and fresh 48-hour periods.",
+              )}
             </p>
           ) : (
             <p>
-              Completion processes eligible due work in bounded batches. If
-              confirmed notices or cutoffs are still outstanding, the server
-              answers CLOSURE_NOT_READY without undoing committed progress. The
-              Publication closes only when every Attempt is terminal and every
-              captured member is resolved.
+              {t(
+                "Completion processes eligible due work in bounded batches. If confirmed notices or cutoffs are still outstanding, the server answers CLOSURE_NOT_READY without undoing committed progress. The Publication closes only when every Attempt is terminal and every captured member is resolved.",
+              )}
             </p>
           )}
         </TypedConfirmation>

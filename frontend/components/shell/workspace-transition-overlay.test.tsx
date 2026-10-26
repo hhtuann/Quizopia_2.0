@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../../lib/i18n/provider";
+import { LanguageSwitcher } from "../ui/language-switcher";
 import {
   WorkspaceTransitionProvider,
   useWorkspaceTransition,
@@ -64,6 +66,39 @@ describe("WorkspaceTransitionProvider", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("localizes both transition lines and preserves the 2500 ms window across a language change", () => {
+    render(
+      <I18nProvider>
+        <LanguageSwitcher />
+        <WorkspaceTransitionProvider>
+          <Probe />
+        </WorkspaceTransitionProvider>
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
+    expect(screen.getByText("Đang chuyển không gian làm việc…")).toBeVisible();
+    expect(
+      screen.getByText("Đang chuyển sang không gian Giảng dạy"),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "notify teaching" }));
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "en" } });
+    expect(screen.getByText("Switching to Teaching workspace")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(999);
+    });
+    expect(screen.getByText("Changing your workspace…")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(
+      screen.queryByText("Changing your workspace…"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("idle")).toBeVisible();
   });
 
   it("shows an accessible Teaching overlay with branding", () => {

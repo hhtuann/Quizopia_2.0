@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useI18n } from "../../lib/i18n/provider";
+import { LanguageSwitcher } from "../ui/language-switcher";
 import type { ReactNode } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
 import { QuizopiaLogo } from "../brand/quizopia-logo";
@@ -18,6 +20,7 @@ export function ApplicationShell({
   children,
   currentSection = "home",
 }: ApplicationShellProps) {
+  const { t } = useI18n();
   const { activeWorkspace, session, user } = useAuth();
   const isApplicationHome = currentSection === "home";
   const isQuizAuthoring = currentSection === "quizzes";
@@ -35,7 +38,7 @@ export function ApplicationShell({
     <div className="min-h-screen bg-background">
       <header className={APPLICATION_HEADER_GEOMETRY}>
         <Link
-          aria-label="Quizopia home"
+          aria-label={t("Quizopia home")}
           className="inline-flex min-h-11 items-center rounded-lg pr-2 transition-colors duration-200 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
           href="/app"
         >
@@ -46,7 +49,7 @@ export function ApplicationShell({
         </Link>
 
         <nav
-          aria-label="Primary navigation"
+          aria-label={t("Primary navigation")}
           className="order-3 flex w-full flex-wrap gap-1 sm:order-none sm:w-auto"
         >
           <Link
@@ -58,7 +61,7 @@ export function ApplicationShell({
             }`}
             href="/app"
           >
-            Application home
+            {t("Application home")}
           </Link>
           {showQuizAuthoring ? (
             <Link
@@ -70,7 +73,7 @@ export function ApplicationShell({
               }`}
               href="/app/quizzes"
             >
-              Quiz authoring
+              {t("Quiz authoring")}
             </Link>
           ) : null}
           {showStudentAssessments ? (
@@ -83,7 +86,7 @@ export function ApplicationShell({
               }`}
               href="/app/assessments/join"
             >
-              Assessments
+              {t("Assessments")}
             </Link>
           ) : null}
           {showQuizAuthoring ? (
@@ -92,7 +95,7 @@ export function ApplicationShell({
               className={`${navLinkClasses} ${isAssessments ? "bg-primary/10 text-primary" : "text-foreground-secondary hover:bg-surface-muted"}`}
               href="/app/assessments"
             >
-              My Assessments
+              {t("My Assessments")}
             </Link>
           ) : null}
           {showStudentInbox ? (
@@ -105,11 +108,12 @@ export function ApplicationShell({
               }`}
               href="/app/notifications"
             >
-              Notifications
+              {t("Notifications")}
             </Link>
           ) : null}
         </nav>
 
+        <LanguageSwitcher />
         <AuthenticatedUserMenu />
       </header>
 
@@ -119,7 +123,7 @@ export function ApplicationShell({
           role="status"
         >
           <PageContainer className="max-w-none">
-            Updating your session…
+            {t("Updating your session…")}
           </PageContainer>
         </div>
       ) : null}

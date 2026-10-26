@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useI18n } from "../../lib/i18n/provider";
 
 const CONTROL_CLASSES =
   "h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-foreground " +
@@ -141,6 +142,7 @@ export function DateTimeField({
   id,
 }: DateTimeFieldProps) {
   const autoId = useId();
+  const { locale } = useI18n();
   const fieldId = id ?? autoId;
   const errorId = `${fieldId}-error`;
   const helperId = `${fieldId}-helper`;
@@ -189,7 +191,7 @@ export function DateTimeField({
           value={dateValue}
         />
         <input
-          aria-label={`${label} time`}
+          aria-label={`${label} ${locale === "vi" ? "(giờ)" : "time"}`}
           className={`${CONTROL_CLASSES} min-w-[7.5rem] flex-[1_1_7.5rem]`}
           disabled={disabled}
           id={timeId}
@@ -200,7 +202,7 @@ export function DateTimeField({
         />
       </div>
       <p className="text-xs text-foreground-muted" id={helperId}>
-        {helperText ?? `Timezone: ${tz}`}
+        {helperText ?? (locale === "vi" ? `Múi giờ: ${tz}` : `Timezone: ${tz}`)}
       </p>
       {error && (
         <p className="text-sm text-danger" id={errorId} role="alert">

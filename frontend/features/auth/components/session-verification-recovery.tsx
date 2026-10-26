@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { useAuth } from "../auth-provider";
+import { useI18n } from "../../../lib/i18n/provider";
 
 export function SessionVerificationRecovery() {
+  const { t } = useI18n();
   const { retryVerification, session } = useAuth();
   const [failedAttempts, setFailedAttempts] = useState(0);
   const lifetime = useRef(0);
@@ -32,33 +34,36 @@ export function SessionVerificationRecovery() {
     <div className="space-y-4">
       <Alert
         role="alert"
-        title="Account verification is temporarily unavailable"
+        title={t("Account verification is temporarily unavailable")}
         variant="warning"
       >
-        We could not verify your account yet. Access remains unavailable until
-        verification succeeds. Try again when the service is available, or sign
-        in with another account.
+        {t(
+          "We could not verify your account yet. Access remains unavailable until verification succeeds. Try again when the service is available, or sign in with another account.",
+        )}
       </Alert>
       <p
         role="status"
-        aria-label="Verification progress"
+        aria-label={t("Verification progress")}
         aria-live="polite"
         className="text-sm text-foreground-secondary"
       >
         {isRetrying
-          ? "Checking your account. Please wait."
+          ? t("Checking your account. Please wait.")
           : failedAttempts > 0
-            ? `Verification attempt ${failedAttempts} could not be completed. Access remains unavailable. You can retry or sign in again.`
+            ? t(
+                "Verification attempt {count} could not be completed. Access remains unavailable. You can retry or sign in again.",
+                { count: failedAttempts },
+              )
             : null}
       </p>
       <Button
-        aria-label={isRetrying ? "Verifying account" : undefined}
+        aria-label={isRetrying ? t("Verifying account") : undefined}
         isLoading={isRetrying}
-        loadingLabel="Verifying account"
+        loadingLabel={t("Verifying account")}
         onClick={() => void retry()}
         type="button"
       >
-        Retry account verification
+        {t("Retry account verification")}
       </Button>
     </div>
   );

@@ -1,4 +1,7 @@
+"use client";
+
 import type { HTMLAttributes } from "react";
+import { useI18n } from "../../lib/i18n/provider";
 
 export interface LoadingIndicatorProps extends HTMLAttributes<HTMLSpanElement> {
   label?: string;
@@ -11,6 +14,7 @@ export function LoadingIndicator({
   size = "medium",
   ...props
 }: LoadingIndicatorProps) {
+  const { t } = useI18n();
   const sizeClass =
     size === "small" ? "size-4 border-2" : "size-6 border-[3px]";
 
@@ -24,7 +28,9 @@ export function LoadingIndicator({
         aria-hidden="true"
         className={`${sizeClass} animate-spin rounded-full border-current border-r-transparent motion-reduce:animate-none`}
       />
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">
+        {label === "Loading" ? t("Loading") : label}
+      </span>
     </span>
   );
 }

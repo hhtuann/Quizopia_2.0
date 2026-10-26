@@ -156,28 +156,62 @@ export function missingCutoffLabel(notification: NotificationContract): string {
 /**
  * Guidance-only remaining time computed strictly from server timestamps
  * (cutoff minus serverNow). Browser clocks never move a cutoff.
+ *
+ * `cutoffRemaining` exposes the same decision in structured form so screens
+ * can localize the guidance at render time; `cutoffRemainingGuidance`
+ * composes the canonical English sentence from it.
  */
-export function cutoffRemainingGuidance(
+export type CutoffRemaining =
+  | { readonly kind: "reached" }
+  | { readonly kind: "at-least-48h" }
+  | {
+      readonly kind: "hours-minutes";
+      readonly hours: number;
+      readonly minutes: number;
+    }
+  | { readonly kind: "minutes"; readonly minutes: number }
+  | { readonly kind: "under-a-minute" };
+
+export function cutoffRemaining(
   serverNow: string,
   closureCutoffAt: string,
-): string | null {
+): CutoffRemaining | null {
   const now = instantMicroseconds(serverNow);
   const cutoff = instantMicroseconds(closureCutoffAt);
   if (now === null || cutoff === null) return null;
   const remainingMicros = cutoff - now;
-  if (remainingMicros <= BigInt(0))
-    return "the cutoff has been reached on the server";
+  if (remainingMicros <= BigInt(0)) return { kind: "reached" };
   const totalMinutes = Number(remainingMicros / BigInt(60_000_000));
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  if (hours >= 48) return "at least 48 hours remain (server guidance)";
-  if (hours >= 1)
-    return `about ${hours} hour${hours === 1 ? "" : "s"}${
-      minutes === 0 ? "" : ` ${minutes} minute${minutes === 1 ? "" : "s"}`
-    } remain (server guidance)`;
-  if (totalMinutes >= 1)
-    return `about ${totalMinutes} minute${
-      totalMinutes === 1 ? "" : "s"
-    } remain (server guidance)`;
-  return "less than a minute remains (server guidance)";
+  if (hours >= 48) return { kind: "at-least-48h" };
+  if (hours >= 1) return { kind: "hours-minutes", hours, minutes };
+  if (totalMinutes >= 1) return { kind: "minutes", minutes: totalMinutes };
+  return { kind: "under-a-minute" };
+}
+
+export function cutoffRemainingGuidance(
+  serverNow: string,
+  closureCutoffAt: string,
+): string | null {
+  const remaining = cutoffRemaining(serverNow, closureCutoffAt);
+  if (remaining === null) return null;
+  switch (remaining.kind) {
+    case "reached":
+      return "the cutoff has been reached on the server";
+    case "at-least-48h":
+      return "at least 48 hours remain (server guidance)";
+    case "hours-minutes": {
+      const hoursPart = `${remaining.hours} hour${remaining.hours === 1 ? "" : "s"}`;
+      const minutesPart =
+        remaining.minutes === 0
+          ? ""
+          : ` ${remaining.minutes} minute${remaining.minutes === 1 ? "" : "s"}`;
+      return `about ${hoursPart}${minutesPart} remain (server guidance)`;
+    }
+    case "minutes":
+      return `about ${remaining.minutes} minute${remaining.minutes === 1 ? "" : "s"} remain (server guidance)`;
+    default:
+      return "less than a minute remains (server guidance)";
+  }
 }

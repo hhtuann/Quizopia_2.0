@@ -6,6 +6,8 @@ import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { formatNumber } from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type { Configuration } from "../api/publication-contract.generated";
 import { configurationSchema } from "../model/publication";
@@ -38,6 +40,7 @@ export function PublicationConfigurationForm({
    */
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const { t, localize, locale } = useI18n();
   const id = useId();
   // Datetime fields store full UTC instants (e.g. "2026-10-16T01:30:00.000Z");
   // DateTimeField converts to/from the user's local timezone for display.
@@ -84,9 +87,14 @@ export function PublicationConfigurationForm({
       ),
     [fields, initialFields],
   );
+  // Guard message stays an English catalog key in state; the localized
+  // presentation recomputes on every render so a locale switch re-registers
+  // the guard with the current language.
   useUnsavedNavigationGuard(
     formDirty,
-    "This form has unsaved changes. Leave this page and discard them?",
+    localize(
+      "This form has unsaved changes. Leave this page and discard them?",
+    ),
   );
   useEffect(() => {
     onDirtyChange?.(formDirty);
@@ -126,7 +134,8 @@ export function PublicationConfigurationForm({
       setReview(parsed.data);
   }
 
-  const descriptionLabel = mode === "create" ? "New Publication" : "Edit DRAFT";
+  const descriptionLabel =
+    mode === "create" ? t("New Publication") : t("Edit DRAFT");
 
   return (
     <>
@@ -140,19 +149,21 @@ export function PublicationConfigurationForm({
           className="min-w-0 space-y-5"
           disabled={disabled || isPending}
         >
-          <legend className="sr-only">Publication configuration</legend>
+          <legend className="sr-only">{t("Publication configuration")}</legend>
           <Surface className="p-5 sm:p-6">
             <h2 className="font-heading text-xl font-bold">
-              Publication details
+              {t("Publication details")}
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              Immutable source: version {initial.versionNumber}. Creating a
-              Publication does not publish or modify the Quiz Draft.
+              {t(
+                "Immutable source: version {versionNumber}. Creating a Publication does not publish or modify the Quiz Draft.",
+                { versionNumber: initial.versionNumber },
+              )}
             </p>
             <div className="mt-5 space-y-4">
               <TextField
-                error={errors.title}
-                label="Publication title"
+                error={errors.title ? localize(errors.title) : undefined}
+                label={t("Publication title")}
                 maxLength={300}
                 onChange={(event) => set("title", event.target.value)}
                 required
@@ -163,7 +174,7 @@ export function PublicationConfigurationForm({
                   className="block text-sm font-semibold"
                   htmlFor={`${id}-description`}
                 >
-                  Description (optional)
+                  {t("Description (optional)")}
                 </label>
                 <textarea
                   aria-describedby={
@@ -183,7 +194,7 @@ export function PublicationConfigurationForm({
                     id={`${id}-description-error`}
                     role="alert"
                   >
-                    {errors.description}
+                    {localize(errors.description)}
                   </p>
                 ) : null}
               </div>
@@ -191,10 +202,10 @@ export function PublicationConfigurationForm({
           </Surface>
           <Surface className="p-5 sm:p-6">
             <h2 className="font-heading text-xl font-bold">
-              Audience and monitoring
+              {t("Audience and monitoring")}
             </h2>
             <fieldset className="mt-4">
-              <legend className="text-sm font-semibold">Audience</legend>
+              <legend className="text-sm font-semibold">{t("Audience")}</legend>
               <div className="mt-2 flex flex-wrap gap-3">
                 {(["CLASS", "PUBLIC"] as const).map((audience) => (
                   <label
@@ -217,7 +228,7 @@ export function PublicationConfigurationForm({
                       type="radio"
                       value={audience}
                     />
-                    {audience === "CLASS" ? "Classroom" : "Public"}
+                    {audience === "CLASS" ? t("Classroom") : t("Public")}
                   </label>
                 ))}
               </div>
@@ -225,7 +236,11 @@ export function PublicationConfigurationForm({
             {fields.audience === "CLASS" ? (
               <div className="mt-4 space-y-4">
                 <OwnedClassroomSelector
-                  error={errors.classroomId}
+                  error={
+                    errors.classroomId
+                      ? localize(errors.classroomId)
+                      : undefined
+                  }
                   onChange={(value) => {
                     setClassroomValid(false);
                     set("classroomId", value);
@@ -235,7 +250,7 @@ export function PublicationConfigurationForm({
                 />
                 <fieldset aria-describedby={`${id}-monitoring-help`}>
                   <legend className="text-sm font-semibold">
-                    Classroom monitoring choice
+                    {t("Classroom monitoring choice")}
                   </legend>
                   <div className="mt-2 space-y-2">
                     {(
@@ -264,7 +279,7 @@ export function PublicationConfigurationForm({
                           type="radio"
                           value={choice}
                         />
-                        {label}
+                        {t(label)}
                       </label>
                     ))}
                   </div>
@@ -273,49 +288,48 @@ export function PublicationConfigurationForm({
                   className="text-sm leading-6 text-foreground-muted"
                   id={`${id}-monitoring-help`}
                 >
-                  Choose explicitly before OPEN. Enabled records the Activity
-                  Evidence and LiveKit Camera bundle; collection, camera access
-                  and privacy readiness require separate runtime approval. This
-                  page does not activate monitoring.
+                  {t(
+                    "Choose explicitly before OPEN. Enabled records the Activity Evidence and LiveKit Camera bundle; collection, camera access and privacy readiness require separate runtime approval. This page does not activate monitoring.",
+                  )}
                 </p>
                 {errors.monitoringChoice ? (
                   <p className="text-sm text-danger" role="alert">
-                    {errors.monitoringChoice}
+                    {localize(errors.monitoringChoice)}
                   </p>
                 ) : null}
               </div>
             ) : (
               <Alert
                 className="mt-4"
-                title="Authenticated participation"
+                title={t("Authenticated participation")}
                 variant="info"
               >
-                PUBLIC has no Classroom and monitoring is disabled. Participants
-                need current authenticated STUDENT authority. A private locator
-                is not anonymous access.
+                {t(
+                  "PUBLIC has no Classroom and monitoring is disabled. Participants need current authenticated STUDENT authority. A private locator is not anonymous access.",
+                )}
               </Alert>
             )}
           </Surface>
           <Surface className="p-5 sm:p-6">
             <h2 className="font-heading text-xl font-bold">
-              Participation schedule
+              {t("Participation schedule")}
             </h2>
             <p className="mt-1 text-sm leading-6 text-foreground-muted">
-              Dates and times are shown in your local timezone and converted to
-              UTC automatically. Participation end does not close the
-              Publication or shorten an existing Attempt.
+              {t(
+                "Dates and times are shown in your local timezone and converted to UTC automatically. Participation end does not close the Publication or shorten an existing Attempt.",
+              )}
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <DateTimeField
-                error={errors.startAt}
-                label="Participation start"
+                error={errors.startAt ? localize(errors.startAt) : undefined}
+                label={t("Participation start")}
                 onChange={(instant) => set("startAt", instant)}
                 required
                 value={fields.startAt}
               />
               <DateTimeField
-                error={errors.endAt}
-                label="Participation end"
+                error={errors.endAt ? localize(errors.endAt) : undefined}
+                label={t("Participation end")}
                 onChange={(instant) => set("endAt", instant)}
                 required
                 value={fields.endAt}
@@ -323,15 +337,22 @@ export function PublicationConfigurationForm({
             </div>
             <div className="mt-4">
               {initial.durationMinutes === 0 ? (
-                <Alert title="Existing unlimited duration">
-                  This Publication has unlimited Attempts. This bounded workflow
-                  preserves that duration and cannot enable monitoring.
+                <Alert title={t("Existing unlimited duration")}>
+                  {t(
+                    "This Publication has unlimited Attempts. This bounded workflow preserves that duration and cannot enable monitoring.",
+                  )}
                 </Alert>
               ) : (
                 <TextField
-                  error={errors.durationMinutes}
-                  helperText="Whole minutes from 5 to 240. The server sets each Attempt deadline when it starts."
-                  label="Attempt duration (minutes)"
+                  error={
+                    errors.durationMinutes
+                      ? localize(errors.durationMinutes)
+                      : undefined
+                  }
+                  helperText={t(
+                    "Whole minutes from 5 to 240. The server sets each Attempt deadline when it starts.",
+                  )}
+                  label={t("Attempt duration (minutes)")}
                   max={240}
                   min={5}
                   onChange={(event) =>
@@ -345,23 +366,29 @@ export function PublicationConfigurationForm({
               )}
             </div>
             <p className="mt-3 text-sm text-foreground-muted">
-              Maximum Attempts:{" "}
-              {initial.maxAttempts === 0
-                ? "unlimited"
-                : (initial.maxAttempts ?? 1)}
-              . This workflow preserves that setting.
+              {t(
+                "Maximum Attempts: {attempts}. This workflow preserves that setting.",
+                {
+                  attempts:
+                    initial.maxAttempts === 0
+                      ? t("unlimited")
+                      : formatNumber(locale, initial.maxAttempts ?? 1),
+                },
+              )}
             </p>
           </Surface>
           {Object.keys(errors).length > 0 ? (
-            <Alert title="Check the highlighted fields" variant="danger">
-              The configuration was not sent. Review the field messages above.
+            <Alert title={t("Check the highlighted fields")} variant="danger">
+              {t(
+                "The configuration was not sent. Review the field messages above.",
+              )}
             </Alert>
           ) : null}
         </fieldset>
 
         {/* Contextual sidebar column */}
         <aside
-          aria-label="Publication summary"
+          aria-label={t("Publication summary")}
           className="sticky top-20 space-y-4 lg:top-24"
         >
           <Surface className="p-5">
@@ -370,52 +397,52 @@ export function PublicationConfigurationForm({
             </h2>
             <dl className="mt-3 space-y-2 text-sm">
               <div>
-                <dt className="text-foreground-muted">Quiz version</dt>
+                <dt className="text-foreground-muted">{t("Quiz version")}</dt>
                 <dd className="font-mono text-xs break-all text-foreground">
                   {initial.versionNumber}
                 </dd>
               </div>
               <div>
-                <dt className="text-foreground-muted">Audience</dt>
+                <dt className="text-foreground-muted">{t("Audience")}</dt>
                 <dd className="font-semibold text-foreground">
-                  {fields.audience === "CLASS" ? "Classroom" : "Public"}
+                  {fields.audience === "CLASS" ? t("Classroom") : t("Public")}
                 </dd>
               </div>
               {fields.audience === "CLASS" && fields.classroomId ? (
                 <div>
-                  <dt className="text-foreground-muted">Classroom</dt>
+                  <dt className="text-foreground-muted">{t("Classroom")}</dt>
                   <dd className="font-mono text-xs break-all text-foreground">
                     {fields.classroomId}
                   </dd>
                 </div>
               ) : null}
               <div>
-                <dt className="text-foreground-muted">Duration</dt>
+                <dt className="text-foreground-muted">{t("Duration")}</dt>
                 <dd className="font-semibold text-foreground">
                   {initial.durationMinutes === 0
-                    ? "Unlimited"
+                    ? t("Unlimited")
                     : `${fields.durationMinutes || "—"} min`}
                 </dd>
               </div>
             </dl>
           </Surface>
           <Button
-            aria-label={isPending ? "Saving Publication" : undefined}
+            aria-label={isPending ? t("Saving Publication") : undefined}
             className="w-full"
             disabled={disabled}
             isLoading={isPending}
-            loadingLabel="Saving Publication"
+            loadingLabel={t("Saving Publication")}
             type="submit"
           >
             {mode === "create"
-              ? "Review and create DRAFT"
-              : "Review DRAFT changes"}
+              ? t("Review and create DRAFT")
+              : t("Review DRAFT changes")}
           </Button>
         </aside>
       </form>
       {review !== null ? (
         <PublicationConfirmation
-          confirmLabel={mode === "create" ? "Create DRAFT" : "Save DRAFT"}
+          confirmLabel={mode === "create" ? t("Create DRAFT") : t("Save DRAFT")}
           onCancel={() => setReview(null)}
           onConfirm={() => {
             const configuration = review;
@@ -424,12 +451,14 @@ export function PublicationConfigurationForm({
           }}
           title={
             mode === "create"
-              ? "Review new Publication"
-              : "Review DRAFT changes"
+              ? t("Review new Publication")
+              : t("Review DRAFT changes")
           }
         >
           <PublicationSummary configuration={review} />
-          <p>This saves a DRAFT only. OPEN is a separate reviewed action.</p>
+          <p>
+            {t("This saves a DRAFT only. OPEN is a separate reviewed action.")}
+          </p>
         </PublicationConfirmation>
       ) : null}
     </>

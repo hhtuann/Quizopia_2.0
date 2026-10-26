@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useI18n } from "../lib/i18n/provider";
+import { LanguageSwitcher } from "../components/ui/language-switcher";
 import { QuizopiaLogo } from "../components/brand/quizopia-logo";
 import { LandingSessionLinks } from "../components/shell/landing-session-links";
 import { PageContainer } from "../components/ui/page-container";
@@ -10,6 +14,7 @@ import {
 } from "../components/ui/icons";
 
 export default function HomePage() {
+  const { t } = useI18n();
   return (
     <main id="main-content" tabIndex={-1}>
       <div className="relative isolate overflow-hidden">
@@ -23,17 +28,18 @@ export default function HomePage() {
             className="flex min-h-20 flex-wrap items-center justify-between gap-4 py-3"
           >
             <Link
-              aria-label="Quizopia home"
+              aria-label={t("Quizopia home")}
               className="inline-flex min-h-11 items-center rounded-lg focus-visible:ring-2 focus-visible:ring-focus"
               href="/"
             >
               <QuizopiaLogo markClassName="size-11" />
             </Link>
             <nav
-              aria-label="Public navigation"
+              aria-label={t("Public navigation")}
               className="flex flex-wrap items-center gap-2 sm:gap-3"
             >
               <LandingSessionLinks placement="header" />
+              <LanguageSwitcher />
             </nav>
           </PageContainer>
         </header>
@@ -47,26 +53,30 @@ export default function HomePage() {
                 className="size-2 rounded-full bg-success"
                 aria-hidden="true"
               />{" "}
-              THE NEXT CHAPTER OF LEARNING
+              {t("THE NEXT CHAPTER OF LEARNING")}
             </span>
             <h1 className="mt-7 font-heading text-4xl font-extrabold leading-[1.12] tracking-[-0.045em] text-foreground sm:text-5xl lg:text-6xl xl:text-7xl">
-              A smarter space to{" "}
-              <span className="brand-gradient-text">learn and teach.</span>
+              {t("A smarter space to")}{" "}
+              <span className="brand-gradient-text">
+                {t("learn and teach.")}
+              </span>
             </h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-foreground-secondary sm:text-lg">
-              Welcome to Quizopia 2.0. A thoughtful workspace for learners and
-              educators, bringing quiz authoring and learning tools together
-              with clarity and confidence.
+              {t(
+                "Welcome to Quizopia 2.0. A thoughtful workspace for learners and educators, bringing quiz authoring and learning tools together with clarity and confidence.",
+              )}
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <LandingSessionLinks placement="hero" />
             </div>
             <p className="mt-5 text-sm text-foreground-muted">
-              Already part of Quizopia? Sign in to pick up where you left off.
+              {t(
+                "Already part of Quizopia? Sign in to pick up where you left off.",
+              )}
             </p>
           </div>
           <div
-            aria-label="Quizopia platform overview"
+            aria-label={t("Quizopia platform overview")}
             className="relative mx-auto w-full max-w-xl lg:max-w-none"
           >
             <div
@@ -84,10 +94,10 @@ export default function HomePage() {
                   </span>
                   <div>
                     <p className="text-sm font-bold text-foreground">
-                      One connected workspace
+                      {t("One connected workspace")}
                     </p>
                     <p className="text-xs text-foreground-muted">
-                      Built for your next idea
+                      {t("Built for your next idea")}
                     </p>
                   </div>
                 </div>
@@ -104,10 +114,10 @@ export default function HomePage() {
                     <BookOpenIcon className="size-5" />
                   </span>
                   <h2 className="mt-5 text-lg font-bold text-foreground">
-                    Learning
+                    {t("Learning")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-foreground-secondary">
-                    Your journey, your pace, your workspace.
+                    {t("Your journey, your pace, your workspace.")}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-secondary/15 bg-secondary/5 p-5">
@@ -118,10 +128,10 @@ export default function HomePage() {
                     <PencilIcon className="size-5" />
                   </span>
                   <h2 className="mt-5 text-lg font-bold text-foreground">
-                    Teaching
+                    {t("Teaching")}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-foreground-secondary">
-                    Create and publish with clarity.
+                    {t("Create and publish with clarity.")}
                   </p>
                 </div>
               </div>
@@ -135,10 +145,10 @@ export default function HomePage() {
                   </span>
                   <div>
                     <p className="text-sm font-bold text-foreground">
-                      Built around reliable workflows
+                      {t("Built around reliable workflows")}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-foreground-muted">
-                      Thoughtful tools with a clear place for every task.
+                      {t("Thoughtful tools with a clear place for every task.")}
                     </p>
                   </div>
                 </div>
@@ -154,36 +164,38 @@ export default function HomePage() {
         <PageContainer width="marketing">
           <div className="max-w-2xl">
             <p className="text-sm font-bold tracking-wide text-primary">
-              MADE FOR THE WAY YOU GROW
+              {t("MADE FOR THE WAY YOU GROW")}
             </p>
             <h2
               id="why-quizopia"
               className="mt-3 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl"
             >
-              Everything begins with a better experience.
+              {t("Everything begins with a better experience.")}
             </h2>
           </div>
           <div className="mt-9 grid gap-5 md:grid-cols-3">
-            {[
-              {
-                number: "01",
-                title: "Learn with clarity",
-                description:
-                  "One place to build your learning journey with a workspace that stays focused on what matters.",
-              },
-              {
-                number: "02",
-                title: "Teach with confidence",
-                description:
-                  "Create, preview, save, and publish versioned quizzes with a dedicated authoring experience.",
-              },
-              {
-                number: "03",
-                title: "Build on trust",
-                description:
-                  "Clear account roles and dependable publishing workflows keep your work organized.",
-              },
-            ].map((pillar) => (
+            {(
+              [
+                {
+                  number: "01",
+                  title: "Learn with clarity",
+                  description:
+                    "One place to build your learning journey with a workspace that stays focused on what matters.",
+                },
+                {
+                  number: "02",
+                  title: "Teach with confidence",
+                  description:
+                    "Create, preview, save, and publish versioned quizzes with a dedicated authoring experience.",
+                },
+                {
+                  number: "03",
+                  title: "Build on trust",
+                  description:
+                    "Clear account roles and dependable publishing workflows keep your work organized.",
+                },
+              ] as const
+            ).map((pillar) => (
               <article
                 className="rounded-xl border border-border bg-surface p-7 shadow-card"
                 key={pillar.number}
@@ -192,10 +204,10 @@ export default function HomePage() {
                   {pillar.number} / QUIZOPIA
                 </span>
                 <h3 className="mt-6 text-xl font-bold text-foreground">
-                  {pillar.title}
+                  {t(pillar.title)}
                 </h3>
                 <p className="mt-3 text-sm leading-7 text-foreground-secondary">
-                  {pillar.description}
+                  {t(pillar.description)}
                 </p>
               </article>
             ))}
@@ -208,7 +220,7 @@ export default function HomePage() {
           className="flex flex-wrap items-center justify-between gap-3 text-sm text-foreground-muted"
         >
           <span>© Quizopia 2.0</span>
-          <span>A place to learn, create, and grow.</span>
+          <span>{t("A place to learn, create, and grow.")}</span>
         </PageContainer>
       </footer>
     </main>

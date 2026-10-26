@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { useI18n } from "../../../lib/i18n/provider";
 
 export function PrivatePublicationLocator({
   locator,
 }: {
   readonly locator: string;
 }) {
+  const { t, localize } = useI18n();
   const [revealed, setRevealed] = useState(false);
   const [status, setStatus] = useState("");
   async function copy() {
@@ -23,22 +25,23 @@ export function PrivatePublicationLocator({
   return (
     <section
       className="mt-5 rounded-xl border border-border bg-surface-muted p-4"
-      aria-label="Private PUBLIC locator"
+      aria-label={t("Private PUBLIC locator")}
     >
-      <h2 className="font-semibold">Private PUBLIC locator</h2>
+      <h2 className="font-semibold">{t("Private PUBLIC locator")}</h2>
       <p className="mt-1 text-sm text-foreground-muted">
-        Owner-only metadata. Keep it private. Authenticated STUDENT authority is
-        still required. A Student sharing URL is not available in this workflow.
+        {t(
+          "Owner-only metadata. Keep it private. Authenticated STUDENT authority is still required. A Student sharing URL is not available in this workflow.",
+        )}
       </p>
       <div className="mt-3 flex flex-wrap gap-3">
         <Button
           onClick={() => setRevealed((value) => !value)}
           variant="secondary"
         >
-          {revealed ? "Hide private locator" : "Reveal private locator"}
+          {revealed ? t("Hide private locator") : t("Reveal private locator")}
         </Button>
         <Button onClick={() => void copy()} variant="secondary">
-          Copy private locator
+          {t("Copy private locator")}
         </Button>
       </div>
       {revealed ? (
@@ -47,7 +50,7 @@ export function PrivatePublicationLocator({
         </code>
       ) : null}
       <p className="mt-2 text-sm" role="status">
-        {status}
+        {localize(status)}
       </p>
     </section>
   );

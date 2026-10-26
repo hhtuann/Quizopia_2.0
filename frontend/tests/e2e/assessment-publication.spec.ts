@@ -6,6 +6,15 @@ import type {
 
 // Browser contract tests: production UI/executor, intercepted Gateway responses.
 // These do not establish real Identity/Assessment/Classroom/Redis compatibility.
+// The suite asserts English UI strings while the app defaults to Vietnamese;
+// pin the locale cookie before any navigation (SSR reads it).
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
 const publicationId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const quizVersionId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";

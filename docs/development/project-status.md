@@ -2,7 +2,7 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-26 (T3 branch checkpoint; historical merged checkpoint below retained)
+> **Last updated:** 2026-10-26 (T4 i18n branch checkpoint; T3 checkpoint below; historical merged checkpoint retained)
 >
 > **Checkpoint baseline:** merged `develop` `2d837e5f853cc2c929d8433e62b2da3f07a60cd2`
 > (PR #107, W4-E integration & acceptance). W4 implementation and local-test
@@ -15,7 +15,42 @@
 > accepted specification/ADR, the authoritative document wins and this status file
 > must be updated.
 
-## T3 branch checkpoint — ready for Leader review, not merged
+## T4 branch checkpoint — Leader-corrected, awaiting re-review, not merged
+
+`feature/frontend-i18n-final-ux-acceptance` (based on the reviewed T3 merge
+PR #111, `f5a2196`) adds the bilingual vi-default/en presentation layer:
+typed English-key catalogs (1069 keys across 5 domain catalogs), the
+`quizopia-locale` preference cookie, server-resolved initial locale, `Intl`
+formatting, the language switcher, and localized shells with
+state-preservation guarantees (no `key={locale}`, no refetch on locale
+change). Committed to **PR #112** (open, **not merged**); independent Leader
+review returned three blocking findings, all resolved by the correction
+commit: a complete real-stack user journey (Teacher login → publish
+QuizVersion → create/OPEN PUBLIC assessment → Student join/answers/autosave/
+submit → authoritative 100.00% grading → Student result in both locales →
+Teacher results, **18/18 assertions**), a classified measurement-based visual
+review (initial 6 minor touch-target findings corrected in code; re-audit
+56/0), and documentation accuracy. Full scope, verified counts and evidence:
+[T4 i18n verification record](t4-i18n-verification.md); developer reference:
+[`frontend/lib/i18n/README.md`](../../frontend/lib/i18n/README.md).
+
+Verification state: Vitest 804/804 (77 files), typecheck, lint, format and
+production build clean after correction; Playwright 130 intercepted tests
+(109 inherited + 2 state-preservation + 3 acceptance + 16 visual evidence)
+passing locally and in CI on the implementation head (one pre-existing
+teacher-route parallel-load flake documented since T2/T3 passes in isolation
+and CI). Real-stack evidence totals **82 assertions**: the 64 J1–J9
+assertions (byte-identical authored Markdown across locale switches,
+mid-form retention, mobile no-overflow) plus the 18/18 full journey.
+Production **NO-GO unchanged**; **BR-01 still PENDING** — T4 makes no
+self-attempt policy change. Untracked `scripts/local/windows_*`
+local-runtime files are not T4.
+
+## T3 branch checkpoint — reviewed and merged as PR #111 (`f5a2196`)
+
+> Update 2026-10-26 (T4 session): T3 was subsequently merged as PR #111
+> (`f5a2196`), which is the base of the T4 branch above. The record below is
+> retained as written at T3 handoff.
 
 `feature/teacher-assessment-classroom-management`, based on reviewed T2 merge
 PR #110 (`9d16d0ed20fffb0eca6ef4a05b9b3cd820866519`), implements owner-scoped

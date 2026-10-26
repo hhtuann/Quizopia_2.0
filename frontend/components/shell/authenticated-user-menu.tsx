@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "../../lib/i18n/provider";
 import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
 import { confirmUnsavedWorkLeaving } from "../../features/attempts/hooks/use-unsaved-navigation-guard";
@@ -14,6 +15,7 @@ const workspaceLabels = {
 } as const;
 
 export function AuthenticatedUserMenu() {
+  const { t, localize } = useI18n();
   const router = useRouter();
   const { activeWorkspace, logout, switchWorkspace, user } = useAuth();
   const {
@@ -55,8 +57,8 @@ export function AuthenticatedUserMenu() {
 
   const workspace =
     activeWorkspace === null
-      ? "No workspace"
-      : workspaceLabels[activeWorkspace];
+      ? t("No workspace")
+      : t(workspaceLabels[activeWorkspace]);
   const initial = user.username.trim().charAt(0).toLocaleUpperCase() || "U";
   const canSwitchToLearning =
     activeWorkspace === "TEACHING" && user.roles.includes("STUDENT");
@@ -142,7 +144,10 @@ export function AuthenticatedUserMenu() {
       <button
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={`Open user menu for ${user.username}, ${workspace} workspace`}
+        aria-label={t("Open user menu for {username}, {workspace} workspace", {
+          username: user.username,
+          workspace,
+        })}
         className="flex min-h-11 max-w-full items-center gap-3 rounded-full border border-border bg-surface py-1 pl-1 pr-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 motion-reduce:transition-none"
         onClick={() => {
           setMessage(null);
@@ -153,7 +158,9 @@ export function AuthenticatedUserMenu() {
         type="button"
       >
         <span
-          aria-label={`${user.username} avatar fallback`}
+          aria-label={t("{username} avatar fallback", {
+            username: user.username,
+          })}
           className="brand-gradient flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
           role="img"
         >
@@ -185,7 +192,7 @@ export function AuthenticatedUserMenu() {
 
       {open ? (
         <div
-          aria-label="User menu"
+          aria-label={t("User menu")}
           className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-surface p-2 shadow-card-hover"
           onKeyDown={handleMenuKeyDown}
           ref={menuRef}
@@ -211,9 +218,9 @@ export function AuthenticatedUserMenu() {
             role="menuitem"
             type="button"
           >
-            Account settings
+            {t("Account settings")}
             <span className="ml-auto text-xs text-foreground-muted">
-              Unavailable
+              {t("Unavailable")}
             </span>
           </button>
 
@@ -224,7 +231,7 @@ export function AuthenticatedUserMenu() {
               role="menuitem"
               type="button"
             >
-              Switch to Learning
+              {t("Switch to Learning")}
             </button>
           ) : null}
           {canSwitchToTeaching || needsTeacherRegistration ? (
@@ -241,10 +248,10 @@ export function AuthenticatedUserMenu() {
               type="button"
             >
               {canSwitchToTeaching
-                ? "Switch to Teaching"
+                ? t("Switch to Teaching")
                 : isEnablingTeacher
-                  ? "Registering as teacher..."
-                  : "Register as teacher"}
+                  ? t("Registering as teacher...")
+                  : t("Register as teacher")}
             </button>
           ) : null}
 
@@ -256,7 +263,7 @@ export function AuthenticatedUserMenu() {
               role="menuitem"
               type="button"
             >
-              {isSigningOut ? "Signing out…" : "Sign out"}
+              {isSigningOut ? t("Signing out…") : t("Sign out")}
             </button>
           </div>
 
@@ -265,7 +272,7 @@ export function AuthenticatedUserMenu() {
               className="mx-2 mt-1 rounded-lg bg-surface-muted px-3 py-2 text-xs leading-5 text-foreground-secondary"
               role={notice?.kind === "error" ? "alert" : "status"}
             >
-              {message ?? notice?.message}
+              {localize(message ?? notice?.message ?? "")}
             </p>
           ) : null}
         </div>

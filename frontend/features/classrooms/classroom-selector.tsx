@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { Alert } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
+import { useI18n } from "../../lib/i18n/provider";
 import { publicationFailureMessage } from "../assessments/api/publication-api-client";
 import type {
   ClassroomApiClient,
@@ -28,6 +29,7 @@ export function ClassroomSelector({
   onValidityChange,
   error,
 }: SelectorProps & { readonly client: ClassroomApiClient | null }) {
+  const { t, localize } = useI18n();
   const id = useId();
   const [items, setItems] = useState<readonly SelectedClassroom[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -86,19 +88,27 @@ export function ClassroomSelector({
       aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`}
       className="space-y-3"
     >
-      <legend className="text-sm font-semibold">Choose one Classroom</legend>
+      <legend className="text-sm font-semibold">
+        {t("Choose one Classroom")}
+      </legend>
       <p className="text-sm text-foreground-muted" id={`${id}-help`}>
-        Only your owned Classrooms are available. Select one to assign this
-        assessment.
+        {t(
+          "Only your owned Classrooms are available. Select one to assign this assessment.",
+        )}
       </p>
       {!client ? (
-        <Alert title="Classroom access unavailable" variant="warning">
-          Your authenticated Classroom connection is unavailable.
+        <Alert title={t("Classroom access unavailable")} variant="warning">
+          {t("Your authenticated Classroom connection is unavailable.")}
         </Alert>
       ) : null}
       {value && !selected ? (
-        <Alert title="Selected Classroom needs verification" variant="warning">
-          {selectionFailure ?? "Checking access to the saved Classroom…"}
+        <Alert
+          title={t("Selected Classroom needs verification")}
+          variant="warning"
+        >
+          {selectionFailure
+            ? localize(selectionFailure)
+            : t("Checking access to the saved Classroom…")}
           {selectionFailure ? (
             <Button
               className="mt-3"
@@ -109,7 +119,7 @@ export function ClassroomSelector({
                 setSelectionRetry((current) => current + 1);
               }}
             >
-              Retry selected Classroom
+              {t("Retry selected Classroom")}
             </Button>
           ) : null}
         </Alert>
@@ -155,12 +165,12 @@ export function ClassroomSelector({
       </div>
       {loading && client ? (
         <p role="status" className="text-sm text-foreground-secondary">
-          Loading your Classrooms…
+          {t("Loading your Classrooms…")}
         </p>
       ) : null}
       {failure ? (
-        <Alert title="Classrooms could not be loaded" variant="danger">
-          {failure}
+        <Alert title={t("Classrooms could not be loaded")} variant="danger">
+          {localize(failure)}
           <div className="mt-3">
             <Button
               type="button"
@@ -171,15 +181,16 @@ export function ClassroomSelector({
                 setRetry((current) => current + 1);
               }}
             >
-              Retry Classrooms
+              {t("Retry Classrooms")}
             </Button>
           </div>
         </Alert>
       ) : null}
       {!loading && !failure && choices.length === 0 ? (
         <p className="rounded-xl bg-surface-muted p-4 text-sm">
-          No owned Classrooms yet. A Classroom must be created before you can
-          assign a CLASS assessment. You can save a PUBLIC assessment instead.
+          {t(
+            "No owned Classrooms yet. A Classroom must be created before you can assign a CLASS assessment. You can save a PUBLIC assessment instead.",
+          )}
         </p>
       ) : null}
       {cursor && !failure ? (
@@ -192,7 +203,7 @@ export function ClassroomSelector({
             setRequestCursor(cursor);
           }}
         >
-          Load more Classrooms
+          {t("Load more Classrooms")}
         </Button>
       ) : null}
       {error ? (

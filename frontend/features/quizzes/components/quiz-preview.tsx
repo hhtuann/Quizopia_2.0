@@ -2,6 +2,7 @@
 
 import { Fragment, type ReactNode, useId } from "react";
 import katex from "katex";
+import { useI18n } from "../../../lib/i18n/provider";
 import type { QuizMarkdownServerError } from "../api/quiz-api-client";
 import {
   analyzeQuizMarkdown,
@@ -212,6 +213,7 @@ function PreviewQuestion({
   readonly question: QuizPreviewQuestion;
   readonly readOnly: boolean;
 }) {
+  const { localize, t } = useI18n();
   const canSelectQuestion = !readOnly && onQuestionSelect !== undefined;
 
   return (
@@ -223,7 +225,10 @@ function PreviewQuestion({
         <h3 className="text-base font-semibold text-foreground">
           {canSelectQuestion ? (
             <button
-              aria-label={`Jump to source for question ${question.number}, line ${question.source.line}`}
+              aria-label={localize(
+                "Jump to source for question {number}, line {line}",
+                { line: question.source.line, number: question.number },
+              )}
               className="rounded-md text-left font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus motion-reduce:transition-none"
               onClick={() => onQuestionSelect(question)}
               type="button"
@@ -246,13 +251,15 @@ function PreviewQuestion({
       {question.options.length > 0 ? (
         <ol
           className="mt-3 space-y-1.5"
-          aria-label={`Options for question ${question.number}`}
+          aria-label={localize("Options for question {number}", {
+            number: question.number,
+          })}
         >
           {question.options.map((option) => (
             <li key={`${question.number}-${option.label}`}>
               {readOnly || onOptionToggle === undefined ? (
                 <div
-                  aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
+                  aria-label={`${option.label}. ${option.correct ? t("Marked correct") : t("Not marked correct")}`}
                   className={`w-full rounded-lg border px-3 py-2.5 text-left ${
                     option.correct
                       ? "border-primary/50 bg-primary/10"
@@ -287,7 +294,7 @@ function PreviewQuestion({
                 </div>
               ) : (
                 <button
-                  aria-label={`${option.label}. ${option.correct ? "Marked correct" : "Not marked correct"}`}
+                  aria-label={`${option.label}. ${option.correct ? t("Marked correct") : t("Not marked correct")}`}
                   aria-pressed={option.correct}
                   className={`min-h-11 w-full rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none ${
                     option.correct
@@ -395,8 +402,9 @@ export function QuizPreview({
   readOnly = false,
   serverDiagnostics = [],
   source,
-  title = "Live preview",
+  title,
 }: QuizPreviewProps) {
+  const { t } = useI18n();
   const analysis = analyzeQuizMarkdown(source);
   const generatedId = useId();
 
@@ -405,7 +413,7 @@ export function QuizPreview({
       <EditorPaneHeader
         description={description}
         descriptionId={`${generatedId}-help`}
-        title={title}
+        title={title ?? t("Live preview")}
         titleId={`${generatedId}-title`}
       />
 
@@ -415,7 +423,7 @@ export function QuizPreview({
             className="text-sm font-semibold text-danger"
             id="server-diagnostics-title"
           >
-            Publish validation
+            {t("Publish validation")}
           </h3>
           <ul className="mt-2 space-y-2">
             {serverDiagnostics.map((item, index) => (
@@ -440,7 +448,7 @@ export function QuizPreview({
             className="text-sm font-semibold text-warning"
             id="frontend-diagnostics-title"
           >
-            Editor diagnostics
+            {t("Editor diagnostics")}
           </h3>
           <ul className="mt-2 space-y-2">
             {analysis.diagnostics.slice(0, 12).map((item, index) => (
@@ -456,8 +464,9 @@ export function QuizPreview({
 
       {analysis.questions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border-strong bg-surface-muted p-5 text-sm leading-6 text-foreground-muted">
-          Start a question with <code className="font-mono">Câu 1 [TYPE]:</code>{" "}
-          to see the quiz preview.
+          {t("Start a question with")}{" "}
+          <code className="font-mono">Câu 1 [TYPE]:</code>{" "}
+          {t("to see the quiz preview.")}
         </div>
       ) : (
         <div className="space-y-4">

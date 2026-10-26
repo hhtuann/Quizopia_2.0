@@ -1,3 +1,7 @@
+"use client";
+
+import { formatDateTime } from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 import { describeEvidenceType } from "../api/monitoring-api-client";
 import {
   PROVENANCE_LABELS,
@@ -9,15 +13,18 @@ export function TeacherTimeline({
 }: {
   readonly items: readonly MonitoringEvidence[];
 }) {
+  const { t, localize, locale } = useI18n();
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border-strong p-6 text-sm text-foreground-secondary">
-        No monitoring evidence is available for this authorized session yet.
+        {t(
+          "No monitoring evidence is available for this authorized session yet.",
+        )}
       </div>
     );
   }
   return (
-    <ol className="space-y-3" aria-label="Monitoring activity timeline">
+    <ol className="space-y-3" aria-label={t("Monitoring activity timeline")}>
       {items.map((item) => (
         <li
           className="grid gap-2 rounded-xl border border-border bg-surface p-4 sm:grid-cols-[8rem_minmax(0,1fr)_11rem]"
@@ -30,40 +37,41 @@ export function TeacherTimeline({
           </div>
           <div>
             <p className="font-semibold text-foreground">
-              {describeEvidenceType(item.type)}
+              {localize(describeEvidenceType(item.type))}
             </p>
             <p className="mt-1 text-sm text-foreground-secondary">
-              {PROVENANCE_LABELS[item.source]}
+              {localize(PROVENANCE_LABELS[item.source])}
               {item.questionNumber === null
                 ? ""
-                : ` · Question ${item.questionNumber}`}
+                : ` · ${t("Question {number}", { number: item.questionNumber })}`}
               {item.assessmentRevision === null
                 ? ""
-                : ` · Assessment revision ${item.assessmentRevision}`}
+                : ` · ${t("Assessment revision {revision}", {
+                    revision: item.assessmentRevision,
+                  })}`}
             </p>
             <p className="mt-1 text-xs text-foreground-muted">
-              Browser observations can be incomplete or manipulated. Persistence
-              facts mean Assessment stored metadata; neither proves misconduct.
+              {t(
+                "Browser observations can be incomplete or manipulated. Persistence facts mean Assessment stored metadata; neither proves misconduct.",
+              )}
             </p>
           </div>
           <div className="space-y-1 text-xs text-foreground-muted sm:text-right">
             <p>
-              Observed/occurred:{" "}
               {item.observedAt === null
-                ? "not reported"
-                : formatInstant(item.observedAt)}
+                ? t("Observed/occurred: {value}", { value: t("not reported") })
+                : t("Observed/occurred: {value}", {
+                    value: formatDateTime(locale, item.observedAt),
+                  })}
             </p>
-            <p>Received: {formatInstant(item.receivedAt)}</p>
+            <p>
+              {t("Received: {value}", {
+                value: formatDateTime(locale, item.receivedAt),
+              })}
+            </p>
           </div>
         </li>
       ))}
     </ol>
   );
-}
-
-function formatInstant(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "medium",
-  }).format(new Date(value));
 }

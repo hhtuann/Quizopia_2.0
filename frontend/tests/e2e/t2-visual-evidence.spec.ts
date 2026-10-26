@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// These journeys assert the English UI. The application defaults to Vietnamese;
+// pin the preference cookie before any navigation so assertions stay stable.
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 // T2 global UX consistency visual evidence: captures representative Teacher
 // and Student screens at desktop (1920x1080, 1440x900), tablet (768x1024) and
 // mobile (390x844) sizes, asserting no viewport-level horizontal overflow

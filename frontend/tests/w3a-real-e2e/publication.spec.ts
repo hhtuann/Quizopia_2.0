@@ -1,5 +1,24 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import type { BrowserContext } from "@playwright/test";
+
+// These journeys assert English UI strings while the app defaults to
+// Vietnamese. Teacher flows pin English through the shared helpers; the
+// default context is pinned before registration here, and the student
+// context is pinned below before its first navigation.
+async function pinEnglishContext(context: BrowserContext) {
+  await context.addCookies([
+    {
+      name: "quizopia-locale",
+      value: "en",
+      url: process.env.W3A_REAL_FRONTEND_URL ?? "http://localhost:3000",
+    },
+  ]);
+}
+
+test.beforeEach(async ({ page }) => {
+  await pinEnglishContext(page.context());
+});
 import type {
   Configuration,
   OwnerView,
@@ -412,6 +431,7 @@ test("real CLASS ownership/membership, explicit monitoring, STUDENT denial and A
   );
 
   const studentContext = await browser.newContext();
+  await pinEnglishContext(studentContext);
   try {
     const studentPage = await studentContext.newPage();
     const student = await registerTeacher(studentPage, request, info, false);
