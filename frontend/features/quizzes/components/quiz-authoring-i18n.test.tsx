@@ -104,9 +104,14 @@ function staticExecutor(value: unknown): AuthenticatedRequestExecutor {
 }
 
 async function switchLocale(value: "en" | "vi") {
-  fireEvent.change(screen.getByRole("combobox"), {
-    target: { value },
-  });
+  fireEvent.click(
+    screen.getByRole("button", { name: /Ngôn ngữ: |Language: / }),
+  );
+  fireEvent.click(
+    screen.getByRole("menuitemradio", {
+      name: value === "en" ? "English" : "Tiếng Việt",
+    }),
+  );
 }
 
 describe("quiz authoring bilingual presentation", () => {

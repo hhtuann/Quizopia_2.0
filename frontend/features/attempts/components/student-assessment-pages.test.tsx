@@ -871,3 +871,189 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
     ).not.toBeInTheDocument();
   });
 });
+
+describe("Focused attempt workspace", () => {
+  const workspaceAttempt: AttemptView = {
+    ...attempt,
+    deadlineAt: null,
+    durationMinutes: 0,
+    questions: [
+      {
+        number: 1,
+        type: "SINGLE_CHOICE",
+        stemMarkdown: "Choose alpha.",
+        options: [
+          { label: "A", markdown: "Alpha" },
+          { label: "B", markdown: "Beta" },
+        ],
+      },
+      {
+        number: 2,
+        type: "NUMERIC_FILL",
+        stemMarkdown: "Enter token.",
+        options: [],
+      },
+      {
+        number: 3,
+        type: "TRUE_FALSE_MATRIX",
+        stemMarkdown: "Judge statements.",
+        options: [
+          { label: "A", markdown: "Statement A" },
+          { label: "B", markdown: "Statement B" },
+          { label: "C", markdown: "Statement C" },
+          { label: "D", markdown: "Statement D" },
+        ],
+      },
+    ],
+    answers: [
+      {
+        questionNumber: 1,
+        answer: { type: "SINGLE_CHOICE", optionLabel: null },
+      },
+      { questionNumber: 2, answer: { type: "NUMERIC_FILL", value: null } },
+      {
+        questionNumber: 3,
+        answer: {
+          type: "TRUE_FALSE_MATRIX",
+          judgments: { A: null, B: null, C: null, D: null },
+        },
+      },
+    ],
+  };
+
+  it("renders every question card in canonical order with type labels and stable navigator links", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    const stems = screen.getAllByRole("heading", { level: 2 });
+    expect(stems.map((heading) => heading.textContent)).toEqual([
+      "Choose alpha.",
+      "Enter token.",
+      "Judge statements.",
+    ]);
+    expect(screen.getByText("Question 1 · SINGLE CHOICE")).toBeVisible();
+    expect(screen.getByText("Question 2 · NUMERIC FILL")).toBeVisible();
+    expect(screen.getByText("Question 3 · TRUE FALSE MATRIX")).toBeVisible();
+    // Navigator boxes address questions by their stable canonical numbers.
+    expect(
+      screen.getByRole("button", { name: /^Question 2, Unanswered/ }),
+    ).toBeVisible();
+  });
+
+  it("shows no countdown at all for an unlimited attempt while submit stays available", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Informative countdown")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit attempt" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Abandon attempt" }),
+    ).toBeVisible();
+  });
+
+  it("shows the informative countdown and deadline only when a deadline exists", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={{ ...attempt, deadlineAt: "2026-10-16T08:40:00Z" }}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(screen.getByRole("timer")).toBeInTheDocument();
+    expect(screen.getByText("Informative countdown")).toBeVisible();
+    expect(screen.getByText(/^Deadline /)).toBeVisible();
+  });
+
+  it("tracks answered versus unanswered questions in the navigator without implying persistence", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    // Before any edit every box reports unanswered with the saved phase.
+    expect(
+      screen.getByRole("button", { name: "Question 1, Unanswered · Saved" }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("radio", { name: /A.*Alpha/ }));
+    // Answered but only a local draft: the label never claims the save landed.
+    expect(
+      screen.getByRole("button", {
+        name: "Question 1, Answered · Unsaved draft",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Question 2, Unanswered · Saved" }),
+    ).toBeVisible();
+    expect(screen.getByText("1 of 3 answered")).toBeVisible();
+  });
+
+  it("moves the current indicator through stable question numbers on navigator jumps", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    const first = screen.getByRole("button", {
+      name: "Question 1, Unanswered · Saved",
+    });
+    expect(first).toHaveAttribute("aria-current", "true");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Question 3, Unanswered · Saved" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Question 3, Unanswered · Saved" }),
+    ).toHaveAttribute("aria-current", "true");
+    expect(first).not.toHaveAttribute("aria-current");
+  });
+
+  it("hides terminal actions once the attempt is no longer ACTIVE", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={{ ...workspaceAttempt, state: "SUBMITTED" }}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Submit attempt" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Abandon attempt" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Attempt submitted")).toBeVisible();
+  });
+});

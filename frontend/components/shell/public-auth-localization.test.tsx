@@ -9,6 +9,13 @@ vi.mock("../../features/auth/auth-provider", () => ({
   useAuth: () => ({ session: { status: "anonymous" } }),
 }));
 
+function switchToEnglish() {
+  fireEvent.click(
+    screen.getByRole("button", { name: /Ngôn ngữ: |Language: / }),
+  );
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "English" }));
+}
+
 describe("public and authentication localization", () => {
   it("renders Vietnamese public copy by default and switches all public navigation in place", () => {
     render(
@@ -29,7 +36,7 @@ describe("public and authentication localization", () => {
       "href",
       "/login",
     );
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "en" } });
+    switchToEnglish();
     expect(
       screen.getByRole("navigation", { name: "Public navigation" }),
     ).toBeVisible();
@@ -66,7 +73,7 @@ describe("public and authentication localization", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Dành cho người học")).toBeInTheDocument();
     fireEvent.change(input, { target: { value: "Exact draft text" } });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "en" } });
+    switchToEnglish();
     expect(
       screen.getByRole("heading", { name: "Verify your email" }),
     ).toBeInTheDocument();

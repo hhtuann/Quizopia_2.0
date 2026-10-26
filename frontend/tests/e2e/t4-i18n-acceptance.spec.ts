@@ -57,7 +57,8 @@ test.describe("i18n acceptance", () => {
     ).toBeVisible();
 
     // Switch to English through the visible control; no navigation/reload.
-    await page.getByRole("combobox").selectOption("en");
+    await page.getByRole("button", { name: /Ngôn ngữ: |Language: / }).click();
+    await page.getByRole("menuitemradio", { name: "English" }).click();
     await expect(
       page.getByRole("heading", { name: "Sign in", exact: true }),
     ).toBeVisible();
@@ -71,7 +72,8 @@ test.describe("i18n acceptance", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
 
     // And back to Vietnamese.
-    await page.getByRole("combobox").selectOption("vi");
+    await page.getByRole("button", { name: /Ngôn ngữ: |Language: / }).click();
+    await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
     await expect(
       page.getByRole("heading", { name: "Đăng nhập", exact: true }),
     ).toBeVisible();

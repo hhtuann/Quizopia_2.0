@@ -328,3 +328,65 @@ describe("QuizMarkdownCodeEditor", () => {
     },
   );
 });
+
+describe("QuizMarkdownCodeEditor NUMERIC_FILL answer marker autocomplete", () => {
+  const numericQuestion =
+    "Câu 2 [NUMERIC_FILL]: Giá trị của 10 / 4 là bao nhiêu?";
+
+  function caretToEnd(editor: HTMLTextAreaElement, source: string) {
+    fireEvent.select(editor, {
+      target: { selectionStart: source.length, selectionEnd: source.length },
+    });
+  }
+
+  it("offers exactly the canonical Đáp án: marker on an empty line after a NUMERIC_FILL question", () => {
+    const source = `${numericQuestion}\n`;
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    caretToEnd(editor, source);
+
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(1);
+    expect(options[0]).toHaveTextContent(/^Đáp án:$/);
+  });
+
+  it("inserts the byte-exact marker with a trailing space via Enter and places the caret after it", async () => {
+    const source = `${numericQuestion}\n`;
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    caretToEnd(editor, source);
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    const expected = `${source}Đáp án: `;
+    expect(screen.getByTestId("exact-editor-value").textContent).toBe(expected);
+    await waitFor(() => expect(editor.selectionStart).toBe(expected.length));
+    expect(editor.selectionEnd).toBe(expected.length);
+  });
+
+  it("dismisses the marker suggestion with Escape without changing source", () => {
+    const source = `${numericQuestion}\n`;
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    caretToEnd(editor, source);
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    fireEvent.keyDown(editor, { key: "Escape" });
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByTestId("exact-editor-value").textContent).toBe(source);
+  });
+
+  it("does not offer the marker again once the question already has an answer line", () => {
+    const source = `${numericQuestion}\nĐáp án: 2.50\n`;
+    render(<EditorHarness initial={source} />);
+    const editor = screen.getByLabelText<HTMLTextAreaElement>(
+      "Quiz Markdown source",
+    );
+    caretToEnd(editor, source);
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+  });
+});

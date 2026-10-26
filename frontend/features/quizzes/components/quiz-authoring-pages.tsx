@@ -18,7 +18,7 @@ import {
   OUTLINE_LINK_CLASSES,
   PRIMARY_LINK_CLASSES,
 } from "../../../components/ui/button";
-import { LanguageSwitcher } from "../../../components/ui/language-switcher";
+import { LanguageMenu } from "../../../components/ui/language-menu";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import {
   CheckIcon,
@@ -899,7 +899,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             <path d="m15 18-6-6 6-6" />
           </svg>
         </Button>
-        <LanguageSwitcher />
+        <LanguageMenu />
         <span
           aria-hidden="true"
           className="hidden h-7 w-px bg-border sm:block"

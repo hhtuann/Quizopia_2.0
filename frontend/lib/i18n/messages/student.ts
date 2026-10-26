@@ -86,6 +86,9 @@ export const studentMessages = {
   "Attempt {attemptId}": "Bài làm {attemptId}",
   "{answered} of {total} answered": "Đã trả lời {answered} trên {total}",
   "Deadline {deadline}": "Hạn chót {deadline}",
+  // Focused attempt workspace chrome
+  "Back to app": "Quay lại ứng dụng",
+  Answered: "Đã trả lời",
   // Closure cutoff
   "Teacher closure cutoff is active": "Đang trong thời hạn chốt của giáo viên",
   "The authoritative cutoff is {cutoff}. Only committed answers are included if the server finalizes the attempt.":

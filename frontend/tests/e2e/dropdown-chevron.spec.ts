@@ -97,29 +97,6 @@ test.describe("UX-10 dropdown chevron geometry", () => {
         viewport: { width: viewport.width, height: viewport.height },
       });
 
-      test(`language select geometry at ${viewport.name}`, async ({ page }) => {
-        await page.goto("/login");
-        const language = page.getByRole("combobox", {
-          name: /Ngôn ngữ|Language/,
-        });
-        await expect(language).toBeVisible();
-        const geometry = await measure(page, "Ngôn ngữ");
-        expect(geometry.appearance).toBe("none");
-        expect(geometry.borderGap).toBeGreaterThanOrEqual(10);
-        expect(geometry.borderGap).toBeLessThanOrEqual(18);
-        expect(geometry.textGap).toBeGreaterThanOrEqual(6);
-        expect(geometry.centerDelta).toBeLessThanOrEqual(2);
-        // Native keyboard semantics: focusing the control shows its own ring.
-        await language.focus();
-        await expect(language).toBeFocused();
-        await page
-          .locator("select")
-          .first()
-          .screenshot({
-            path: `test-results/ux10/language-${viewport.name}.png`,
-          });
-      });
-
       test(`directory state select geometry at ${viewport.name}`, async ({
         page,
       }) => {

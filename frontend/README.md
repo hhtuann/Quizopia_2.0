@@ -47,8 +47,10 @@ architecture, terminology glossary and state-preservation rules:
 - **Locale preference:** the `quizopia-locale` cookie (`vi|en`, `SameSite=Lax`,
   one year, preference only — no credentials). The root server layout resolves
   it (`getServerLocale()`) so SSR, `<html lang>` and hydration agree with no
-  flash; the `LanguageSwitcher` combobox flips the locale immediately and
-  persists it. Dates/numbers go through `formatDateTime`/`formatNumber`/
+  flash; the `LanguageMenu` popover (public/auth chrome and dedicated
+  workspaces) or the account-menu language options (authenticated shell) flip
+  the locale immediately and persist it. Dates/numbers go through
+  `formatDateTime`/`formatNumber`/
   `formatDecimal` (`vi-VN` / `en-GB`).
 - **Never localized:** teacher-authored Quiz Markdown and its grammar markers
   (`Câu`, `Đáp án`, `Lời giải`), canonical API enums (`DRAFT`/`OPEN`/`CLOSED`,

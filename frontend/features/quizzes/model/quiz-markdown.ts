@@ -970,8 +970,12 @@ function singlePrefixSuggestion(
   canonicalMarker: string,
   replaceStart: number,
   replaceEnd: number,
+  allowEmptyFragment = false,
 ): readonly QuizAutocompleteSuggestion[] {
-  if (fragment.length === 0 || !isCanonicalPrefix(fragment, canonicalMarker)) {
+  if (
+    (fragment.length === 0 && !allowEmptyFragment) ||
+    !isCanonicalPrefix(fragment, canonicalMarker)
+  ) {
     return [];
   }
   return [
@@ -1080,6 +1084,7 @@ export function getQuizAutocompleteSuggestions(
         "Đáp án:",
         range.replaceStart,
         range.replaceEnd,
+        current.stemHasContent,
       );
     }
     if (current.answerPresent && current.answerTextPresent && atLineEnd) {
