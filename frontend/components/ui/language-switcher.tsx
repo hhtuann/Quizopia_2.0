@@ -2,6 +2,7 @@
 
 import { useI18n } from "../../lib/i18n/provider";
 import type { Locale } from "../../lib/i18n/core";
+import { SelectInput } from "./select-input";
 
 export function LanguageSwitcher() {
   const { locale, setLocale } = useI18n();
@@ -10,8 +11,8 @@ export function LanguageSwitcher() {
       <span className="sr-only">
         {locale === "vi" ? "Ngôn ngữ" : "Language"}
       </span>
-      <select
-        className="min-h-11 max-w-full rounded-xl border border-border bg-surface py-2.5 pl-3 pr-10 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      <SelectInput
+        aria-label={locale === "vi" ? "Ngôn ngữ" : "Language"}
         value={locale}
         onChange={(event) => setLocale(event.target.value as Locale)}
       >
@@ -21,7 +22,7 @@ export function LanguageSwitcher() {
         <option lang="en" value="en">
           English
         </option>
-      </select>
+      </SelectInput>
     </label>
   );
 }

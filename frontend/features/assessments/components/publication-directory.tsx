@@ -9,6 +9,7 @@ import {
   OUTLINE_LINK_CLASSES,
 } from "../../../components/ui/button";
 import { HeroOrb } from "../../../components/ui/hero-orb";
+import { SelectInput } from "../../../components/ui/select-input";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import { formatInstant, formatNumber } from "../../../lib/i18n/core";
@@ -118,8 +119,8 @@ export function PublicationDirectory({
           />
           <label className="grid gap-2 text-sm font-semibold">
             {t("Publication state")}
-            <select
-              className="min-h-11 max-w-full rounded-xl border border-border-strong bg-surface py-2.5 pl-4 pr-10 focus-visible:ring-2 focus-visible:ring-focus"
+            <SelectInput
+              className="border-border-strong pl-4"
               value={state ?? ""}
               onChange={(event) => {
                 const next = (event.target.value ||
@@ -133,7 +134,7 @@ export function PublicationDirectory({
               <option value="DRAFT">DRAFT</option>
               <option value="OPEN">OPEN</option>
               <option value="CLOSED">CLOSED</option>
-            </select>
+            </SelectInput>
           </label>
           <Button type="submit" variant="secondary">
             {t("Search")}
