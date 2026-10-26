@@ -170,8 +170,12 @@ describe("Student notification inbox", () => {
     expect(
       await screen.findByText("48-hour period confirmed"),
     ).toBeInTheDocument();
-    expect(screen.getByText("2026-10-16 08:32:00 UTC")).toBeInTheDocument();
-    expect(screen.getByText("2026-10-18 08:32:00 UTC")).toBeInTheDocument();
+    expect(
+      screen.getByText("16 Oct 2026, 15:32 (Vietnam time, UTC+7)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("18 Oct 2026, 15:32 (Vietnam time, UTC+7)"),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refresh notice" }));
     expect(await screen.findByText("Finalized by system")).toBeInTheDocument();
     expect(api.get).toHaveBeenCalledTimes(2);

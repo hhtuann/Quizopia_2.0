@@ -7,15 +7,26 @@ import { useAuth } from "../../features/auth/auth-provider";
 import { useTeacherEnablement } from "../../features/auth/hooks/use-teacher-enablement";
 import { confirmUnsavedWorkLeaving } from "../../features/attempts/hooks/use-unsaved-navigation-guard";
 import { useWorkspaceTransition } from "./workspace-transition-overlay";
-import { BookOpenIcon } from "../ui/icons";
+import { BookOpenIcon, CheckIcon } from "../ui/icons";
+import type { Locale } from "../../lib/i18n/core";
 
 const workspaceLabels = {
   LEARNING: "Learning",
   TEACHING: "Teaching",
 } as const;
 
+// Locale-invariant by design (mirrors the standalone switcher): both language
+// names and the section label stay identical in either locale so the control
+// is findable regardless of the current UI language.
+const languageSectionLabel = "Language / Ngôn ngữ";
+
+const languageOptions: readonly { locale: Locale; label: string }[] = [
+  { locale: "vi", label: "Tiếng Việt" },
+  { locale: "en", label: "English" },
+];
+
 export function AuthenticatedUserMenu() {
-  const { t, localize } = useI18n();
+  const { t, localize, locale, setLocale } = useI18n();
   const router = useRouter();
   const { activeWorkspace, logout, switchWorkspace, user } = useAuth();
   const {
@@ -82,9 +93,11 @@ export function AuthenticatedUserMenu() {
       return;
     }
     event.preventDefault();
+    // Arrow keys traverse every focusable menu entry, including the
+    // menuitemradio language options, in rendered order.
     const items = Array.from(
       event.currentTarget.querySelectorAll<HTMLButtonElement>(
-        '[role="menuitem"]:not(:disabled)',
+        '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)',
       ),
     );
     const current = items.indexOf(document.activeElement as HTMLButtonElement);
@@ -254,6 +267,41 @@ export function AuthenticatedUserMenu() {
                   : t("Register as teacher")}
             </button>
           ) : null}
+
+          <div
+            aria-labelledby="user-menu-language-label"
+            className="mt-1 border-t border-border pt-1"
+            role="group"
+          >
+            <p
+              className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-foreground-muted"
+              id="user-menu-language-label"
+            >
+              {languageSectionLabel}
+            </p>
+            {languageOptions.map((option) => {
+              const isCurrent = option.locale === locale;
+              return (
+                <button
+                  aria-checked={isCurrent}
+                  className={menuItemClasses}
+                  key={option.locale}
+                  lang={option.locale}
+                  onClick={() => setLocale(option.locale)}
+                  role="menuitemradio"
+                  type="button"
+                >
+                  {option.label}
+                  {isCurrent ? (
+                    <CheckIcon
+                      aria-hidden="true"
+                      className="ml-auto size-4 shrink-0 text-primary"
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
 
           <div className="mt-1 border-t border-border pt-1">
             <button

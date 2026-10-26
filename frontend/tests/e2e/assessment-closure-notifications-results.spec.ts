@@ -350,8 +350,12 @@ test("Student inbox distinguishes preparation from a confirmed recipient cutoff 
   await expect(
     page.getByText("48-hour period confirmed", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("2026-10-14 09:30:00.123456 UTC")).toBeVisible();
-  await expect(page.getByText("2026-10-16 09:30:00.123456 UTC")).toBeVisible();
+  await expect(
+    page.getByText("14 Oct 2026, 16:30 (Vietnam time, UTC+7)"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("16 Oct 2026, 16:30 (Vietnam time, UTC+7)"),
+  ).toBeVisible();
   await expect(page.getByText(attemptId, { exact: true })).toBeVisible();
   expect(classroomRequests).toBe(0);
   expect(

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useI18n } from "../../lib/i18n/provider";
-import { LanguageSwitcher } from "../ui/language-switcher";
 import type { ReactNode } from "react";
 import { useAuth } from "../../features/auth/auth-provider";
 import { QuizopiaLogo } from "../brand/quizopia-logo";
@@ -113,7 +112,6 @@ export function ApplicationShell({
           ) : null}
         </nav>
 
-        <LanguageSwitcher />
         <AuthenticatedUserMenu />
       </header>
 

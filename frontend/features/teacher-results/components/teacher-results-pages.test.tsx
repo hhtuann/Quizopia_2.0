@@ -5,7 +5,10 @@ import type {
   TeacherResultRow,
 } from "../../assessments/api/publication-contract.generated";
 import type { TeacherResultsApiClient } from "../api/teacher-results-api-client";
-import { TeacherResultsScreen } from "./teacher-results-pages";
+import {
+  PublicationResultsSection,
+  TeacherResultsScreen,
+} from "./teacher-results-pages";
 
 const publicationId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const studentId = "b7b14962-3a2e-4d2d-926a-3b36ea90c196";
@@ -146,5 +149,48 @@ describe("Teacher Publication results", () => {
     expect(
       await screen.findByText(/Your account has not been logged out/),
     ).toBeInTheDocument();
+  });
+
+  it("renders the embeddable PublicationResultsSection with its own heading and empty state", async () => {
+    const api = client();
+    vi.mocked(api.results).mockResolvedValue({
+      ok: true,
+      status: 200,
+      value: { items: [], nextCursor: null },
+    });
+    render(
+      <PublicationResultsSection client={api} publicationId={publicationId} />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Results" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No results yet")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh results" }),
+    ).toBeInTheDocument();
+    expect(api.results).toHaveBeenCalledWith(
+      publicationId,
+      undefined,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("renders rows inside the embeddable section for the unified detail page", async () => {
+    const api = client();
+    vi.mocked(api.results).mockResolvedValue({
+      ok: true,
+      status: 200,
+      value: { items: [submitted], nextCursor: null },
+    });
+    render(
+      <PublicationResultsSection client={api} publicationId={publicationId} />,
+    );
+    expect(
+      await screen.findByText(
+        "12345678901234567890.125 / 12345678901234567891",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("100.00%")).toBeInTheDocument();
+    expect(screen.queryByText("No results yet")).not.toBeInTheDocument();
   });
 });

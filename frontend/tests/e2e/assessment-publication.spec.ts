@@ -160,6 +160,22 @@ async function mockPublication(
   return commands;
 }
 
+/**
+ * The unified OPEN/CLOSED detail page embeds the results section, whose GET
+ * /results would otherwise fall through to the broad publications glob above
+ * and answer with an OwnerView the results schema rejects. Registering this
+ * more specific route AFTER mockPublication makes it win for /results calls.
+ */
+async function mockResults(page: Page) {
+  await page.route("**/api/assessments/publications/*/results**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    }),
+  );
+}
+
 async function mockQuiz(page: Page) {
   const summary = {
     id: quizVersionId,
@@ -248,6 +264,7 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
   await mockAuth(page);
   await mockQuiz(page);
   const commands = await mockPublication(page);
+  await mockResults(page);
   await page.goto(`/app/quizzes/${quizId}`);
   await page
     .getByRole("textbox", { name: "Quiz title" })
@@ -398,6 +415,7 @@ test("hiding a dirty schedule extension requires confirmation and cancel keeps v
       openedAt: "2026-10-16T07:30:00Z",
     },
   });
+  await mockResults(page);
   await page.goto(`/app/assessments/${publicationId}`);
   await page
     .getByRole("button", { name: "Extend participation schedule" })
@@ -475,6 +493,7 @@ test("intercepted CLASS requires explicit monitoring and blocked CLOSE remains O
     initial: classDraft,
     blockClose: true,
   });
+  await mockResults(page);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`/app/assessments/${publicationId}`);
   await expect(

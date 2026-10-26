@@ -103,9 +103,20 @@ test.describe("i18n acceptance", () => {
     ).toBeVisible();
     await expect(page.getByText("Chưa có bài kiểm tra nào")).toBeVisible();
 
-    // The language control is distinct from the directory's state filter.
-    const language = page.getByRole("combobox", { name: /Ngôn ngữ|Language/ });
-    await language.selectOption("en");
+    // Authenticated pages expose the language options through the user menu
+    // (menuitemradio), distinct from the directory's state filter select. The
+    // trigger label is localized, so match it in either UI language.
+    const userMenu = page.getByRole("button", {
+      name: /Open user menu for teacher01|Mở menu người dùng cho teacher01/,
+    });
+    await userMenu.click();
+    const languageGroup = page.getByRole("group", {
+      name: "Language / Ngôn ngữ",
+    });
+    await expect(
+      languageGroup.getByRole("menuitemradio", { name: "Tiếng Việt" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await languageGroup.getByRole("menuitemradio", { name: "English" }).click();
     await expect(
       page.getByRole("heading", { name: "My Assessments" }),
     ).toBeVisible();

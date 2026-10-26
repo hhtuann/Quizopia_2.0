@@ -8,10 +8,10 @@ import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { assessmentFailureMessage } from "../../assessments/api/assessment-foundation";
 import type { TeacherResultRow } from "../../assessments/api/publication-contract.generated";
-import { formatUtc } from "../../assessments/utils/utc-time";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import type { TeacherResultsApiClient } from "../api/teacher-results-api-client";
@@ -104,7 +104,49 @@ export function TeacherResultsScreen({
   readonly client: TeacherResultsApiClient;
   readonly publicationId: string;
 }) {
-  const { t, localize } = useI18n();
+  const { t } = useI18n();
+  return (
+    <div className="space-y-5">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-primary">
+            {t("Publication results")}
+          </p>
+          <h1 className="mt-1 font-heading text-3xl font-bold">
+            {t("Attempt results")}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
+            {t(
+              "Owner-authorized Attempt rows with exact totals. ACTIVE and ABANDONED attempts have no result yet. No answers or answer keys are included in this data.",
+            )}
+          </p>
+        </div>
+      </header>
+      <p className="break-all font-mono text-xs text-foreground-muted">
+        {t("Publication ID: {id}", { id: publicationId })}
+      </p>
+      <PublicationResultsSection
+        client={client}
+        publicationId={publicationId}
+      />
+    </div>
+  );
+}
+
+/**
+ * Embeddable owner-authorized results table with its own data fetching,
+ * loading/empty/error states and opaque-cursor load-more. Reused by the
+ * standalone /results route (inside TeacherResultsScreen) and embedded on the
+ * unified OPEN/CLOSED Publication detail page.
+ */
+export function PublicationResultsSection({
+  client,
+  publicationId,
+}: {
+  readonly client: TeacherResultsApiClient;
+  readonly publicationId: string;
+}) {
+  const { t, localize, locale } = useI18n();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -213,21 +255,9 @@ export function TeacherResultsScreen({
   }, [load]);
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-primary">
-            {t("Publication results")}
-          </p>
-          <h1 className="mt-1 font-heading text-3xl font-bold">
-            {t("Attempt results")}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
-            {t(
-              "Owner-authorized Attempt rows with exact totals. ACTIVE and ABANDONED attempts have no result yet. No answers or answer keys are included in this data.",
-            )}
-          </p>
-        </div>
+    <section aria-label={t("Results")} className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-heading text-xl font-bold">{t("Results")}</h2>
         <Button
           disabled={loadingMore}
           isLoading={loading}
@@ -240,10 +270,7 @@ export function TeacherResultsScreen({
         >
           {t("Refresh results")}
         </Button>
-      </header>
-      <p className="break-all font-mono text-xs text-foreground-muted">
-        {t("Publication ID: {id}", { id: publicationId })}
-      </p>
+      </div>
       {failureText ? (
         <Alert title={t("Results could not be read")} variant="warning">
           {localize(failureText)}
@@ -258,7 +285,7 @@ export function TeacherResultsScreen({
         </Surface>
       ) : failureText === null && rows.length === 0 ? (
         <Surface className="p-6">
-          <h2 className="text-xl font-bold">{t("No attempt rows yet")}</h2>
+          <h3 className="text-xl font-bold">{t("No results yet")}</h3>
           <p className="mt-2 text-sm text-foreground-secondary">
             {t(
               "No attempts exist for this Publication, or none are visible to your account.",
@@ -354,7 +381,7 @@ export function TeacherResultsScreen({
                   <td className="px-4 py-3 text-xs tabular-nums">
                     {row.result === null
                       ? "—"
-                      : formatUtc(row.result.finalizedAt)}
+                      : formatInstant(locale, row.result.finalizedAt)}
                   </td>
                 </tr>
               ))}
@@ -380,6 +407,6 @@ export function TeacherResultsScreen({
           "Attempt IDs are the real authorized identities returned by the server. Each per-attempt monitoring destination performs a fresh server lookup; this results table does not grant monitoring access or discover a global roster.",
         )}
       </p>
-    </div>
+    </section>
   );
 }

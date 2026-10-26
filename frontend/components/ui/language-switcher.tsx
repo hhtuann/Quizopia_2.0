@@ -11,7 +11,7 @@ export function LanguageSwitcher() {
         {locale === "vi" ? "Ngôn ngữ" : "Language"}
       </span>
       <select
-        className="min-h-11 max-w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="min-h-11 max-w-full rounded-xl border border-border bg-surface py-2.5 pl-3 pr-10 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         value={locale}
         onChange={(event) => setLocale(event.target.value as Locale)}
       >

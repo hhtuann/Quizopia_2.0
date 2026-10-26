@@ -34,6 +34,14 @@ const authRuntime = createSessionRuntime(createAccessTokenVault());
 vi.mock("../../classrooms/use-classroom-client", () => ({
   useClassroomClient: () => null,
 }));
+// The embedded PublicationResultsSection fetches through this hook; stub it
+// so detail-screen tests control results without a live auth executor.
+const resultsClient = vi.hoisted(() => ({
+  results: vi.fn(),
+}));
+vi.mock("../../teacher-results/hooks/use-teacher-results-client", () => ({
+  useTeacherResultsClient: () => resultsClient,
+}));
 const authStub: AuthSessionService = {
   authenticatedRequests: {
     async execute() {
@@ -166,6 +174,12 @@ function quizzes(): QuizApiClient {
 
 beforeEach(() => {
   navigation.push.mockClear();
+  resultsClient.results.mockReset();
+  resultsClient.results.mockResolvedValue({
+    ok: true,
+    status: 200,
+    value: { items: [], nextCursor: null },
+  });
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
     value: function (this: HTMLDialogElement) {
@@ -1196,5 +1210,75 @@ describe("Authoritative Publication lifecycle", () => {
     expect(confirmUnsavedWorkLeaving()).toBe(true);
     expect(confirmSpy).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+});
+
+describe("Publication detail results-first layout (UX-04)", () => {
+  it("shows compact chips, a keyboard-toggleable configuration summary and an embedded Results section for OPEN", async () => {
+    const api = client();
+    api.get.mockResolvedValue({ ok: true, value: opened });
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    // Lifecycle controls remain present with identical labels.
+    expect(
+      await screen.findByRole("button", { name: "Review and CLOSE" }),
+    ).toBeInTheDocument();
+    // Compact configuration chips are visible outside the disclosure; their
+    // "label:" form (with colon) only occurs in the chip row.
+    expect(screen.getByText("Attempt duration:")).toBeInTheDocument();
+    expect(screen.getByText("Maximum Attempts:")).toBeInTheDocument();
+    expect(screen.getByText("Audience:")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring:")).toBeInTheDocument();
+    // Collapsed by default (jsdom exposes no matchMedia): the disclosure
+    // keeps the full authoritative summary closed until it is toggled.
+    const disclosure = screen
+      .getByText("Configuration summary")
+      .closest("details");
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Configuration summary"));
+    expect(disclosure).toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Configuration summary"));
+    expect(disclosure).not.toHaveAttribute("open");
+    // Results section is embedded and fetches its own rows.
+    expect(
+      screen.getByRole("heading", { name: "Results" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No results yet")).toBeInTheDocument();
+    expect(resultsClient.results).toHaveBeenCalledWith(
+      id,
+      undefined,
+      expect.any(AbortSignal),
+    );
+    // Results-first ordering: summary card, then lifecycle controls, then
+    // the embedded Results section.
+    const summaryToggle = screen.getByText("Configuration summary");
+    const closeControl = screen.getByRole("button", {
+      name: "Review and CLOSE",
+    });
+    const resultsHeading = screen.getByRole("heading", { name: "Results" });
+    expect(
+      summaryToggle.compareDocumentPosition(closeControl) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      closeControl.compareDocumentPosition(resultsHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("keeps the DRAFT detail management-first with the full configuration and no embedded results", async () => {
+    const api = client();
+    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Authoritative configuration",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Immutable source")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Results" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("No results yet")).not.toBeInTheDocument();
+    expect(resultsClient.results).not.toHaveBeenCalled();
   });
 });

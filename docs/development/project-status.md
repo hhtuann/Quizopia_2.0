@@ -2,8 +2,26 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-26 (T4 i18n branch checkpoint; T3 checkpoint below; historical merged checkpoint retained)
->
+> **Last updated:** 2026-10-26 (UX feedback round 1 branch checkpoint; T4/T3 checkpoints below; historical merged checkpoint retained)
+
+## UX feedback round 1 — awaiting review, not merged
+
+`feature/frontend-ux-feedback-round1` (baseline: merged T4 PR #112,
+`9d5ce4d`) implements five approved user-feedback corrections:
+language selection moved into the authenticated user menu (public pages keep
+the standalone switcher), hero-card headers for My Assessments and the
+Notifications inbox, select-padding fixes, a results-first unified
+Assessment detail with embedded student results and keyboard-navigable
+directory rows, and human-friendly Vietnam-timezone date/time formatting
+across surfaces. UX-05 (student display names in Teacher Results) was
+investigated and is **PAUSED for Leader architecture approval** of a new
+least-privilege Identity internal batch-profile contract — proposed in the
+record below; Teacher Results continue showing authoritative identifiers and
+no names are fabricated. Verification: 829 Vitest / 133 Playwright /
+typecheck / lint / format / build green, plus 14/14 real-runtime spot
+assertions. Production **NO-GO** and **BR-01 PENDING** unchanged.
+Full record: [ux-feedback-round1.md](ux-feedback-round1.md).
+
 > **Checkpoint baseline:** merged `develop` `2d837e5f853cc2c929d8433e62b2da3f07a60cd2`
 > (PR #107, W4-E integration & acceptance). W4 implementation and local-test
 > acceptance are complete; production rollout is **HOLD / NOT AUTHORIZED**.

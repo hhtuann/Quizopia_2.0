@@ -389,7 +389,7 @@ describe("Teacher closure request detail", () => {
       expect(
         await screen.findByText(label, { exact: true }),
       ).toBeInTheDocument();
-      expect(screen.getByText("2026-10-18 08:35:00 UTC")).toBeInTheDocument();
+      expect(screen.getByText("18 Oct 2026, 15:35")).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: /Review and (COMPLETE|CANCEL)/ }),
       ).not.toBeInTheDocument();

@@ -425,7 +425,7 @@ export async function enableTeacherUi(page: Page, actor: BrowserActor) {
 
 // Quiz authoring helpers assert English UI strings while the app defaults to
 // Vietnamese. Pin the locale cookie for future loads and switch the live SPA
-// locale through the header language control without reloading the page.
+// locale through the user menu language options without reloading the page.
 async function pinEnglishUi(page: Page) {
   const origin = new URL(page.url()).origin;
   if (origin.startsWith("http")) {
@@ -434,10 +434,17 @@ async function pinEnglishUi(page: Page) {
       .addCookies([{ name: "quizopia-locale", value: "en", url: origin }]);
   }
   if ((await page.evaluate(() => document.documentElement.lang)) !== "en") {
-    const switcher = page.getByRole("combobox").first();
-    if (await switcher.isVisible().catch(() => false)) {
-      await switcher.selectOption("en");
-    }
+    // These helpers always run on authenticated pages, where the language
+    // options live in the user menu (menuitemradio), not a header combobox.
+    // The trigger label is localized, so match it in either UI language.
+    await page
+      .getByRole("button", {
+        name: /Open user menu for|Mở menu người dùng cho/,
+      })
+      .click();
+    await page.getByRole("menuitemradio", { name: "English" }).click();
+    // Close the still-open menu so it cannot cover later interactions.
+    await page.keyboard.press("Escape");
   }
 }
 

@@ -101,3 +101,11 @@ export function RetryIcon(props: IconProps) {
     </IconFrame>
   );
 }
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <IconFrame {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </IconFrame>
+  );
+}

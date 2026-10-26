@@ -1,8 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
+import { ChevronDownIcon } from "../../../components/ui/icons";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
@@ -34,10 +42,15 @@ import {
 } from "../../realtime/hooks/use-realtime-subscriptions";
 import { RealtimeStatusInline } from "../../realtime/components/realtime-status";
 import type { RealtimeResource } from "../../realtime/model/realtime-frame";
+import { useTeacherResultsClient } from "../../teacher-results/hooks/use-teacher-results-client";
+import { PublicationResultsSection } from "../../teacher-results/components/teacher-results-pages";
 import { PrivatePublicationLocator } from "./private-publication-locator";
 import { PublicationConfigurationForm } from "./publication-configuration-form";
 import { PublicationConfirmation } from "./publication-confirmation";
-import { PublicationSummary } from "./publication-summary";
+import {
+  PublicationSummary,
+  PublicationSummaryChips,
+} from "./publication-summary";
 import { ScheduleExtension } from "./publication-schedule-extension";
 
 type Command =
@@ -66,6 +79,89 @@ function commandSatisfied(command: Command, publication: OwnerView): boolean {
   );
 }
 
+const DESKTOP_SUMMARY_QUERY = "(min-width: 1024px)";
+
+function subscribeDesktopQuery(callback: () => void) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return () => {};
+  }
+  const query = window.matchMedia(DESKTOP_SUMMARY_QUERY);
+  query.addEventListener("change", callback);
+  return () => query.removeEventListener("change", callback);
+}
+
+function desktopQuerySnapshot(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(DESKTOP_SUMMARY_QUERY).matches
+  );
+}
+
+/**
+ * Collapsible authoritative configuration card for the unified results-first
+ * OPEN/CLOSED detail layout. The compact chip row is always visible; the full
+ * PublicationSummary (and the PUBLIC private locator) sits behind a native
+ * <details>/<summary> disclosure that defaults to expanded on lg+ desktops
+ * and collapsed on smaller viewports. The responsive default is read through
+ * useSyncExternalStore (collapsed server snapshot, live matchMedia client
+ * snapshot), the user's last toggle takes precedence, and the toggle itself
+ * is fully controlled (native switch prevented) so mouse, keyboard and tests
+ * share one source of truth. A locale switch never remounts or resets it.
+ */
+function ConfigurationSummaryCard({
+  publication,
+}: {
+  readonly publication: OwnerView;
+}) {
+  const { t } = useI18n();
+  const desktopDefault = useSyncExternalStore(
+    subscribeDesktopQuery,
+    desktopQuerySnapshot,
+    () => false,
+  );
+  const [userOverride, setUserOverride] = useState<boolean | null>(null);
+  const expanded = userOverride ?? desktopDefault;
+  return (
+    <Surface className="p-5 sm:p-6">
+      <PublicationSummaryChips configuration={publication.configuration} />
+      <details
+        className="mt-4"
+        onToggle={(event) => setUserOverride(event.currentTarget.open)}
+        open={expanded}
+      >
+        <summary
+          className="-ml-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-primary hover:underline hover:decoration-primary/40 hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus [&::-webkit-details-marker]:hidden"
+          onClick={(event) => {
+            event.preventDefault();
+            setUserOverride(!expanded);
+          }}
+        >
+          <ChevronDownIcon
+            className={`size-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+          />
+          {t("Configuration summary")}
+        </summary>
+        <div className="mt-5 border-t border-border pt-5">
+          <PublicationSummary configuration={publication.configuration} />
+          {publication.configuration.audience === "PUBLIC" &&
+          publication.privateLocator !== null ? (
+            <div className="mt-5">
+              <PrivatePublicationLocator
+                key={`${publication.publicationId}:${publication.revision}`}
+                locator={publication.privateLocator}
+              />
+            </div>
+          ) : null}
+        </div>
+      </details>
+    </Surface>
+  );
+}
+
 export function PublicationDetailScreen({
   client,
   publicationId,
@@ -74,6 +170,7 @@ export function PublicationDetailScreen({
   readonly publicationId: string;
 }) {
   const { t, localize } = useI18n();
+  const resultsClient = useTeacherResultsClient();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -420,19 +517,23 @@ export function PublicationDetailScreen({
           </div>
         </Surface>
       ) : null}
-      <Surface className="p-5 sm:p-6">
-        <h2 className="mb-5 font-heading text-xl font-bold">
-          {t("Authoritative configuration")}
-        </h2>
-        <PublicationSummary configuration={publication.configuration} />
-        {publication.configuration.audience === "PUBLIC" &&
-        publication.privateLocator !== null ? (
-          <PrivatePublicationLocator
-            key={`${publication.publicationId}:${publication.revision}`}
-            locator={publication.privateLocator}
-          />
-        ) : null}
-      </Surface>
+      {publication.state === "DRAFT" ? (
+        <Surface className="p-5 sm:p-6">
+          <h2 className="mb-5 font-heading text-xl font-bold">
+            {t("Authoritative configuration")}
+          </h2>
+          <PublicationSummary configuration={publication.configuration} />
+          {publication.configuration.audience === "PUBLIC" &&
+          publication.privateLocator !== null ? (
+            <PrivatePublicationLocator
+              key={`${publication.publicationId}:${publication.revision}`}
+              locator={publication.privateLocator}
+            />
+          ) : null}
+        </Surface>
+      ) : (
+        <ConfigurationSummaryCard publication={publication} />
+      )}
       {publication.state === "DRAFT" && !editBase ? (
         <div className="flex flex-wrap gap-3">
           <Button
@@ -641,6 +742,20 @@ export function PublicationDetailScreen({
             </Link>
           </div>
         </>
+      ) : null}
+      {publication.state !== "DRAFT" ? (
+        resultsClient !== null ? (
+          <PublicationResultsSection
+            client={resultsClient}
+            publicationId={publication.publicationId}
+          />
+        ) : (
+          <Alert title={t("Results unavailable")} variant="warning">
+            {t(
+              "Your authenticated request service is unavailable. Sign in again before continuing.",
+            )}
+          </Alert>
+        )
       ) : null}
       {confirmation ? (
         <PublicationConfirmation

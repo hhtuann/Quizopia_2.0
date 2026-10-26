@@ -286,6 +286,162 @@ test("owner directory recovers, paginates and sends server title/state filters",
   ).toBeVisible();
 });
 
+test("directory rows are keyboard navigable: Tab reaches the title link then Results and Enter opens detail", async ({
+  page,
+}) => {
+  await auth(page);
+  const openItem: PublicationSummary = {
+    ...summary,
+    publicationId: quizId,
+    title: "Weekly knowledge check",
+    audience: "PUBLIC",
+    state: "OPEN",
+  };
+  await page.route("**/api/assessments/publications?**", (route) =>
+    route.fulfill({
+      json: { items: [summary, openItem], nextCursor: null },
+    }),
+  );
+  await page.goto("/app/assessments");
+  const draftTitle = page.getByRole("link", {
+    name: `Manage ${summary.title}`,
+  });
+  const openTitle = page.getByRole("link", {
+    name: "Manage Weekly knowledge check",
+  });
+  const resultsLink = page.getByRole("link", {
+    name: "Results for Weekly knowledge check",
+  });
+  await draftTitle.focus();
+  await page.keyboard.press("Tab");
+  // The row title link is the primary navigation and is tabbable.
+  await expect(openTitle).toBeFocused();
+  await page.keyboard.press("Tab");
+  // The nested Results link remains a separately tabbable secondary action.
+  await expect(resultsLink).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(openTitle).toBeFocused();
+  // Enter on the focused title link navigates to the detail page.
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(`/app/assessments/${quizId}`);
+});
+
+test("OPEN detail embeds the Results section and toggles the configuration summary by keyboard", async ({
+  page,
+}) => {
+  await auth(page);
+  const attemptId = "a7b14962-3a2e-4d2d-926a-3b36ea90c1a7";
+  const openView: OwnerView = {
+    ...draft,
+    state: "OPEN",
+    revision: 1,
+    openedAt: "2026-10-26T07:30:00Z",
+    configuration: {
+      ...configuration,
+      monitoringChoice: "DISABLED",
+    },
+  };
+  await page.route(
+    `**/api/assessments/publications/${publicationId}`,
+    (route) => route.fulfill({ json: openView }),
+  );
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/results**`,
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              attemptId,
+              studentId: teacherId,
+              ordinal: "1",
+              state: "SUBMITTED",
+              result: {
+                resultId: "b7b14962-3a2e-4d2d-926a-3b36ea90c1b8",
+                attemptId,
+                publicationId,
+                ordinal: "1",
+                earnedWeight: "8.5",
+                possibleWeight: "10",
+                percentageDisplay: "85.00",
+                gradingPolicyVersion: 1,
+                gradingPolicyId: "QUIZOPIA_GRADING_V1",
+                terminalReason: "MANUAL_SUBMIT",
+                finalizedAt: "2026-10-26T09:00:00Z",
+              },
+            },
+          ],
+          nextCursor: null,
+        },
+      }),
+  );
+  await page.goto(`/app/assessments/${publicationId}`);
+  // The embedded Results section renders fetched owner-authorized rows.
+  await expect(
+    page.getByRole("heading", { name: "Results", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(attemptId, { exact: true })).toBeVisible();
+  await expect(page.getByText("85.00%")).toBeVisible();
+  // Lifecycle controls remain available on the unified detail page.
+  await expect(
+    page.getByRole("button", { name: "Review and CLOSE" }),
+  ).toBeVisible();
+  // Desktop (lg+) defaults the configuration disclosure to expanded. The
+  // collapsed content stays in the DOM, so assert visibility, not count.
+  await expect(page.getByText("Immutable source")).toBeVisible();
+  const toggle = page.getByText("Configuration summary");
+  await toggle.focus();
+  await expect(toggle).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Immutable source")).toBeHidden();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Immutable source")).toBeVisible();
+});
+
+test("mobile detail keeps the configuration summary collapsed by default without horizontal overflow", async ({
+  page,
+}) => {
+  await auth(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const openView: OwnerView = {
+    ...draft,
+    state: "OPEN",
+    revision: 1,
+    openedAt: "2026-10-26T07:30:00Z",
+    configuration: {
+      ...configuration,
+      monitoringChoice: "DISABLED",
+    },
+  };
+  await page.route(
+    `**/api/assessments/publications/${publicationId}`,
+    (route) => route.fulfill({ json: openView }),
+  );
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/results**`,
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.goto(`/app/assessments/${publicationId}`);
+  // Compact chips are visible while the full summary starts collapsed.
+  await expect(page.getByText("Configuration summary")).toBeVisible();
+  await expect(page.getByText("Immutable source")).toBeHidden();
+  await expect(
+    page.getByRole("heading", { name: "Results", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("No results yet")).toBeVisible();
+  const toggle = page.getByText("Configuration summary");
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Immutable source")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(1);
+});
+
 test("draft edit resolves an off-page Classroom, preserves selection on cancel, and PUBLIC clears it", async ({
   page,
 }) => {
@@ -518,8 +674,10 @@ test("language switcher preserves an in-progress DRAFT form and the locale persi
   await expect(classroom).toBeChecked();
   await page.getByLabel("Attempt duration (minutes)").fill("45");
 
-  // Switch the live SPA to Vietnamese through the header control.
-  await page.getByRole("combobox").first().selectOption("vi");
+  // Switch the live SPA to Vietnamese through the user menu language options.
+  await page.getByRole("button", { name: /Open user menu for/ }).click();
+  await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
+  await page.keyboard.press("Escape");
   await expect(page.getByLabel("Tiêu đề Publication")).toHaveValue(
     "Bilingual unsaved draft",
   );

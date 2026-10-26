@@ -23,8 +23,8 @@ import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import {
-  formatDateTime,
   formatDecimal,
+  formatInstant,
   formatNumber,
 } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
@@ -224,7 +224,9 @@ function PublicationPreview({
           </dt>
           <dd className="mt-1 text-sm text-foreground">
             <time dateTime={publication.startAt}>
-              {formatDateTime(locale, publication.startAt)}
+              {formatInstant(locale, publication.startAt, {
+                withTimeZone: true,
+              })}
             </time>
           </dd>
         </div>
@@ -234,7 +236,9 @@ function PublicationPreview({
           </dt>
           <dd className="mt-1 text-sm text-foreground">
             <time dateTime={publication.endAt}>
-              {formatDateTime(locale, publication.endAt)}
+              {formatInstant(locale, publication.endAt, {
+                withTimeZone: true,
+              })}
             </time>
           </dd>
         </div>
@@ -1363,7 +1367,9 @@ export function AttemptScreen({
               <span aria-hidden="true">·</span>
               <span>
                 {t("Deadline {deadline}", {
-                  deadline: formatDateTime(locale, attempt.deadlineAt),
+                  deadline: formatInstant(locale, attempt.deadlineAt, {
+                    withTimeZone: true,
+                  }),
                 })}
               </span>
             </>
@@ -1378,7 +1384,9 @@ export function AttemptScreen({
           {t(
             "The authoritative cutoff is {cutoff}. Only committed answers are included if the server finalizes the attempt.",
             {
-              cutoff: formatDateTime(locale, attempt.closure.closureCutoffAt),
+              cutoff: formatInstant(locale, attempt.closure.closureCutoffAt, {
+                withTimeZone: true,
+              }),
             },
           )}
         </Alert>
@@ -1826,7 +1834,7 @@ export function ResultScreen({
           <div>
             <dt className="text-foreground-muted">{t("Finalized")}</dt>
             <dd className="mt-1 font-semibold">
-              {formatDateTime(locale, result.finalizedAt)}
+              {formatInstant(locale, result.finalizedAt)}
             </dd>
           </div>
           <div>
