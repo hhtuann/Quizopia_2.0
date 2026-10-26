@@ -108,7 +108,7 @@ export function AttemptWorkspaceHeader({
       </div>
       <div className="order-4 ml-auto flex w-full flex-wrap items-center justify-end gap-x-3 gap-y-2 sm:order-none sm:w-auto">
         {remainingLabel === null ? null : (
-          <div className="flex min-w-28 shrink-0 items-center rounded-xl border border-border bg-background px-3 py-2">
+          <div className="flex min-h-11 min-w-28 shrink-0 items-center justify-center rounded-xl border border-border bg-background px-3 py-2">
             <span
               aria-label={t("Remaining time")}
               className="font-mono text-base font-bold tabular-nums text-foreground"
@@ -137,16 +137,16 @@ export function AttemptWorkspaceHeader({
         {showActions ? (
           <div className="flex shrink-0 items-center gap-2">
             <Button
+              className="px-3 sm:px-5"
               disabled={actionsDisabled}
               onClick={onSubmit}
-              size="compact"
             >
               {t("Submit attempt")}
             </Button>
             <Button
+              className="px-3 sm:px-5"
               disabled={actionsDisabled}
               onClick={onAbandon}
-              size="compact"
               variant="danger"
             >
               {t("Abandon attempt")}

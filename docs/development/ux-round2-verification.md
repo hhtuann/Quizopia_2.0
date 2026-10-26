@@ -174,6 +174,28 @@ same guarantees (explicit back navigation, unsaved-work protection, compact
 chrome, shared brand/header geometry). DESIGN.md §8.1.1 (added by correction
 Task F) is the authoritative dense-workspace width rule.
 
+## Follow-up corrections (same branch)
+
+- **Submit/Abandon button size**: the workspace header actions now use the
+  shared `touch` size with `px-3 sm:px-5` — the exact geometry of the
+  teacher editor's Publish control.
+- **Timer alignment**: the countdown box centers its tabular digits
+  (`justify-center`) and matches navbar control height (`min-h-11`), fixing
+  the left-shifted digits inside the fixed-width box.
+- **Workspace persistence across reload (F5)**: the active Learning/Teaching
+  persona now persists per-account in `localStorage`
+  (`quizopia-workspace:{userId}`) — a UI preference exactly like the locale
+  cookie: no credentials/roles/tokens stored, never an authorization fact.
+  Every restore is validated against the CURRENT authoritative roles via
+  `reconcileWorkspace` (a stored TEACHING persona with a revoked TEACHER role
+  falls back to the role default); an in-session token refresh keeps the live
+  persona even when storage is stale; preferences are per-account and never
+  leak across identities. Covered by 6 unit tests
+  (`workspace-preference.test.ts`). e2e helpers updated: `switchToTeaching`
+  now returns early when the persisted persona already renders a Teaching
+  surface, and `pinEnglishUi` only drives the user-menu switch when the menu
+  exists (focused workspaces have none).
+
 ## Known limitations
 
 - **Flags are session-only**: React state per mount; no backend endpoint and

@@ -58,6 +58,17 @@ async function switchToTeaching(page: Page) {
     await gate.click();
     return;
   }
+  // With the persisted workspace preference, a reload keeps TEACHING and no
+  // gate renders — if a Teaching surface is already up, nothing to do.
+  const alreadyTeaching = await page
+    .getByRole("heading", { name: "Quiz authoring" })
+    .or(page.getByRole("textbox", { name: "Quiz title" }))
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (alreadyTeaching) {
+    return;
+  }
   const userMenu = page.getByRole("button", { name: /Open user menu/ });
   await userMenu.click();
   await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();

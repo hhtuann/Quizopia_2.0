@@ -16,6 +16,7 @@ import {
   reconcileWorkspace,
   type Workspace,
 } from "../model/workspace";
+import { restoreWorkspace, storeWorkspace } from "./workspace-preference";
 import type { AccessTokenVault } from "./access-token-vault";
 
 export interface AuthenticatedSessionInput {
@@ -77,7 +78,11 @@ export function createSessionRuntime(
       return reconcileWorkspace(user.roles, previousState.activeWorkspace);
     }
 
-    return deriveDefaultWorkspace(user.roles);
+    // A reload (or any fresh bootstrap for a returning identity) restores the
+    // persisted persona, validated against the CURRENT authoritative roles;
+    // an absent/stale/no-longer-permitted preference falls back to the role
+    // default. Presentation only — never an authorization fact.
+    return restoreWorkspace(user.id, user.roles);
   }
 
   function authenticatedState(
@@ -188,10 +193,13 @@ export function createSessionRuntime(
       if (operationGeneration === undefined)
         accessTokenVault.invalidateOperations();
       accessTokenVault.startSession(input.accessToken);
+      // Fresh login restores the account's persisted persona (validated
+      // against current roles), matching reload behavior.
       publish(
         authenticatedState(
           input.user,
-          deriveDefaultWorkspace(input.user.roles),
+          restoreWorkspace(input.user.id, input.user.roles) ??
+            deriveDefaultWorkspace(input.user.roles),
         ),
       );
       return true;
@@ -273,6 +281,8 @@ export function createSessionRuntime(
         publish(refreshingState);
       }
 
+      // Persist the chosen persona so reloads (F5) keep this workspace.
+      storeWorkspace(state.user.id, workspace);
       return true;
     },
   };
