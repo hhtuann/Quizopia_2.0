@@ -240,10 +240,14 @@ links) were improved rather than regressed.
 - Correction commit (this change set): see final SHA in section 8; its CI
   results are recorded in section 8 after the run completes.
 
-## 8. Final SHA / CI (filled after correction push)
+## 8. Final SHA / CI (after correction push)
 
-- **Final implementation head:** `REPLACE_AFTER_PUSH`
-- CI on final head: **REPLACE_AFTER_CI**
+- **Final implementation head:** `91893bc78ca00bb80c5117de67392af12b833948`
+- CI on the final head: [Frontend CI run 40292436262](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40292436262)
+  **pass** — 804 unit tests, 130 Playwright tests (run log); [repository
+  validation run 40292436260](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40292436260)
+  compose-config **pass**, full-validation skipped by workflow configuration.
+  PR #112 remains **open, not merged**.
 
 ## 9. Limitations and unchanged gates
 
