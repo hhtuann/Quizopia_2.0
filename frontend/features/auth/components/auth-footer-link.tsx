@@ -18,7 +18,7 @@ export function AuthFooterLink({
     <p className="mt-6 text-center text-sm leading-6 text-foreground-secondary">
       {t(prompt)}{" "}
       <Link
-        className="rounded font-semibold text-primary underline-offset-4 hover:text-primary-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+        className="rounded py-2 font-semibold text-primary underline-offset-4 hover:text-primary-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
         href={href}
       >
         {t(label)}

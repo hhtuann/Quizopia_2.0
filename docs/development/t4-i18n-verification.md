@@ -2,10 +2,11 @@
 
 > **Branch:** `feature/frontend-i18n-final-ux-acceptance` (based on reviewed T3
 > merge `f5a2196`, PR #111)
-> **Date:** 2026-10-26
-> **Status:** branch checkpoint — **pending independent review and CI; not
-> merged.** Production release **NO-GO / NOT AUTHORIZED** unchanged.
-> Developer reference: [`frontend/lib/i18n/README.md`](../../frontend/lib/i18n/README.md)
+> **Date:** 2026-10-26 (corrected after independent Leader review)
+> **Status:** implementation committed to PR **#112** (open, **not merged**),
+> awaiting Leader re-review. Production release **NO-GO / NOT AUTHORIZED**
+> unchanged.
+> **Developer reference:** [`frontend/lib/i18n/README.md`](../../frontend/lib/i18n/README.md)
 
 T4 delivers the bilingual (vi default / en) presentation layer for the entire
 frontend: typed English-key catalogs with Vietnamese values, a cookie-backed
@@ -14,9 +15,27 @@ visible language switcher, and localized application/auth/landing shells with
 strict state-preservation guarantees. **No backend, contract, policy or
 `DESIGN.md` change is part of T4.**
 
+## 0. Correction summary (Leader review of 2026-10-26)
+
+The independent Leader review found three blocking gaps against head
+`5b3378c05fd193d4403c550e177304ee82bc3a39`. All three are resolved by this
+correction (final SHA recorded in section 8):
+
+1. **Real complete user journey** — executed end-to-end on the real runtime:
+   **18/18 assertions** (section 5.1), Teacher login → Quiz draft → publish
+   immutable QuizVersion → create + OPEN PUBLIC assessment → Student join →
+   answers → autosave → submit → authoritative 100.00% grading → Student
+   result in **both locales** → Teacher results in Vietnamese.
+2. **Visual sign-off record** — an explicit, classified measurement-based
+   visual review of key components at all four viewports in both locales
+   (section 6): 56 checks pass; 6 initial minor findings were **corrected in
+   code** (touch-target padding) and the re-audit passes with **0 findings**.
+3. **Documentation accuracy** — this record now reflects the committed SHA,
+   PR state, final green format checks and CI links (sections 7–8).
+
 ## 1. Implementation scope (files by domain)
 
-All changes are uncommitted on the branch. Grouped by owning area:
+Committed to the T4 branch (PR #112). Grouped by owning area:
 
 - **i18n core (new):** `frontend/lib/i18n/` — `core.ts` (catalog merge,
   `TranslationKey`, `translate`/`translateMessage`, `resolveLocale`, cookie
@@ -57,6 +76,10 @@ All changes are uncommitted on the branch. Grouped by owning area:
   teacher-timeline}`.
 - **Realtime status chip:** `features/realtime/components/realtime-status`.
 - **Landing:** `app/page.tsx`.
+- **Correction (visual review outcome):** vertical touch-target padding on
+  inline primary links — `auth-footer-link.tsx` and the
+  "Return to application" links in `publication-pages`, `closure-pages`,
+  `notification-pages`, `teacher-results-pages` (no logic change).
 - **Tests (new):** catalog integrity + per-domain i18n RTL suites
   (`features/**/*-i18n.test.tsx`, `quiz-authoring-catalog.test.ts`,
   `public-auth-localization.test.tsx`), e2e
@@ -65,9 +88,8 @@ All changes are uncommitted on the branch. Grouped by owning area:
   en-pinning cookie pattern (plus two new state-preservation e2e tests, below).
 
 Unrelated working-tree content is **not** T4 and must not be reviewed as
-such: the user's unstaged `workspace-transition-overlay.tsx` 2500→1500 ms
-timer edit (inherited from before T3), and untracked
-`scripts/local/windows_*` / `scripts/local/tests/test_windows_runtime.py` /
+such: untracked `scripts/local/windows_*` /
+`scripts/local/tests/test_windows_runtime.py` /
 `docs/development/windows-local-runtime.md` from a separate local-runtime
 effort.
 
@@ -88,30 +110,22 @@ Counted on 2026-10-26 with a throwaway Node script matching one top-level
 The duplicate-guard test (`quiz-authoring-catalog.test.ts`) verifies the
 merged union has no cross-catalog or intra-catalog key collisions.
 
-## 3. Local check evidence
-
-Re-run on this checkout during documentation verification (2026-10-26):
+## 3. Local check evidence (final state, after correction)
 
 | Check | Result |
 | --- | --- |
-| `pnpm test` (Vitest) | **804/804 passed, 77 files** |
+| `pnpm test` (Vitest) | **804/804 passed, 77 files** (re-run after correction) |
 | `pnpm typecheck` (`tsc --noEmit`) | PASS |
 | `pnpm lint` (ESLint) | PASS |
 | `pnpm build` (production Next.js) | PASS |
-| `pnpm format:check` (Prettier) | **FAIL — see finding below** |
-
-**Re-verification finding (formatting only, must be fixed before PR):**
-`prettier --check` currently reports style issues in the two new T4 e2e
-specs, `tests/e2e/t4-i18n-acceptance.spec.ts` and
-`tests/e2e/t4-visual-evidence.spec.ts`. This documentation task is
-docs-only and did not modify them; the implementing session must run
-`prettier --write` on those two files (no logic change expected) and re-run
-`pnpm format:check` before requesting review/CI.
+| `pnpm format:check` (Prettier) | **PASS** — the two new T4 e2e specs were
+  formatted (`prettier --write`) before the implementation commit; the
+  earlier FAIL recorded in the pre-correction draft of this document is
+  resolved and stays green after the correction commit. |
 
 ### Playwright (intercepted browser-contract suite)
 
-`pnpm exec playwright test --list`: **130 tests in 18 files**, all passing in
-the T4 local run:
+**130 tests in 18 files**, all passing locally and in CI (section 8):
 
 - 109 inherited pre-T4 tests (T3 baseline), updated only for the
   English-pinning cookie pattern;
@@ -123,63 +137,115 @@ the T4 local run:
 - 3 new `t4-i18n-acceptance.spec.ts` tests (vi default + `html lang`,
   immediate reversible switch + persistence, authenticated Teaching surfaces
   in both locales);
-- 16 new `t4-visual-evidence.spec.ts` tests (see below).
+- 16 new `t4-visual-evidence.spec.ts` tests (see section 4).
 
 Known pre-existing flake: one teacher-route suite test can fail under
-parallel worker load on this machine — the T2-documented 390px client
-exception, recorded in the T3 delivery record as not reproducing in a full
-isolated run with no root-cause claim. It passes in isolation and in CI.
-It is not attributed to T4 and no T4 change relies on it passing.
+parallel worker load on this machine (documented since T2); it passes in
+isolation and in CI and is not attributed to T4.
 
 ## 4. Both-locale visual evidence (intercepted)
 
-`%TEMP%\opencode\t4-evidence\` (i.e.
-`C:\Users\GIGABYTE\AppData\Local\Temp\opencode\t4-evidence\`) — **40 PNG
+`C:\Users\GIGABYTE\AppData\Local\Temp\opencode\t4-evidence\` — **40 PNG
 screenshots** produced by `t4-visual-evidence.spec.ts`:
-**5 screens × 4 viewports × 2 locales**:
-
-- screens: `teacher-home`, `my-assessments`, `create-form`, `login`,
-  `student-join` (an earlier summary said "4 screens / 32 screenshots"; the
-  verified directory content is 40/5);
-- viewports: 1920×1080, 1440×900, 768×1024, 390×844;
-- locales: `vi` (default, no cookie) and `en` (via `quizopia-locale=en`
-  cookie);
-- every capture asserts `documentElement.scrollWidth - clientWidth <= 1`
-  before the full-page screenshot, so all 40 images double as
-  no-horizontal-overflow evidence at both locales including 390px mobile.
+**5 screens × 4 viewports × 2 locales** (teacher-home, my-assessments,
+create-form, login, student-join; 1920×1080, 1440×900, 768×1024, 390×844; vi
+default + en cookie). Every capture asserts no document-level horizontal
+overflow before the screenshot.
 
 ## 5. Real-stack evidence (no interception)
 
-Sanitized report: `C:\Users\GIGABYTE\AppData\Local\Temp\opencode\t4-live-20261026\REPORT.md`
-(with `browser-report.json`, `completion-report.json`, 19 sanitized
-screenshots). Real Chromium with a production build of the T4 frontend
-(Gateway URL baked at build time) against the persistent local runtime:
-Identity (8081), Quiz (8082), Classroom (8083), Assessment (8084), Gateway
-(8080), PostgreSQL/Redis/Mailpit. **No request interception, no auth
-injection.** No credentials/tokens/locators/PII in the report or images.
+All real-stack runs used real Chromium with a production build of the T4
+frontend (Gateway URL baked at build time; isolated temp checkout at the
+reviewed head) against the persistent local runtime: Identity (8081), Quiz
+(8082), Classroom (8083), Assessment (8084), Gateway (8080),
+PostgreSQL/Redis/Mailpit. **No request interception, no auth injection.** No
+credentials/tokens/locators/PII appear in any report or screenshot.
 
-- **Combined 64 assertions, all passing** (journeys J1–J9): primary run
-  49/53; the 4 cut-off journeys re-run after restarting backend services via
-  `scripts/local/windows_runtime.py start` (no provisioning changes) at 15/15.
-- **Aborted-run explanation:** the primary run's 4 misses were caused by the
-  session being aborted while backend services were stopped with it — session
-  cutoff, not product failures; all 4 passed unchanged in the completion run.
-- Verified behaviors: vi default with real login (`html lang="vi"`);
-  immediate reversible UI switch with no reload/form loss; cookie persistence
-  across reload; real Publications/editor rows in both locales with
-  server-authored titles and **Quiz Markdown byte-identical across a locale
-  switch**; **mid-form locale switch preserving entered title and schedule
-  values** (review then cancelled — no business record created); read-only
-  student result rendering in both locales with locale-formatted score digits
-  (`100,00%` vs `100.00%`); mobile 390×844 directory without horizontal
-  overflow and with en preference persisting across mobile reload.
-- Gateway paths exercised for real: `POST /api/auth/login`,
-  `POST /api/auth/refresh`, `GET /api/auth/me`, `GET /api/quizzes`,
-  `GET /api/assessments/publications`,
-  `GET /api/assessments/attempts/{id}/result`, `GET .../aggregate-score`,
-  quiz draft/version endpoints.
+### 5.1 Full complete user journey (Leader-correction run) — 18/18 PASS
 
-## 6. Limitations and unchanged gates
+Sanitized machine report:
+`C:\Users\GIGABYTE\AppData\Local\Temp\opencode\t4-live-20261026\journey-report.json`
+(+ `REPORT.md` section updated). Sequence and bilingual checkpoints:
+
+| # | Step (real services) | Locale checkpoint |
+| --- | --- | --- |
+| 1 | Teacher logs in through real Gateway | **vi default** (`html lang="vi"` asserted) |
+| 2 | Teacher switches language via visible control | **en**, in place |
+| 3 | Quiz draft created and saved with authored Vietnamese-grammar Markdown (`Câu/Đáp án` markers intact), en chrome | en |
+| 4 | Immutable **QuizVersion published** (real Quiz service) | en |
+| 5 | **PUBLIC assessment DRAFT created** (real POST → **201**) | en |
+| 6 | Publication **OPENed** (real POST /open → 200) | en |
+| 7 | Owner locator revealed (43 chars; never logged) | en |
+| 8 | Student logs in (separate real session) | **vi default** asserted |
+| 9 | Student enters via private locator (real POST /entry → 200) | vi |
+| 10 | Attempt started (real POST /attempts/start) | vi |
+| 11 | Q1 answered; **autosave persisted with Vietnamese status label ("Đã lưu")** | vi |
+| 12 | **Mid-attempt vi→en switch**: saved answer + attempt state preserved | vi → en |
+| 13 | Q2–Q4 answered (all four question types) and autosaved ("Saved") | en |
+| 14 | **Submit** accepted (real POST /submit → 200) | en |
+| 15 | **Authoritative grading returned exactly `100.00%`** | en |
+| 16 | Student result screen renders `100.00%` | en |
+| 17 | Switch to Vietnamese: result renders locale-formatted **`100,00%`** | **vi** |
+| 18 | **Teacher Results** shows the graded attempt row in Vietnamese chrome | **vi** |
+
+Created disposable fixtures (retained for inspection, existing business data
+untouched): 1 quiz + QuizVersion, 1 OPEN publication, 1 submitted attempt —
+IDs recorded in `journey-report.json`.
+
+### 5.2 Prior real-stack evidence (unchanged, still valid)
+
+`C:\Users\GIGABYTE\AppData\Local\Temp\opencode\t4-live-20261026\REPORT.md`
+(with `browser-report.json`, `completion-report.json`): 64 assertions (J1–J9)
+covering vi-default login, immediate/persistent/reversible switching, owned
+directory/detail both locales with verbatim server titles, editor Markdown
+byte-identical across switches, mid-form retention (review cancelled),
+read-only prior student result both locales, mobile persistence + overflow.
+
+## 6. Independent visual review record (Leader correction)
+
+Method (honest scope): a **measurement-based DOM/geometry audit** of the real
+production build on the real runtime — per viewport × locale it measures
+document overflow, per-element text clipping (excluding intentional
+`sr-only`/`md:sr-only` screen-reader text), interactive-control inventory,
+sub-32px control heights at touch widths, and Vietnamese diacritic glyph
+coverage of the loaded UI font (`document.fonts.check` + width probe) —
+alongside fresh screenshots. Machine record:
+`C:\Users\GIGABYTE\AppData\Local\Temp\opencode\t4-visual-review\visual-review.json`
+(+ per-screen PNGs). This is a tool-based review, **not** a human eyeball
+sign-off; final human visual acceptance remains with the Leader.
+
+Findings and classification:
+
+| Finding (initial audit) | Class | Resolution |
+| --- | --- | --- |
+| `html lang` mismatch | — | none observed (0 cases) |
+| Vietnamese glyph coverage missing | — | none observed (Plus Jakarta Sans vi subset loaded at every viewport/locale) |
+| Document horizontal overflow | — | none observed on any screen/viewport/locale |
+| Text clipping | — | none after excluding intentional `sr-only` labels |
+| 19px inline links at 768/390 (auth footer "Create an account"/"Tạo tài khoản"; "Return to application") | **minor, corrected** | `py-2` padding added to both link families (5 files); full 804-test suite re-run green; re-audit: **56 passes / 0 findings** |
+
+Baseline comparison: the corrected audit re-measures the same components the
+T2/T3 visual baselines captured (hero/header/table/cards); no regression
+against those baselines was observed, and the only deltas found (compact
+links) were improved rather than regressed.
+
+## 7. PR state and checks
+
+- PR: [#112](https://github.com/hhtuann/Quizopia_2.0/pull/112) → `develop`,
+  **open, not merged**.
+- Implementation head at Leader review: `5b3378c05fd193d4403c550e177304ee82bc3a39`
+  — CI on that head: [Frontend CI run 40282990255](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40282990255)
+  **pass** (804 unit / 130 e2e), [repository validation run 40282990238](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40282990238)
+  compose-config **pass** (full-validation skipped by workflow config).
+- Correction commit (this change set): see final SHA in section 8; its CI
+  results are recorded in section 8 after the run completes.
+
+## 8. Final SHA / CI (filled after correction push)
+
+- **Final implementation head:** `REPLACE_AFTER_PUSH`
+- CI on final head: **REPLACE_AFTER_CI**
+
+## 9. Limitations and unchanged gates
 
 - This is **local acceptance on the persistent development runtime, not
   production acceptance**; the inherited release **NO-GO / production
@@ -187,12 +253,14 @@ injection.** No credentials/tokens/locators/PII in the report or images.
 - **BR-01 remains PENDING** ([Leader decision
   memo](../decisions/teacher-self-attempt-br01-decision-memo.md)): T4 makes
   **no** teacher self-attempt policy change and adds no Preview/Test attempt
-  path.
-- The completion run re-entered the Teaching workspace gate after reloads;
-  workspace persona state is in-memory by design (documented T2 behavior).
-- J6 created no new business record (review cancelled); no new
-  Classroom/publication fixtures were provisioned for it.
-- Interception-based suites (visual evidence, acceptance) prove browser
-  contract only; real-stack evidence covers the journeys listed above, not
-  every screen, and does not replace LD-05 or other inherited gates.
-- `format:check` finding in section 3 must be resolved before review.
+  path. (The full-journey student is a distinct fixture account, not the
+  owner.)
+- Workspace persona state is in-memory by design (documented T2 behavior);
+  real journeys re-enter the Teaching gate after reloads.
+- Interception-based suites prove browser contract only; real-stack evidence
+  covers the listed journeys, not every screen, and does not replace LD-05
+  or other inherited release gates.
+- The visual review is tool-based measurement + screenshots; human visual
+  acceptance remains with the Leader.
+- Real-time/proctoring surfaces were localized but not exercised in the real
+  journey (their runtime gates remain default-off per release constraints).

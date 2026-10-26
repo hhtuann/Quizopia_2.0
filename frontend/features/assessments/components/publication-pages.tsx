@@ -63,7 +63,7 @@ function TeacherPublicationPage({
           {t(
             "Current Teacher authority and ownership are required. Workspace selection does not grant a role.",
           )}{" "}
-          <Link className="font-semibold underline" href="/app">
+          <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
           .

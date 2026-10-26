@@ -107,7 +107,7 @@ function TeacherClosurePage({
           {t(
             "Current Teacher authority and Publication ownership are required. Workspace selection does not grant a role.",
           )}{" "}
-          <Link className="font-semibold underline" href="/app">
+          <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
           .
@@ -641,7 +641,7 @@ function TeacherClosureDetailPage({
           {t(
             "Current Teacher authority and Publication ownership are required.",
           )}{" "}
-          <Link className="font-semibold underline" href="/app">
+          <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
           .

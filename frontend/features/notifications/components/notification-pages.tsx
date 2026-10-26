@@ -100,7 +100,7 @@ function StudentNotificationsPage() {
           {t(
             "The assessment inbox belongs to the authenticated recipient with current Student authority.",
           )}{" "}
-          <Link className="font-semibold underline" href="/app">
+          <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
           .
@@ -377,7 +377,7 @@ function StudentNotificationDetailPage({
           {t(
             "This notice belongs to its recipient with current Student authority.",
           )}{" "}
-          <Link className="font-semibold underline" href="/app">
+          <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
           .
