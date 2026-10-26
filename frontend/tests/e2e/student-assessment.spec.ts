@@ -404,10 +404,11 @@ test("switching locale mid-attempt preserves unsaved answers and submission stil
   await page.getByRole("button", { name: /Question 4/ }).click();
   await page.getByLabel("Four-character numeric answer").fill("1.00");
 
-  // Switch the application language to Vietnamese through the shell control.
-  await page
-    .getByRole("combobox", { name: /^Language$|^Ngôn ngữ$/ })
-    .selectOption("vi");
+  // Switch the application language to Vietnamese through the user menu
+  // language options on the authenticated shell.
+  await page.getByRole("button", { name: /Open user menu for/ }).click();
+  await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
+  await page.keyboard.press("Escape");
   await expect(
     page.getByRole("heading", { name: "Bài kiểm tra của học sinh" }),
   ).toBeVisible();

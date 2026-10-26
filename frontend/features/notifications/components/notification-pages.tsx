@@ -5,17 +5,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Alert } from "../../../components/ui/alert";
 import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
+import { HeroOrb } from "../../../components/ui/hero-orb";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
-import { formatDateTime } from "../../../lib/i18n/core";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { assessmentFailureMessage } from "../../assessments/api/assessment-foundation";
 import type {
   Notification,
   NotificationPage,
 } from "../../assessments/api/publication-contract.generated";
-import { formatUtc } from "../../assessments/utils/utc-time";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import type { NotificationApiClient } from "../api/notification-api-client";
@@ -123,7 +123,7 @@ export function InboxScreen({
 }: {
   readonly client: NotificationApiClient;
 }) {
-  const { t, localize } = useI18n();
+  const { t, localize, locale } = useI18n();
   const cutoffGuidance = useCutoffGuidance();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
@@ -218,32 +218,36 @@ export function InboxScreen({
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-primary">
-            {t("Assessment notifications")}
-          </p>
-          <h1 className="mt-1 font-heading text-3xl font-bold">
-            {t("Your inbox")}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
-            {t(
-              "Durable closure notices addressed to your account. Reading a notice is not an acknowledgment and never starts or changes a 48-hour period; only the server's confirmed accessibility of your notice does.",
-            )}
-          </p>
+      <header className="relative overflow-hidden rounded-2xl border border-primary/10 bg-surface p-6 shadow-card sm:p-8">
+        <HeroOrb className="-right-10 -top-20 size-72" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 max-w-2xl">
+            <p className="text-sm font-semibold text-primary">
+              {t("Assessment notifications")}
+            </p>
+            <h1 className="mt-1 font-heading text-3xl font-bold">
+              {t("Your inbox")}
+            </h1>
+            <p className="mt-2 text-sm text-foreground-secondary">
+              {t(
+                "Durable closure notices addressed to your account. Reading a notice is not an acknowledgment and never starts or changes a 48-hour period; only the server's confirmed accessibility of your notice does.",
+              )}
+            </p>
+          </div>
+          <Button
+            className="shrink-0"
+            disabled={loadingMore}
+            isLoading={loading}
+            loadingLabel={t("Refreshing inbox")}
+            onClick={() => {
+              setLoading(true);
+              void load(undefined);
+            }}
+            variant="secondary"
+          >
+            {t("Refresh inbox")}
+          </Button>
         </div>
-        <Button
-          disabled={loadingMore}
-          isLoading={loading}
-          loadingLabel={t("Refreshing inbox")}
-          onClick={() => {
-            setLoading(true);
-            void load(undefined);
-          }}
-          variant="secondary"
-        >
-          {t("Refresh inbox")}
-        </Button>
       </header>
       {failureText ? (
         <Alert title={t("Inbox could not be read")} variant="warning">
@@ -293,7 +297,9 @@ export function InboxScreen({
                       <dt className="text-xs font-medium text-foreground-muted">
                         {t("Published")}
                       </dt>
-                      <dd className="mt-0.5">{formatUtc(item.publishedAt)}</dd>
+                      <dd className="mt-0.5">
+                        {formatInstant(locale, item.publishedAt)}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-xs font-medium text-foreground-muted">
@@ -304,7 +310,9 @@ export function InboxScreen({
                       <dd className="mt-0.5">
                         {cutoff === null
                           ? localize(missingCutoffLabel(item))
-                          : formatUtc(cutoff.closureCutoffAt)}
+                          : formatInstant(locale, cutoff.closureCutoffAt, {
+                              withTimeZone: true,
+                            })}
                       </dd>
                     </div>
                   </dl>
@@ -399,18 +407,6 @@ function StudentNotificationDetailPage({
   );
 }
 
-function useLocalDisplay(): (value: string) => string {
-  const { locale } = useI18n();
-  return (value: string) => {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "";
-    return formatDateTime(locale, parsed, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  };
-}
-
 export function NotificationDetailScreen({
   client,
   notificationId,
@@ -418,9 +414,8 @@ export function NotificationDetailScreen({
   readonly client: NotificationApiClient;
   readonly notificationId: string;
 }) {
-  const { t, localize } = useI18n();
+  const { t, localize, locale } = useI18n();
   const cutoffGuidance = useCutoffGuidance();
-  const localDisplay = useLocalDisplay();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -551,11 +546,9 @@ export function NotificationDetailScreen({
               {t("Published")}
             </dt>
             <dd className="mt-1 text-sm">
-              {formatUtc(notice.publishedAt)}
-              <br />
-              <span className="text-foreground-muted">
-                {localDisplay(notice.publishedAt)} {t("(your local time)")}
-              </span>
+              {formatInstant(locale, notice.publishedAt, {
+                withTimeZone: true,
+              })}
             </dd>
           </div>
           <div>
@@ -563,18 +556,11 @@ export function NotificationDetailScreen({
               {t("Notice confirmed")}
             </dt>
             <dd className="mt-1 text-sm">
-              {notice.confirmedNoticeAt === null ? (
-                localize(missingCutoffLabel(notice))
-              ) : (
-                <>
-                  {formatUtc(notice.confirmedNoticeAt)}
-                  <br />
-                  <span className="text-foreground-muted">
-                    {localDisplay(notice.confirmedNoticeAt)}{" "}
-                    {t("(your local time)")}
-                  </span>
-                </>
-              )}
+              {notice.confirmedNoticeAt === null
+                ? localize(missingCutoffLabel(notice))
+                : formatInstant(locale, notice.confirmedNoticeAt, {
+                    withTimeZone: true,
+                  })}
             </dd>
           </div>
           <div>
@@ -582,25 +568,20 @@ export function NotificationDetailScreen({
               {t("48-hour cutoff")}
             </dt>
             <dd className="mt-1 text-sm">
-              {notice.closureCutoffAt === null ? (
-                localize(missingCutoffLabel(notice))
-              ) : (
-                <>
-                  {formatUtc(notice.closureCutoffAt)}
-                  <br />
-                  <span className="text-foreground-muted">
-                    {localDisplay(notice.closureCutoffAt)}{" "}
-                    {t("(your local time)")}
-                  </span>
-                </>
-              )}
+              {notice.closureCutoffAt === null
+                ? localize(missingCutoffLabel(notice))
+                : formatInstant(locale, notice.closureCutoffAt, {
+                    withTimeZone: true,
+                  })}
             </dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
               {t("Server time of this response")}
             </dt>
-            <dd className="mt-1 text-sm">{formatUtc(notice.serverNow)}</dd>
+            <dd className="mt-1 text-sm">
+              {formatInstant(locale, notice.serverNow, { withTimeZone: true })}
+            </dd>
           </div>
         </dl>
         {cutoff !== null && notice.noticeStatus === "NOTICE_CONFIRMED" ? (

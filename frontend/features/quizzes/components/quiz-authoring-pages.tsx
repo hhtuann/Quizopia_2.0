@@ -29,7 +29,7 @@ import {
 import { Surface } from "../../../components/ui/surface";
 import { HeroOrb } from "../../../components/ui/hero-orb";
 import type { TranslationValues } from "../../../lib/i18n/core";
-import { formatDateTime } from "../../../lib/i18n/core";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import { useAuth } from "../../auth/auth-provider";
@@ -73,17 +73,7 @@ function useLocalizeRef() {
 
 function useLibraryDateFormatter(): (value: string) => string {
   const { locale } = useI18n();
-  return (value: string) => {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime())
-      ? value
-      : formatDateTime(locale, date, {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          timeZone: "UTC",
-        });
-  };
+  return (value: string) => formatInstant(locale, value, { timeStyle: "none" });
 }
 
 function useQuizApiClient(): QuizApiClient | null {

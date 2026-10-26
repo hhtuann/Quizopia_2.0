@@ -5,13 +5,14 @@ import { Button } from "../../../components/ui/button";
 import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type {
   OwnerView,
   Schedule,
 } from "../api/publication-contract.generated";
-import { formatUtc, instantMicroseconds } from "../utils/utc-time";
+import { instantMicroseconds } from "../utils/utc-time";
 import { PublicationConfirmation } from "./publication-confirmation";
 import { PublicationSummary } from "./publication-summary";
 
@@ -34,7 +35,7 @@ export function ScheduleExtension({
    */
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const { t, localize } = useI18n();
+  const { t, localize, locale } = useI18n();
   // The authoritative end instant, kept verbatim: an untouched field must
   // resubmit the exact server value, preserving seconds and microseconds.
   const currentEnd = publication.configuration.endAt;
@@ -120,7 +121,9 @@ export function ScheduleExtension({
             }
             helperText={t(
               "Current authoritative end: {end}. Leave unchanged to keep it exactly, including seconds and microseconds.",
-              { end: formatUtc(currentEnd) },
+              {
+                end: formatInstant(locale, currentEnd, { withTimeZone: true }),
+              },
             )}
             label={t("Extended participation end")}
             onChange={(instant) => setEditedEnd(instant)}

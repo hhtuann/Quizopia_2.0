@@ -13,7 +13,7 @@ import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { Surface } from "../../../components/ui/surface";
 import type { TranslationValues } from "../../../lib/i18n/core";
-import { formatDateTime } from "../../../lib/i18n/core";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import type {
   QuizApiClient,
@@ -103,15 +103,7 @@ function appendUniqueVersions(
 
 function usePublishedAtFormatter(): (value: string) => string {
   const { locale } = useI18n();
-  return (value: string) => {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.valueOf())
-      ? value
-      : formatDateTime(locale, parsed, {
-          dateStyle: "medium",
-          timeStyle: "short",
-        });
-  };
+  return (value: string) => formatInstant(locale, value);
 }
 
 function focusableElements(container: HTMLElement): HTMLElement[] {

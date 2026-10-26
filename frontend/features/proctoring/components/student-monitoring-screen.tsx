@@ -6,7 +6,7 @@ import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Alert } from "../../../components/ui/alert";
 import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
-import { formatDateTime } from "../../../lib/i18n/core";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
@@ -86,9 +86,12 @@ export function StudentMonitoringScreen({
               />
               <Binding
                 label={t("Deadline")}
-                value={formatDateTime(
+                value={formatInstant(
                   locale,
                   monitoring.state.session.deadlineAt,
+                  {
+                    withTimeZone: true,
+                  },
                 )}
               />
             </Surface>

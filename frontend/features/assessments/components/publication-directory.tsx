@@ -8,9 +8,10 @@ import {
   PRIMARY_LINK_CLASSES,
   OUTLINE_LINK_CLASSES,
 } from "../../../components/ui/button";
+import { HeroOrb } from "../../../components/ui/hero-orb";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
-import { formatDateTime, formatNumber } from "../../../lib/i18n/core";
+import { formatInstant, formatNumber } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import {
   publicationFailureMessage,
@@ -69,27 +70,37 @@ export function PublicationDirectory({
   const filtered = !!query.search || !!query.state;
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-primary">
+      {/* UX-02 hero card: same pattern as the Quiz Library hero
+          (quiz-authoring-pages.tsx) — rounded-2xl, border-primary/10,
+          bg-surface, shadow-card, shared HeroOrb, heading + description +
+          primary CTA inside the card. The creation helper line lives inside
+          the card next to the CTA so the guidance stays attached to the
+          action at every viewport. */}
+      <div className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-primary/10 bg-surface p-6 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <HeroOrb className="-right-10 -top-20 size-72" />
+        <div className="max-w-2xl">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
             {t("Teaching workspace")}
           </p>
-          <h1 className="mt-2 font-heading text-3xl font-bold">
-            <span className="brand-gradient-text">{t("My Assessments")}</span>
+          <h1 className="mt-3 font-heading text-3xl font-extrabold tracking-[-0.035em] text-foreground sm:text-4xl">
+            {t("My Assessments")}
           </h1>
-          <p className="mt-3 text-foreground-secondary">
+          <p className="mt-3 text-base leading-7 text-foreground-secondary">
             {t("Manage your assessment Publications, schedules and results.")}
           </p>
+          <p className="mt-2 text-sm leading-6 text-foreground-muted">
+            {t(
+              "To create an assessment, choose an immutable published version in your Quiz Library.",
+            )}
+          </p>
         </div>
-        <Link className={PRIMARY_LINK_CLASSES} href="/app/quizzes">
+        <Link
+          className={`${PRIMARY_LINK_CLASSES} relative shrink-0`}
+          href="/app/quizzes"
+        >
           {t("Create assessment")}
         </Link>
       </div>
-      <p className="text-sm text-foreground-muted">
-        {t(
-          "To create an assessment, choose an immutable published version in your Quiz Library.",
-        )}
-      </p>
       <Surface className="p-5">
         <form
           className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
@@ -108,7 +119,7 @@ export function PublicationDirectory({
           <label className="grid gap-2 text-sm font-semibold">
             {t("Publication state")}
             <select
-              className="min-h-11 rounded-xl border border-border-strong bg-surface px-4 focus-visible:ring-2 focus-visible:ring-focus"
+              className="min-h-11 max-w-full rounded-xl border border-border-strong bg-surface py-2.5 pl-4 pr-10 focus-visible:ring-2 focus-visible:ring-focus"
               value={state ?? ""}
               onChange={(event) => {
                 const next = (event.target.value ||
@@ -160,12 +171,28 @@ export function PublicationDirectory({
             </div>
             <ul className="divide-y divide-border">
               {items.map((item) => (
+                /* UX-04 row keyboard pattern: the primary "Manage" link IS the
+                   row title link (same destination and localized accessible
+                   name "Manage {title}"), so the row's main navigation is a
+                   real, natively focusable anchor — Enter activates it. The
+                   nested "Results" link stays a separately tabbable secondary
+                   anchor; because only real anchors are interactive there is
+                   no row-level activation to conflict with, and the whole row
+                   shows its focus state through :focus-within ring styling. */
                 <li
                   key={item.publicationId}
-                  className="grid gap-4 p-5 md:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr] md:items-center"
+                  className="grid gap-4 rounded-xl p-5 focus-within:ring-2 focus-within:ring-inset focus-within:ring-focus md:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr] md:items-center"
                 >
                   <div className="min-w-0">
-                    <h2 className="break-words font-semibold">{item.title}</h2>
+                    <h2 className="break-words font-semibold">
+                      <Link
+                        aria-label={t("Manage {title}", { title: item.title })}
+                        className="rounded-xs text-foreground underline decoration-primary/40 underline-offset-4 transition-colors hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                        href={`/app/assessments/${item.publicationId}`}
+                      >
+                        {item.title}
+                      </Link>
+                    </h2>
                     <p className="mt-1 text-sm text-foreground-muted">
                       {t("Quiz version {versionNumber}", {
                         versionNumber: item.versionNumber,
@@ -187,30 +214,21 @@ export function PublicationDirectory({
                     <p>
                       <span className="md:sr-only">{t("Start:")}</span>{" "}
                       <time dateTime={item.startAt}>
-                        {formatDateTime(locale, item.startAt, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
+                        {formatInstant(locale, item.startAt, {
+                          withTimeZone: true,
                         })}
                       </time>
                     </p>
                     <p>
                       <span className="md:sr-only">{t("End:")}</span>{" "}
                       <time dateTime={item.endAt}>
-                        {formatDateTime(locale, item.endAt, {
-                          dateStyle: "medium",
-                          timeStyle: "short",
+                        {formatInstant(locale, item.endAt, {
+                          withTimeZone: true,
                         })}
                       </time>
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Link
-                      aria-label={t("Manage {title}", { title: item.title })}
-                      className={OUTLINE_LINK_CLASSES}
-                      href={`/app/assessments/${item.publicationId}`}
-                    >
-                      {t("Manage")}
-                    </Link>
                     {item.state !== "DRAFT" ? (
                       <Link
                         aria-label={t("Results for {title}", {

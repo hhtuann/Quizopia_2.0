@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDateTime } from "../../../lib/i18n/core";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { describeEvidenceType } from "../api/monitoring-api-client";
 import {
@@ -61,12 +61,12 @@ export function TeacherTimeline({
               {item.observedAt === null
                 ? t("Observed/occurred: {value}", { value: t("not reported") })
                 : t("Observed/occurred: {value}", {
-                    value: formatDateTime(locale, item.observedAt),
+                    value: formatInstant(locale, item.observedAt),
                   })}
             </p>
             <p>
               {t("Received: {value}", {
-                value: formatDateTime(locale, item.receivedAt),
+                value: formatInstant(locale, item.receivedAt),
               })}
             </p>
           </div>

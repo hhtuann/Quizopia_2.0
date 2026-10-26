@@ -10,6 +10,7 @@ import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { formatInstant } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import {
   assessmentFailureMessage,
@@ -27,7 +28,6 @@ import { canonicalUuid } from "../../assessments/model/publication";
 import { newIdempotencyKey } from "../../assessments/model/publication";
 import { publicationStateVariants } from "../../assessments/model/publication";
 import { usePublicationClient } from "../../assessments/hooks/use-publication-client";
-import { formatUtc } from "../../assessments/utils/utc-time";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import type { ClosureApiClient } from "../api/closure-api-client";
@@ -154,7 +154,7 @@ export function ClosureManagementScreen({
   readonly publicationId: string;
 }) {
   const router = useRouter();
-  const { t, localize } = useI18n();
+  const { t, localize, locale } = useI18n();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -468,7 +468,9 @@ export function ClosureManagementScreen({
               {t("Participation end (server authority)")}
             </dt>
             <dd className="mt-1 text-sm">
-              {formatUtc(publication.configuration.endAt)}
+              {formatInstant(locale, publication.configuration.endAt, {
+                withTimeZone: true,
+              })}
             </dd>
           </div>
           <div>
@@ -688,7 +690,7 @@ export function ClosureDetailScreen({
   readonly publicationId: string;
   readonly closureRequestId: string;
 }) {
-  const { t, localize } = useI18n();
+  const { t, localize, locale } = useI18n();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -996,7 +998,9 @@ export function ClosureDetailScreen({
             <dt className="text-xs font-medium text-foreground-muted">
               {t("Requested at")}
             </dt>
-            <dd className="mt-1 text-sm">{formatUtc(view.requestedAt)}</dd>
+            <dd className="mt-1 text-sm">
+              {formatInstant(locale, view.requestedAt)}
+            </dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
@@ -1005,7 +1009,7 @@ export function ClosureDetailScreen({
             <dd className="mt-1 text-sm">
               {view.finalizationStartedAt === null
                 ? t("Not started")
-                : formatUtc(view.finalizationStartedAt)}
+                : formatInstant(locale, view.finalizationStartedAt)}
             </dd>
           </div>
           <div>
@@ -1015,7 +1019,7 @@ export function ClosureDetailScreen({
             <dd className="mt-1 text-sm">
               {view.resolvedAt === null
                 ? t("Not resolved")
-                : formatUtc(view.resolvedAt)}
+                : formatInstant(locale, view.resolvedAt)}
             </dd>
           </div>
           <div>

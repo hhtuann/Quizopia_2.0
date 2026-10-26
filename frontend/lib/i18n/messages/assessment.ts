@@ -664,4 +664,8 @@ export const assessmentMessages = {
   "Manual submission": "Nộp thủ công",
   "Bounded timeout": "Hết thời gian giới hạn",
   "Teacher notice cutoff": "Mốc thông báo của Giáo viên",
+  // Unified results-first Publication detail (UX-04) and the shared
+  // PublicationResultsSection empty state
+  "Configuration summary": "Tóm tắt cấu hình",
+  "No results yet": "Chưa có kết quả nào",
 } as const;
