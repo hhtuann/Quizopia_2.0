@@ -6,6 +6,7 @@ import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { Surface } from "../../../components/ui/surface";
+import { useI18n } from "../../../lib/i18n/provider";
 import type { QuizApiClient } from "../../quizzes/api/quiz-api-client";
 import {
   isUncertain,
@@ -28,6 +29,7 @@ export function PublicationCreateScreen({
   readonly quizClient: QuizApiClient;
   readonly source: PublicationSource;
 }) {
+  const { t, localize } = useI18n();
   const router = useRouter();
   const lifetime = useRef<AbortController | null>(null);
   const inFlight = useRef(false);
@@ -151,22 +153,23 @@ export function PublicationCreateScreen({
     <div className="space-y-5">
       <header>
         <h1 className="font-heading text-2xl font-bold sm:text-3xl">
-          Create Assessment Publication
+          {t("Create Assessment Publication")}
         </h1>
         <p className="mt-2 text-foreground-secondary">
-          Configure a DRAFT from the exact immutable version you selected. OPEN
-          comes later.
+          {t(
+            "Configure a DRAFT from the exact immutable version you selected. OPEN comes later.",
+          )}
         </p>
       </header>
       {sourceError ? (
         <Surface className="space-y-4 p-5">
           <Alert
-            title="Selected QuizVersion could not be verified"
+            title={t("Selected QuizVersion could not be verified")}
             variant="danger"
           >
-            The version may be unavailable, inaccessible or temporarily
-            unreachable. Your selection has not been replaced with a newer
-            version.
+            {t(
+              "The version may be unavailable, inaccessible or temporarily unreachable. Your selection has not been replaced with a newer version.",
+            )}
           </Alert>
           <Button
             onClick={() => {
@@ -175,24 +178,24 @@ export function PublicationCreateScreen({
             }}
             variant="secondary"
           >
-            Retry selected version
+            {t("Retry selected version")}
           </Button>
         </Surface>
       ) : initial === null ? (
         <div className="flex items-center gap-3 p-6" role="status">
-          <LoadingIndicator label="Verifying selected QuizVersion" />
-          Verifying selected QuizVersion…
+          <LoadingIndicator label={t("Verifying selected QuizVersion")} />
+          {t("Verifying selected QuizVersion…")}
         </div>
       ) : (
         <>
           {created ? (
-            <Alert title="Publication confirmed" variant="success">
-              The server confirmed {created.state}.{" "}
+            <Alert title={t("Publication confirmed")} variant="success">
+              {t("The server confirmed {state}.", { state: created.state })}{" "}
               <Link
                 className="font-semibold underline"
                 href={`/app/assessments/${created.id}`}
               >
-                Open authoritative Publication details
+                {t("Open authoritative Publication details")}
               </Link>
               .
             </Alert>
@@ -202,32 +205,31 @@ export function PublicationCreateScreen({
               key={attempt}
               title={
                 uncertain
-                  ? "Creation outcome is uncertain"
-                  : "DRAFT was not confirmed"
+                  ? t("Creation outcome is uncertain")
+                  : t("DRAFT was not confirmed")
               }
               variant="warning"
             >
-              {publicationFailureMessage(failure)}
+              {localize(publicationFailureMessage(failure))}
               {uncertain ? (
                 <p className="mt-2">
-                  The server may have created this Publication. Retry the exact
-                  original request below; settings are locked. Reloading or
-                  leaving this page loses the in-memory key and cannot safely
-                  locate an uncertain creation automatically.
+                  {t(
+                    "The server may have created this Publication. Retry the exact original request below; settings are locked. Reloading or leaving this page loses the in-memory key and cannot safely locate an uncertain creation automatically.",
+                  )}
                 </p>
               ) : null}
             </Alert>
           ) : null}
           {uncertain ? (
             <Button
-              aria-label={pending ? "Retrying original creation" : undefined}
+              aria-label={pending ? t("Retrying original creation") : undefined}
               isLoading={pending}
-              loadingLabel="Retrying original creation"
+              loadingLabel={t("Retrying original creation")}
               onClick={() => {
                 if (receipt.current) void create(receipt.current.configuration);
               }}
             >
-              Retry same creation
+              {t("Retry same creation")}
             </Button>
           ) : null}
           <PublicationConfigurationForm

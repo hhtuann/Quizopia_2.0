@@ -423,7 +423,26 @@ export async function enableTeacherUi(page: Page, actor: BrowserActor) {
     );
 }
 
+// Quiz authoring helpers assert English UI strings while the app defaults to
+// Vietnamese. Pin the locale cookie for future loads and switch the live SPA
+// locale through the header language control without reloading the page.
+async function pinEnglishUi(page: Page) {
+  const origin = new URL(page.url()).origin;
+  if (origin.startsWith("http")) {
+    await page
+      .context()
+      .addCookies([{ name: "quizopia-locale", value: "en", url: origin }]);
+  }
+  if ((await page.evaluate(() => document.documentElement.lang)) !== "en") {
+    const switcher = page.getByRole("combobox").first();
+    if (await switcher.isVisible().catch(() => false)) {
+      await switcher.selectOption("en");
+    }
+  }
+}
+
 export async function ensureTeachingWorkspace(page: Page) {
+  await pinEnglishUi(page);
   const authoringLink = page.getByRole("link", {
     name: "Quiz authoring",
     exact: true,
@@ -439,6 +458,7 @@ export async function ensureTeachingWorkspace(page: Page) {
 }
 
 export async function publishExactSource(page: Page) {
+  await pinEnglishUi(page);
   await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
   await page.getByRole("link", { name: "Create quiz" }).click();
   await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
@@ -479,6 +499,7 @@ export async function publishExactSource(page: Page) {
 }
 
 export async function publishMultiQuestionSource(page: Page) {
+  await pinEnglishUi(page);
   await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
   await page.getByRole("link", { name: "Create quiz" }).click();
   await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);

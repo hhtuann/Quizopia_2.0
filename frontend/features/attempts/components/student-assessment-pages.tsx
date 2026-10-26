@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -21,10 +22,15 @@ import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import {
+  formatDateTime,
+  formatDecimal,
+  formatNumber,
+} from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import { PublicationConfirmation } from "../../assessments/components/publication-confirmation";
-import { formatUtc } from "../../assessments/utils/utc-time";
 import {
   StudentCamera,
   useStudentMonitoring,
@@ -69,9 +75,26 @@ import {
   NO_ATTEMPT_MONITORING,
   type AttemptMonitoringObserver,
 } from "../model/monitoring-boundary";
-import { AnswerField, AnswerSummary, SaveStatus } from "./answer-fields";
+import {
+  AnswerField,
+  AnswerSummary,
+  SaveStatus,
+  savePhaseLabel,
+} from "./answer-fields";
 
 type EntryMode = "PUBLIC" | "CLASS";
+
+// Load effects must not refetch when only the locale changes (that would
+// discard answers or in-flight attempt state), so they format failure copy
+// through the latest localizer via a stable ref instead of a dependency.
+function useLocalizeRef() {
+  const { localize } = useI18n();
+  const ref = useRef(localize);
+  useLayoutEffect(() => {
+    ref.current = localize;
+  }, [localize]);
+  return ref;
+}
 
 /** Semantic StateBadge variants for server-returned Attempt states. */
 const attemptStateVariants: Record<
@@ -101,24 +124,27 @@ function StudentWorkspace({
   readonly children: React.ReactNode;
 }) {
   const { activeWorkspace, switchWorkspace, user } = useAuth();
+  const { t } = useI18n();
   return (
     <ApplicationShell currentSection="assessments">
       {!user?.roles.includes("STUDENT") ? (
-        <Alert title="Student access required" variant="warning">
-          An authenticated account with current Student authority is required.
-          The frontend does not verify admission or class membership itself.
+        <Alert title={t("Student access required")} variant="warning">
+          {t(
+            "An authenticated account with current Student authority is required. The frontend does not verify admission or class membership itself.",
+          )}
         </Alert>
       ) : activeWorkspace !== "LEARNING" ? (
         <Surface className="mx-auto max-w-2xl p-6 sm:p-8">
           <h1 className="font-heading text-2xl font-bold">
-            Open the Learning workspace
+            {t("Open the Learning workspace")}
           </h1>
           <p className="mt-3 leading-7 text-foreground-secondary">
-            Switch workspace to organize the Student experience. The Gateway and
-            Assessment Service still authorize every operation.
+            {t(
+              "Switch workspace to organize the Student experience. The Gateway and Assessment Service still authorize every operation.",
+            )}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("LEARNING")}>
-            Switch to Learning
+            {t("Switch to Learning")}
           </Button>
         </Surface>
       ) : (
@@ -129,10 +155,12 @@ function StudentWorkspace({
 }
 
 function ClientUnavailable() {
+  const { t } = useI18n();
   return (
-    <Alert title="Assessment access unavailable" variant="warning">
-      The authenticated request service is unavailable. Sign in again before
-      continuing.
+    <Alert title={t("Assessment access unavailable")} variant="warning">
+      {t(
+        "The authenticated request service is unavailable. Sign in again before continuing.",
+      )}
     </Alert>
   );
 }
@@ -142,18 +170,21 @@ function PublicationPreview({
 }: {
   readonly publication: StudentView;
 }) {
+  const { t, locale } = useI18n();
   const entries = [
-    ["Audience", publication.audience],
-    ["Availability", publication.windowStatus.replaceAll("_", " ")],
+    [t("Audience"), publication.audience],
+    [t("Availability"), publication.windowStatus.replaceAll("_", " ")],
     [
-      "Attempt duration",
+      t("Attempt duration"),
       publication.durationMinutes === 0
-        ? "Unlimited; server closure rules still apply"
-        : `${publication.durationMinutes} minutes`,
+        ? t("Unlimited; server closure rules still apply")
+        : t("{minutes} minutes", {
+            minutes: formatNumber(locale, publication.durationMinutes),
+          }),
     ],
     [
-      "Monitoring",
-      publication.monitoringRequired ? "Required" : "Not required",
+      t("Monitoring"),
+      publication.monitoringRequired ? t("Required") : t("Not required"),
     ],
   ];
   return (
@@ -163,7 +194,7 @@ function PublicationPreview({
       aria-labelledby="entry-preview"
     >
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-        Authorized preview
+        {t("Authorized preview")}
       </p>
       <h2 className="mt-2 font-heading text-2xl font-bold" id="entry-preview">
         {publication.title}
@@ -189,21 +220,21 @@ function PublicationPreview({
         ))}
         <div className="rounded-xl border border-border bg-background p-4">
           <dt className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-            Starts
+            {t("Starts")}
           </dt>
           <dd className="mt-1 text-sm text-foreground">
             <time dateTime={publication.startAt}>
-              {formatUtc(publication.startAt)}
+              {formatDateTime(locale, publication.startAt)}
             </time>
           </dd>
         </div>
         <div className="rounded-xl border border-border bg-background p-4">
           <dt className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-            Entry window ends
+            {t("Entry window ends")}
           </dt>
           <dd className="mt-1 text-sm text-foreground">
             <time dateTime={publication.endAt}>
-              {formatUtc(publication.endAt)}
+              {formatDateTime(locale, publication.endAt)}
             </time>
           </dd>
         </div>
@@ -224,6 +255,8 @@ export function StudentAssessmentJoinScreen({
   readonly client: AttemptApiClient;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
+  const localizeRef = useLocalizeRef();
   const { rememberPublicLocator } = useAttemptEphemeralContext();
   const [mode, setMode] = useState<EntryMode>("PUBLIC");
   const [locator, setLocator] = useState("");
@@ -234,14 +267,18 @@ export function StudentAssessmentJoinScreen({
   const [uncertain, setUncertain] = useState<CreationIntent | null>(null);
   useUnsavedNavigationGuard(
     uncertain !== null || busy === "start",
-    "This start outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
+    t(
+      "This start outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
+    ),
   );
 
   const enter = async (event: FormEvent) => {
     event.preventDefault();
     if (uncertain !== null) {
       setError(
-        "Resolve the uncertain start with its retained exact request before checking another assessment.",
+        localizeRef.current(
+          "Resolve the uncertain start with its retained exact request before checking another assessment.",
+        ),
       );
       return;
     }
@@ -252,9 +289,11 @@ export function StudentAssessmentJoinScreen({
         : canonicalUuid.safeParse(publicationId).success;
     if (!valid) {
       setError(
-        mode === "PUBLIC"
-          ? "Enter the exact 43-character private locator."
-          : "Enter a canonical lowercase Publication UUID.",
+        localizeRef.current(
+          mode === "PUBLIC"
+            ? "Enter the exact 43-character private locator."
+            : "Enter a canonical lowercase Publication UUID.",
+        ),
       );
       return;
     }
@@ -266,7 +305,7 @@ export function StudentAssessmentJoinScreen({
     setBusy(null);
     if (!result.ok) {
       setPreview(null);
-      setError(attemptFailureMessage(result.error));
+      setError(attemptFailureMessage(result.error, localizeRef.current));
       return;
     }
     setPreview(result.value);
@@ -285,7 +324,7 @@ export function StudentAssessmentJoinScreen({
     if (!result.ok) {
       if (isUncertainAttemptMutation(result.error)) setUncertain(intent);
       else setUncertain(null);
-      setError(attemptFailureMessage(result.error));
+      setError(attemptFailureMessage(result.error, localizeRef.current));
       return;
     }
     if (intent.input.locator)
@@ -307,11 +346,12 @@ export function StudentAssessmentJoinScreen({
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <h1 className="font-heading text-3xl font-extrabold tracking-[-0.03em] sm:text-4xl">
-          Enter an assessment
+          {t("Enter an assessment")}
         </h1>
         <p className="mt-3 max-w-2xl leading-7 text-foreground-secondary">
-          Public assessments still require a signed-in Student. Class access is
-          checked against current authoritative membership.
+          {t(
+            "Public assessments still require a signed-in Student. Class access is checked against current authoritative membership.",
+          )}
         </p>
       </div>
 
@@ -319,7 +359,7 @@ export function StudentAssessmentJoinScreen({
         <div
           className="flex flex-wrap gap-2"
           role="tablist"
-          aria-label="Entry method"
+          aria-label={t("Entry method")}
         >
           {(["PUBLIC", "CLASS"] as const).map((value) => (
             <button
@@ -341,8 +381,8 @@ export function StudentAssessmentJoinScreen({
               type="button"
             >
               {value === "PUBLIC"
-                ? "Private locator"
-                : "Known class Publication"}
+                ? t("Private locator")
+                : t("Known class Publication")}
             </button>
           ))}
         </div>
@@ -351,8 +391,10 @@ export function StudentAssessmentJoinScreen({
             <TextField
               autoComplete="off"
               error={error ?? undefined}
-              helperText="The locator stays in temporary application memory and is sent only in the authorized request body."
-              label="43-character private locator"
+              helperText={t(
+                "The locator stays in temporary application memory and is sent only in the authorized request body.",
+              )}
+              label={t("43-character private locator")}
               maxLength={43}
               minLength={43}
               onChange={(event) => setLocator(event.target.value)}
@@ -365,8 +407,10 @@ export function StudentAssessmentJoinScreen({
             <TextField
               autoComplete="off"
               error={error ?? undefined}
-              helperText="Class browsing is not available. Ask your instructor for the canonical Publication ID."
-              label="Publication ID"
+              helperText={t(
+                "Class browsing is not available. Ask your instructor for the canonical Publication ID.",
+              )}
+              label={t("Publication ID")}
               onChange={(event) => setPublicationId(event.target.value)}
               required
               spellCheck={false}
@@ -375,10 +419,10 @@ export function StudentAssessmentJoinScreen({
           )}
           <Button
             isLoading={busy === "entry"}
-            loadingLabel="Checking assessment"
+            loadingLabel={t("Checking assessment")}
             type="submit"
           >
-            Check access
+            {t("Check access")}
           </Button>
         </form>
       </Surface>
@@ -388,12 +432,13 @@ export function StudentAssessmentJoinScreen({
           <PublicationPreview publication={preview} />
           {preview.windowStatus !== "AVAILABLE" ? (
             <Alert
-              title="Starting is not currently available"
+              title={t("Starting is not currently available")}
               variant="warning"
             >
-              Server-provided availability is{" "}
-              {preview.windowStatus.replaceAll("_", " ")}. A browser clock does
-              not grant entry.
+              {t(
+                "Server-provided availability is {status}. A browser clock does not grant entry.",
+                { status: preview.windowStatus.replaceAll("_", " ") },
+              )}
             </Alert>
           ) : null}
           <div className="flex flex-wrap gap-3">
@@ -402,10 +447,10 @@ export function StudentAssessmentJoinScreen({
                 preview.windowStatus !== "AVAILABLE" || uncertain !== null
               }
               isLoading={busy === "start"}
-              loadingLabel="Starting attempt"
+              loadingLabel={t("Starting attempt")}
               onClick={start}
             >
-              Start or resume
+              {t("Start or resume")}
             </Button>
             {uncertain ? (
               <Button
@@ -413,16 +458,17 @@ export function StudentAssessmentJoinScreen({
                 onClick={() => void runStart(uncertain)}
                 variant="secondary"
               >
-                Retry same start request
+                {t("Retry same start request")}
               </Button>
             ) : null}
           </div>
         </>
       ) : null}
       {uncertain ? (
-        <Alert title="Start outcome is uncertain" variant="warning">
-          The original body and Idempotency-Key are retained in memory. Retry
-          the same request; do not create a new start intent.
+        <Alert title={t("Start outcome is uncertain")} variant="warning">
+          {t(
+            "The original body and Idempotency-Key are retained in memory. Retry the same request; do not create a new start intent.",
+          )}
         </Alert>
       ) : null}
     </div>
@@ -445,9 +491,10 @@ export function StudentAssessmentJoinPage() {
 }
 
 function AttemptLoading() {
+  const { t } = useI18n();
   return (
     <Surface className="mx-auto max-w-3xl p-8">
-      <LoadingIndicator label="Loading authoritative attempt" />
+      <LoadingIndicator label={t("Loading authoritative attempt")} />
     </Surface>
   );
 }
@@ -487,6 +534,8 @@ function AttemptLoader({
   readonly client: AttemptApiClient;
   readonly monitoring: AttemptMonitoringObserver;
 }) {
+  const { t } = useI18n();
+  const localizeRef = useLocalizeRef();
   const invalidAttemptId = !canonicalUuid.safeParse(attemptId).success;
   const { getPublicLocator } = useAttemptEphemeralContext();
   const [attempt, setAttempt] = useState<AttemptView | null>(null);
@@ -501,7 +550,7 @@ function AttemptLoader({
       .then(async (result) => {
         if (controller.signal.aborted) return;
         if (!result.ok) {
-          setError(attemptFailureMessage(result.error));
+          setError(attemptFailureMessage(result.error, localizeRef.current));
           return;
         }
         setAttempt(result.value);
@@ -542,11 +591,13 @@ function AttemptLoader({
         );
       });
     return () => controller.abort();
-  }, [attemptId, client, getPublicLocator, invalidAttemptId]);
+  }, [attemptId, client, getPublicLocator, invalidAttemptId, localizeRef]);
   if (invalidAttemptId || error)
     return (
-      <Alert title="Attempt unavailable" variant="danger">
-        {invalidAttemptId ? "The Attempt ID is invalid." : error}
+      <Alert title={t("Attempt unavailable")} variant="danger">
+        {invalidAttemptId
+          ? t("The Attempt ID is invalid.")
+          : (error ?? undefined)}
       </Alert>
     );
   if (attempt === null) return <AttemptLoading />;
@@ -741,29 +792,31 @@ function AttemptMonitoringStatus({
   readonly projection: AttemptMonitoringProjection;
   readonly state: ReturnType<typeof useStudentMonitoring>["state"];
 }) {
+  const { t } = useI18n();
   if (projection.status === "not-required") return null;
   if (projection.status === "checking")
     return (
-      <Alert title="Checking monitoring requirement" variant="info">
-        Assessment work is available while the authorized CLASS projection is
-        checked. No activity or camera collection has started.
+      <Alert title={t("Checking monitoring requirement")} variant="info">
+        {t(
+          "Assessment work is available while the authorized CLASS projection is checked. No activity or camera collection has started.",
+        )}
       </Alert>
     );
   if (projection.status === "unavailable")
     return (
-      <Alert title="Monitoring authority unavailable" variant="warning">
-        The current monitoring requirement could not be verified, so activity
-        and camera collection remain off. Assessment saves and submission stay
-        independent.
+      <Alert title={t("Monitoring authority unavailable")} variant="warning">
+        {t(
+          "The current monitoring requirement could not be verified, so activity and camera collection remain off. Assessment saves and submission stay independent.",
+        )}
       </Alert>
     );
   if (state.status === "active")
     return (
       <div className="space-y-5">
-        <Alert title="Activity monitoring active" variant="info">
-          Fresh server authorization confirmed this bounded CLASS Attempt.
-          Browser evidence contains interaction metadata only and is not proof
-          of misconduct. Assessment SAVE and SUBMIT do not wait for Proctoring.
+        <Alert title={t("Activity monitoring active")} variant="info">
+          {t(
+            "Fresh server authorization confirmed this bounded CLASS Attempt. Browser evidence contains interaction metadata only and is not proof of misconduct. Assessment SAVE and SUBMIT do not wait for Proctoring.",
+          )}
         </Alert>
         <StudentCamera activity={state.activity} session={state.session} />
       </div>
@@ -774,22 +827,24 @@ function AttemptMonitoringStatus({
     state.status === "ineligible"
   )
     return (
-      <Alert title="Monitoring unavailable" variant="warning">
-        No activity observer or camera is active. This does not change answers,
-        grading, or deadlines.
+      <Alert title={t("Monitoring unavailable")} variant="warning">
+        {t(
+          "No activity observer or camera is active. This does not change answers, grading, or deadlines.",
+        )}
         {canRetry ? (
           <div className="mt-3">
             <Button onClick={onRetry} size="compact" variant="secondary">
-              Retry monitoring verification
+              {t("Retry monitoring verification")}
             </Button>
           </div>
         ) : null}
       </Alert>
     );
   return (
-    <Alert title="Starting activity monitoring" variant="info">
-      Current backend authority is being verified before any browser observer or
-      camera control becomes active.
+    <Alert title={t("Starting activity monitoring")} variant="info">
+      {t(
+        "Current backend authority is being verified before any browser observer or camera control becomes active.",
+      )}
     </Alert>
   );
 }
@@ -835,8 +890,11 @@ function useInformativeCountdown(
   };
 }
 
-function countdownLabel(milliseconds: number | null): string {
-  if (milliseconds === null) return "No individual deadline";
+function countdownLabel(
+  milliseconds: number | null,
+  localize: ReturnType<typeof useI18n>["localize"],
+): string {
+  if (milliseconds === null) return localize("No individual deadline");
   const seconds = Math.ceil(milliseconds / 1000);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -887,6 +945,8 @@ export function AttemptScreen({
   readonly monitoringContent?: React.ReactNode;
 }) {
   const router = useRouter();
+  const { t, localize, locale } = useI18n();
+  const localizeRef = useLocalizeRef();
   const locatorContext = useAttemptEphemeralContext();
   const coordinator = useAttemptCoordinator({
     attempt: initialAttempt,
@@ -905,7 +965,9 @@ export function AttemptScreen({
   const authorityRequest = useRef(0);
   useUnsavedNavigationGuard(
     uncertain !== null || terminalBusy,
-    "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
+    t(
+      "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
+    ),
   );
   const { remaining, expired } = useInformativeCountdown(
     attempt,
@@ -944,10 +1006,15 @@ export function AttemptScreen({
       setTerminalError(null);
     } else {
       setTerminalError(
-        `Authoritative status could not be refreshed. Actions remain paused. ${attemptFailureMessage(result.error)}`,
+        localizeRef.current(
+          "Authoritative status could not be refreshed. Actions remain paused. {message}",
+          {
+            message: attemptFailureMessage(result.error, localizeRef.current),
+          },
+        ),
       );
     }
-  }, [refreshAttempt, setCoordinatorMutationPaused]);
+  }, [refreshAttempt, setCoordinatorMutationPaused, localizeRef]);
 
   useEffect(() => {
     const offline = () => {
@@ -955,7 +1022,9 @@ export function AttemptScreen({
       setCoordinatorMutationPaused(true);
       setAuthorityPaused(true);
       setTerminalError(
-        "The browser is offline. Actions are paused until authoritative Attempt status is refreshed.",
+        localizeRef.current(
+          "The browser is offline. Actions are paused until authoritative Attempt status is refreshed.",
+        ),
       );
     };
     const online = () => void reconcileAuthority();
@@ -972,7 +1041,7 @@ export function AttemptScreen({
       window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [reconcileAuthority, setCoordinatorMutationPaused]);
+  }, [reconcileAuthority, setCoordinatorMutationPaused, localizeRef]);
 
   // Best-effort realtime hints reconcile through the existing authoritative REST path;
   // hints never alter answers, grades, deadlines or completion state directly.
@@ -1044,7 +1113,9 @@ export function AttemptScreen({
     async (intent: TerminalMutation) => {
       if (mutationsBlocked) {
         setTerminalError(
-          "Actions are paused until authoritative Attempt status is refreshed.",
+          localizeRef.current(
+            "Actions are paused until authoritative Attempt status is refreshed.",
+          ),
         );
         return;
       }
@@ -1073,7 +1144,9 @@ export function AttemptScreen({
       if (!result.ok) {
         if (isUncertainAttemptMutation(result.error)) setUncertain(intent);
         else setUncertain(null);
-        setTerminalError(attemptFailureMessage(result.error));
+        setTerminalError(
+          attemptFailureMessage(result.error, localizeRef.current),
+        );
         if (
           result.error.kind === "api" &&
           result.error.code === "REVISION_CONFLICT"
@@ -1081,8 +1154,18 @@ export function AttemptScreen({
           const fresh = await coordinator.refreshPreservingDrafts();
           setTerminalError(
             fresh.ok
-              ? "The Attempt changed on the server. Your complete local answer set is preserved; resolve any highlighted conflicts, then confirm the action again."
-              : `The Attempt revision changed, and authoritative refresh failed. ${attemptFailureMessage(fresh.error)}`,
+              ? localizeRef.current(
+                  "The Attempt changed on the server. Your complete local answer set is preserved; resolve any highlighted conflicts, then confirm the action again.",
+                )
+              : localizeRef.current(
+                  "The Attempt revision changed, and authoritative refresh failed. {message}",
+                  {
+                    message: attemptFailureMessage(
+                      fresh.error,
+                      localizeRef.current,
+                    ),
+                  },
+                ),
           );
           return;
         }
@@ -1108,6 +1191,7 @@ export function AttemptScreen({
       attempt.publicationId,
       client,
       coordinator,
+      localizeRef,
       mutationsBlocked,
       router,
     ],
@@ -1117,20 +1201,28 @@ export function AttemptScreen({
     setConfirmation(null);
     if (mutationsBlocked) {
       setTerminalError(
-        "Submission is paused until authoritative Attempt status is refreshed.",
+        localizeRef.current(
+          "Submission is paused until authoritative Attempt status is refreshed.",
+        ),
       );
       return;
     }
     const snapshot = await coordinator.flushOrdinarySaves();
     if (snapshot === null) {
       setTerminalError(
-        "Resolve every failed, conflicting, or uncertain save before submission.",
+        localizeRef.current(
+          "Resolve every failed, conflicting, or uncertain save before submission.",
+        ),
       );
       return;
     }
     const answers = completeAnswers(snapshot.attempt, snapshot.answers);
     if (answers === null) {
-      setTerminalError("One or more answers do not match the required schema.");
+      setTerminalError(
+        localizeRef.current(
+          "One or more answers do not match the required schema.",
+        ),
+      );
       return;
     }
     const input: SubmitRequest = {
@@ -1141,7 +1233,9 @@ export function AttemptScreen({
       new TextEncoder().encode(JSON.stringify(input)).byteLength > 2_097_152
     ) {
       setTerminalError(
-        "The complete answer set exceeds the server body limit. Nothing was truncated or submitted.",
+        localizeRef.current(
+          "The complete answer set exceeds the server body limit. Nothing was truncated or submitted.",
+        ),
       );
       return;
     }
@@ -1152,14 +1246,18 @@ export function AttemptScreen({
     setConfirmation(null);
     if (mutationsBlocked) {
       setTerminalError(
-        "Abandon is paused until authoritative Attempt status is refreshed.",
+        localizeRef.current(
+          "Abandon is paused until authoritative Attempt status is refreshed.",
+        ),
       );
       return;
     }
     const snapshot = await coordinator.flushOrdinarySaves();
     if (snapshot === null) {
       setTerminalError(
-        "Resolve every pending save before abandoning so its outcome is explicit.",
+        localizeRef.current(
+          "Resolve every pending save before abandoning so its outcome is explicit.",
+        ),
       );
       return;
     }
@@ -1173,7 +1271,9 @@ export function AttemptScreen({
   const retake = () => {
     if (mutationsBlocked) {
       setTerminalError(
-        "Retake is paused until authoritative Attempt status is refreshed.",
+        localizeRef.current(
+          "Retake is paused until authoritative Attempt status is refreshed.",
+        ),
       );
       return;
     }
@@ -1188,13 +1288,15 @@ export function AttemptScreen({
   const reconcileTerminal = async () => {
     if (uncertain?.action === "retake") {
       setTerminalError(
-        "A retake cannot be discovered from the old Attempt. Retry the retained exact operation to resolve its outcome.",
+        localizeRef.current(
+          "A retake cannot be discovered from the old Attempt. Retry the retained exact operation to resolve its outcome.",
+        ),
       );
       return;
     }
     const fresh = await coordinator.refresh();
     if (!fresh.ok) {
-      setTerminalError(attemptFailureMessage(fresh.error));
+      setTerminalError(attemptFailureMessage(fresh.error, localizeRef.current));
       return;
     }
     if (fresh.value.state === "SUBMITTED")
@@ -1202,7 +1304,9 @@ export function AttemptScreen({
     else if (fresh.value.state === "ABANDONED") setUncertain(null);
     else
       setTerminalError(
-        "Authoritative state is still ACTIVE. Retry the retained operation to resolve its outcome.",
+        localizeRef.current(
+          "Authoritative state is still ACTIVE. Retry the retained operation to resolve its outcome.",
+        ),
       );
   };
 
@@ -1214,45 +1318,54 @@ export function AttemptScreen({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-              Attempt {attempt.ordinal}
+              {t("Attempt {ordinal}", { ordinal: attempt.ordinal })}
             </p>
             <h1 className="mt-2 font-heading text-2xl font-bold sm:text-3xl">
-              Student assessment
+              {t("Student assessment")}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StateBadge variant={attemptStateVariants[attempt.state]}>
                 {attempt.state}
               </StateBadge>
               <span className="font-mono text-xs text-foreground-muted">
-                Attempt {attempt.attemptId}
+                {t("Attempt {attemptId}", { attemptId: attempt.attemptId })}
               </span>
             </div>
           </div>
           <div className="rounded-xl border border-border bg-background px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-              Informative countdown
+              {t("Informative countdown")}
             </p>
             <p
               className="mt-1 font-mono text-xl font-bold text-foreground"
               role="timer"
             >
-              {countdownLabel(remaining)}
+              {countdownLabel(remaining, localize)}
             </p>
             <p className="mt-1 text-xs text-foreground-muted">
-              Server time and refreshed status are authoritative.
+              {t("Server time and refreshed status are authoritative.")}
             </p>
           </div>
         </div>
         <div className="mt-5 flex flex-wrap gap-3 text-sm text-foreground-secondary">
           <span>
-            {answered} of {attempt.questions.length} answered
+            {t("{answered} of {total} answered", {
+              answered: formatNumber(locale, answered),
+              total: formatNumber(locale, attempt.questions.length),
+            })}
           </span>
           <span aria-hidden="true">·</span>
-          <span>Revision {attempt.revision}</span>
+          <span>
+            {t("Revision {revision}", { revision: attempt.revision })}
+          </span>
           {attempt.deadlineAt ? (
             <>
               <span aria-hidden="true">·</span>
-              <span>Deadline {formatUtc(attempt.deadlineAt)}</span>
+              <span>
+                {t("Deadline {deadline}", {
+                  deadline: formatDateTime(locale, attempt.deadlineAt),
+                })}
+              </span>
             </>
           ) : null}
           <span aria-hidden="true">·</span>
@@ -1261,54 +1374,64 @@ export function AttemptScreen({
       </header>
 
       {attempt.closure?.closureCutoffAt ? (
-        <Alert title="Teacher closure cutoff is active" variant="warning">
-          The authoritative cutoff is{" "}
-          {formatUtc(attempt.closure.closureCutoffAt)}. Only committed answers
-          are included if the server finalizes the attempt.
+        <Alert title={t("Teacher closure cutoff is active")} variant="warning">
+          {t(
+            "The authoritative cutoff is {cutoff}. Only committed answers are included if the server finalizes the attempt.",
+            {
+              cutoff: formatDateTime(locale, attempt.closure.closureCutoffAt),
+            },
+          )}
         </Alert>
       ) : null}
       {monitoringContent}
       {expired && attempt.state === "ACTIVE" ? (
-        <Alert title="Checking authoritative status" variant="warning">
-          The local countdown reached zero. Editing is paused while the Attempt
-          is reconciled with the server.
+        <Alert title={t("Checking authoritative status")} variant="warning">
+          {t(
+            "The local countdown reached zero. Editing is paused while the Attempt is reconciled with the server.",
+          )}
           <div className="mt-3">
             <Button
               onClick={() => void reconcileAuthority()}
               size="compact"
               variant="secondary"
             >
-              Retry status check
+              {t("Retry status check")}
             </Button>
           </div>
         </Alert>
       ) : null}
       {terminalError ? (
-        <Alert title="Action could not be confirmed" variant="danger">
+        <Alert title={t("Action could not be confirmed")} variant="danger">
           {terminalError}
         </Alert>
       ) : null}
       {authorityPaused ? (
-        <Alert title="Authoritative reconciliation required" variant="warning">
-          Answer and terminal actions remain paused until current server state
-          is confirmed.
+        <Alert
+          title={t("Authoritative reconciliation required")}
+          variant="warning"
+        >
+          {t(
+            "Answer and terminal actions remain paused until current server state is confirmed.",
+          )}
           <div className="mt-3">
             <Button
               onClick={() => void reconcileAuthority()}
               size="compact"
               variant="secondary"
             >
-              Retry status check
+              {t("Retry status check")}
             </Button>
           </div>
         </Alert>
       ) : null}
       {uncertain ? (
         <Alert
-          title={`${uncertain.action} outcome is uncertain`}
+          title={t("{action} outcome is uncertain", {
+            action: uncertain.action,
+          })}
           variant="warning"
         >
-          The original body and Idempotency-Key remain in memory.
+          {t("The original body and Idempotency-Key remain in memory.")}
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               disabled={mutationsBlocked}
@@ -1317,7 +1440,7 @@ export function AttemptScreen({
               size="compact"
               variant="secondary"
             >
-              Retry exact operation
+              {t("Retry exact operation")}
             </Button>
             {uncertain.action !== "retake" ? (
               <Button
@@ -1326,7 +1449,7 @@ export function AttemptScreen({
                 size="compact"
                 variant="ghost"
               >
-                Check authoritative state
+                {t("Check authoritative state")}
               </Button>
             ) : null}
           </div>
@@ -1337,12 +1460,13 @@ export function AttemptScreen({
         <Surface className="p-6 sm:p-8">
           <h2 className="text-2xl font-bold">
             {attempt.state === "SUBMITTED"
-              ? "Attempt submitted"
-              : "Attempt abandoned"}
+              ? t("Attempt submitted")
+              : t("Attempt abandoned")}
           </h2>
           <p className="mt-3 leading-7 text-foreground-secondary">
-            This terminal state was read from the server. Answers can no longer
-            be changed.
+            {t(
+              "This terminal state was read from the server. Answers can no longer be changed.",
+            )}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             {attempt.state === "SUBMITTED" ? (
@@ -1350,7 +1474,7 @@ export function AttemptScreen({
                 className={PRIMARY_LINK_CLASSES}
                 href={`/app/attempts/${attempt.attemptId}/result`}
               >
-                View result
+                {t("View result")}
               </Link>
             ) : null}
             <Button
@@ -1359,36 +1483,39 @@ export function AttemptScreen({
               onClick={retake}
               variant="secondary"
             >
-              Start explicit retake
+              {t("Start explicit retake")}
             </Button>
             <Link className={OUTLINE_LINK_CLASSES} href="/app/assessments/join">
-              Enter another assessment
+              {t("Enter another assessment")}
             </Link>
           </div>
           {locatorContext.getPublicLocator(attempt.publicationId) === null ? (
             <p className="mt-4 text-xs text-foreground-muted">
-              If this is a PUBLIC assessment and the page was reloaded, enter
-              its private locator again before retaking. The locator is never
-              persisted.
+              {t(
+                "If this is a PUBLIC assessment and the page was reloaded, enter its private locator again before retaking. The locator is never persisted.",
+              )}
             </p>
           ) : null}
         </Surface>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
           <nav
-            aria-label="Attempt questions"
+            aria-label={t("Attempt questions")}
             className="lg:sticky lg:top-4 lg:self-start"
           >
             <Surface className="p-4">
               <p className="px-2 text-sm font-bold text-foreground">
-                Questions
+                {t("Questions")}
               </p>
               <p
                 aria-live="polite"
                 className="mt-1 px-2 text-xs text-foreground-muted"
               >
-                {questionBounds.start + 1}–{questionBounds.end} of{" "}
-                {attempt.questions.length}
+                {t("{start}–{end} of {total}", {
+                  start: formatNumber(locale, questionBounds.start + 1),
+                  end: formatNumber(locale, questionBounds.end),
+                  total: formatNumber(locale, attempt.questions.length),
+                })}
               </p>
               <ol className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8 lg:grid-cols-4">
                 {visibleQuestions.map((item) => {
@@ -1400,7 +1527,10 @@ export function AttemptScreen({
                         aria-current={
                           selected === item.number ? "step" : undefined
                         }
-                        aria-label={`Question ${item.number}, ${status}`}
+                        aria-label={t("Question {number}, {status}", {
+                          number: item.number,
+                          status: savePhaseLabel(status, t),
+                        })}
                         className={`flex min-h-11 w-full items-center justify-center rounded-lg border font-mono text-sm font-bold focus-visible:ring-2 focus-visible:ring-focus ${
                           selected === item.number
                             ? "border-primary bg-primary text-white"
@@ -1425,7 +1555,7 @@ export function AttemptScreen({
                     size="compact"
                     variant="ghost"
                   >
-                    Previous questions
+                    {t("Previous questions")}
                   </Button>
                   <Button
                     disabled={questionBounds.page === questionPageCount - 1}
@@ -1433,7 +1563,7 @@ export function AttemptScreen({
                     size="compact"
                     variant="ghost"
                   >
-                    Next questions
+                    {t("Next questions")}
                   </Button>
                 </div>
               ) : null}
@@ -1448,8 +1578,10 @@ export function AttemptScreen({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-primary">
-                  Question {question.number} ·{" "}
-                  {question.type.replaceAll("_", " ")}
+                  {t("Question {number} · {type}", {
+                    number: question.number,
+                    type: question.type.replaceAll("_", " "),
+                  })}
                 </p>
                 <h2
                   className="mt-3 whitespace-pre-wrap text-lg font-bold leading-8"
@@ -1503,7 +1635,7 @@ export function AttemptScreen({
                       size="compact"
                       variant="secondary"
                     >
-                      Retry exact save
+                      {t("Retry exact save")}
                     </Button>
                     <Button
                       disabled={mutationsBlocked}
@@ -1515,7 +1647,7 @@ export function AttemptScreen({
                       size="compact"
                       variant="ghost"
                     >
-                      Check server
+                      {t("Check server")}
                     </Button>
                   </>
                 ) : (
@@ -1530,7 +1662,7 @@ export function AttemptScreen({
                     size="compact"
                     variant="secondary"
                   >
-                    Save this draft
+                    {t("Save this draft")}
                   </Button>
                 )}
               </div>
@@ -1542,22 +1674,23 @@ export function AttemptScreen({
       {attempt.state === "ACTIVE" ? (
         <Surface className="flex flex-wrap items-center justify-between gap-4 p-5">
           <p className="max-w-xl text-sm leading-6 text-foreground-secondary">
-            Submission sends the complete answer collection and never truncates
-            it. Abandon is distinct, irreversible, and creates no result.
+            {t(
+              "Submission sends the complete answer collection and never truncates it. Abandon is distinct, irreversible, and creates no result.",
+            )}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={mutationsBlocked || uncertain !== null || terminalBusy}
               onClick={() => setConfirmation("submit")}
             >
-              Submit attempt
+              {t("Submit attempt")}
             </Button>
             <Button
               disabled={mutationsBlocked || uncertain !== null || terminalBusy}
               onClick={() => setConfirmation("abandon")}
               variant="danger"
             >
-              Abandon attempt
+              {t("Abandon attempt")}
             </Button>
           </div>
         </Surface>
@@ -1565,29 +1698,30 @@ export function AttemptScreen({
 
       {confirmation === "submit" ? (
         <PublicationConfirmation
-          confirmLabel="Submit complete answers"
+          confirmLabel={t("Submit complete answers")}
           onCancel={() => setConfirmation(null)}
           onConfirm={() => void submit()}
-          title="Submit this Attempt?"
+          title={t("Submit this Attempt?")}
         >
           <p>
-            Quizopia will save pending drafts, then submit exactly one answer
-            for every question. The server computes and persists the grade
-            atomically.
+            {t(
+              "Quizopia will save pending drafts, then submit exactly one answer for every question. The server computes and persists the grade atomically.",
+            )}
           </p>
         </PublicationConfirmation>
       ) : null}
       {confirmation === "abandon" ? (
         <PublicationConfirmation
-          confirmLabel="Abandon Attempt"
+          confirmLabel={t("Abandon Attempt")}
           destructive
           onCancel={() => setConfirmation(null)}
           onConfirm={() => void abandon()}
-          title="Abandon this Attempt?"
+          title={t("Abandon this Attempt?")}
         >
           <p>
-            Abandoning is irreversible, consumes this Attempt entitlement, and
-            creates no result. Closing the browser never performs this action.
+            {t(
+              "Abandoning is irreversible, consumes this Attempt entitlement, and creates no result. Closing the browser never performs this action.",
+            )}
           </p>
         </PublicationConfirmation>
       ) : null}
@@ -1621,6 +1755,8 @@ export function ResultScreen({
   readonly attemptId: string;
   readonly client: AttemptApiClient;
 }) {
+  const { t, locale } = useI18n();
+  const localizeRef = useLocalizeRef();
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aggregate, setAggregate] = useState<Result | null | undefined>(
@@ -1633,7 +1769,7 @@ export function ResultScreen({
       .then(async (response) => {
         if (controller.signal.aborted) return;
         if (!response.ok) {
-          setError(attemptFailureMessage(response.error));
+          setError(attemptFailureMessage(response.error, localizeRef.current));
           return;
         }
         setResult(response.value);
@@ -1645,10 +1781,10 @@ export function ResultScreen({
           setAggregate(best.ok ? best.value.bestResult : undefined);
       });
     return () => controller.abort();
-  }, [attemptId, client]);
+  }, [attemptId, client, localizeRef]);
   if (error)
     return (
-      <Alert title="Result unavailable" variant="warning">
+      <Alert title={t("Result unavailable")} variant="warning">
         {error}
       </Alert>
     );
@@ -1657,41 +1793,44 @@ export function ResultScreen({
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-          Server-issued result
+          {t("Server-issued result")}
         </p>
         <h1 className="mt-2 font-heading text-3xl font-extrabold">
-          Attempt result
+          {t("Attempt result")}
         </h1>
       </div>
       <Surface className="overflow-hidden p-6 sm:p-8">
         <p className="text-sm font-semibold text-foreground-muted">
-          Total score
+          {t("Total score")}
         </p>
         <p className="mt-2 font-heading text-5xl font-extrabold text-primary">
-          {result.percentageDisplay}%
+          {formatDecimal(locale, result.percentageDisplay)}%
         </p>
         <p className="mt-3 text-lg font-semibold">
-          {result.earnedWeight} of {result.possibleWeight} exact weight
+          {t("{earned} of {possible} exact weight", {
+            earned: formatDecimal(locale, result.earnedWeight),
+            possible: formatDecimal(locale, result.possibleWeight),
+          })}
         </p>
         <dl className="mt-7 grid gap-4 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-foreground-muted">Attempt</dt>
+            <dt className="text-foreground-muted">{t("Attempt")}</dt>
             <dd className="mt-1 font-semibold">{result.ordinal}</dd>
           </div>
           <div>
-            <dt className="text-foreground-muted">Terminal reason</dt>
+            <dt className="text-foreground-muted">{t("Terminal reason")}</dt>
             <dd className="mt-1 font-semibold">
               {result.terminalReason.replaceAll("_", " ")}
             </dd>
           </div>
           <div>
-            <dt className="text-foreground-muted">Finalized</dt>
+            <dt className="text-foreground-muted">{t("Finalized")}</dt>
             <dd className="mt-1 font-semibold">
-              {formatUtc(result.finalizedAt)}
+              {formatDateTime(locale, result.finalizedAt)}
             </dd>
           </div>
           <div>
-            <dt className="text-foreground-muted">Grading policy</dt>
+            <dt className="text-foreground-muted">{t("Grading policy")}</dt>
             <dd className="mt-1 font-mono text-xs">
               {result.gradingPolicyId} · v{result.gradingPolicyVersion}
             </dd>
@@ -1699,29 +1838,34 @@ export function ResultScreen({
         </dl>
       </Surface>
       {aggregate !== undefined ? (
-        <Alert title="Best successfully graded Attempt" variant="info">
+        <Alert title={t("Best successfully graded Attempt")} variant="info">
           {aggregate === null
-            ? "No aggregate score is available."
-            : `Attempt ${aggregate.ordinal}: ${aggregate.percentageDisplay}% (${aggregate.earnedWeight}/${aggregate.possibleWeight}).`}
+            ? t("No aggregate score is available.")
+            : t("Attempt {ordinal}: {percentage}% ({earned}/{possible}).", {
+                ordinal: aggregate.ordinal,
+                percentage: formatDecimal(locale, aggregate.percentageDisplay),
+                earned: formatDecimal(locale, aggregate.earnedWeight),
+                possible: formatDecimal(locale, aggregate.possibleWeight),
+              })}
         </Alert>
       ) : null}
-      <Alert title="Answer details remain protected" variant="info">
-        Correct answers and explanations are available only through the
-        separate, server-authorized review route after durable Publication
-        closure.
+      <Alert title={t("Answer details remain protected")} variant="info">
+        {t(
+          "Correct answers and explanations are available only through the separate, server-authorized review route after durable Publication closure.",
+        )}
       </Alert>
       <div className="flex flex-wrap gap-3">
         <Link
           className={PRIMARY_LINK_CLASSES}
           href={`/app/attempts/${attemptId}/review`}
         >
-          Request answer review
+          {t("Request answer review")}
         </Link>
         <Link
           className={OUTLINE_LINK_CLASSES}
           href={`/app/attempts/${attemptId}`}
         >
-          Back to Attempt
+          {t("Back to Attempt")}
         </Link>
       </div>
     </div>
@@ -1754,6 +1898,7 @@ export function ReviewScreen({
   readonly attemptId: string;
   readonly client: AttemptApiClient;
 }) {
+  const { t, localize, locale } = useI18n();
   const [review, setReview] = useState<Review | null>(null);
   const [failure, setFailure] = useState<AttemptFailure | null>(null);
   const load = useCallback(() => {
@@ -1769,15 +1914,17 @@ export function ReviewScreen({
   if (failure)
     return (
       <div className="mx-auto max-w-3xl space-y-5">
-        <Alert title="Answer review unavailable" variant="warning">
-          {attemptFailureMessage(failure)} No correct-answer request was made
-          before opening this explicit review page.
+        <Alert title={t("Answer review unavailable")} variant="warning">
+          {localize(
+            "{message} No correct-answer request was made before opening this explicit review page.",
+            { message: attemptFailureMessage(failure, localize) },
+          )}
         </Alert>
         <Link
           className={OUTLINE_LINK_CLASSES}
           href={`/app/attempts/${attemptId}/result`}
         >
-          Back to result
+          {t("Back to result")}
         </Link>
       </div>
     );
@@ -1786,21 +1933,25 @@ export function ReviewScreen({
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-success">
-          Authorized closed review
+          {t("Authorized closed review")}
         </p>
         <h1 className="mt-2 font-heading text-3xl font-extrabold">
-          Answer review
+          {t("Answer review")}
         </h1>
         <p className="mt-3 text-foreground-secondary">
-          The server released these details for this submitted owner after
-          durable closure.
+          {t(
+            "The server released these details for this submitted owner after durable closure.",
+          )}
         </p>
       </div>
       {review.questions.map((item) => (
         <Surface className="p-6 sm:p-8" key={item.question.number}>
           <p className="text-xs font-bold uppercase tracking-wide text-primary">
-            Question {item.question.number} · {item.earnedWeight}/
-            {item.possibleWeight}
+            {t("Question {number} · {earned}/{possible}", {
+              number: item.question.number,
+              earned: formatDecimal(locale, item.earnedWeight),
+              possible: formatDecimal(locale, item.possibleWeight),
+            })}
           </p>
           <h2 className="mt-3 whitespace-pre-wrap text-lg font-bold leading-8">
             {item.question.stemMarkdown}
@@ -1808,7 +1959,7 @@ export function ReviewScreen({
           <dl className="mt-5 space-y-4 text-sm">
             <div className="rounded-xl border border-border bg-background p-4">
               <dt className="font-semibold text-foreground-muted">
-                Your answer
+                {t("Your answer")}
               </dt>
               <dd className="mt-1 text-foreground">
                 <AnswerSummary answer={item.answer} />
@@ -1816,7 +1967,7 @@ export function ReviewScreen({
             </div>
             <div className="rounded-xl border border-success/30 bg-success/5 p-4">
               <dt className="font-semibold text-foreground-muted">
-                Correct answer
+                {t("Correct answer")}
               </dt>
               <dd className="mt-1 text-foreground">
                 <AnswerSummary answer={item.correctAnswer} />
@@ -1825,7 +1976,7 @@ export function ReviewScreen({
           </dl>
           {item.explanationMarkdown ? (
             <div className="mt-5 border-l-4 border-primary pl-4">
-              <p className="text-sm font-semibold">Explanation</p>
+              <p className="text-sm font-semibold">{t("Explanation")}</p>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground-secondary">
                 {item.explanationMarkdown}
               </p>
@@ -1837,7 +1988,7 @@ export function ReviewScreen({
         className={OUTLINE_LINK_CLASSES}
         href={`/app/attempts/${attemptId}/result`}
       >
-        Back to result
+        {t("Back to result")}
       </Link>
     </div>
   );

@@ -4,6 +4,10 @@ import type {
   AuthenticatedRequestResult,
 } from "../../../lib/api/authenticated-request";
 import { publicApiTarget } from "../../../lib/api/public-api";
+import {
+  translateMessage,
+  type TranslationValues,
+} from "../../../lib/i18n/core";
 import type {
   AbandonAck,
   AbandonRequest,
@@ -132,17 +136,33 @@ export function isUncertainAttemptMutation(error: AttemptFailure): boolean {
   );
 }
 
-export function attemptFailureMessage(error: AttemptFailure): string {
+/** Presentation-only failure copy. The localize callback resolves catalog
+ * keys; deterministic English is the fallback for unknown messages. */
+export function attemptFailureMessage(
+  error: AttemptFailure,
+  localize: (message: string, values?: TranslationValues) => string = (
+    message,
+    values,
+  ) => translateMessage("en", message, values),
+): string {
   if (error.kind === "session")
-    return "Your session changed or ended. Sign in again before continuing.";
+    return localize(
+      "Your session changed or ended. Sign in again before continuing.",
+    );
   if (error.kind === "aborted")
-    return "The request was cancelled. Its outcome may be uncertain.";
+    return localize("The request was cancelled. Its outcome may be uncertain.");
   if (error.kind === "unavailable")
-    return "The service is temporarily unavailable. Your account has not been logged out.";
+    return localize(
+      "The service is temporarily unavailable. Your account has not been logged out.",
+    );
   if (error.kind === "invalid-input")
-    return "The request could not be sent because its input is invalid.";
+    return localize(
+      "The request could not be sent because its input is invalid.",
+    );
   if (error.kind === "invalid-response")
-    return "The server response could not be verified. Refresh authoritative state before continuing.";
+    return localize(
+      "The server response could not be verified. Refresh authoritative state before continuing.",
+    );
   const messages: Record<string, string> = {
     ACCESS_DENIED: "Student access is required for this assessment.",
     PUBLICATION_NOT_FOUND:
@@ -175,14 +195,24 @@ export function attemptFailureMessage(error: AttemptFailure): string {
       "The complete request exceeds the accepted server limit. Nothing was truncated or submitted.",
   };
   if (error.status === 429)
-    return "Too many requests were received. Wait, then retry the same operation.";
+    return localize(
+      "Too many requests were received. Wait, then retry the same operation.",
+    );
   if (error.status === 503)
-    return "A required authority or assessment dependency is unavailable. Your account has not been logged out.";
+    return localize(
+      "A required authority or assessment dependency is unavailable. Your account has not been logged out.",
+    );
   if (error.status === 401)
-    return "Your session could not authorize this request. Sign in again.";
-  return (
-    messages[error.code] ??
-    `The server could not complete the request (HTTP ${error.status}).`
+    return localize(
+      "Your session could not authorize this request. Sign in again.",
+    );
+  if (messages[error.code] !== undefined)
+    return localize(messages[error.code]!);
+  return localize(
+    "The server could not complete the request (HTTP {status}).",
+    {
+      status: error.status,
+    },
   );
 }
 

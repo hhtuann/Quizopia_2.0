@@ -6,6 +6,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 // container and never cause horizontal document scroll, in 12-hour (en-US) and
 // 24-hour (en-GB) locales. Screenshots are written to EVIDENCE_DIR when set
 // (otherwise the default test-results/visual output directory).
+// The app defaults to Vietnamese; these assertions pin English via the locale
+// cookie so labels and native controls stay deterministic.
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const quizVersionId = "9bd4c564-3c27-4e6d-91aa-a004334aa8f7";

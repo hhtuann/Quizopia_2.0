@@ -2,6 +2,17 @@ import { expect, test, type Page } from "@playwright/test";
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 
+// These journeys assert English UI strings. The app defaults to Vietnamese,
+// so pin the locale cookie before any navigation (SSR reads it) to keep the
+// suite deterministic under the en catalog.
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 async function mockAnonymous(page: Page) {
   await page.route("**/api/auth/refresh", (route) =>
     route.fulfill({ status: 401, body: "{}" }),

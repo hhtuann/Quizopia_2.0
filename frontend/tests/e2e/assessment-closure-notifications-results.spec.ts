@@ -8,6 +8,14 @@ import type {
 
 // Browser contract tests: production UI/executor, intercepted Gateway responses.
 // They do not establish live Identity/Assessment/Classroom compatibility.
+// English UI strings require the locale cookie because the app defaults to vi.
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
 const publicationId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const closureRequestId = "17b14962-3a2e-4d2d-926a-3b36ea90c198";
 const notificationId = "27b14962-3a2e-4d2d-926a-3b36ea90c197";

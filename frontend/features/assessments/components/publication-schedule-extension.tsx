@@ -5,6 +5,7 @@ import { Button } from "../../../components/ui/button";
 import { DateTimeField } from "../../../components/ui/date-time-field";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { useI18n } from "../../../lib/i18n/provider";
 import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type {
   OwnerView,
@@ -33,6 +34,7 @@ export function ScheduleExtension({
    */
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const { t, localize } = useI18n();
   // The authoritative end instant, kept verbatim: an untouched field must
   // resubmit the exact server value, preserving seconds and microseconds.
   const currentEnd = publication.configuration.endAt;
@@ -47,9 +49,13 @@ export function ScheduleExtension({
   const dirty =
     editedEnd !== null ||
     duration !== String(publication.configuration.durationMinutes);
+  // Localized guard presentation recomputes per render; the stored value
+  // stays an English catalog key.
   useUnsavedNavigationGuard(
     dirty,
-    "This schedule extension has unsaved values. Leave this page and discard them?",
+    localize(
+      "This schedule extension has unsaved values. Leave this page and discard them?",
+    ),
   );
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -95,26 +101,35 @@ export function ScheduleExtension({
   }
   return (
     <Surface className="space-y-4 p-5 sm:p-6">
-      <h2 className="font-heading text-xl font-bold">Extend OPEN schedule</h2>
+      <h2 className="font-heading text-xl font-bold">
+        {t("Extend OPEN schedule")}
+      </h2>
       <p className="text-sm leading-6 text-foreground-muted">
-        Start remains fixed. End and duration can only stay the same or
-        increase. Extensions apply to future starts and do not recalculate
-        existing Attempt deadlines. Pending closure may block changes.
+        {t(
+          "Start remains fixed. End and duration can only stay the same or increase. Extensions apply to future starts and do not recalculate existing Attempt deadlines. Pending closure may block changes.",
+        )}
       </p>
       <form className="space-y-4" noValidate onSubmit={submit}>
         <fieldset className="min-w-0 space-y-4" disabled={disabled}>
-          <legend className="sr-only">Schedule extension</legend>
+          <legend className="sr-only">{t("Schedule extension")}</legend>
           <DateTimeField
-            error={error?.startsWith("Enter a valid local") ? error : undefined}
-            helperText={`Current authoritative end: ${formatUtc(currentEnd)}. Leave unchanged to keep it exactly, including seconds and microseconds.`}
-            label="Extended participation end"
+            error={
+              error?.startsWith("Enter a valid local")
+                ? localize(error)
+                : undefined
+            }
+            helperText={t(
+              "Current authoritative end: {end}. Leave unchanged to keep it exactly, including seconds and microseconds.",
+              { end: formatUtc(currentEnd) },
+            )}
+            label={t("Extended participation end")}
             onChange={(instant) => setEditedEnd(instant)}
             required
             value={currentEnd}
           />
           {publication.configuration.durationMinutes > 0 ? (
             <TextField
-              label="Extended Attempt duration (minutes)"
+              label={t("Extended Attempt duration (minutes)")}
               max={240}
               min={publication.configuration.durationMinutes}
               onChange={(event) => setDuration(event.target.value)}
@@ -124,34 +139,34 @@ export function ScheduleExtension({
               value={duration}
             />
           ) : (
-            <p>Attempt duration remains unlimited.</p>
+            <p>{t("Attempt duration remains unlimited.")}</p>
           )}
         </fieldset>
         {error && !error.startsWith("Enter a valid local") ? (
-          <Alert title="Check the schedule extension" variant="danger">
-            {error}
+          <Alert title={t("Check the schedule extension")} variant="danger">
+            {localize(error)}
           </Alert>
         ) : null}
         <Button
-          aria-label={isPending ? "Saving schedule extension" : undefined}
+          aria-label={isPending ? t("Saving schedule extension") : undefined}
           disabled={disabled}
           isLoading={isPending}
-          loadingLabel="Saving schedule extension"
+          loadingLabel={t("Saving schedule extension")}
           type="submit"
         >
-          Review schedule extension
+          {t("Review schedule extension")}
         </Button>
       </form>
       {review ? (
         <PublicationConfirmation
-          confirmLabel="Save schedule extension"
+          confirmLabel={t("Save schedule extension")}
           onCancel={() => setReview(null)}
           onConfirm={() => {
             const input = review;
             setReview(null);
             onSubmit(input);
           }}
-          title="Review OPEN schedule extension"
+          title={t("Review OPEN schedule extension")}
         >
           <PublicationSummary
             configuration={{
@@ -160,7 +175,7 @@ export function ScheduleExtension({
               durationMinutes: review.durationMinutes,
             }}
           />
-          <p>Existing Attempt deadlines remain unchanged.</p>
+          <p>{t("Existing Attempt deadlines remain unchanged.")}</p>
         </PublicationConfirmation>
       ) : null}
     </Surface>

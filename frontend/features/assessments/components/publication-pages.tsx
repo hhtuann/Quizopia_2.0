@@ -5,6 +5,7 @@ import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
+import { useI18n } from "../../../lib/i18n/provider";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import { createQuizApiClient } from "../../quizzes/api/quiz-api-client";
@@ -45,6 +46,7 @@ function TeacherPublicationPage({
     authenticatedRequests,
     getSessionGeneration,
   } = useAuth();
+  const { t } = useI18n();
   const client = usePublicationClient();
   const quizClient = useMemo(
     () =>
@@ -57,29 +59,34 @@ function TeacherPublicationPage({
   return (
     <ApplicationShell currentSection="assessments">
       {!user?.roles.includes("TEACHER") ? (
-        <Alert title="Teacher access required" variant="warning">
-          Current Teacher authority and ownership are required. Workspace
-          selection does not grant a role.{" "}
+        <Alert title={t("Teacher access required")} variant="warning">
+          {t(
+            "Current Teacher authority and ownership are required. Workspace selection does not grant a role.",
+          )}{" "}
           <Link className="font-semibold underline" href="/app">
-            Return to application
+            {t("Return to application")}
           </Link>
           .
         </Alert>
       ) : activeWorkspace !== "TEACHING" ? (
         <Surface className="p-6">
-          <h1 className="text-2xl font-bold">Open the Teaching workspace</h1>
+          <h1 className="text-2xl font-bold">
+            {t("Open the Teaching workspace")}
+          </h1>
           <p className="mt-3 text-foreground-secondary">
-            Use your existing Teacher role to manage Publications. The server
-            checks authority for every operation.
+            {t(
+              "Use your existing Teacher role to manage Publications. The server checks authority for every operation.",
+            )}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
-            Switch to Teaching workspace
+            {t("Switch to Teaching workspace")}
           </Button>
         </Surface>
       ) : client === null || quizClient === null ? (
-        <Alert title="Publication access unavailable" variant="warning">
-          Your authenticated request service is unavailable. Sign in again
-          before continuing.
+        <Alert title={t("Publication access unavailable")} variant="warning">
+          {t(
+            "Your authenticated request service is unavailable. Sign in again before continuing.",
+          )}
         </Alert>
       ) : publicationId !== undefined ? (
         <PublicationDetailScreen

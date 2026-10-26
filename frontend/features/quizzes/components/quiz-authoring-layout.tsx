@@ -6,6 +6,7 @@ import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
+import { useI18n } from "../../../lib/i18n/provider";
 import { useAuth } from "../../auth/auth-provider";
 import { AuthenticatedBoundary } from "../../auth/components/authenticated-boundary";
 import { useTeacherEnablement } from "../../auth/hooks/use-teacher-enablement";
@@ -16,6 +17,7 @@ function TeacherAuthoringBoundary({
   readonly children: ReactNode;
 }) {
   const { activeWorkspace, switchWorkspace, user } = useAuth();
+  const { localize, t } = useI18n();
   const { isPending, notice, requestTeacherEnablement } =
     useTeacherEnablement();
 
@@ -26,23 +28,26 @@ function TeacherAuthoringBoundary({
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
         <h1 className="font-heading text-2xl font-bold text-foreground">
-          Teacher access required
+          {t("Teacher access required")}
         </h1>
         <Alert
           className="mt-5"
-          title="Register as teacher to author quizzes"
+          title={t("Register as teacher to author quizzes")}
           variant={notice?.kind === "error" ? "danger" : "warning"}
         >
-          {notice?.message ??
-            "Your verified account can add Teacher access while retaining its Student role."}
+          {notice?.message
+            ? localize(notice.message)
+            : t(
+                "Your verified account can add Teacher access while retaining its Student role.",
+              )}
         </Alert>
         <Button
           className="mt-6"
           isLoading={isPending}
-          loadingLabel="Registering as teacher"
+          loadingLabel={t("Registering as teacher")}
           onClick={() => void requestTeacherEnablement()}
         >
-          Register as teacher
+          {t("Register as teacher")}
         </Button>
       </Surface>
     );
@@ -51,26 +56,27 @@ function TeacherAuthoringBoundary({
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
         <h1 className="font-heading text-2xl font-bold text-foreground">
-          Open the Teaching workspace
+          {t("Open the Teaching workspace")}
         </h1>
         {notice?.kind === "success" ? (
           <Alert
             className="mt-5"
-            title="Teacher access is ready"
+            title={t("Teacher access is ready")}
             variant="success"
           >
-            Your authoritative account now includes Student and Teacher access.
-            Open the Teaching workspace to continue.
+            {t(
+              "Your authoritative account now includes Student and Teacher access. Open the Teaching workspace to continue.",
+            )}
           </Alert>
         ) : (
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
-            Quiz authoring belongs to your Teaching workspace. Switching
-            workspace changes presentation only; your account roles remain
-            unchanged.
+            {t(
+              "Quiz authoring belongs to your Teaching workspace. Switching workspace changes presentation only; your account roles remain unchanged.",
+            )}
           </p>
         )}
         <Button className="mt-6" onClick={() => switchWorkspace("TEACHING")}>
-          Switch to Teaching
+          {t("Switch to Teaching")}
         </Button>
       </Surface>
     );

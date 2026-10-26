@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// These journeys assert the English UI. The application defaults to Vietnamese;
+// pin the preference cookie before any navigation so assertions stay stable.
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 const user = {
   email: "learner01@gmail.com",
   id: "8ad4c564-3c27-4e6d-91aa-a004334aa8f8",
@@ -53,6 +63,9 @@ test("login controls remain reachable in logical keyboard order", async ({
   ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Quizopia home" })).toBeFocused();
+  // The language switcher is a real, reachable control in the header.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("combobox")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Username or email")).toBeFocused();
   await page.keyboard.press("Tab");

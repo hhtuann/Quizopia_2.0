@@ -1,15 +1,36 @@
 "use client";
 
+import { useI18n } from "../../../lib/i18n/provider";
 import type {
   Answer,
   MatrixAnswer,
   MultipleAnswer,
   Question,
 } from "../api/attempt-contract.generated";
-import type { AnswerSaveStatus } from "../hooks/use-attempt-coordinator";
+import type {
+  AnswerSavePhase,
+  AnswerSaveStatus,
+} from "../hooks/use-attempt-coordinator";
 
 function MarkdownText({ children }: { readonly children: string }) {
   return <span className="whitespace-pre-wrap break-words">{children}</span>;
+}
+
+/** Localized phase label shared by the save status widget and the
+ * question-navigation accessible names. */
+export function savePhaseLabel(
+  phase: AnswerSavePhase,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  const labels: Record<AnswerSavePhase, string> = {
+    saved: t("Saved"),
+    draft: t("Unsaved draft"),
+    saving: t("Saving…"),
+    failed: t("Save failed"),
+    conflict: t("Revision conflict"),
+    uncertain: t("Save outcome uncertain"),
+  };
+  return labels[phase];
 }
 
 export function AnswerField({
@@ -23,10 +44,11 @@ export function AnswerField({
   readonly onChange: (answer: Answer) => void;
   readonly question: Question;
 }) {
+  const { t } = useI18n();
   if (question.type === "SINGLE_CHOICE" && answer.type === question.type) {
     return (
       <fieldset className="space-y-3" disabled={disabled}>
-        <legend className="sr-only">Choose one answer</legend>
+        <legend className="sr-only">{t("Choose one answer")}</legend>
         {question.options.map((option) => (
           <label
             className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-3 transition-colors hover:border-primary/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
@@ -55,7 +77,7 @@ export function AnswerField({
           onClick={() => onChange({ type: "SINGLE_CHOICE", optionLabel: null })}
           type="button"
         >
-          Clear answer
+          {t("Clear answer")}
         </button>
       </fieldset>
     );
@@ -66,7 +88,7 @@ export function AnswerField({
     return (
       <fieldset className="space-y-3" disabled={disabled}>
         <legend className="text-sm text-foreground-muted">
-          Select every answer that applies.
+          {t("Select every answer that applies.")}
         </legend>
         {question.options.map((option) => (
           <label
@@ -103,7 +125,7 @@ export function AnswerField({
     return (
       <fieldset className="space-y-4" disabled={disabled}>
         <legend className="text-sm text-foreground-muted">
-          Judge every statement. Unanswered is distinct from false.
+          {t("Judge every statement. Unanswered is distinct from false.")}
         </legend>
         {question.options.map((option) => (
           <fieldset
@@ -117,9 +139,9 @@ export function AnswerField({
             <div className="mt-3 flex flex-wrap gap-2">
               {(
                 [
-                  [true, "True"],
-                  [false, "False"],
-                  [null, "Unanswered"],
+                  [true, t("True")],
+                  [false, t("False")],
+                  [null, t("Unanswered")],
                 ] as const
               ).map(([value, label]) => (
                 <label
@@ -158,7 +180,7 @@ export function AnswerField({
           className="block text-sm font-semibold text-foreground-secondary"
           htmlFor={`numeric-${question.number}`}
         >
-          Four-character numeric answer
+          {t("Four-character numeric answer")}
         </label>
         <input
           autoComplete="off"
@@ -175,8 +197,9 @@ export function AnswerField({
           value={answer.value ?? ""}
         />
         <p className="text-xs leading-5 text-foreground-muted">
-          Examples: 2.50, 1234, -2.5, -.25. Blank means unanswered. No exponent,
-          comma, plus sign, padding, or rounding is applied.
+          {t(
+            "Examples: 2.50, 1234, -2.5, -.25. Blank means unanswered. No exponent, comma, plus sign, padding, or rounding is applied.",
+          )}
         </p>
       </div>
     );
@@ -184,20 +207,15 @@ export function AnswerField({
 
   return (
     <p className="text-sm text-danger" role="alert">
-      The answer type does not match this question. Refresh authoritative state.
+      {t(
+        "The answer type does not match this question. Refresh authoritative state.",
+      )}
     </p>
   );
 }
 
 export function SaveStatus({ status }: { readonly status: AnswerSaveStatus }) {
-  const labels: Record<AnswerSaveStatus["phase"], string> = {
-    saved: "Saved",
-    draft: "Unsaved draft",
-    saving: "Saving…",
-    failed: "Save failed",
-    conflict: "Revision conflict",
-    uncertain: "Save outcome uncertain",
-  };
+  const { t } = useI18n();
   const tone =
     status.phase === "saved"
       ? "text-success"
@@ -206,7 +224,9 @@ export function SaveStatus({ status }: { readonly status: AnswerSaveStatus }) {
         : "text-danger";
   return (
     <div aria-live="polite" className="text-sm">
-      <p className={`font-semibold ${tone}`}>{labels[status.phase]}</p>
+      <p className={`font-semibold ${tone}`}>
+        {savePhaseLabel(status.phase, t)}
+      </p>
       {status.message ? (
         <p className="mt-1 max-w-2xl text-xs leading-5 text-foreground-secondary">
           {status.message}
@@ -217,18 +237,21 @@ export function SaveStatus({ status }: { readonly status: AnswerSaveStatus }) {
 }
 
 export function AnswerSummary({ answer }: { readonly answer: Answer }) {
+  const { t } = useI18n();
   if (answer.type === "SINGLE_CHOICE")
-    return <span>{answer.optionLabel ?? "Unanswered"}</span>;
+    return <span>{answer.optionLabel ?? t("Unanswered")}</span>;
   if (answer.type === "MULTIPLE_CHOICE")
-    return <span>{answer.optionLabels.join(", ") || "Unanswered"}</span>;
+    return <span>{answer.optionLabels.join(", ") || t("Unanswered")}</span>;
   if (answer.type === "NUMERIC_FILL")
-    return <span className="font-mono">{answer.value ?? "Unanswered"}</span>;
+    return <span className="font-mono">{answer.value ?? t("Unanswered")}</span>;
   return (
     <span>
       {Object.entries(answer.judgments)
         .map(
           ([label, value]) =>
-            `${label}: ${value === null ? "Unanswered" : value ? "True" : "False"}`,
+            `${label}: ${
+              value === null ? t("Unanswered") : value ? t("True") : t("False")
+            }`,
         )
         .join(" · ")}
     </span>

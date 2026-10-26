@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useI18n } from "../../../lib/i18n/provider";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
@@ -27,6 +28,7 @@ const loginSchema = z.object({
 type LoginFields = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
+  const { t, localize } = useI18n();
   const router = useRouter();
   const { login, session } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -71,16 +73,18 @@ export function LoginForm() {
       <TextField
         autoCapitalize="none"
         autoComplete="username"
-        error={errors.identifier?.message}
-        label="Username or email"
+        error={
+          errors.identifier?.message && localize(errors.identifier.message)
+        }
+        label={t("Username or email")}
         spellCheck={false}
         type="text"
         {...register("identifier")}
       />
       <TextField
         autoComplete="current-password"
-        error={errors.password?.message}
-        label="Password"
+        error={errors.password?.message && localize(errors.password.message)}
+        label={t("Password")}
         type="password"
         {...register("password")}
       />
@@ -88,18 +92,18 @@ export function LoginForm() {
       {session.status === "verification-unavailable" ? (
         <SessionVerificationRecovery />
       ) : serverError ? (
-        <Alert title="Sign in failed" variant="danger">
-          {serverError}
+        <Alert title={t("Sign in failed")} variant="danger">
+          {localize(serverError)}
         </Alert>
       ) : null}
 
       <Button
         className="w-full"
         isLoading={isSubmitting}
-        loadingLabel="Signing in"
+        loadingLabel={t("Signing in")}
         type="submit"
       >
-        Sign in
+        {t("Sign in")}
       </Button>
     </form>
   );

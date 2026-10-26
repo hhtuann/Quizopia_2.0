@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthenticatedRequestExecutor } from "../../../lib/api/authenticated-request";
@@ -1069,8 +1075,12 @@ describe("QuizEditorPage real-contract behavior", () => {
     const markerCaret = updatedSource.indexOf("*B. beta") + 2;
     editor.setSelectionRange(markerCaret, markerCaret);
     fireEvent.click(editor);
+    // Scope to the suggestion listbox: the header language control also
+    // renders <option> elements for locale choices.
     expect(
-      screen.getAllByRole("option").map((item) => item.textContent),
+      within(screen.getByRole("listbox", { name: "Quiz Markdown suggestions" }))
+        .getAllByRole("option")
+        .map((item) => item.textContent),
     ).toEqual(["B.", "*B."]);
     fireEvent.keyDown(editor, { key: "Escape" });
 

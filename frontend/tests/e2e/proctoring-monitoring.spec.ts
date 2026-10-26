@@ -4,6 +4,16 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 // create trace, screenshot, or video artifacts that could retain them.
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
+// These journeys assert English UI strings while the app defaults to
+// Vietnamese, so pin the locale cookie before any navigation (SSR reads it).
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 const attemptId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const sessionId = "f7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const session = {

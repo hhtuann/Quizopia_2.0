@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { useI18n } from "../../../lib/i18n/provider";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { OtpInput } from "../../../components/ui/otp-input";
@@ -30,6 +31,7 @@ export interface EmailVerificationFormProps {
 export function EmailVerificationForm({
   initialUsername = "",
 }: EmailVerificationFormProps) {
+  const { t, localize } = useI18n();
   const router = useRouter();
   const { confirmVerification, requestVerification } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -101,8 +103,8 @@ export function EmailVerificationForm({
     >
       <TextField
         autoComplete="username"
-        error={errors.username?.message}
-        label="Username"
+        error={errors.username?.message && localize(errors.username.message)}
+        label={t("Username")}
         type="text"
         {...register("username")}
       />
@@ -112,7 +114,10 @@ export function EmailVerificationForm({
         render={({ field }) => (
           <OtpInput
             disabled={isSubmitting || isRequesting}
-            error={errors.verificationCode?.message}
+            error={
+              errors.verificationCode?.message &&
+              localize(errors.verificationCode.message)
+            }
             onBlur={field.onBlur}
             onChange={field.onChange}
             ref={field.ref}
@@ -122,33 +127,35 @@ export function EmailVerificationForm({
       />
 
       {serverError ? (
-        <Alert title="Email verification failed" variant="danger">
-          {serverError}
+        <Alert title={t("Email verification failed")} variant="danger">
+          {localize(serverError)}
         </Alert>
       ) : null}
 
       {requestStatus ? (
-        <Alert title="Verification request accepted">{requestStatus}</Alert>
+        <Alert title={t("Verification request accepted")}>
+          {localize(requestStatus)}
+        </Alert>
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Button
           disabled={isSubmitting}
           isLoading={isRequesting}
-          loadingLabel="Requesting code"
+          loadingLabel={t("Requesting code")}
           onClick={() => void resendCode()}
           type="button"
           variant="secondary"
         >
-          Resend code
+          {t("Resend code")}
         </Button>
         <Button
           disabled={isRequesting}
           isLoading={isSubmitting}
-          loadingLabel="Verifying email"
+          loadingLabel={t("Verifying email")}
           type="submit"
         >
-          Verify email
+          {t("Verify email")}
         </Button>
       </div>
     </form>

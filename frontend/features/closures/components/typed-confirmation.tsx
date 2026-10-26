@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
+import { useI18n } from "../../../lib/i18n/provider";
 
 /**
  * Typed confirmation for consequential closure commands: the exact phrase must
@@ -26,6 +27,7 @@ export function TypedConfirmation({
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   const [typed, setTyped] = useState("");
@@ -81,14 +83,14 @@ export function TypedConfirmation({
         {children}
         <TextField
           autoComplete="off"
-          label={`Type ${phrase} to enable this action`}
+          label={t("Type {phrase} to enable this action", { phrase })}
           onChange={(event) => setTyped(event.target.value)}
           value={typed}
         />
       </div>
       <div className="mt-6 flex flex-wrap justify-end gap-3">
         <Button onClick={onCancel} ref={cancel} variant="secondary">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={typed !== phrase}

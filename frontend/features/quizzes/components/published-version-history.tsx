@@ -12,6 +12,9 @@ import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { Surface } from "../../../components/ui/surface";
+import type { TranslationValues } from "../../../lib/i18n/core";
+import { formatDateTime } from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 import type {
   QuizApiClient,
   QuizApiFailure,
@@ -53,20 +56,32 @@ export interface PublishedVersionHistoryProps {
   readonly triggerRef: RefObject<HTMLButtonElement | null>;
 }
 
-function failureMessage(failure: QuizApiFailure): string {
+type Localize = (message: string, values?: TranslationValues) => string;
+
+function failureMessage(failure: QuizApiFailure, localize: Localize): string {
   if (failure.kind === "api-error") {
+    // Server-authored message stays verbatim.
     return failure.error.message;
   }
   if (failure.kind === "transport-error") {
-    return "Quizopia could not reach the Quiz service. Try again.";
+    return localize("Quizopia could not reach the Quiz service. Try again.");
   }
   if (failure.kind === "authentication-failure") {
-    return "Your authenticated session is not available for this request.";
+    return localize(
+      "Your authenticated session is not available for this request.",
+    );
   }
   if (failure.kind === "validation-error") {
-    return "The Quiz service returned an unexpected validation response.";
+    return localize(
+      "The Quiz service returned an unexpected validation response.",
+    );
   }
-  return `The Quiz service returned an unexpected response (${failure.status}).`;
+  return localize(
+    "The Quiz service returned an unexpected response ({status}).",
+    {
+      status: failure.status,
+    },
+  );
 }
 
 function appendUniqueVersions(
@@ -86,14 +101,17 @@ function appendUniqueVersions(
   ];
 }
 
-function formatPublishedAt(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf())
-    ? value
-    : new Intl.DateTimeFormat(undefined, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(parsed);
+function usePublishedAtFormatter(): (value: string) => string {
+  const { locale } = useI18n();
+  return (value: string) => {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.valueOf())
+      ? value
+      : formatDateTime(locale, parsed, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+  };
 }
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
@@ -113,6 +131,8 @@ export function PublishedVersionHistory({
   refreshVersion,
   triggerRef,
 }: PublishedVersionHistoryProps) {
+  const { localize, t } = useI18n();
+  const formatPublishedAt = usePublishedAtFormatter();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -430,15 +450,16 @@ export function PublishedVersionHistory({
               className="font-heading text-xl font-bold text-foreground"
               id="published-history-title"
             >
-              Published versions
+              {t("Published versions")}
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              Immutable snapshots. Previewing a version never changes your
-              current draft.
+              {t(
+                "Immutable snapshots. Previewing a version never changes your current draft.",
+              )}
             </p>
           </div>
           <Button
-            aria-label="Close published versions"
+            aria-label={t("Close published versions")}
             className="h-11 w-11 shrink-0 p-0"
             onClick={onClose}
             ref={closeButtonRef}
@@ -465,42 +486,43 @@ export function PublishedVersionHistory({
                 className="flex min-h-40 items-center justify-center gap-3"
                 role="status"
               >
-                <LoadingIndicator label="Loading published versions" />
+                <LoadingIndicator label={t("Loading published versions")} />
                 <span className="text-sm font-medium text-foreground-secondary">
-                  Loading versions...
+                  {t("Loading versions...")}
                 </span>
               </div>
             ) : visibleHistoryState.phase === "error" &&
               visibleHistoryState.failure !== null ? (
               <div>
                 <Alert
-                  title="Version history could not be loaded"
+                  title={t("Version history could not be loaded")}
                   variant="danger"
                 >
-                  {failureMessage(visibleHistoryState.failure)}
+                  {failureMessage(visibleHistoryState.failure, localize)}
                 </Alert>
                 <Button
                   className="mt-4 w-full"
                   onClick={() => setRetryVersion((current) => current + 1)}
                   variant="secondary"
                 >
-                  Retry history
+                  {t("Retry history")}
                 </Button>
               </div>
             ) : visibleHistoryState.items.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border-strong bg-surface p-5">
                 <h3 className="text-base font-semibold text-foreground">
-                  No published versions yet
+                  {t("No published versions yet")}
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-foreground-muted">
-                  Publish the current draft to create its first immutable
-                  snapshot.
+                  {t(
+                    "Publish the current draft to create its first immutable snapshot.",
+                  )}
                 </p>
               </div>
             ) : (
               <>
                 <ol
-                  aria-label="Published version history"
+                  aria-label={t("Published version history")}
                   className="space-y-2"
                 >
                   {visibleHistoryState.items.map((item) => {
@@ -519,14 +541,18 @@ export function PublishedVersionHistory({
                         >
                           <span className="flex items-center justify-between gap-2">
                             <span className="font-semibold text-foreground">
-                              Version {item.versionNumber}
+                              {localize("Version {number}", {
+                                number: item.versionNumber,
+                              })}
                             </span>
                             <span className="rounded bg-surface-muted px-2 py-1 font-mono text-[0.6875rem] font-semibold text-foreground-muted">
-                              Schema {item.contentSchemaVersion}
+                              {localize("Schema {version}", {
+                                version: item.contentSchemaVersion,
+                              })}
                             </span>
                           </span>
                           <span className="mt-1 block truncate text-sm text-foreground-secondary">
-                            {item.titleSnapshot?.trim() || "Untitled quiz"}
+                            {item.titleSnapshot?.trim() || t("Untitled quiz")}
                           </span>
                           <time
                             className="mt-1 block text-xs text-foreground-muted"
@@ -543,10 +569,10 @@ export function PublishedVersionHistory({
                 {paginationFailure !== null ? (
                   <Alert
                     className="mt-4"
-                    title="More versions could not be loaded"
+                    title={t("More versions could not be loaded")}
                     variant="danger"
                   >
-                    {failureMessage(paginationFailure)}
+                    {failureMessage(paginationFailure, localize)}
                   </Alert>
                 ) : null}
 
@@ -554,18 +580,18 @@ export function PublishedVersionHistory({
                   <Button
                     className="mt-4 w-full"
                     isLoading={isLoadingMore}
-                    loadingLabel="Loading more versions"
+                    loadingLabel={t("Loading more versions")}
                     onClick={() => void loadMore()}
                     variant="secondary"
                   >
-                    Load more versions
+                    {t("Load more versions")}
                   </Button>
                 ) : (
                   <p
                     className="mt-4 text-center text-xs text-foreground-muted"
                     role="status"
                   >
-                    All published versions loaded.
+                    {t("All published versions loaded.")}
                   </p>
                 )}
               </>
@@ -577,11 +603,12 @@ export function PublishedVersionHistory({
               <div className="flex min-h-64 items-center justify-center">
                 <div className="max-w-md text-center">
                   <h3 className="font-heading text-xl font-bold text-foreground">
-                    Select a published version
+                    {t("Select a published version")}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-foreground-muted">
-                    Snapshot source and content load only when you open a
-                    version.
+                    {t(
+                      "Snapshot source and content load only when you open a version.",
+                    )}
                   </p>
                 </div>
               </div>
@@ -592,20 +619,26 @@ export function PublishedVersionHistory({
                 role="status"
               >
                 <LoadingIndicator
-                  label={`Loading version ${selectedVersion}`}
+                  label={localize("Loading version {number}", {
+                    number: selectedVersion,
+                  })}
                 />
                 <span className="text-sm font-medium text-foreground-secondary">
-                  Loading version {selectedVersion}...
+                  {localize("Loading version {number}...", {
+                    number: selectedVersion,
+                  })}
                 </span>
               </div>
             ) : detailState.phase === "error" &&
               detailState.failure !== null ? (
               <div className="mx-auto max-w-xl">
                 <Alert
-                  title={`Version ${selectedVersion} could not be loaded`}
+                  title={localize("Version {number} could not be loaded", {
+                    number: selectedVersion,
+                  })}
                   variant="danger"
                 >
-                  {failureMessage(detailState.failure)}
+                  {failureMessage(detailState.failure, localize)}
                 </Alert>
                 <Button
                   className="mt-4"
@@ -614,7 +647,7 @@ export function PublishedVersionHistory({
                   }
                   variant="secondary"
                 >
-                  Retry version
+                  {t("Retry version")}
                 </Button>
               </div>
             ) : detailState.detail !== null && selectedSummary !== null ? (
@@ -623,7 +656,9 @@ export function PublishedVersionHistory({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-primary">
-                        Immutable version {detailState.detail.versionNumber}
+                        {localize("Immutable version {number}", {
+                          number: detailState.detail.versionNumber,
+                        })}
                       </p>
                       <h3
                         className="mt-1 break-words font-heading text-2xl font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus"
@@ -631,7 +666,7 @@ export function PublishedVersionHistory({
                         tabIndex={-1}
                       >
                         {detailState.detail.titleSnapshot?.trim() ||
-                          "Untitled quiz"}
+                          t("Untitled quiz")}
                       </h3>
                     </div>
                     <time
@@ -658,17 +693,22 @@ export function PublishedVersionHistory({
                           });
                       }}
                     >
-                      Create assessment from version{" "}
-                      {detailState.detail.versionNumber}
+                      {localize("Create assessment from version {number}", {
+                        number: detailState.detail.versionNumber,
+                      })}
                     </Button>
                   ) : null}
                 </div>
                 <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
                   <QuizPreview
-                    description="Read-only preview from this immutable published snapshot. Current Draft content is not used here."
+                    description={t(
+                      "Read-only preview from this immutable published snapshot. Current Draft content is not used here.",
+                    )}
                     readOnly
                     source={detailState.detail.sourceSnapshot}
-                    title={`Published preview · Version ${detailState.detail.versionNumber}`}
+                    title={localize("Published preview · Version {number}", {
+                      number: detailState.detail.versionNumber,
+                    })}
                   />
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import type { BrowserContext } from "@playwright/test";
 import type {
   ClosureView,
   Notification,
@@ -21,6 +22,24 @@ import {
   utcField,
   utcLocalParts,
 } from "./helpers";
+
+// These journeys assert English UI strings while the app defaults to
+// Vietnamese. Teacher flows pin English through the shared helpers; the
+// default context is pinned before registration here, and secondary actor
+// contexts are pinned below before their first navigation.
+async function pinEnglishContext(context: BrowserContext) {
+  await context.addCookies([
+    {
+      name: "quizopia-locale",
+      value: "en",
+      url: process.env.W3A_REAL_FRONTEND_URL ?? "http://localhost:3000",
+    },
+  ]);
+}
+
+test.beforeEach(async ({ page }) => {
+  await pinEnglishContext(page.context());
+});
 
 test("real PUBLIC Assessment: Teacher OPEN, Student locator entry, 4 question types autosave/revision, submit, result, teacher CLOSE, results table and student closed review", async ({
   browser,
@@ -72,6 +91,7 @@ test("real PUBLIC Assessment: Teacher OPEN, Student locator entry, 4 question ty
 
   // 3. Student registers in a separate browser context and enters assessment
   const studentContext = await browser.newContext();
+  await pinEnglishContext(studentContext);
   try {
     const studentPage = await studentContext.newPage();
     const student = await registerTeacher(studentPage, request, info, false);
@@ -454,6 +474,7 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
   );
 
   const studentContext = await browser.newContext();
+  await pinEnglishContext(studentContext);
   try {
     const studentPage = await studentContext.newPage();
     const student = await registerTeacher(studentPage, request, info, false);
@@ -634,6 +655,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
 
   // 2. Register Student A in a separate browser context
   const studentContext = await browser.newContext();
+  await pinEnglishContext(studentContext);
   try {
     const studentPage = await studentContext.newPage();
     const student = await registerTeacher(studentPage, request, info, false);
@@ -1181,6 +1203,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
 
     // 14. Target 2/4: Cross-recipient masking with Student B
     const studentBContext = await browser.newContext();
+    await pinEnglishContext(studentBContext);
     try {
       const studentBPage = await studentBContext.newPage();
       const studentB = await registerTeacher(
@@ -1278,6 +1301,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
 
       // M2: Foreign-Teacher authorization fence: unrelated Teacher denied GET, REQUEST, CANCEL, COMPLETE (404)
       const foreignTeacherContext = await browser.newContext();
+      await pinEnglishContext(foreignTeacherContext);
       try {
         const foreignTeacherPage = await foreignTeacherContext.newPage();
         const foreignTeacher = await registerTeacher(

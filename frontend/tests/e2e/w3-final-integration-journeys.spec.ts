@@ -9,6 +9,16 @@ import type { Notification } from "../../features/notifications/model/notificati
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
+// These journeys assert English UI strings while the app defaults to
+// Vietnamese, so pin the locale cookie before any navigation (SSR reads it).
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 const studentId = "3ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const teacherId = "6ad4c564-3c27-4e6d-91aa-a004334aa8f9";
 const classPublicationId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";

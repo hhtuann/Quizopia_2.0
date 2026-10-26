@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { useI18n } from "../../../lib/i18n/provider";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
@@ -36,6 +37,7 @@ const registrationSchema = z
 type RegistrationFields = z.infer<typeof registrationSchema>;
 
 export function RegistrationForm() {
+  const { t, localize } = useI18n();
   const router = useRouter();
   const { register: registerAccount } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -92,45 +94,48 @@ export function RegistrationForm() {
     >
       <TextField
         autoComplete="username"
-        error={errors.username?.message}
-        label="Username"
+        error={errors.username?.message && localize(errors.username.message)}
+        label={t("Username")}
         {...register("username")}
       />
       <TextField
         autoComplete="email"
-        error={errors.email?.message}
-        label="Email address"
+        error={errors.email?.message && localize(errors.email.message)}
+        label={t("Email address")}
         type="email"
         {...register("email")}
       />
       <TextField
         autoComplete="new-password"
-        error={errors.password?.message}
-        label="Password"
+        error={errors.password?.message && localize(errors.password.message)}
+        label={t("Password")}
         type="password"
         {...register("password")}
       />
       <TextField
         autoComplete="new-password"
-        error={errors.confirmPassword?.message}
-        label="Confirm password"
+        error={
+          errors.confirmPassword?.message &&
+          localize(errors.confirmPassword.message)
+        }
+        label={t("Confirm password")}
         type="password"
         {...register("confirmPassword")}
       />
 
       {serverError ? (
-        <Alert title="Account creation failed" variant="danger">
-          {serverError}
+        <Alert title={t("Account creation failed")} variant="danger">
+          {localize(serverError)}
         </Alert>
       ) : null}
 
       <Button
         className="w-full"
         isLoading={isSubmitting}
-        loadingLabel="Creating account"
+        loadingLabel={t("Creating account")}
         type="submit"
       >
-        Create account
+        {t("Create account")}
       </Button>
     </form>
   );

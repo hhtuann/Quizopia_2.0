@@ -10,6 +10,8 @@ import {
 } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
+import { formatDateTime, formatNumber } from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 import {
   publicationFailureMessage,
   type PublicationApiClient,
@@ -22,6 +24,7 @@ export function PublicationDirectory({
 }: {
   readonly client: PublicationApiClient;
 }) {
+  const { t, localize, locale } = useI18n();
   const [search, setSearch] = useState("");
   const [state, setState] = useState<PublicationDirectoryQuery["state"]>();
   const [query, setQuery] = useState<PublicationDirectoryQuery>({});
@@ -69,22 +72,23 @@ export function PublicationDirectory({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-primary">
-            Teaching workspace
+            {t("Teaching workspace")}
           </p>
           <h1 className="mt-2 font-heading text-3xl font-bold">
-            My <span className="brand-gradient-text">Assessments</span>
+            <span className="brand-gradient-text">{t("My Assessments")}</span>
           </h1>
           <p className="mt-3 text-foreground-secondary">
-            Manage your assessment Publications, schedules and results.
+            {t("Manage your assessment Publications, schedules and results.")}
           </p>
         </div>
         <Link className={PRIMARY_LINK_CLASSES} href="/app/quizzes">
-          Create assessment
+          {t("Create assessment")}
         </Link>
       </div>
       <p className="text-sm text-foreground-muted">
-        To create an assessment, choose an immutable published version in your
-        Quiz Library.
+        {t(
+          "To create an assessment, choose an immutable published version in your Quiz Library.",
+        )}
       </p>
       <Surface className="p-5">
         <form
@@ -95,14 +99,14 @@ export function PublicationDirectory({
           }}
         >
           <TextField
-            label="Search assessments"
+            label={t("Search assessments")}
             maxLength={300}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             type="search"
           />
           <label className="grid gap-2 text-sm font-semibold">
-            Publication state
+            {t("Publication state")}
             <select
               className="min-h-11 rounded-xl border border-border-strong bg-surface px-4 focus-visible:ring-2 focus-visible:ring-focus"
               value={state ?? ""}
@@ -113,20 +117,21 @@ export function PublicationDirectory({
                 load({ search: search.trim(), state: next });
               }}
             >
-              <option value="">All states</option>
+              <option value="">{t("All states")}</option>
+              {/* Canonical API enum values stay verbatim by policy. */}
               <option value="DRAFT">DRAFT</option>
               <option value="OPEN">OPEN</option>
               <option value="CLOSED">CLOSED</option>
             </select>
           </label>
           <Button type="submit" variant="secondary">
-            Search
+            {t("Search")}
           </Button>
         </form>
       </Surface>
       {error ? (
-        <Alert title="Assessments could not be loaded" variant="danger">
-          {error}
+        <Alert title={t("Assessments could not be loaded")} variant="danger">
+          {localize(error)}
           <div className="mt-3">
             <Button
               variant="secondary"
@@ -136,22 +141,22 @@ export function PublicationDirectory({
                 setRetry((value) => value + 1);
               }}
             >
-              Retry assessments
+              {t("Retry assessments")}
             </Button>
           </div>
         </Alert>
       ) : null}
-      <section aria-label="Owned assessments" aria-busy={loading}>
+      <section aria-label={t("Owned assessments")} aria-busy={loading}>
         {items.length ? (
           <div className="overflow-hidden rounded-xl border border-border bg-surface">
             <div
               className="hidden grid-cols-[minmax(0,2fr)_1fr_1fr_1fr] gap-4 bg-surface-muted px-5 py-3 text-sm font-semibold md:grid"
               aria-hidden="true"
             >
-              <span>Assessment</span>
-              <span>State / audience</span>
-              <span>Participation window</span>
-              <span>Actions</span>
+              <span>{t("Assessment")}</span>
+              <span>{t("State / audience")}</span>
+              <span>{t("Participation window")}</span>
+              <span>{t("Actions")}</span>
             </div>
             <ul className="divide-y divide-border">
               {items.map((item) => (
@@ -162,48 +167,59 @@ export function PublicationDirectory({
                   <div className="min-w-0">
                     <h2 className="break-words font-semibold">{item.title}</h2>
                     <p className="mt-1 text-sm text-foreground-muted">
-                      Quiz version {item.versionNumber}
+                      {t("Quiz version {versionNumber}", {
+                        versionNumber: item.versionNumber,
+                      })}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Canonical API state enum: rendered verbatim by policy. */}
                     <span
                       className={`rounded-lg px-2 py-1 font-mono text-xs font-semibold ${item.state === "OPEN" ? "bg-success/10 text-foreground" : item.state === "CLOSED" ? "bg-surface-muted text-foreground-secondary" : "bg-warning/10 text-foreground"}`}
                     >
                       {item.state}
                     </span>
                     <span className="text-sm text-foreground-secondary">
-                      {item.audience === "CLASS" ? "Classroom" : "Public"}
+                      {item.audience === "CLASS" ? t("Classroom") : t("Public")}
                     </span>
                   </div>
                   <div className="text-sm text-foreground-secondary">
                     <p>
-                      <span className="md:sr-only">Start: </span>
+                      <span className="md:sr-only">{t("Start:")}</span>{" "}
                       <time dateTime={item.startAt}>
-                        {new Date(item.startAt).toLocaleString()}
+                        {formatDateTime(locale, item.startAt, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
                       </time>
                     </p>
                     <p>
-                      <span className="md:sr-only">End: </span>
+                      <span className="md:sr-only">{t("End:")}</span>{" "}
                       <time dateTime={item.endAt}>
-                        {new Date(item.endAt).toLocaleString()}
+                        {formatDateTime(locale, item.endAt, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
                       </time>
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      aria-label={`Manage ${item.title}`}
+                      aria-label={t("Manage {title}", { title: item.title })}
                       className={OUTLINE_LINK_CLASSES}
                       href={`/app/assessments/${item.publicationId}`}
                     >
-                      Manage
+                      {t("Manage")}
                     </Link>
                     {item.state !== "DRAFT" ? (
                       <Link
-                        aria-label={`Results for ${item.title}`}
+                        aria-label={t("Results for {title}", {
+                          title: item.title,
+                        })}
                         className={OUTLINE_LINK_CLASSES}
                         href={`/app/assessments/${item.publicationId}/results`}
                       >
-                        Results
+                        {t("Results")}
                       </Link>
                     ) : null}
                   </div>
@@ -214,12 +230,16 @@ export function PublicationDirectory({
         ) : !loading && !error ? (
           <Surface className="p-8 text-center">
             <h2 className="text-xl font-bold">
-              {filtered ? "No matching assessments" : "No assessments yet"}
+              {filtered
+                ? t("No matching assessments")
+                : t("No assessments yet")}
             </h2>
             <p className="mt-3 text-foreground-secondary">
               {filtered
-                ? "Try another title or state to find your assessment."
-                : "Create your first assessment from a published QuizVersion."}
+                ? t("Try another title or state to find your assessment.")
+                : t(
+                    "Create your first assessment from a published QuizVersion.",
+                  )}
             </p>
             {filtered ? (
               <Button
@@ -231,14 +251,14 @@ export function PublicationDirectory({
                   load({});
                 }}
               >
-                Clear filters
+                {t("Clear filters")}
               </Button>
             ) : (
               <Link
                 className={`${OUTLINE_LINK_CLASSES} mt-5`}
                 href="/app/quizzes"
               >
-                Open Quiz Library
+                {t("Open Quiz Library")}
               </Link>
             )}
           </Surface>
@@ -248,11 +268,13 @@ export function PublicationDirectory({
             className="py-6 text-center text-foreground-secondary"
             role="status"
           >
-            Loading assessments…
+            {t("Loading assessments…")}
           </p>
         ) : (
           <p className="mt-4 text-sm text-foreground-muted" role="status">
-            {items.length} assessments shown
+            {t("{count} assessments shown", {
+              count: formatNumber(locale, items.length),
+            })}
           </p>
         )}
       </section>
@@ -262,7 +284,7 @@ export function PublicationDirectory({
           disabled={loading}
           onClick={() => load({ ...query, cursor })}
         >
-          Load more assessments
+          {t("Load more assessments")}
         </Button>
       ) : null}
     </div>

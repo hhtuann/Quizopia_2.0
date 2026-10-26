@@ -30,6 +30,42 @@ It does not prove live Assessment/Quiz/Classroom/Identity integration. Existing
 `pnpm test:e2e:real` and `pnpm test:e2e:real:executor` have their own documented
 runtime prerequisites and do not establish W3-A acceptance by themselves.
 
+## Internationalization (vi default / en)
+
+The frontend is bilingual: Vietnamese is the product default, English is the
+typed catalog-key source language. Developer reference with the full
+architecture, terminology glossary and state-preservation rules:
+[`lib/i18n/README.md`](lib/i18n/README.md).
+
+- **Workflow:** copy lives in five domain catalogs under
+  `lib/i18n/messages/` (`common`, `authoring`, `assessment`, `student`,
+  `monitoring`). A key is the exact English source text; its value is the
+  Vietnamese translation. Render through `const { t } = useI18n()` —
+  `t("My Assessments")` — so a typo is a compile error, and use
+  `localize(message)` (deterministic English fallback) for runtime domain
+  messages such as API failure mapping.
+- **Locale preference:** the `quizopia-locale` cookie (`vi|en`, `SameSite=Lax`,
+  one year, preference only — no credentials). The root server layout resolves
+  it (`getServerLocale()`) so SSR, `<html lang>` and hydration agree with no
+  flash; the `LanguageSwitcher` combobox flips the locale immediately and
+  persists it. Dates/numbers go through `formatDateTime`/`formatNumber`/
+  `formatDecimal` (`vi-VN` / `en-GB`).
+- **Never localized:** teacher-authored Quiz Markdown and its grammar markers
+  (`Câu`, `Đáp án`, `Lời giải`), canonical API enums (`DRAFT`/`OPEN`/`CLOSED`,
+  `CLASS`/`PUBLIC`, ...), error codes, IDs and authoritative timestamps.
+  Some vi values deliberately keep canonical tokens (Publication, Attempt in
+  teacher chrome) — see the glossary before coining a term.
+- **Tests:** `pnpm test` includes the cross-catalog duplicate-guard and
+  per-domain i18n RTL suites; `tests/e2e/t4-i18n-acceptance.spec.ts` covers
+  vi default, immediate reversible switching, cookie persistence and
+  authenticated surfaces in both locales. Locale switches must never remount
+  (`key={locale}`) or refetch data — mid-attempt and mid-form switches have
+  dedicated regression journeys.
+- **E2E English pinning:** suites asserting English copy pin the locale
+  instead of switching in-test:
+  `test.use({ cookies: [{ name: "quizopia-locale", value: "en", url: "http://localhost:3000" }] })`.
+  New e2e tests must pin English this way or assert both locales explicitly.
+
 Regenerate/check Publication types from repository root (Python with PyYAML,
 already used by repository tooling):
 

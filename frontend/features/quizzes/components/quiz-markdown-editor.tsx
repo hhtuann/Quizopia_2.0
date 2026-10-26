@@ -12,6 +12,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
+import { useI18n } from "../../../lib/i18n/provider";
 import { getQuizAutocompleteSuggestions } from "../model/quiz-markdown";
 
 export interface QuizMarkdownEditorHandle {
@@ -52,6 +53,7 @@ export const QuizMarkdownEditor = forwardRef<
   QuizMarkdownEditorHandle,
   QuizMarkdownEditorProps
 >(function QuizMarkdownEditor({ disabled = false, onChange, value }, ref) {
+  const { localize, t } = useI18n();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caret, setCaret] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -165,14 +167,15 @@ export const QuizMarkdownEditor = forwardRef<
         className="mb-2 block text-sm font-semibold text-foreground-secondary"
         htmlFor="quiz-markdown-source"
       >
-        Quiz Markdown source
+        {t("Quiz Markdown source")}
       </label>
       <p
         className="mb-3 text-sm leading-6 text-foreground-muted"
         id="quiz-editor-help"
       >
-        Structural completion works at column 1 outside fenced code blocks. The
-        backend remains authoritative when publishing.
+        {t(
+          "Structural completion works at column 1 outside fenced code blocks. The backend remains authoritative when publishing.",
+        )}
       </p>
       <textarea
         aria-activedescendant={activeSuggestionId}
@@ -196,7 +199,7 @@ export const QuizMarkdownEditor = forwardRef<
 
       {suggestions.length > 0 ? (
         <ul
-          aria-label="Quiz Markdown suggestions"
+          aria-label={t("Quiz Markdown suggestions")}
           className="absolute left-3 right-3 top-[8.3rem] z-20 max-h-64 overflow-auto rounded-lg border border-border-strong bg-surface p-1 shadow-card"
           id="quiz-markdown-suggestions"
           role="listbox"
@@ -223,7 +226,9 @@ export const QuizMarkdownEditor = forwardRef<
 
       <p aria-live="polite" className="sr-only">
         {suggestions.length > 0
-          ? `${suggestions.length} Quiz Markdown suggestions available.`
+          ? localize("{count} Quiz Markdown suggestions available.", {
+              count: suggestions.length,
+            })
           : ""}
       </p>
     </div>

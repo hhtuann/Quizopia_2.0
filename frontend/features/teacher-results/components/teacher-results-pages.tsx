@@ -8,6 +8,7 @@ import { Button, OUTLINE_LINK_CLASSES } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
+import { useI18n } from "../../../lib/i18n/provider";
 import { assessmentFailureMessage } from "../../assessments/api/assessment-foundation";
 import type { TeacherResultRow } from "../../assessments/api/publication-contract.generated";
 import { formatUtc } from "../../assessments/utils/utc-time";
@@ -42,6 +43,7 @@ function TeacherResultsRouterPage({
 }) {
   const { user, activeWorkspace, switchWorkspace, getSessionGeneration } =
     useAuth();
+  const { t } = useI18n();
   const client = useTeacherResultsClient();
   const scope = `${user?.id}:${getSessionGeneration()}:${publicationId}`;
   return (
@@ -51,32 +53,38 @@ function TeacherResultsRouterPage({
           className={OUTLINE_LINK_CLASSES}
           href={`/app/assessments/${publicationId}`}
         >
-          Back to Publication details
+          {t("Back to Publication details")}
         </Link>
       </div>
       {!user?.roles.includes("TEACHER") ? (
-        <Alert title="Teacher access required" variant="warning">
-          Current Teacher authority and Publication ownership are required.{" "}
+        <Alert title={t("Teacher access required")} variant="warning">
+          {t(
+            "Current Teacher authority and Publication ownership are required.",
+          )}{" "}
           <Link className="font-semibold underline" href="/app">
-            Return to application
+            {t("Return to application")}
           </Link>
           .
         </Alert>
       ) : activeWorkspace !== "TEACHING" ? (
         <Surface className="p-6">
-          <h1 className="text-2xl font-bold">Open the Teaching workspace</h1>
+          <h1 className="text-2xl font-bold">
+            {t("Open the Teaching workspace")}
+          </h1>
           <p className="mt-3 text-foreground-secondary">
-            Results are available to the owning Teacher; the server checks
-            ownership for every read.
+            {t(
+              "Results are available to the owning Teacher; the server checks ownership for every read.",
+            )}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
-            Switch to Teaching workspace
+            {t("Switch to Teaching workspace")}
           </Button>
         </Surface>
       ) : client === null ? (
-        <Alert title="Results unavailable" variant="warning">
-          Your authenticated request service is unavailable. Sign in again
-          before continuing.
+        <Alert title={t("Results unavailable")} variant="warning">
+          {t(
+            "Your authenticated request service is unavailable. Sign in again before continuing.",
+          )}
         </Alert>
       ) : (
         <TeacherResultsScreen
@@ -96,6 +104,7 @@ export function TeacherResultsScreen({
   readonly client: TeacherResultsApiClient;
   readonly publicationId: string;
 }) {
+  const { t, localize } = useI18n();
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -208,83 +217,86 @@ export function TeacherResultsScreen({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-primary">
-            Publication results
+            {t("Publication results")}
           </p>
           <h1 className="mt-1 font-heading text-3xl font-bold">
-            Attempt results
+            {t("Attempt results")}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
-            Owner-authorized Attempt rows with exact totals. ACTIVE and
-            ABANDONED attempts have no result yet. No answers or answer keys are
-            included in this data.
+            {t(
+              "Owner-authorized Attempt rows with exact totals. ACTIVE and ABANDONED attempts have no result yet. No answers or answer keys are included in this data.",
+            )}
           </p>
         </div>
         <Button
           disabled={loadingMore}
           isLoading={loading}
-          loadingLabel="Refreshing results"
+          loadingLabel={t("Refreshing results")}
           onClick={() => {
             setLoading(true);
             void load();
           }}
           variant="secondary"
         >
-          Refresh results
+          {t("Refresh results")}
         </Button>
       </header>
       <p className="break-all font-mono text-xs text-foreground-muted">
-        Publication ID: {publicationId}
+        {t("Publication ID: {id}", { id: publicationId })}
       </p>
       {failureText ? (
-        <Alert title="Results could not be read" variant="warning">
-          {failureText}
+        <Alert title={t("Results could not be read")} variant="warning">
+          {localize(failureText)}
         </Alert>
       ) : null}
       {loading ? (
         <Surface className="p-6">
           <div className="flex items-center gap-3" role="status">
-            <LoadingIndicator label="Loading results" />
-            Loading authoritative Attempt rows…
+            <LoadingIndicator label={t("Loading results")} />
+            {t("Loading authoritative Attempt rows…")}
           </div>
         </Surface>
       ) : failureText === null && rows.length === 0 ? (
         <Surface className="p-6">
-          <h2 className="text-xl font-bold">No attempt rows yet</h2>
+          <h2 className="text-xl font-bold">{t("No attempt rows yet")}</h2>
           <p className="mt-2 text-sm text-foreground-secondary">
-            No attempts exist for this Publication, or none are visible to your
-            account.
+            {t(
+              "No attempts exist for this Publication, or none are visible to your account.",
+            )}
           </p>
         </Surface>
       ) : (
         <Surface
-          aria-label="Scrollable Publication attempt results"
+          aria-label={t("Scrollable Publication attempt results")}
           className="overflow-x-auto p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
           role="region"
           tabIndex={0}
         >
           <table className="w-full min-w-[720px] text-left text-sm">
             <caption className="sr-only">
-              Attempt rows with state and exact totals for this Publication
+              {t(
+                "Attempt rows with state and exact totals for this Publication",
+              )}
             </caption>
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-foreground-muted">
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  Ordinal
+                  {t("Ordinal")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  Attempt ID
+                  {t("Attempt ID")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  Student ID
+                  {t("Student ID")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  State
+                  {t("State")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  Score
+                  {t("Score")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  Finalized
+                  {t("Finalized")}
                 </th>
               </tr>
             </thead>
@@ -299,7 +311,9 @@ export function TeacherResultsScreen({
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     <Link
-                      aria-label={`Open monitoring for Attempt ${row.attemptId}`}
+                      aria-label={t("Open monitoring for Attempt {attemptId}", {
+                        attemptId: row.attemptId,
+                      })}
                       className="font-semibold text-primary underline decoration-primary/40 underline-offset-4"
                       href={monitoringHrefForAttempt(row.attemptId)}
                     >
@@ -311,15 +325,15 @@ export function TeacherResultsScreen({
                   </td>
                   <td className="px-4 py-3 tabular-nums">
                     <StateBadge variant={attemptStateVariants[row.state]}>
-                      {attemptStateLabels[row.state]}
+                      {localize(attemptStateLabels[row.state])}
                     </StateBadge>
                   </td>
                   <td className="px-4 py-3">
                     {row.result === null ? (
                       <span className="text-foreground-muted">
                         {row.state === "ACTIVE"
-                          ? "No result (still active)"
-                          : "No result (ungraded)"}
+                          ? t("No result (still active)")
+                          : t("No result (ungraded)")}
                       </span>
                     ) : (
                       <span>
@@ -330,7 +344,9 @@ export function TeacherResultsScreen({
                           {formatWeightTotal(row)}
                         </span>
                         <span className="mt-0.5 block text-xs text-foreground-muted">
-                          {terminalReasonLabels[row.result.terminalReason]}
+                          {localize(
+                            terminalReasonLabels[row.result.terminalReason],
+                          )}
                         </span>
                       </span>
                     )}
@@ -351,19 +367,18 @@ export function TeacherResultsScreen({
           <Button
             disabled={loading || loadingMore}
             isLoading={loadingMore}
-            loadingLabel="Loading more rows"
+            loadingLabel={t("Loading more rows")}
             onClick={() => void loadMore(nextCursor)}
             variant="secondary"
           >
-            Load more rows
+            {t("Load more rows")}
           </Button>
         </div>
       ) : null}
       <p className="text-xs leading-5 text-foreground-muted">
-        Attempt IDs are the real authorized identities returned by the server.
-        Each per-attempt monitoring destination performs a fresh server lookup;
-        this results table does not grant monitoring access or discover a global
-        roster.
+        {t(
+          "Attempt IDs are the real authorized identities returned by the server. Each per-attempt monitoring destination performs a fresh server lookup; this results table does not grant monitoring access or discover a global roster.",
+        )}
       </p>
     </div>
   );

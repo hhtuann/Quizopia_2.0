@@ -1,6 +1,7 @@
 "use client";
 
 import type { Workspace } from "../../features/auth/model/workspace";
+import { useI18n } from "../../lib/i18n/provider";
 import { BookOpenIcon } from "../ui/icons";
 
 export interface WorkspaceSwitcherProps {
@@ -9,16 +10,17 @@ export interface WorkspaceSwitcherProps {
   readonly onSwitch: (workspace: Workspace) => boolean;
 }
 
-const workspaceLabels: Record<Workspace, string> = {
+const workspaceLabels = {
   LEARNING: "Learning",
   TEACHING: "Teaching",
-};
+} as const;
 
 export function WorkspaceSwitcher({
   activeWorkspace,
   availableWorkspaces,
   onSwitch,
 }: WorkspaceSwitcherProps) {
+  const { t } = useI18n();
   if (availableWorkspaces.length < 2) {
     return null;
   }
@@ -27,10 +29,10 @@ export function WorkspaceSwitcher({
     <div className="border-t border-border bg-surface-muted/60">
       <div className="mx-auto flex w-full flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <span className="text-sm font-semibold text-foreground-secondary">
-          Workspace
+          {t("Workspace")}
         </span>
         <div
-          aria-label="Choose workspace"
+          aria-label={t("Choose workspace")}
           className="inline-flex rounded-full border border-border-strong bg-surface p-1 shadow-sm"
           role="group"
         >
@@ -52,7 +54,7 @@ export function WorkspaceSwitcher({
                 {workspace === "LEARNING" ? (
                   <BookOpenIcon className="mr-1 inline size-4 align-[-0.2em]" />
                 ) : null}
-                {workspaceLabels[workspace]}
+                {t(workspaceLabels[workspace])}
               </button>
             );
           })}

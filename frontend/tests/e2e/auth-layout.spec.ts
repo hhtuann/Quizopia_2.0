@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// These journeys assert the English UI. The application defaults to Vietnamese;
+// pin the preference cookie before any navigation so assertions stay stable.
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 const sizes = [
   { width: 375, height: 812 },
   { width: 768, height: 1024 },

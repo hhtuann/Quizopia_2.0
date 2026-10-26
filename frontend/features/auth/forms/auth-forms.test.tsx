@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EmailVerificationForm } from "./email-verification-form";
 import { LoginForm } from "./login-form";
 import { RegistrationForm } from "./registration-form";
+import { I18nProvider } from "../../../lib/i18n/provider";
+import { LanguageSwitcher } from "../../../components/ui/language-switcher";
 
 const navigation = vi.hoisted(() => ({
   push: vi.fn(),
@@ -84,6 +86,49 @@ beforeEach(() => {
 });
 
 describe("login form", () => {
+  it("switches validation and server errors without clearing exact credentials or replaying login", async () => {
+    auth.login.mockResolvedValueOnce(apiError("AUTH_INVALID_CREDENTIALS", 401));
+    render(
+      <I18nProvider>
+        <LanguageSwitcher />
+        <LoginForm />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    expect(
+      await screen.findByText("Nhập tên đăng nhập hoặc email đã xác minh."),
+    ).toBeVisible();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "en" } });
+    expect(
+      screen.getByText("Enter your username or verified email."),
+    ).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Username or email"), {
+      target: { value: "  Learner+01  " },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "wrong exact password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      await screen.findByText("The username/email or password is incorrect."),
+    ).toBeVisible();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "vi" } });
+    expect(
+      screen.getByText("Tên đăng nhập/email hoặc mật khẩu không chính xác."),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Tên đăng nhập hoặc email")).toHaveValue(
+      "  Learner+01  ",
+    );
+    expect(screen.getByLabelText("Mật khẩu")).toHaveValue(
+      "wrong exact password",
+    );
+    expect(auth.login).toHaveBeenCalledExactlyOnceWith({
+      identifier: "  Learner+01  ",
+      password: "wrong exact password",
+    });
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
   it("uses the exact username-or-verified-email identifier contract", async () => {
     render(<LoginForm />);
 

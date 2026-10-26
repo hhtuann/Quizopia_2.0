@@ -5,6 +5,16 @@ import type {
   PublicationSummary,
 } from "../../features/assessments/api/publication-contract.generated";
 
+// These journeys assert English UI strings while the app defaults to
+// Vietnamese; pin the locale cookie before any navigation (SSR reads it).
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "en", url: "http://localhost:3000" },
+    ]);
+});
+
 // Production browser UI + authenticated executor, intercepted Gateway contracts.
 // This suite does not claim live backend ownership/admission verification.
 const teacherId = "a7a4c564-3c27-4e6d-91aa-a004334aa8f9";
@@ -489,4 +499,47 @@ test("a late search cannot replace a newer state-filter response", async ({
   await expect(
     page.getByRole("link", { name: `Manage ${summary.title}` }),
   ).toHaveCount(0);
+});
+
+test("language switcher preserves an in-progress DRAFT form and the locale persists across reload", async ({
+  page,
+}) => {
+  await auth(page);
+  await source(page);
+  await mockClasses(page);
+  await page.goto(sourceUrl);
+  const title = page.getByLabel("Publication title");
+  await title.fill("Bilingual unsaved draft");
+  const classroom = page.getByRole("radio", {
+    name: classrooms[0]!.name,
+    exact: true,
+  });
+  await classroom.check();
+  await expect(classroom).toBeChecked();
+  await page.getByLabel("Attempt duration (minutes)").fill("45");
+
+  // Switch the live SPA to Vietnamese through the header control.
+  await page.getByRole("combobox").first().selectOption("vi");
+  await expect(page.getByLabel("Tiêu đề Publication")).toHaveValue(
+    "Bilingual unsaved draft",
+  );
+  await expect(classroom).toBeChecked();
+  await expect(page.getByLabel("Thời lượng Attempt (phút)")).toHaveValue("45");
+  await expect(
+    page.getByRole("button", { name: "Xem lại và tạo DRAFT" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Chọn một lớp học" }),
+  ).toBeVisible();
+
+  // The preference cookie keeps the server-rendered locale across reload.
+  const cookies = await page.context().cookies();
+  expect(
+    cookies.find((cookie) => cookie.name === "quizopia-locale")?.value,
+  ).toBe("vi");
+  await page.reload();
+  await expect(page.getByLabel("Tiêu đề Publication")).toBeVisible();
+  await expect(await page.evaluate(() => document.documentElement.lang)).toBe(
+    "vi",
+  );
 });

@@ -18,6 +18,7 @@ import {
   OUTLINE_LINK_CLASSES,
   PRIMARY_LINK_CLASSES,
 } from "../../../components/ui/button";
+import { LanguageSwitcher } from "../../../components/ui/language-switcher";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import {
   CheckIcon,
@@ -27,6 +28,9 @@ import {
 } from "../../../components/ui/icons";
 import { Surface } from "../../../components/ui/surface";
 import { HeroOrb } from "../../../components/ui/hero-orb";
+import type { TranslationValues } from "../../../lib/i18n/core";
+import { formatDateTime } from "../../../lib/i18n/core";
+import { useI18n } from "../../../lib/i18n/provider";
 import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import { useAuth } from "../../auth/auth-provider";
 import {
@@ -53,16 +57,33 @@ import { QuizPreview } from "./quiz-preview";
 
 const linkButtonClasses = PRIMARY_LINK_CLASSES;
 
-function formatLibraryDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat("en", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(date);
+type Localize = (message: string, values?: TranslationValues) => string;
+
+// Load effects must not refetch when only the locale changes (that would
+// discard in-flight authoring state), so they read the latest localizer
+// through a stable ref instead of a reactive dependency.
+function useLocalizeRef() {
+  const { localize } = useI18n();
+  const ref = useRef(localize);
+  useLayoutEffect(() => {
+    ref.current = localize;
+  }, [localize]);
+  return ref;
+}
+
+function useLibraryDateFormatter(): (value: string) => string {
+  const { locale } = useI18n();
+  return (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? value
+      : formatDateTime(locale, date, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        });
+  };
 }
 
 function useQuizApiClient(): QuizApiClient | null {
@@ -76,20 +97,32 @@ function useQuizApiClient(): QuizApiClient | null {
   );
 }
 
-function failureMessage(failure: QuizApiFailure): string {
+function failureMessage(failure: QuizApiFailure, localize: Localize): string {
   if (failure.kind === "api-error") {
+    // Server-authored diagnostics stay verbatim; they may embed source text.
     return failure.error.message;
   }
   if (failure.kind === "transport-error") {
-    return "Quizopia could not reach the Quiz service. Your editor content is still here; try again.";
+    return localize(
+      "Quizopia could not reach the Quiz service. Your editor content is still here; try again.",
+    );
   }
   if (failure.kind === "authentication-failure") {
-    return "Your authenticated session is not available for this request.";
+    return localize(
+      "Your authenticated session is not available for this request.",
+    );
   }
   if (failure.kind === "validation-error") {
-    return "The backend rejected the Quiz Markdown. Review the validation details and try again.";
+    return localize(
+      "The backend rejected the Quiz Markdown. Review the validation details and try again.",
+    );
   }
-  return `The Quiz service returned an unexpected response (${failure.status}).`;
+  return localize(
+    "The Quiz service returned an unexpected response ({status}).",
+    {
+      status: failure.status,
+    },
+  );
 }
 
 function inputSnapshot(input: QuizDraftInput): string {
@@ -120,21 +153,29 @@ function optionContentOffset(
   return offset;
 }
 
-function libraryFailureTitle(failure: QuizApiFailure): string {
+function libraryFailureTitle(
+  failure: QuizApiFailure,
+  localize: Localize,
+): string {
   if (failure.kind === "api-error" && failure.error.status === 401) {
-    return "Quiz library authentication required";
+    return localize("Quiz library authentication required");
   }
   if (failure.kind === "api-error" && failure.error.status === 403) {
-    return "Quiz library access denied";
+    return localize("Quiz library access denied");
   }
-  return "Quiz library could not be loaded";
+  return localize("Quiz library could not be loaded");
 }
 
-function libraryFailureMessage(failure: QuizApiFailure): string {
+function libraryFailureMessage(
+  failure: QuizApiFailure,
+  localize: Localize,
+): string {
   if (failure.kind === "transport-error") {
-    return "Quizopia could not reach the Quiz service. Try again without losing the quizzes already loaded on this page.";
+    return localize(
+      "Quizopia could not reach the Quiz service. Try again without losing the quizzes already loaded on this page.",
+    );
   }
-  return failureMessage(failure);
+  return failureMessage(failure, localize);
 }
 
 function appendUniqueLibraryItems(
@@ -154,8 +195,15 @@ function appendUniqueLibraryItems(
   ];
 }
 
-function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
-  const title = item.title?.trim() || "Untitled quiz";
+function LibraryQuizCard({
+  item,
+  formatLibraryDate,
+}: {
+  readonly formatLibraryDate: (value: string) => string;
+  readonly item: QuizLibraryItem;
+}) {
+  const { localize, t } = useI18n();
+  const title = item.title?.trim() || t("Untitled quiz");
   const description = item.description?.trim();
   return (
     <li className="rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
@@ -173,18 +221,22 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
             </p>
           ) : null}
           <p className="mt-3 break-all font-mono text-[0.7rem] text-foreground-muted">
-            Quiz ID: {item.quizId}
+            {localize("Quiz ID: {quizId}", { quizId: item.quizId })}
           </p>
         </div>
         <span className="shrink-0 self-start rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
           {item.latestVersionNumber === null
-            ? "Draft only"
-            : `Latest version ${item.latestVersionNumber}`}
+            ? t("Draft only")
+            : localize("Latest version {number}", {
+                number: item.latestVersionNumber,
+              })}
         </span>
       </div>
       <dl className="mt-5 grid gap-3 border-t border-border pt-4 text-xs text-foreground-muted sm:grid-cols-2">
         <div>
-          <dt className="font-semibold text-foreground-secondary">Created</dt>
+          <dt className="font-semibold text-foreground-secondary">
+            {t("Created")}
+          </dt>
           <dd>
             <time dateTime={item.createdAt} title={item.createdAt}>
               {formatLibraryDate(item.createdAt)}
@@ -192,7 +244,9 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
           </dd>
         </div>
         <div>
-          <dt className="font-semibold text-foreground-secondary">Updated</dt>
+          <dt className="font-semibold text-foreground-secondary">
+            {t("Updated")}
+          </dt>
           <dd>
             <time dateTime={item.updatedAt} title={item.updatedAt}>
               {formatLibraryDate(item.updatedAt)}
@@ -205,7 +259,9 @@ function LibraryQuizCard({ item }: { readonly item: QuizLibraryItem }) {
 }
 
 export function QuizLibraryPage() {
+  const { localize, t } = useI18n();
   const client = useQuizApiClient();
+  const formatLibraryDate = useLibraryDateFormatter();
   const [libraryState, setLibraryState] = useState<{
     readonly client: QuizApiClient | null;
     readonly failure: QuizApiFailure | null;
@@ -290,21 +346,22 @@ export function QuizLibraryPage() {
         <HeroOrb className="-right-10 -top-20 size-72" />
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-            Teaching workspace
+            {t("Teaching workspace")}
           </p>
           <h1 className="mt-3 font-heading text-3xl font-extrabold tracking-[-0.035em] text-foreground sm:text-4xl">
-            Quiz authoring
+            {t("Quiz authoring")}
           </h1>
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
-            Create a real teacher-owned draft, then author, preview, save, and
-            publish its Quiz Markdown.
+            {t(
+              "Create a real teacher-owned draft, then author, preview, save, and publish its Quiz Markdown.",
+            )}
           </p>
         </div>
         <Link
           className={`${linkButtonClasses} relative shrink-0`}
           href="/app/quizzes/new"
         >
-          <PlusIcon className="size-4" /> Create quiz
+          <PlusIcon className="size-4" /> {t("Create quiz")}
         </Link>
       </div>
 
@@ -313,27 +370,28 @@ export function QuizLibraryPage() {
           className="text-xl font-semibold text-foreground"
           id="quiz-library-title"
         >
-          Your quizzes
+          {t("Your quizzes")}
         </h2>
         <p className="mt-2 text-sm leading-6 text-foreground-muted">
-          Your library is loaded from the Quiz service and ordered by most
-          recently updated.
+          {t(
+            "Your library is loaded from the Quiz service and ordered by most recently updated.",
+          )}
         </p>
 
         {client === null || isLoading ? (
           <Surface className="mt-5 flex min-h-40 items-center justify-center gap-3 p-6">
-            <LoadingIndicator label="Loading quiz library" />
+            <LoadingIndicator label={t("Loading quiz library")} />
             <span className="text-sm font-medium text-foreground-secondary">
-              Loading quiz library…
+              {t("Loading quiz library…")}
             </span>
           </Surface>
         ) : initialFailure !== null ? (
           <Alert
             className="mt-5"
-            title={libraryFailureTitle(initialFailure)}
+            title={libraryFailureTitle(initialFailure, localize)}
             variant="danger"
           >
-            {libraryFailureMessage(initialFailure)}
+            {libraryFailureMessage(initialFailure, localize)}
           </Alert>
         ) : items.length === 0 ? (
           <Surface className="mt-5 flex flex-col items-start p-8 sm:p-12">
@@ -344,17 +402,18 @@ export function QuizLibraryPage() {
               <PlusIcon className="size-5" />
             </div>
             <h3 className="text-lg font-semibold text-foreground">
-              No quizzes yet
+              {t("No quizzes yet")}
             </h3>
             <p className="mt-2 text-sm leading-6 text-foreground-secondary">
-              Create your first quiz to start authoring and publishing Quiz
-              Markdown.
+              {t(
+                "Create your first quiz to start authoring and publishing Quiz Markdown.",
+              )}
             </p>
             <Link
               className={`${linkButtonClasses} mt-5`}
               href="/app/quizzes/new"
             >
-              Create your first quiz
+              {t("Create your first quiz")}
             </Link>
           </Surface>
         ) : (
@@ -364,17 +423,21 @@ export function QuizLibraryPage() {
               className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3"
             >
               {items.map((item) => (
-                <LibraryQuizCard item={item} key={item.quizId} />
+                <LibraryQuizCard
+                  formatLibraryDate={formatLibraryDate}
+                  item={item}
+                  key={item.quizId}
+                />
               ))}
             </ul>
 
             {paginationFailure !== null ? (
               <Alert
                 className="mt-5"
-                title="More quizzes could not be loaded"
+                title={t("More quizzes could not be loaded")}
                 variant="danger"
               >
-                {libraryFailureMessage(paginationFailure)}
+                {libraryFailureMessage(paginationFailure, localize)}
               </Alert>
             ) : null}
 
@@ -382,15 +445,15 @@ export function QuizLibraryPage() {
               <Button
                 className="mt-5"
                 isLoading={isLoadingMore}
-                loadingLabel="Loading more quizzes"
+                loadingLabel={t("Loading more quizzes")}
                 onClick={() => void loadMore()}
                 variant="secondary"
               >
-                Load more
+                {t("Load more")}
               </Button>
             ) : (
               <p className="mt-5 text-sm text-foreground-muted" role="status">
-                All quizzes loaded.
+                {t("All quizzes loaded.")}
               </p>
             )}
           </div>
@@ -401,6 +464,8 @@ export function QuizLibraryPage() {
 }
 
 export function CreateQuizPage() {
+  const { t } = useI18n();
+  const localizeRef = useLocalizeRef();
   const client = useQuizApiClient();
   const router = useRouter();
   const creationStarted = useRef(false);
@@ -432,7 +497,7 @@ export function CreateQuizPage() {
           return;
         }
         if (!result.ok) {
-          setError(failureMessage(result.error));
+          setError(failureMessage(result.error, localizeRef.current));
           return;
         }
         router.replace(`/app/quizzes/${result.value.quizId}`);
@@ -441,13 +506,13 @@ export function CreateQuizPage() {
     return () => {
       creationPageIsActive.current = false;
     };
-  }, [attempt, client, router]);
+  }, [attempt, client, localizeRef, router]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
         <Link
-          aria-label="Back to Quiz Library"
+          aria-label={t("Back to Quiz Library")}
           className="flex min-h-11 items-center rounded-lg text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
           href="/app/quizzes"
         >
@@ -458,14 +523,14 @@ export function CreateQuizPage() {
         </Link>
         <span aria-hidden="true" className="h-6 w-px bg-border" />
         <span className="text-sm font-semibold text-foreground-secondary">
-          New quiz
+          {t("New quiz")}
         </span>
       </header>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
         <Surface className="w-full max-w-lg p-6 text-center sm:p-8">
           {error ? (
             <>
-              <Alert title="Quiz could not be created" variant="danger">
+              <Alert title={t("Quiz could not be created")} variant="danger">
                 {error}
               </Alert>
               <div className="mt-5 flex justify-center gap-3">
@@ -476,10 +541,10 @@ export function CreateQuizPage() {
                     setAttempt((current) => current + 1);
                   }}
                 >
-                  Try again
+                  {t("Try again")}
                 </Button>
                 <Link className={OUTLINE_LINK_CLASSES} href="/app/quizzes">
-                  Back to library
+                  {t("Back to library")}
                 </Link>
               </div>
             </>
@@ -488,9 +553,9 @@ export function CreateQuizPage() {
               className="flex items-center justify-center gap-3"
               role="status"
             >
-              <LoadingIndicator label="Creating quiz editor" />
+              <LoadingIndicator label={t("Creating quiz editor")} />
               <span className="text-sm font-medium text-foreground-secondary">
-                Preparing your editor…
+                {t("Preparing your editor…")}
               </span>
             </div>
           )}
@@ -512,6 +577,8 @@ export interface QuizEditorPageProps {
 }
 
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
+  const { localize, t } = useI18n();
+  const localizeRef = useLocalizeRef();
   const router = useRouter();
   const client = useQuizApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
@@ -555,8 +622,9 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   // Reuse the shared unsaved-work guard so link navigation, reloads and
   // workspace switches (which navigate via the user menu) all offer the same
   // cancel-without-loss protection as the editor's Back control.
-  const editorLeaveMessage =
-    "You have unsaved changes. Leave the editor and discard them?";
+  const editorLeaveMessage = t(
+    "You have unsaved changes. Leave the editor and discard them?",
+  );
   useUnsavedNavigationGuard(dirty, editorLeaveMessage);
 
   function backToApp() {
@@ -601,7 +669,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           setLoadState("not-found");
           return;
         }
-        setLoadError(failureMessage(result.error));
+        setLoadError(failureMessage(result.error, localizeRef.current));
         setLoadState("error");
         return;
       }
@@ -619,7 +687,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     });
 
     return () => controller.abort();
-  }, [client, quizId]);
+  }, [client, localizeRef, quizId]);
 
   async function saveDraft(): Promise<boolean> {
     if (client === null || saveInFlight.current) {
@@ -633,14 +701,14 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     try {
       const result = await client.updateDraft(quizId, input);
       if (!result.ok) {
-        setSaveError(failureMessage(result.error));
+        setSaveError(failureMessage(result.error, localize));
         return false;
       }
       setSavedSnapshot(inputSnapshot(input));
       return true;
     } catch {
       setSaveError(
-        "Unable to save the draft. Check your connection and retry.",
+        localize("Unable to save the draft. Check your connection and retry."),
       );
       return false;
     } finally {
@@ -667,7 +735,9 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     // snapshot older than the visible editor state.
     if (inputSnapshot(latestInputRef.current) !== snapshotBeforePublish) {
       setPublishError(
-        "The draft changed while saving. Save your latest changes before publishing.",
+        localize(
+          "The draft changed while saving. Save your latest changes before publishing.",
+        ),
       );
       setIsPublishing(false);
       return;
@@ -677,7 +747,9 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     try {
       result = await client.publishDraft(quizId);
     } catch {
-      setPublishError("Unable to publish. Check your connection and retry.");
+      setPublishError(
+        localize("Unable to publish. Check your connection and retry."),
+      );
       setIsPublishing(false);
       return;
     }
@@ -686,17 +758,23 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
       if (result.error.kind === "validation-error") {
         setServerDiagnostics(result.error.errors);
         setPublishError(
-          "The backend found Quiz Markdown errors. Select a validation item to move the editor caret to its source location.",
+          localize(
+            "The backend found Quiz Markdown errors. Select a validation item to move the editor caret to its source location.",
+          ),
         );
         return;
       }
-      setPublishError(failureMessage(result.error));
+      setPublishError(failureMessage(result.error, localize));
       return;
     }
     setPublishMessage(
       result.value.created
-        ? `Published immutable version ${result.value.version.versionNumber}.`
-        : `Version ${result.value.version.versionNumber} already matches this unchanged draft.`,
+        ? localize("Published immutable version {version}.", {
+            version: result.value.version.versionNumber,
+          })
+        : localize("Version {version} already matches this unchanged draft.", {
+            version: result.value.version.versionNumber,
+          }),
     );
     setHistoryRefreshVersion((current) => current + 1);
     setPublishDialogOpen(false);
@@ -735,9 +813,9 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         className="flex min-h-72 items-center justify-center gap-3"
         role="status"
       >
-        <LoadingIndicator label="Loading quiz draft" />
+        <LoadingIndicator label={t("Loading quiz draft")} />
         <span className="text-sm font-medium text-foreground-secondary">
-          Loading quiz draft…
+          {t("Loading quiz draft…")}
         </span>
       </div>
     );
@@ -747,15 +825,16 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
         <h1 className="font-heading text-2xl font-normal text-foreground">
-          Quiz access denied
+          {t("Quiz access denied")}
         </h1>
         <Alert
           className="mt-5"
-          title="You cannot edit this quiz"
+          title={t("You cannot edit this quiz")}
           variant="danger"
         >
-          The Quiz service denied this teacher-authoring request. Authorization
-          and quiz ownership are enforced by the backend.
+          {t(
+            "The Quiz service denied this teacher-authoring request. Authorization and quiz ownership are enforced by the backend.",
+          )}
         </Alert>
       </Surface>
     );
@@ -765,14 +844,15 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
         <h1 className="font-heading text-2xl font-normal text-foreground">
-          Quiz draft not found
+          {t("Quiz draft not found")}
         </h1>
         <p className="mt-3 text-base leading-7 text-foreground-secondary">
-          This Quiz ID does not resolve to an available draft for the current
-          request.
+          {t(
+            "This Quiz ID does not resolve to an available draft for the current request.",
+          )}
         </p>
         <Link className={`${linkButtonClasses} mt-6`} href="/app/quizzes">
-          Back to quiz authoring
+          {t("Back to quiz authoring")}
         </Link>
       </Surface>
     );
@@ -782,10 +862,10 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     return (
       <Surface className="max-w-2xl p-6 sm:p-8">
         <h1 className="font-heading text-2xl font-normal text-foreground">
-          Quiz could not be loaded
+          {t("Quiz could not be loaded")}
         </h1>
-        <Alert className="mt-5" title="Loading failed" variant="danger">
-          {loadError ?? "The quiz draft could not be loaded."}
+        <Alert className="mt-5" title={t("Loading failed")} variant="danger">
+          {loadError ?? t("The quiz draft could not be loaded.")}
         </Alert>
       </Surface>
     );
@@ -799,7 +879,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         inert={historyOpen ? true : undefined}
       >
         <Link
-          aria-label="Back to Quiz Library"
+          aria-label={t("Back to Quiz Library")}
           className="flex min-h-11 shrink-0 items-center rounded-lg text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
           href="/app/quizzes"
         >
@@ -809,7 +889,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
           />
         </Link>
         <Button
-          aria-label="Back to Quiz Library"
+          aria-label={t("Back to Quiz Library")}
           className="size-11 shrink-0 p-0"
           disabled={isSaving || isPublishing}
           onClick={backToApp}
@@ -829,6 +909,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             <path d="m15 18-6-6 6-6" />
           </svg>
         </Button>
+        <LanguageSwitcher />
         <span
           aria-hidden="true"
           className="hidden h-7 w-px bg-border sm:block"
@@ -838,14 +919,14 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             className="shrink-0 text-sm font-semibold text-foreground-secondary"
             htmlFor="editor-title"
           >
-            Quiz title
+            {t("Quiz title")}
           </label>
           <input
             className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
             disabled={isSaving || isPublishing}
             id="editor-title"
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Untitled quiz"
+            placeholder={t("Untitled quiz")}
             value={title}
           />
         </div>
@@ -859,13 +940,13 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             ref={historyTriggerRef}
             variant="brand-outline"
           >
-            Published versions
+            {t("Published versions")}
           </Button>
           <Button
             className="px-3 sm:px-4"
             disabled={(!dirty && !saveError) || isSaving || isPublishing}
             isLoading={isSaving}
-            loadingLabel="Saving draft"
+            loadingLabel={t("Saving draft")}
             onClick={() => void saveDraft()}
             variant="neutral-outline"
           >
@@ -881,12 +962,12 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
                 <CheckIcon className="size-4" />
               )}
               {isSaving
-                ? "Saving…"
+                ? t("Saving…")
                 : saveError
-                  ? "Retry save"
+                  ? t("Retry save")
                   : dirty
-                    ? "Save"
-                    : "Saved"}
+                    ? t("Save")
+                    : t("Saved")}
             </span>
           </Button>
           <Button
@@ -894,7 +975,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             disabled={isSaving}
             onClick={() => setPublishDialogOpen(true)}
           >
-            Publish
+            {t("Publish")}
           </Button>
         </div>
       </header>
@@ -907,17 +988,17 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         {saveError || publishError || publishMessage ? (
           <div className="shrink-0">
             {saveError ? (
-              <Alert title="Draft was not saved" variant="danger">
+              <Alert title={t("Draft was not saved")} variant="danger">
                 {saveError}
               </Alert>
             ) : null}
             {publishError ? (
-              <Alert title="Quiz was not published" variant="danger">
+              <Alert title={t("Quiz was not published")} variant="danger">
                 {publishError}
               </Alert>
             ) : null}
             {publishMessage ? (
-              <Alert title="Publish complete" variant="success">
+              <Alert title={t("Publish complete")} variant="success">
                 {publishMessage}
               </Alert>
             ) : null}
@@ -925,7 +1006,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         ) : null}
 
         <div
-          aria-label="Editor pane"
+          aria-label={t("Editor pane")}
           className="flex shrink-0 rounded-lg border border-border-strong bg-surface p-1 lg:hidden"
           role="group"
         >
@@ -941,14 +1022,14 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
               onClick={() => setMobilePane(pane)}
               type="button"
             >
-              {pane === "source" ? "Editor" : "Preview"}
+              {pane === "source" ? t("Editor") : t("Preview")}
             </button>
           ))}
         </div>
 
         <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-2">
           <section
-            aria-label="Quiz Markdown editor"
+            aria-label={t("Quiz Markdown editor")}
             className={`${mobilePane === "source" ? "block" : "hidden"} min-h-0 min-w-0 overflow-hidden rounded-xl border border-primary/10 bg-surface p-3 shadow-card sm:p-4 lg:block`}
           >
             <QuizMarkdownCodeEditor
@@ -959,7 +1040,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             />
           </section>
           <section
-            aria-label="Live quiz preview"
+            aria-label={t("Live quiz preview")}
             className={`${mobilePane === "preview" ? "block" : "hidden"} scrollbar-brand scrollbar-brand-gutter min-h-0 min-w-0 overflow-y-auto rounded-xl border border-primary/10 bg-surface-muted/50 p-3 shadow-card sm:p-4 lg:block`}
           >
             <QuizPreview
@@ -1027,18 +1108,19 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
               className="text-xl font-semibold text-foreground"
               id="publish-dialog-title"
             >
-              Publish immutable QuizVersion
+              {t("Publish immutable QuizVersion")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-foreground-secondary">
-              This publishes quiz content only. Assessment timing, audience, and
-              classroom delivery remain a separate product flow.
+              {t(
+                "This publishes quiz content only. Assessment timing, audience, and classroom delivery remain a separate product flow.",
+              )}
             </p>
             <div className="mt-5">
               <label
                 className="text-sm font-semibold text-foreground-secondary"
                 htmlFor="publish-description"
               >
-                Description
+                {t("Description")}
               </label>
               <textarea
                 autoFocus
@@ -1046,7 +1128,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
                 disabled={isPublishing}
                 id="publish-description"
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="Optional context saved with this quiz draft"
+                placeholder={t("Optional context saved with this quiz draft")}
                 value={description}
               />
             </div>
@@ -1056,14 +1138,14 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
                 onClick={() => setPublishDialogOpen(false)}
                 variant="secondary"
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 isLoading={isPublishing}
-                loadingLabel="Publishing quiz"
+                loadingLabel={t("Publishing quiz")}
                 onClick={() => void publishDraft()}
               >
-                Publish QuizVersion
+                {t("Publish QuizVersion")}
               </Button>
             </div>
           </Surface>
