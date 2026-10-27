@@ -486,8 +486,88 @@ describe("QuizLibraryPage real listing contract", () => {
   });
 });
 
-describe("CreateQuizPage direct editor flow", () => {
-  it("creates a minimal real backend draft and enters the focused editor route", async () => {
+describe("CreateQuizPage unsaved workspace (create on first save)", () => {
+  const validSource = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50";
+
+  function stubExecutor(): AuthenticatedRequestExecutor {
+    return {
+      execute: vi.fn(),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+  }
+
+  it("opens a blank unsaved workspace without any network call", async () => {
+    const executor = stubExecutor();
+    renderAuthenticated(
+      <StrictMode>
+        <CreateQuizPage />
+      </StrictMode>,
+      { executor },
+    );
+
+    const title = await screen.findByRole("textbox", { name: "Quiz title" });
+    expect(title).toHaveValue("");
+    expect(
+      screen.getByRole("textbox", { name: "Quiz Markdown source" }),
+    ).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Publish" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Published versions" }),
+    ).not.toBeInTheDocument();
+    // StrictMode double effects must not create: creation is only possible
+    // through an explicit Save click.
+    expect(executor.execute).not.toHaveBeenCalled();
+  });
+
+  it("leaves an empty new-quiz screen with no confirmation and no POST", () => {
+    const confirm = vi.spyOn(window, "confirm");
+    try {
+      const executor = stubExecutor();
+      renderAuthenticated(<CreateQuizPage />, { executor });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Back to Quiz Library" }),
+      );
+
+      expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app/quizzes");
+      expect(confirm).not.toHaveBeenCalled();
+      expect(executor.execute).not.toHaveBeenCalled();
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it("confirms before discarding typed content on the unsaved workspace", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      const executor = stubExecutor();
+      renderAuthenticated(<CreateQuizPage />, { executor });
+      const editor = screen.getByRole("textbox", {
+        name: "Quiz Markdown source",
+      });
+      fireEvent.change(editor, { target: { value: validSource } });
+      const back = screen.getByRole("button", {
+        name: "Back to Quiz Library",
+      });
+
+      fireEvent.click(back);
+
+      expect(confirm).toHaveBeenCalledOnce();
+      expect(navigation.push).not.toHaveBeenCalled();
+      confirm.mockReturnValue(true);
+      fireEvent.click(back);
+      expect(navigation.push).toHaveBeenCalledExactlyOnceWith("/app/quizzes");
+      expect(executor.execute).not.toHaveBeenCalled();
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it("blocks the first save without a recognizable question, then creates the draft once", async () => {
     let createBody: unknown = null;
     const executor: AuthenticatedRequestExecutor = {
       execute: vi.fn(async (request) => {
@@ -495,7 +575,10 @@ describe("CreateQuizPage direct editor flow", () => {
         createBody = JSON.parse(String(built.body));
         return {
           kind: "response" as const,
-          response: response(201, draft("")),
+          response: response(
+            201,
+            draft((createBody as { authoringSource: string }).authoringSource),
+          ),
         };
       }),
       executeOnce: vi.fn(),
@@ -509,25 +592,115 @@ describe("CreateQuizPage direct editor flow", () => {
       { executor },
     );
 
-    expect(screen.queryByRole("form")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Description")).not.toBeInTheDocument();
-    const transitionBrand = screen.getByRole("link", {
-      name: "Back to Quiz Library",
+    const title = await screen.findByRole("textbox", { name: "Quiz title" });
+    const editor = screen.getByRole("textbox", {
+      name: "Quiz Markdown source",
     });
-    expect(transitionBrand).toContainElement(
-      screen.getByTestId("quizopia-brand-mark"),
-    );
-    expect(transitionBrand).toHaveTextContent("Quizopiaversion 2.0");
-    expect(screen.getByText("Preparing your editor…")).toBeInTheDocument();
+    // Title-only content is saveable-looking but has no recognizable
+    // question: Save stays actionable and must not POST.
+    fireEvent.change(title, { target: { value: "Network quiz" } });
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    expect(
+      await screen.findByText("First save needs a question"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/for example Câu 1 \[SINGLE_CHOICE\]:, then save again/),
+    ).toBeInTheDocument();
+    expect(executor.execute).not.toHaveBeenCalled();
+
+    fireEvent.change(editor, { target: { value: validSource } });
+    expect(
+      screen.queryByText("First save needs a question"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
     await waitFor(() =>
       expect(createBody).toEqual({
-        authoringSource: "",
+        authoringSource: validSource,
         description: "",
-        title: "Untitled quiz",
+        title: "Network quiz",
       }),
     );
-    expect(navigation.replace).toHaveBeenCalledWith(`/app/quizzes/${quizId}`);
+    expect(navigation.replace).toHaveBeenCalledExactlyOnceWith(
+      `/app/quizzes/${quizId}`,
+    );
     expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses rapid double Save clicks into a single createDraft POST", async () => {
+    let releaseCreate: (() => void) | undefined;
+    const createGate = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => {
+        await createGate;
+        return {
+          kind: "response" as const,
+          response: response(201, draft(validSource)),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    navigation.replace.mockClear();
+    renderAuthenticated(<CreateQuizPage />, { executor });
+    const editor = await screen.findByRole("textbox", {
+      name: "Quiz Markdown source",
+    });
+    fireEvent.change(editor, { target: { value: validSource } });
+
+    const save = screen.getByRole("button", { name: "Save" });
+    fireEvent.click(save);
+    fireEvent.click(save);
+
+    releaseCreate?.();
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledExactlyOnceWith(
+        `/app/quizzes/${quizId}`,
+      ),
+    );
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces create failure with the honest duplicate risk and no automatic retry", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async () => ({
+        kind: "response" as const,
+        response: response(500, {
+          code: "INTERNAL_ERROR",
+          message: "Create persistence failed",
+          status: 500,
+          path: "/api/quizzes",
+        }),
+      })),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<CreateQuizPage />, { executor });
+    const editor = await screen.findByRole("textbox", {
+      name: "Quiz Markdown source",
+    });
+    fireEvent.change(editor, { target: { value: validSource } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Quiz could not be created",
+    );
+    expect(screen.getByText(/not duplicate-protected yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Create persistence failed/)).toBeInTheDocument();
+    // No automatic replay: exactly one POST so far, and the editor content
+    // survives for an explicit retry.
+    await waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(1));
+    expect(editor).toHaveValue(validSource);
+    expect(screen.getByRole("button", { name: "Retry save" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry save" }));
+    await waitFor(() => expect(executor.execute).toHaveBeenCalledTimes(2));
   });
 });
 

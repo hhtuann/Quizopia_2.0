@@ -1,4 +1,10 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Dialog,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const versionId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
@@ -452,20 +458,20 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   ).toBeVisible();
   await page.getByRole("link", { name: "Create quiz" }).click();
 
-  await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
+  // FB-014: "Create quiz" opens a blank UNSAVED workspace — no POST fires
+  // and the URL stays on /app/quizzes/new until the first explicit Save.
+  await expect(page).toHaveURL(/\/app\/quizzes\/new$/);
   const editorBrand = page.getByRole("link", { name: "Back to Quiz Library" });
   await expect(editorBrand.getByTestId("quizopia-brand-mark")).toBeVisible();
   await expect(editorBrand).toContainText("Quizopia");
   await expect(editorBrand).toContainText("version 2.0");
   await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
-    "Untitled quiz",
+    "",
   );
-  expect(createCalls).toBe(1);
-  expect({ source, title, description }).toEqual({
-    source: "",
-    title: "Untitled quiz",
-    description: "",
-  });
+  await expect(
+    page.getByRole("button", { name: "Publish", exact: true }),
+  ).toHaveCount(0);
+  expect(createCalls).toBe(0);
 
   title = "Network quiz";
   await page.getByRole("textbox", { name: "Quiz title" }).fill(title);
@@ -532,14 +538,31 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   ).toBeVisible();
   await editor.press("Escape");
   await editor.fill(previewEditedSource);
+
+  // First explicit Save fires exactly ONE createDraft with the authored
+  // content, then the URL becomes the persisted editor route.
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Saved", exact: true }),
   ).toBeVisible();
+  expect(createCalls).toBe(1);
+  expect(updateCalls).toBe(0);
+  expect({ source, title, description }).toEqual({
+    source: previewEditedSource,
+    title: "Network quiz",
+    description: "",
+  });
+
+  // Later saves update the SAME quiz; no second create may happen.
+  title = "Network quiz v2";
+  await page.getByRole("textbox", { name: "Quiz title" }).fill(title);
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
     page.getByRole("button", { name: "Saved", exact: true }),
   ).toBeVisible();
   expect(updateCalls).toBe(1);
+  expect(createCalls).toBe(1);
   expect(source).toBe(previewEditedSource);
 
   await page.reload();
@@ -559,6 +582,196 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
     page.getByRole("status").filter({ hasText: "Publish complete" }),
   ).toContainText("Published immutable version 1");
   expect(publishCalls).toBe(1);
+});
+
+test("blank new-quiz workspace creates nothing and empty leave needs no confirmation", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  let createCalls = 0;
+  await page.route("**/api/quizzes", async (route) => {
+    if (route.request().method() === "POST") {
+      createCalls += 1;
+      await route.abort();
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    });
+  });
+  const dialogs: Dialog[] = [];
+  page.on("dialog", (dialog) => {
+    dialogs.push(dialog);
+    void dialog.dismiss();
+  });
+
+  await page.goto("/app/quizzes/new");
+  await switchToTeaching(page);
+  await expect(page.getByRole("textbox", { name: "Quiz title" })).toHaveValue(
+    "",
+  );
+  await expect(
+    page.getByRole("textbox", { name: "Quiz Markdown source" }),
+  ).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "Save", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Publish", exact: true }),
+  ).toHaveCount(0);
+  expect(createCalls).toBe(0);
+
+  await page.getByRole("button", { name: "Back to Quiz Library" }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes$/);
+  await expect(
+    page.getByRole("heading", { name: "Quiz authoring" }),
+  ).toBeVisible();
+  expect(dialogs).toHaveLength(0);
+  expect(createCalls).toBe(0);
+});
+
+test("first save without a recognizable question is blocked without a POST", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  let createCalls = 0;
+  await page.route("**/api/quizzes", async (route) => {
+    if (route.request().method() === "POST") {
+      createCalls += 1;
+      await route.abort();
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    });
+  });
+
+  await page.goto("/app/quizzes/new");
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  const save = page.getByRole("button", { name: "Save", exact: true });
+
+  // A title alone is content, so Save is actionable — but the grammar has
+  // no recognizable question yet, so clicking must not POST.
+  await page.getByRole("textbox", { name: "Quiz title" }).fill("Title only");
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.getByText("First save needs a question")).toBeVisible();
+  expect(createCalls).toBe(0);
+
+  // Whitespace / non-question markdown stays blocked the same way.
+  await editor.fill("   \n\nnot a question yet\n");
+  await save.click();
+  await expect(page.getByText("First save needs a question")).toBeVisible();
+  expect(createCalls).toBe(0);
+  await expect(page).toHaveURL(/\/app\/quizzes\/new$/);
+});
+
+test("create failure states the duplicate risk honestly and retries only on explicit Save", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  let createCalls = 0;
+  let failCreates = true;
+  let createGate: Promise<void> = Promise.resolve();
+  const validSource = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50";
+
+  await page.route("**/api/quizzes", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({ items: [], nextCursor: null }),
+      });
+      return;
+    }
+    createCalls += 1;
+    if (failCreates) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 500,
+        body: JSON.stringify({
+          code: "INTERNAL_ERROR",
+          message: "Create persistence failed",
+          status: 500,
+          path: "/api/quizzes",
+        }),
+      });
+      return;
+    }
+    await createGate;
+    const body = route.request().postDataJSON() as {
+      authoringSource: string;
+      description: string;
+      title: string;
+    };
+    await route.fulfill({
+      contentType: "application/json",
+      status: 201,
+      body: JSON.stringify({
+        quizId,
+        title: body.title,
+        description: body.description,
+        authoringSource: body.authoringSource,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:00:00Z",
+      }),
+    });
+  });
+  await page.route(`**/api/quizzes/${quizId}/draft`, (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Honest retry quiz",
+        description: "",
+        authoringSource: validSource,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    }),
+  );
+
+  await page.goto("/app/quizzes/new");
+  await switchToTeaching(page);
+  await page
+    .getByRole("textbox", { name: "Quiz title" })
+    .fill("Honest retry quiz");
+  await page
+    .getByRole("textbox", { name: "Quiz Markdown source" })
+    .fill(validSource);
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Quiz could not be created")).toBeVisible();
+  await expect(page.getByText(/not duplicate-protected yet/)).toBeVisible();
+  await expect(page.getByText(/Create persistence failed/)).toBeVisible();
+  expect(createCalls).toBe(1);
+  await page.waitForTimeout(300);
+  expect(createCalls).toBe(1);
+  await expect(page).toHaveURL(/\/app\/quizzes\/new$/);
+
+  // An explicit retry is required. Two synchronously dispatched clicks on
+  // the same enabled button simulate a pre-re-render double click; the
+  // create in-flight guard must collapse them into ONE further POST.
+  failCreates = false;
+  createGate = new Promise<void>((resolve) => {
+    setTimeout(resolve, 150);
+  });
+  await page.getByRole("button", { name: "Retry save" }).evaluate((button) => {
+    const retry = button as HTMLButtonElement;
+    retry.click();
+    retry.click();
+  });
+  await expect(page).toHaveURL(new RegExp(`/app/quizzes/${quizId}$`));
+  await expect(
+    page.getByRole("button", { name: "Saved", exact: true }),
+  ).toBeVisible();
+  expect(createCalls).toBe(2);
 });
 
 test("teacher lists a backend quiz and opens its existing draft", async ({
