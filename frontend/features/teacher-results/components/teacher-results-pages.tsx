@@ -58,9 +58,7 @@ function TeacherResultsRouterPage({
       </div>
       {!user?.roles.includes("TEACHER") ? (
         <Alert title={t("Teacher access required")} variant="warning">
-          {t(
-            "Current Teacher authority and Publication ownership are required.",
-          )}{" "}
+          {t("You need the Teacher role and ownership of this assessment.")}{" "}
           <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
@@ -72,9 +70,7 @@ function TeacherResultsRouterPage({
             {t("Open the Teaching workspace")}
           </h1>
           <p className="mt-3 text-foreground-secondary">
-            {t(
-              "Results are available to the owning Teacher; the server checks ownership for every read.",
-            )}
+            {t("Teacher results live in the Teaching workspace.")}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
             {t("Switch to Teaching workspace")}
@@ -82,9 +78,7 @@ function TeacherResultsRouterPage({
         </Surface>
       ) : client === null ? (
         <Alert title={t("Results unavailable")} variant="warning">
-          {t(
-            "Your authenticated request service is unavailable. Sign in again before continuing.",
-          )}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : (
         <TeacherResultsScreen
@@ -117,7 +111,7 @@ export function TeacherResultsScreen({
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
             {t(
-              "Owner-authorized Attempt rows with exact totals. ACTIVE and ABANDONED attempts have no result yet. No answers or answer keys are included in this data.",
+              "Each attempt with its exact total. ACTIVE and ABANDONED attempts have no result yet. Answers and answer keys are never shown here.",
             )}
           </p>
         </div>
@@ -280,16 +274,14 @@ export function PublicationResultsSection({
         <Surface className="p-6">
           <div className="flex items-center gap-3" role="status">
             <LoadingIndicator label={t("Loading results")} />
-            {t("Loading authoritative Attempt rows…")}
+            {t("Loading attempts…")}
           </div>
         </Surface>
       ) : failureText === null && rows.length === 0 ? (
         <Surface className="p-6">
           <h3 className="text-xl font-bold">{t("No results yet")}</h3>
           <p className="mt-2 text-sm text-foreground-secondary">
-            {t(
-              "No attempts exist for this Publication, or none are visible to your account.",
-            )}
+            {t("No attempts yet, or none are visible to your account.")}
           </p>
         </Surface>
       ) : (
@@ -404,7 +396,7 @@ export function PublicationResultsSection({
       ) : null}
       <p className="text-xs leading-5 text-foreground-muted">
         {t(
-          "Attempt IDs are the real authorized identities returned by the server. Each per-attempt monitoring destination performs a fresh server lookup; this results table does not grant monitoring access or discover a global roster.",
+          "Choose an Attempt ID to open its monitoring page; access is verified separately each time.",
         )}
       </p>
     </section>

@@ -147,7 +147,7 @@ describe("Teacher Publication results", () => {
     });
     render(<TeacherResultsScreen client={api} publicationId={publicationId} />);
     expect(
-      await screen.findByText(/Your account has not been logged out/),
+      await screen.findByText(/You are still signed in/),
     ).toBeInTheDocument();
   });
 

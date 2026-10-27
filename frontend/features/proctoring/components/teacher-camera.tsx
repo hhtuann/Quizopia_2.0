@@ -16,23 +16,19 @@ export function TeacherCamera({
   const { state, cleanupReport, videoRef, connect, reconnect, stop } =
     useTeacherCamera({ session });
   const statusCopy = {
-    idle: t("No media grant has been requested."),
-    authorizing: t("Checking fresh Teacher and target-Student authority."),
+    idle: t("No camera access has been requested yet."),
+    authorizing: t("Checking current access for you and the student."),
     "connected-no-camera": t(
-      "Authorized subscription connected, but no Student camera track is available.",
+      "Connected, but the student's camera is not available.",
     ),
-    live: t("An authorized Student camera track is currently subscribed."),
-    stopping: t(
-      "SDK disconnect and backend revoke intent are in progress. Outcomes are reported separately when they settle.",
-    ),
+    live: t("You are viewing the student's camera."),
+    stopping: t("Disconnecting. Results are reported below when finished."),
     reconnecting: t(
-      "The connection changed. Disconnect and backend revoke cleanup are in progress before fresh authorization.",
+      "The connection changed. Cleaning up before requesting fresh access.",
     ),
-    disconnected: t(
-      "Local cleanup finished. Separate SDK disconnect and backend revoke outcomes appear below.",
-    ),
+    disconnected: t("Cleanup finished — see the results below."),
     unavailable: t(
-      "Live media is unavailable or not authorized. No camera is being shown.",
+      "The camera is unavailable or not authorized. Nothing is being shown.",
     ),
   }[state];
 
@@ -40,12 +36,12 @@ export function TeacherCamera({
     <Surface className="overflow-hidden">
       <div className="border-b border-border bg-surface-muted/60 p-5 sm:p-6">
         <p className="text-sm font-semibold text-primary">
-          {t("Authorized live camera")}
+          {t("Live monitoring")}
         </p>
         <h2 className="mt-1 text-xl font-bold">{t("Student camera stream")}</h2>
         <p className="mt-2 text-sm leading-6 text-foreground-secondary">
           {t(
-            "This view requests a subscribe-only Teacher grant for this exact server-authorized session. It cannot publish your camera or microphone, administer the room, or discover other sessions.",
+            "This view can only watch this one session. It cannot use your camera or microphone, control the room, or find other sessions.",
           )}
         </p>
       </div>
@@ -77,7 +73,7 @@ export function TeacherCamera({
           ) ? (
             <Alert title={t("Cleanup results")} variant="info">
               {t(
-                "SDK disconnect: {sdk}. Backend revoke: {backend}. A backend result does not prove hard provider revocation.",
+                "Connection closed: {sdk}. Access revocation: {backend} (records intent only).",
                 {
                   sdk: cleanupReport.sdkDisconnect,
                   backend: cleanupReport.backendRevoke,

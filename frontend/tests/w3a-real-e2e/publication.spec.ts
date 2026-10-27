@@ -168,7 +168,7 @@ test("real PUBLIC pinned create/replay/edit/conflicts/503/OPEN/extend/CLOSE and 
   );
   await page
     .getByRole("button", {
-      name: "Use server configuration (discard local edits)",
+      name: "Use the latest configuration (discard my edits)",
     })
     .click();
   await page

@@ -107,7 +107,7 @@ export function ScheduleExtension({
       </h2>
       <p className="text-sm leading-6 text-foreground-muted">
         {t(
-          "Start remains fixed. End and duration can only stay the same or increase. Extensions apply to future starts and do not recalculate existing Attempt deadlines. Pending closure may block changes.",
+          "Start stays fixed; end and duration can only increase. Existing attempt deadlines are not recalculated. A pending closure request may block changes.",
         )}
       </p>
       <form className="space-y-4" noValidate onSubmit={submit}>
@@ -120,7 +120,7 @@ export function ScheduleExtension({
                 : undefined
             }
             helperText={t(
-              "Current authoritative end: {end}. Leave unchanged to keep it exactly, including seconds and microseconds.",
+              "Current end: {end}. Leave unchanged to keep it exactly.",
               {
                 end: formatInstant(locale, currentEnd, { withTimeZone: true }),
               },

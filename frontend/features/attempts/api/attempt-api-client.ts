@@ -153,7 +153,7 @@ export function attemptFailureMessage(
     return localize("The request was cancelled. Its outcome may be uncertain.");
   if (error.kind === "unavailable")
     return localize(
-      "The service is temporarily unavailable. Your account has not been logged out.",
+      "Quizopia is temporarily unavailable. You are still signed in.",
     );
   if (error.kind === "invalid-input")
     return localize(
@@ -161,7 +161,7 @@ export function attemptFailureMessage(
     );
   if (error.kind === "invalid-response")
     return localize(
-      "The server response could not be verified. Refresh authoritative state before continuing.",
+      "The response could not be verified. Refresh before continuing.",
     );
   const messages: Record<string, string> = {
     ACCESS_DENIED: "Student access is required for this assessment.",
@@ -170,7 +170,7 @@ export function attemptFailureMessage(
     ATTEMPT_NOT_FOUND:
       "This attempt is unavailable or does not belong to the current account.",
     CLASSROOM_NOT_ACCESSIBLE:
-      "Current class membership could not authorize this assessment.",
+      "Your current class membership does not grant access.",
     WINDOW_NOT_STARTED: "This assessment is not available yet.",
     WINDOW_ENDED: "The window for starting this assessment has ended.",
     ATTEMPTS_EXHAUSTED: "No more attempts are available for this assessment.",
@@ -178,42 +178,32 @@ export function attemptFailureMessage(
       "An active attempt already exists. Resume it instead.",
     RETAKE_NOT_AVAILABLE: "A retake is not currently available.",
     REVISION_CONFLICT:
-      "This attempt changed on the server. Refresh and reconcile your unsaved answer.",
+      "This attempt changed. Refresh to reconcile your unsaved answer.",
     IDEMPOTENCY_CONFLICT:
-      "This operation identity was already used for different content.",
+      "This request was already used for different content.",
     ATTEMPT_TERMINAL: "This attempt has already reached a terminal state.",
-    ATTEMPT_DEADLINE_REACHED:
-      "The authoritative attempt deadline has been reached.",
-    CLOSURE_CUTOFF_REACHED:
-      "The authoritative closure cutoff has been reached.",
+    ATTEMPT_DEADLINE_REACHED: "The attempt deadline has been reached.",
+    CLOSURE_CUTOFF_REACHED: "The closure cutoff has been reached.",
     CLOSURE_PENDING:
       "A closure workflow is pending, so a new Attempt cannot be created.",
     RESULT_NOT_AVAILABLE: "A result is not available for this attempt.",
-    REVIEW_NOT_AVAILABLE:
-      "Answer review is unavailable until the assessment is durably closed.",
+    REVIEW_NOT_AVAILABLE: "Answer review opens after the assessment is closed.",
     CAPACITY_EXCEEDED:
-      "The complete request exceeds the accepted server limit. Nothing was truncated or submitted.",
+      "Your answers are too large to submit. Nothing was cut or sent.",
   };
   if (error.status === 429)
-    return localize(
-      "Too many requests were received. Wait, then retry the same operation.",
-    );
+    return localize("Too many requests. Please wait, then retry.");
   if (error.status === 503)
     return localize(
-      "A required authority or assessment dependency is unavailable. Your account has not been logged out.",
+      "A required part of Quizopia is unavailable. You are still signed in.",
     );
   if (error.status === 401)
-    return localize(
-      "Your session could not authorize this request. Sign in again.",
-    );
+    return localize("Your session has ended. Please sign in again.");
   if (messages[error.code] !== undefined)
     return localize(messages[error.code]!);
-  return localize(
-    "The server could not complete the request (HTTP {status}).",
-    {
-      status: error.status,
-    },
-  );
+  return localize("Quizopia could not complete the request (HTTP {status}).", {
+    status: error.status,
+  });
 }
 
 export function createAttemptApiClient(options: {

@@ -437,9 +437,7 @@ describe("QuizLibraryPage real listing contract", () => {
     expect(
       await screen.findByText("Quiz library could not be loaded"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/could not reach the Quiz service/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Quizopia could not connect/i)).toBeInTheDocument();
     expect(screen.queryByText("Draft only")).not.toBeInTheDocument();
   });
 
@@ -458,9 +456,7 @@ describe("QuizLibraryPage real listing contract", () => {
       await screen.findByText("Quiz library could not be loaded"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Your authenticated session is not available for this request.",
-      ),
+      screen.getByText("Your session has ended. Please sign in again."),
     ).toBeInTheDocument();
   });
 
@@ -479,9 +475,7 @@ describe("QuizLibraryPage real listing contract", () => {
       await screen.findByText("Quiz library could not be loaded"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "The Quiz service returned an unexpected response (200).",
-      ),
+      screen.getByText("Quizopia got an unexpected response (200)."),
     ).toBeInTheDocument();
   });
 });
@@ -915,9 +909,7 @@ describe("QuizEditorPage real-contract behavior", () => {
 
     releaseSave?.();
 
-    expect(
-      await screen.findByText("Published immutable version 1."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Published version 1.")).toBeInTheDocument();
     expect(publishCalls).toBe(1);
     expect(editor).not.toBeDisabled();
   });

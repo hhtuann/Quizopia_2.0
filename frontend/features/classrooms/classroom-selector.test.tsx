@@ -148,7 +148,7 @@ describe("owned Classroom selector", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Retry Classrooms" }),
     );
-    await screen.findByText(/No owned Classrooms yet/);
+    await screen.findByText(/No classrooms yet\. Create a classroom first/);
     mounted.unmount();
     expect(api.get.mock.calls[0]![1]!.aborted).toBe(true);
     await act(async () => resolve({ ok: true, value: classroom }));

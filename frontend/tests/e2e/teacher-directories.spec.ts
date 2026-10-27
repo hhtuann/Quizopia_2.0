@@ -388,14 +388,14 @@ test("OPEN detail embeds the Results section and toggles the configuration summa
   ).toBeVisible();
   // Desktop (lg+) defaults the configuration disclosure to expanded. The
   // collapsed content stays in the DOM, so assert visibility, not count.
-  await expect(page.getByText("Immutable source")).toBeVisible();
+  await expect(page.getByText("Source version")).toBeVisible();
   const toggle = page.getByText("Configuration summary");
   await toggle.focus();
   await expect(toggle).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Immutable source")).toBeHidden();
+  await expect(page.getByText("Source version")).toBeHidden();
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Immutable source")).toBeVisible();
+  await expect(page.getByText("Source version")).toBeVisible();
 });
 
 test("mobile detail keeps the configuration summary collapsed by default without horizontal overflow", async ({
@@ -424,7 +424,7 @@ test("mobile detail keeps the configuration summary collapsed by default without
   await page.goto(`/app/assessments/${publicationId}`);
   // Compact chips are visible while the full summary starts collapsed.
   await expect(page.getByText("Configuration summary")).toBeVisible();
-  await expect(page.getByText("Immutable source")).toBeHidden();
+  await expect(page.getByText("Source version")).toBeHidden();
   await expect(
     page.getByRole("heading", { name: "Results", exact: true }),
   ).toBeVisible();
@@ -432,7 +432,7 @@ test("mobile detail keeps the configuration summary collapsed by default without
   const toggle = page.getByText("Configuration summary");
   await toggle.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Immutable source")).toBeVisible();
+  await expect(page.getByText("Source version")).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -519,7 +519,7 @@ test("inaccessible saved Classroom cannot be submitted and a failed directory ca
   ).toBeVisible();
   unavailable = false;
   await page.getByRole("button", { name: "Retry Classrooms" }).click();
-  await expect(page.getByText(/No owned Classrooms yet/)).toBeVisible();
+  await expect(page.getByText(/No classrooms yet/)).toBeVisible();
   await page.getByRole("button", { name: "Review DRAFT changes" }).click();
   await expect(
     page.getByText("Select an accessible owned Classroom before continuing."),

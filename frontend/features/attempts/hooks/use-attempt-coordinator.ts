@@ -136,7 +136,7 @@ export function useAttemptCoordinator(options: {
                 : {
                     phase: "conflict" as const,
                     message: localizeRef.current(
-                      "Authoritative state changed. Your local answer is preserved; save it deliberately before retrying the terminal action.",
+                      "The attempt changed. Your local answer is preserved; save it before retrying the final action.",
                     ),
                   },
             ];
@@ -182,7 +182,7 @@ export function useAttemptCoordinator(options: {
         setQuestionStatus(questionNumber, {
           phase: "draft",
           message: localizeRef.current(
-            "Autosave is paused until authoritative Attempt status is refreshed. Your draft remains in memory.",
+            "Autosave is paused until the attempt status is refreshed. Your draft is safe.",
           ),
         });
     },
@@ -196,7 +196,7 @@ export function useAttemptCoordinator(options: {
         setQuestionStatus(intent.questionNumber, {
           phase: "conflict",
           message: localizeRef.current(
-            "The server revision changed, and refresh failed. {message}",
+            "The attempt changed and refreshing failed. {message}",
             {
               message: attemptFailureMessage(fresh.error, localizeRef.current),
             },
@@ -209,8 +209,8 @@ export function useAttemptCoordinator(options: {
         phase: "conflict",
         message: localizeRef.current(
           fresh.value.state === "ACTIVE"
-            ? "Server state was refreshed. Your local edit is preserved; choose Save this draft to apply it against the new revision."
-            : "The attempt became terminal. Your local edit was preserved locally but cannot be saved.",
+            ? "The latest state was loaded. Your edit is preserved; choose Save this draft to apply it."
+            : "The attempt has ended. Your edit is kept on screen but cannot be saved.",
         ),
       });
     },
@@ -227,13 +227,13 @@ export function useAttemptCoordinator(options: {
             ? {
                 phase: "uncertain",
                 message: localizeRef.current(
-                  "Exact retry is paused until authoritative Attempt status is refreshed.",
+                  "Retry is paused until the attempt status is refreshed.",
                 ),
               }
             : {
                 phase: "draft",
                 message: localizeRef.current(
-                  "Saving is paused until authoritative Attempt status is refreshed.",
+                  "Saving is paused until the attempt status is refreshed.",
                 ),
               },
         );
@@ -276,7 +276,7 @@ export function useAttemptCoordinator(options: {
         setQuestionStatus(intent.questionNumber, {
           phase: "uncertain",
           message: localizeRef.current(
-            "The save outcome is unknown. Retry the exact save or check authoritative state before sending another version.",
+            "The save result is unknown. Retry the same save or check the current state before sending another version.",
           ),
         });
         return;
@@ -357,7 +357,7 @@ export function useAttemptCoordinator(options: {
             setQuestionStatus(questionNumber, {
               phase: "draft",
               message: localizeRef.current(
-                "Resolve the uncertain save before another answer can be sent.",
+                "Resolve the pending save before sending another answer.",
               ),
             });
           return;
@@ -384,7 +384,7 @@ export function useAttemptCoordinator(options: {
           ? {
               phase: "uncertain",
               message: localizeRef.current(
-                "Your newer draft is preserved. Resolve the prior unknown save before sending this version.",
+                "Your newer draft is safe. Resolve the previous pending save before sending this version.",
               ),
             }
           : { phase: "draft" },
@@ -443,7 +443,7 @@ export function useAttemptCoordinator(options: {
         setQuestionStatus(questionNumber, {
           phase: "conflict",
           message: localizeRef.current(
-            "Authoritative state does not confirm this save. Your local draft remains available; choose Save this draft to create a new operation.",
+            "This save was not confirmed. Your draft is still here; choose Save this draft to try again.",
           ),
         });
       }
@@ -492,7 +492,7 @@ export function useAttemptCoordinator(options: {
   useUnsavedNavigationGuard(
     hasUnsavedWork,
     localize(
-      "This Attempt has unsaved or unresolved answers. Leave this page anyway?",
+      "This attempt has unsaved or pending answers. Leave this page anyway?",
     ),
   );
 

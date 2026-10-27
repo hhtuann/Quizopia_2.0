@@ -84,7 +84,7 @@ export function TeacherMonitoringScreen({
         {!user?.roles.includes("TEACHER") ? (
           <Alert title={t("Teacher access required")} variant="warning">
             {t(
-              "The server requires a current Teacher role, Publication ownership, and Classroom authority. Knowing an Attempt ID is not authorization.",
+              "Requires a Teacher role plus ownership of the assessment and class. Knowing an Attempt ID alone is not enough.",
             )}
           </Alert>
         ) : activeWorkspace !== "TEACHING" ? (
@@ -94,7 +94,7 @@ export function TeacherMonitoringScreen({
             </h2>
             <p className="mt-2 text-foreground-secondary">
               {t(
-                "Workspace selection only changes presentation; server authorization remains mandatory.",
+                "Switching workspace only changes what you see; access is still verified.",
               )}
             </p>
             <Button
@@ -110,7 +110,7 @@ export function TeacherMonitoringScreen({
               <h2 className="text-xl font-bold">{t("Open a known Attempt")}</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-foreground-secondary">
                 {t(
-                  "No global monitoring roster API exists. Enter an exact Attempt ID from the authorized Teacher Results experience; the backend performs a fresh resource check before revealing whether a session exists.",
+                  "There is no class-wide monitoring list. Paste an Attempt ID from your results table; access is re-checked before anything is shown.",
                 )}
               </p>
               <form
@@ -121,7 +121,7 @@ export function TeacherMonitoringScreen({
                   <TextField
                     error={
                       invalid
-                        ? t("Enter a canonical lowercase Attempt UUID.")
+                        ? t("Enter the Attempt ID exactly as copied.")
                         : undefined
                     }
                     label={t("Attempt ID")}
@@ -136,18 +136,16 @@ export function TeacherMonitoringScreen({
 
             {monitoring.state.status === "loading" ? (
               <Alert title={t("Checking current authority")}>
-                {t("Loading the authorized session and first timeline page.")}
+                {t("Loading the session and first timeline page.")}
               </Alert>
             ) : monitoring.state.status === "not-found" ? (
               <Alert title={t("Session not accessible")} variant="warning">
-                {t(
-                  "No authorized monitoring session is available for that Attempt. The response intentionally does not reveal whether a foreign resource exists.",
-                )}
+                {t("No monitoring session is available for that attempt.")}
               </Alert>
             ) : monitoring.state.status === "unavailable" ? (
               <Alert title={t("Monitoring unavailable")} variant="warning">
                 {t(
-                  "Current authority or a required service could not be verified. Access fails closed and no cached grant is used.",
+                  "Your access could not be verified right now. Nothing is shown.",
                 )}
               </Alert>
             ) : monitoring.state.status === "ready" ? (
@@ -179,7 +177,7 @@ export function TeacherMonitoringScreen({
                       </h2>
                       <p className="mt-1 text-sm text-foreground-secondary">
                         {t(
-                          "Server ordinal controls ordering. Source labels distinguish browser reports from Assessment persistence facts.",
+                          "Newest events have higher numbers. Labels distinguish browser reports from saved assessment facts.",
                         )}
                       </p>
                     </div>
@@ -187,7 +185,7 @@ export function TeacherMonitoringScreen({
                       onClick={() => void monitoring.refresh()}
                       variant="neutral-outline"
                     >
-                      {t("Refresh authority and timeline")}
+                      {t("Refresh access and timeline")}
                     </Button>
                   </div>
                   <TeacherTimeline items={monitoring.state.timeline} />

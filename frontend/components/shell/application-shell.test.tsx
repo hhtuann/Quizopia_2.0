@@ -186,7 +186,7 @@ describe("application shell workspace presentation", () => {
 
     fireEvent.click(accountSettings);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
+      "Account settings are not available yet.",
     );
 
     fireEvent.keyDown(teacherRegistration, { key: "Escape" });

@@ -137,46 +137,45 @@ export function isUncertain(failure: PublicationFailure): boolean {
 
 export function publicationFailureMessage(error: PublicationFailure): string {
   if (error.kind === "session")
-    return "Your session changed or could not be refreshed. Sign in or verify your account before continuing.";
+    return "Your session changed or could not be refreshed. Please sign in again.";
   if (error.kind === "aborted")
-    return "The request was cancelled. A mutation may still have reached the server.";
+    return "The request was cancelled and may still have gone through.";
   if (error.kind === "unavailable")
-    return "Verification or the connection is temporarily unavailable. Your account has not been logged out.";
+    return "The connection is temporarily unavailable. You are still signed in.";
   if (error.kind === "invalid-input")
     return "Check the configuration and revision before sending this request.";
   if (error.kind === "invalid-response")
-    return "The server response could not be verified. Refresh authoritative state before retrying a change.";
+    return "The response could not be verified. Refresh before retrying a change.";
   const messages: Record<string, string> = {
     ACTIVE_ATTEMPTS:
-      "Active Attempts prevent closure. Refresh status after learners finish; force-close is not available.",
+      "Active attempts prevent closing. Refresh after learners finish; there is no force-close.",
     CLOSURE_PENDING:
-      "A closure workflow is pending. Schedule changes are blocked; manage that workflow in its separate experience.",
+      "A closure request is pending. Schedule changes are blocked; manage it on its own page.",
     REVISION_CONFLICT:
       "This Publication changed. Refresh and review the current revision before trying again.",
     PUBLICATION_CONFLICT:
-      "The Publication state or revision changed. Refresh authoritative details and review your action.",
+      "This Publication changed. Refresh and review the current revision before trying again.",
     IDEMPOTENCY_CONFLICT:
-      "This operation identity conflicts with an earlier request. Do not repeat it with different settings.",
+      "This request conflicts with an earlier one. Do not repeat it with different settings.",
     CAPACITY_EXCEEDED:
-      "The server is temporarily throttling this operation. Retry the same operation key after a short wait.",
+      "Too many requests. Wait a moment, then retry the same action.",
     CLASSROOM_NOT_ACCESSIBLE:
-      "The Classroom is unavailable or you are not authorized to assign to it. Choose another owned Classroom or retry access verification.",
+      "This classroom is unavailable or not yours to use. Choose another classroom or retry.",
     SOURCE_NOT_ACCESSIBLE:
-      "The selected immutable QuizVersion is unavailable or no longer accessible to you.",
+      "The selected quiz version is unavailable or no longer accessible to you.",
     PUBLICATION_NOT_FOUND:
       "This Publication is unavailable or you do not have permission to view it.",
-    ACCESS_DENIED:
-      "The server denied this operation. Current Teacher authority and ownership are required.",
+    ACCESS_DENIED: "You need the Teacher role and ownership for this action.",
     INVALID_REQUEST:
-      "The server rejected the configuration. Check the fields and try again.",
+      "The configuration was rejected. Check the fields and try again.",
   };
   if (error.status === 503)
-    return "Required authority, source or persistence is unavailable. Your account has not been logged out.";
+    return "Part of Quizopia is temporarily unavailable. You are still signed in.";
   if (error.status === 401)
-    return "Your session could not authorize this request. Sign in again before continuing.";
+    return "Your session has ended. Please sign in again.";
   return (
     messages[error.code] ??
-    `The server could not complete the operation (HTTP ${error.status}). Refresh status before retrying.`
+    `Quizopia could not complete the operation (HTTP ${error.status}). Refresh before retrying.`
   );
 }
 

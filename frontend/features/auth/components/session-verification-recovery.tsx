@@ -38,7 +38,7 @@ export function SessionVerificationRecovery() {
         variant="warning"
       >
         {t(
-          "We could not verify your account yet. Access remains unavailable until verification succeeds. Try again when the service is available, or sign in with another account.",
+          "We could not verify your account yet. Please try again, or sign in with another account.",
         )}
       </Alert>
       <p
@@ -51,7 +51,7 @@ export function SessionVerificationRecovery() {
           ? t("Checking your account. Please wait.")
           : failedAttempts > 0
             ? t(
-                "Verification attempt {count} could not be completed. Access remains unavailable. You can retry or sign in again.",
+                "Verification attempt {count} could not be completed. You can retry or sign in again.",
                 { count: failedAttempts },
               )
             : null}

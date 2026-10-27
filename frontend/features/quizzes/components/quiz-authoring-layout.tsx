@@ -65,7 +65,7 @@ function TeacherAuthoringBoundary({
             variant="success"
           >
             {t(
-              "Your authoritative account now includes Student and Teacher access. Open the Teaching workspace to continue.",
+              "Your account now has Student and Teacher access. Open the Teaching workspace to continue.",
             )}
           </Alert>
         ) : (

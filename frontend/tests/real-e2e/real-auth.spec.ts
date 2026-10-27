@@ -436,7 +436,7 @@ test("real teacher preserves published A/B history while current draft advances 
   await page.getByRole("button", { name: "Publish QuizVersion" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Publish complete" }),
-  ).toContainText("Published immutable version 1");
+  ).toContainText("Published version 1");
 
   const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
   await editor.fill(sourceB);
@@ -447,7 +447,7 @@ test("real teacher preserves published A/B history while current draft advances 
   await page.getByRole("button", { name: "Publish QuizVersion" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Publish complete" }),
-  ).toContainText("Published immutable version 2");
+  ).toContainText("Published version 2");
 
   await editor.fill(sourceC);
   const saveCResponsePromise = page.waitForResponse(

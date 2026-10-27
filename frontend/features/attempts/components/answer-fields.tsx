@@ -207,9 +207,7 @@ export function AnswerField({
 
   return (
     <p className="text-sm text-danger" role="alert">
-      {t(
-        "The answer type does not match this question. Refresh authoritative state.",
-      )}
+      {t("The answer type does not match this question. Refresh to continue.")}
     </p>
   );
 }

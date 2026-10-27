@@ -85,7 +85,7 @@ describe("authenticated UX boundary", () => {
       "Account access is not available yet",
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "No session was created",
+      "not available in this version",
     );
     expect(screen.getByRole("link", { name: "Go to sign in" })).toHaveAttribute(
       "href",

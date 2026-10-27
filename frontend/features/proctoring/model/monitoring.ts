@@ -194,6 +194,6 @@ export const PROVENANCE_LABELS: Readonly<
   Record<MonitoringEvidence["source"], string>
 > = {
   CLIENT_OBSERVATION: "Browser observation",
-  SERVER_AUTHORITY: "Server session fact",
-  ASSESSMENT_AUTHORITY: "Assessment persistence fact",
+  SERVER_AUTHORITY: "Recorded session fact",
+  ASSESSMENT_AUTHORITY: "Saved assessment fact",
 };

@@ -16,7 +16,7 @@ const base = {
 };
 
 describe("Teacher timeline provenance", () => {
-  it("labels browser observations separately from Assessment persistence facts", () => {
+  it("labels browser observations separately from saved assessment facts", () => {
     const items: MonitoringEvidence[] = [
       {
         ...base,
@@ -39,11 +39,11 @@ describe("Teacher timeline provenance", () => {
     render(<TeacherTimeline items={items} />);
     expect(screen.getByText(/^Browser observation ·/)).toBeInTheDocument();
     expect(
-      screen.getByText(/^Assessment persistence fact/),
+      screen.getByText(/^Saved assessment fact/),
     ).toBeInTheDocument();
     expect(screen.getByText(/Assessment revision 42/)).toBeInTheDocument();
     expect(screen.getAllByText(/neither proves misconduct/i)).toHaveLength(2);
-    expect(screen.getAllByText(/Observed\/occurred:/)).toHaveLength(2);
+    expect(screen.getAllByText(/Observed:/)).toHaveLength(2);
     expect(screen.getAllByText(/Received:/)).toHaveLength(2);
     expect(document.body).not.toHaveTextContent("answer content");
   });

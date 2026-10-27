@@ -57,18 +57,18 @@ export function StudentMonitoringScreen({
         {!user?.roles.includes("STUDENT") ? (
           <Alert title={t("Student access required")} variant="warning">
             {t(
-              "A current Student role and authoritative Attempt ownership are required.",
+              "A current Student role and ownership of the attempt are required.",
             )}
           </Alert>
         ) : !validAttempt ? (
           <Alert title={t("Invalid Attempt reference")} variant="danger">
-            {t("This route requires a canonical lowercase Attempt UUID.")}
+            {t("This link is not a valid attempt address.")}
           </Alert>
         ) : monitoring.state.status === "active" ? (
           <>
             <Alert title={t("Monitoring session active")} variant="info">
               {t(
-                "The server verified this bounded CLASS Attempt and returned the bindings shown below. Activity delivery is separate from Assessment SAVE and SUBMIT; a monitoring outage never changes answer-save status.",
+                "Monitoring is verified for this class attempt. Sending monitoring data is separate from saving and submitting; a monitoring problem never changes your saved answers.",
               )}
             </Alert>
             <Surface className="grid gap-4 p-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -105,7 +105,7 @@ export function StudentMonitoringScreen({
                 onClick={() => void monitoring.stop()}
                 variant="neutral-outline"
               >
-                {t("End local monitoring connection")}
+                {t("End monitoring")}
               </Button>
             </div>
           </>
@@ -117,17 +117,17 @@ export function StudentMonitoringScreen({
             <div className="mt-4 max-w-3xl space-y-3 text-sm leading-6 text-foreground-secondary">
               <p>
                 {t(
-                  "Quizopia will ask the server to verify that this is your current, active, bounded, monitoring-enabled CLASS Attempt. PUBLIC and durationless Attempts are not eligible.",
+                  "Quizopia will verify this is your current, time-limited, monitored class attempt. PUBLIC and untimed attempts are not eligible.",
                 )}
               </p>
               <p>
                 {t(
-                  "Once verified, this page can report its own question-navigation, answer-interaction metadata, visibility, focus, fullscreen, network, duplicate-tab, and camera technical states. It does not collect answer contents, unrelated URLs, browser history, keystrokes, your screen, or microphone.",
+                  "When verified, this page reports question navigation, answer interactions, tab visibility and focus, fullscreen, network, duplicate tabs, and camera status. It does not collect answer contents, unrelated URLs, browser history, keystrokes, your screen, or microphone.",
                 )}
               </p>
               <p>
                 {t(
-                  "Browser observations can be incomplete or manipulated and are not proof of misconduct. No event on this page automatically changes a grade, submits an Attempt, or imposes a sanction.",
+                  "Browser observations can be incomplete and are not proof of misconduct. Nothing on this page automatically changes a grade or imposes a sanction.",
                 )}
               </p>
             </div>
@@ -138,7 +138,7 @@ export function StudentMonitoringScreen({
                 variant="warning"
               >
                 {t(
-                  "The server denied access or a required authority/provider feature is unavailable. No activity collection or camera capture is active.",
+                  "Access was denied or a required feature is unavailable. Nothing is being recorded.",
                 )}
               </Alert>
             ) : null}
@@ -148,9 +148,7 @@ export function StudentMonitoringScreen({
                 title={t("Monitoring ended")}
                 variant="info"
               >
-                {t(
-                  "Local monitoring resources were released. This did not alter the authoritative Attempt.",
-                )}
+                {t("Monitoring was stopped. Your attempt was not changed.")}
               </Alert>
             ) : null}
             <Button
@@ -189,7 +187,7 @@ function ActivityDelivery({
   return (
     <Alert title={t("Activity evidence delivery")} variant={variant}>
       {t(
-        "State: {state}. Pending: {pending}. Dropped because the in-memory queue was full: {dropped}. Delivery status never changes Assessment SAVE or SUBMIT.",
+        "State: {state}. Pending: {pending}. Dropped: {dropped}. Delivery never affects saving or submitting.",
         {
           state: snapshot.delivery,
           pending: snapshot.pendingCount,

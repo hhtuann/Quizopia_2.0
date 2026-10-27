@@ -183,7 +183,7 @@ describe("assessment i18n (vi default)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Chỉ các lớp học do bạn sở hữu mới khả dụng. Hãy chọn một lớp để gán bài kiểm tra này.",
+        "Chỉ hiển thị lớp học do bạn sở hữu. Hãy chọn một lớp cho bài kiểm tra này.",
       ),
     ).toBeInTheDocument();
     // Classroom identity fields are user content and never translate.

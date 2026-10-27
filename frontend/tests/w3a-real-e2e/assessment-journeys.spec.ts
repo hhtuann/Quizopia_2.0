@@ -497,7 +497,7 @@ test("real CLASS Assessment: Teacher creates Class & Assessment, Student members
     assertStatus(deniedHttp.status(), 404, "student denied before membership");
     await expect(
       studentPage.getByText(
-        /Current class membership could not authorize this assessment|not accessible|denied/i,
+        /Your current class membership does not grant access|not accessible|denied/i,
       ),
     ).toBeVisible();
     evidence(info, "Student denied entry before classroom membership.");
@@ -1403,9 +1403,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       const cancelView = (await cancelHttp.json()) as ClosureView;
       expect(cancelView.state).toBe("CANCELLED");
 
-      await expect(
-        page.getByText("Cancellation confirmed by the server."),
-      ).toBeVisible();
+      await expect(page.getByText("The request was cancelled.")).toBeVisible();
       await expect(page.getByText("This request is resolved")).toBeVisible();
       evidence(
         info,
@@ -1420,7 +1418,7 @@ test("real CLASS Assessment B3: Teacher REQUEST, notice publication, recipient a
       ).toBeVisible();
       await expect(
         studentPage.getByText(
-          "The Teacher cancelled this closure request. This notice is retained as history and is no longer actionable.",
+          "The teacher cancelled this closure. This notice stays as history only.",
         ),
       ).toBeVisible();
 
