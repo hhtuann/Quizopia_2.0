@@ -342,9 +342,7 @@ test("Student inbox distinguishes preparation from a confirmed recipient cutoff 
   await expect(
     page.getByText("Notice preparing", { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Waiting for notice confirmation"),
-  ).toBeVisible();
+  await expect(page.getByText("Waiting for notice confirmation")).toBeVisible();
   await expect(page.getByText(/acknowledge/i)).toHaveCount(0);
   await page.getByRole("link", { name: "View notice" }).click();
   await expect(

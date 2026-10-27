@@ -38,9 +38,7 @@ describe("Teacher timeline provenance", () => {
     ];
     render(<TeacherTimeline items={items} />);
     expect(screen.getByText(/^Browser observation ·/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/^Saved assessment fact/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/^Saved assessment fact/)).toBeInTheDocument();
     expect(screen.getByText(/Assessment revision 42/)).toBeInTheDocument();
     expect(screen.getAllByText(/neither proves misconduct/i)).toHaveLength(2);
     expect(screen.getAllByText(/Observed:/)).toHaveLength(2);
