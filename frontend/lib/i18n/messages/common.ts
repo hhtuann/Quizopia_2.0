@@ -1,5 +1,18 @@
 // Stable English source keys. Only product presentation belongs in this catalog.
 export const commonMessages = {
+  "Display name (optional)": "Tên hiển thị (không bắt buộc)",
+  "A name you provide, not a verified legal name. Teachers may see it in results.":
+    "Tên do bạn cung cấp, không phải tên pháp lý đã xác minh. Giáo viên có thể thấy tên này trong kết quả.",
+  "Enter a display name of 1–100 characters without control characters, or leave it empty.":
+    "Nhập tên hiển thị từ 1–100 ký tự, không chứa ký tự điều khiển, hoặc để trống.",
+  "Leave empty and save to remove your display name. Your username will be used instead.":
+    "Để trống rồi lưu để xóa tên hiển thị. Tên đăng nhập sẽ được dùng thay thế.",
+  "Your display name could not be saved. Check your connection and try again.":
+    "Không thể lưu tên hiển thị. Hãy kiểm tra kết nối và thử lại.",
+  "Display name not saved": "Chưa lưu tên hiển thị",
+  "Display name saved.": "Đã lưu tên hiển thị.",
+  "Saving display name": "Đang lưu tên hiển thị",
+  "Save display name": "Lưu tên hiển thị",
   "Quizopia home": "Trang chủ Quizopia",
   "Primary navigation": "Điều hướng chính",
   "Public navigation": "Điều hướng công khai",

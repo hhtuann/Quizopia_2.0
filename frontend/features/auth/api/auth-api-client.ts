@@ -36,6 +36,7 @@ const loginResponseSchema = z
 
 const currentUserSchema = z
   .object({
+    displayName: z.string().nullable().optional(),
     email: z.string().min(1),
     id: z.string().min(1),
     roles: z.array(z.enum(AUTH_ROLES)),
@@ -85,6 +86,11 @@ export interface LoginResponse {
 }
 
 export interface AuthApiClient {
+  updateDisplayName(
+    authenticatedRequests: AuthenticatedRequestExecutor,
+    displayName: string | null,
+    signal?: AbortSignal,
+  ): Promise<AuthApiResult<void>>;
   confirmVerification(input: {
     readonly otp: string;
     readonly username: string;
@@ -107,6 +113,7 @@ export interface AuthApiClient {
   ): Promise<AuthApiResult<AuthenticatedUser>>;
   refresh(signal?: AbortSignal): Promise<AuthApiResult<LoginResponse>>;
   register(input: {
+    readonly displayName?: string;
     readonly email: string;
     readonly password: string;
     readonly username: string;
@@ -266,6 +273,20 @@ export function createAuthApiClient(options: {
   }
 
   const client: AuthApiClient = {
+    async updateDisplayName(authenticatedRequests, displayName, signal) {
+      const result = normalizeAuthenticatedResult(
+        await authenticatedRequests.execute({
+          signal,
+          createRequest: () => ({
+            headers: jsonHeaders(),
+            method: "PUT",
+            body: JSON.stringify({ displayName }),
+            target: target("/api/auth/me/display-name"),
+          }),
+        }),
+      );
+      return result.ok ? expectEmpty(result.value, 204) : result;
+    },
     async confirmVerification(input) {
       const result = normalizeTransportResult(
         await transport.execute({

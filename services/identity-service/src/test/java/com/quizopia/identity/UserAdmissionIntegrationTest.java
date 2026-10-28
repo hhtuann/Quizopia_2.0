@@ -226,7 +226,7 @@ class UserAdmissionIntegrationTest {
         assertFalse(response.getBody().contains(userToken));
         assertFalse(response.getBody().contains(user.getEmail()));
         assertTrue(primary.read(user.getId()).revokedBefore().isEmpty());
-        assertEquals("13", flyway.info().current().getVersion().getVersion());
+        assertEquals("14", flyway.info().current().getVersion().getVersion());
     }
 
     @Test
@@ -595,7 +595,7 @@ class UserAdmissionIntegrationTest {
                     .defaultSchema(schema)
                     .load();
             upgrade.migrate();
-            assertEquals("13", upgrade.info().current().getVersion().getVersion());
+            assertEquals("14", upgrade.info().current().getVersion().getVersion());
             try (var statement = connection.createStatement()) {
                 try (var result = statement.executeQuery("SELECT count(*) FROM user_authority_work")) {
                     result.next();

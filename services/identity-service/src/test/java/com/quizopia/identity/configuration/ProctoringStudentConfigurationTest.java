@@ -47,9 +47,28 @@ class ProctoringStudentConfigurationTest {
                         new UserAdmissionProperties(),
                         new NoticeRecipientProperties(false, true, "assessment-service", 8),
                         new ProctoringStudentProperties(true, false, "assessment-service", 8),
+                        new UserProfileProperties(false, true, "assessment-service", 8, 60),
                         environment,
                         mock(ObjectProvider.class),
                         mock(QuizopiaJwtAuthenticationConverter.class)));
         assertEquals("Private proctoring eligibility HTTPS is required in production", failure.getMessage());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void enabledProductionProfileBatchCannotDisableHttps() {
+        var environment = new StandardEnvironment();
+        environment.setActiveProfiles("prod");
+        var failure = assertThrows(IllegalStateException.class, () -> new UserAdmissionConfiguration()
+                .userAdmissionChain(
+                        mock(HttpSecurity.class),
+                        new UserAdmissionProperties(),
+                        new NoticeRecipientProperties(false, true, "assessment-service", 8),
+                        new ProctoringStudentProperties(false, true, "assessment-service", 8),
+                        new UserProfileProperties(true, false, "assessment-service", 8, 60),
+                        environment,
+                        mock(ObjectProvider.class),
+                        mock(QuizopiaJwtAuthenticationConverter.class)));
+        assertEquals("Private user-profile HTTPS is required in production", failure.getMessage());
     }
 }

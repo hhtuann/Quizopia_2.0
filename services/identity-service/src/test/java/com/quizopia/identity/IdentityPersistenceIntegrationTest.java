@@ -145,7 +145,7 @@ class IdentityPersistenceIntegrationTest {
     void flywayMigratesEmptyDatabaseAndHibernateValidatesSchema() {
         assertNotNull(dataSource);
         assertNotNull(flyway.info().current());
-        assertEquals("13", flyway.info().current().getVersion().getVersion());
+        assertEquals("14", flyway.info().current().getVersion().getVersion());
 
         Integer accountTableCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables "

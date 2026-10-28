@@ -30,6 +30,9 @@ export const assessmentMessages = {
   "Retrying…": "Đang thử lại…",
   Retry: "Thử lại",
   "Check now": "Kiểm tra ngay",
+  Student: "Học sinh",
+  "Student ID shown because no name is available":
+    "Hiện mã học sinh vì chưa có tên",
   Configuration: "Cấu hình",
   "Choose a monitoring option first": "Hãy chọn chế độ giám sát trước",
   "Edit this DRAFT and choose enabled or disabled before OPEN.":

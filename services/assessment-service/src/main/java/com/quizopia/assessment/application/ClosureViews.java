@@ -21,7 +21,15 @@ public final class ClosureViews {
 
     public record Completion(UUID closureRequestId, UUID publicationId, boolean closed, long publicationRevision) {}
 
-    public record TeacherRow(UUID attemptId, UUID studentId, String ordinal, String state, AttemptViews.Result result) {
+    /** studentName is additive fail-open enrichment resolved after the owner-authorized page query;
+     * null when unknown, unavailable or the bounded Identity lookup failed. */
+    public record TeacherRow(
+            UUID attemptId,
+            UUID studentId,
+            String ordinal,
+            String state,
+            AttemptViews.Result result,
+            String studentName) {
         public String toString() {
             return "TeacherRow[redacted]";
         }

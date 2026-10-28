@@ -11,6 +11,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -63,7 +64,7 @@ class ClosureIntegrationTest {
             public void teacher(Teacher actor) {}
         };
         dependencies = deps;
-        service = new ClosureService(store, deps, f.core, properties);
+        service = new ClosureService(store, deps, f.core, properties, studentProfiles -> Map.of());
         worker = new ClosureWorker(store, deps, f.core, properties, new SimpleMeterRegistry());
         advance(86401);
     }
@@ -407,7 +408,8 @@ class ClosureIntegrationTest {
                         f.db, f.manager, AssessmentTransactionProperties.defaults(), new ClosureCursor(properties)),
                 dependencies,
                 new JdbcAttemptFinalization(f.db, f.manager),
-                properties);
+                properties,
+                studentProfiles -> Map.of());
         start = System.nanoTime();
         var reply = service.command(teacher, command);
         long batch = System.nanoTime() - start;
@@ -956,7 +958,7 @@ class ClosureIntegrationTest {
 
             public void teacher(Teacher actor) {}
         };
-        var guarded = new ClosureService(store, deps, f.core, properties);
+        var guarded = new ClosureService(store, deps, f.core, properties, studentProfiles -> Map.of());
         var reply = guarded.command(teacher, command("REQUEST", null, 1));
         assertEquals(201, reply.status());
         assertEquals("1", scalar("SELECT count(*) FROM closure_request_members"));
@@ -974,7 +976,7 @@ class ClosureIntegrationTest {
 
             public void teacher(Teacher actor) {}
         };
-        var guarded = new ClosureService(store, deps, f.core, properties);
+        var guarded = new ClosureService(store, deps, f.core, properties, studentProfiles -> Map.of());
         failure("DEPENDENCY_UNAVAILABLE", () -> guarded.command(teacher, command("REQUEST", null, 1)));
         assertEquals("0", scalar("SELECT count(*) FROM closure_requests"));
         assertEquals("0", scalar("SELECT count(*) FROM publication_operations"));
@@ -1017,5 +1019,109 @@ class ClosureIntegrationTest {
                 () -> service.command(
                         teacher,
                         new Command(draft.id(), null, 0, JdbcPublicationStore.digest("draft-close"), "CLOSE")));
+    }
+
+    @Test
+    void resultsEnrichmentUsesOneBoundedCurrentPageBatchWithUnknownIdsNull() {
+        var requested = new ArrayList<Set<UUID>>();
+        var known = new HashMap<UUID, String>();
+        var students = new ArrayList<UUID>();
+        var seed = new AtomicFinalizationIntegrationTest.Seed(publication, null);
+        // setup() already created one attempt for an unknown student; add four named students.
+        for (int i = 0; i < 4; i++) {
+            f.student = UUID.randomUUID();
+            students.add(f.student);
+            f.active(seed, 0);
+            known.put(f.student, "Student Number " + (i + 1));
+        }
+        StudentProfiles stub = ids -> {
+            requested.add(Set.copyOf(ids));
+            var resolved = new HashMap<UUID, String>();
+            for (var id : ids) if (known.containsKey(id)) resolved.put(id, known.get(id));
+            return resolved;
+        };
+        var enriched = new ClosureService(store, dependencies, f.core, properties, stub);
+        var seen = new ArrayList<ClosureViews.TeacherRow>();
+        String cursor = null;
+        for (int page = 0; page < 3; page++) {
+            var result = enriched.results(teacher, publication, 2, cursor);
+            assertEquals(page < 2 ? 2 : 1, result.items().size());
+            var expected = new LinkedHashSet<UUID>();
+            for (var row : result.items()) {
+                expected.add(row.studentId());
+                assertEquals(known.get(row.studentId()), row.studentName());
+                assertEquals(
+                        scalar("SELECT student_id::text FROM attempts WHERE id=?", row.attemptId()),
+                        row.studentId().toString());
+                assertNotNull(row.state());
+            }
+            // Exactly one batch per page, containing only the distinct CURRENT page ids.
+            assertEquals(1, requested.size());
+            assertEquals(expected, new LinkedHashSet<>(requested.getLast()));
+            requested.clear();
+            seen.addAll(result.items());
+            cursor = result.nextCursor();
+            if (page < 2) assertNotNull(cursor);
+        }
+        assertNull(cursor);
+        assertEquals(5, seen.size());
+        assertTrue(
+                Set.copyOf(seen.stream().map(row -> row.studentId()).toList()).containsAll(students));
+        assertTrue(seen.stream().anyMatch(row -> row.studentName() == null));
+    }
+
+    @Test
+    void identityOutageFailsOpenWithAuthorizedRowsAndScores() {
+        f.core.submit(f.manual(attempt, 0, GradingDocumentsTest.replacement()));
+        StudentProfiles outage = ids -> Map.of();
+        var enriched = new ClosureService(store, dependencies, f.core, properties, outage);
+        var page = enriched.results(teacher, publication, 20, null);
+        assertEquals(1, page.items().size());
+        var row = page.items().getFirst();
+        assertNull(row.studentName());
+        assertEquals("SUBMITTED", row.state());
+        assertEquals(
+                scalar("SELECT earned_weight FROM grading_results WHERE attempt_id=?", attempt),
+                row.result().earnedWeight());
+        assertEquals(
+                scalar("SELECT student_id::text FROM attempts WHERE id=?", attempt),
+                row.studentId().toString());
+        assertNull(page.nextCursor());
+    }
+
+    @Test
+    void enrichmentHappensOnlyAfterOwnershipAndPageAuthorization() {
+        var calls = new AtomicInteger();
+        StudentProfiles counting = ids -> {
+            calls.incrementAndGet();
+            return Map.of();
+        };
+        var enriched = new ClosureService(store, dependencies, f.core, properties, counting);
+        var other = new Teacher(UUID.randomUUID(), teacher.expiresAt(), "fixture");
+        failure("PUBLICATION_NOT_FOUND", () -> enriched.results(other, publication, 20, null));
+        assertEquals(0, calls.get());
+        failure("INVALID_REQUEST", () -> enriched.results(teacher, publication, 101, null));
+        failure("INVALID_REQUEST", () -> enriched.results(teacher, publication, 20, "invalid.cursor"));
+        assertEquals(0, calls.get());
+        var draft = new JdbcPublicationStore(f.db, f.manager, Clock.systemUTC())
+                .create(teacher.id(), UUID.randomUUID().toString(), SnapshotFixtures.configuration());
+        assertTrue(enriched.results(teacher, draft.id(), 20, null).items().isEmpty());
+        assertEquals(0, calls.get());
+        assertEquals(1, enriched.results(teacher, publication, 20, null).items().size());
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void disabledStudentProfileClientLeavesResultsWorkingWithoutEnrichment() {
+        try (var client = new com.quizopia.assessment.infrastructure.StudentProfileClient(
+                new com.quizopia.assessment.infrastructure.StudentProfileProperties(),
+                new com.quizopia.assessment.security.admission.AdmissionProperties())) {
+            assertEquals(Map.of(), client.displayNames(Set.of(f.student)));
+            var disabled = new ClosureService(store, dependencies, f.core, properties, client);
+            var page = disabled.results(teacher, publication, 20, null);
+            assertEquals(1, page.items().size());
+            assertNull(page.items().getFirst().studentName());
+            assertEquals("ACTIVE", page.items().getFirst().state());
+        }
     }
 }
