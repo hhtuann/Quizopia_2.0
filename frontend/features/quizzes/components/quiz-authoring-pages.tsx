@@ -13,11 +13,7 @@ import {
 import { QuizopiaLogo } from "../../../components/brand/quizopia-logo";
 import { APPLICATION_HEADER_GEOMETRY } from "../../../components/ui/application-header-geometry";
 import { Alert } from "../../../components/ui/alert";
-import {
-  Button,
-  OUTLINE_LINK_CLASSES,
-  PRIMARY_LINK_CLASSES,
-} from "../../../components/ui/button";
+import { Button, PRIMARY_LINK_CLASSES } from "../../../components/ui/button";
 import { LanguageSwitcher } from "../../../components/ui/language-switcher";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
 import {
@@ -444,106 +440,13 @@ export function QuizLibraryPage() {
   );
 }
 
+/**
+ * FB-014: "Create quiz" opens a blank, deliberately UNSAVED authoring
+ * workspace. No network call happens until the teacher's first explicit
+ * Save; leaving without content creates no Quiz record.
+ */
 export function CreateQuizPage() {
-  const { t } = useI18n();
-  const localizeRef = useLocalizeRef();
-  const client = useQuizApiClient();
-  const router = useRouter();
-  const creationStarted = useRef(false);
-  const creationPageIsActive = useRef(false);
-  const [attempt, setAttempt] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (client === null) {
-      return;
-    }
-    creationPageIsActive.current = true;
-
-    if (creationStarted.current) {
-      return () => {
-        creationPageIsActive.current = false;
-      };
-    }
-    creationStarted.current = true;
-
-    void client
-      .createDraft({
-        authoringSource: "",
-        description: "",
-        title: "Untitled quiz",
-      })
-      .then((result) => {
-        if (!creationPageIsActive.current) {
-          return;
-        }
-        if (!result.ok) {
-          setError(failureMessage(result.error, localizeRef.current));
-          return;
-        }
-        router.replace(`/app/quizzes/${result.value.quizId}`);
-      });
-
-    return () => {
-      creationPageIsActive.current = false;
-    };
-  }, [attempt, client, localizeRef, router]);
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
-        <Link
-          aria-label={t("Back to Quiz Library")}
-          className="flex min-h-11 items-center rounded-lg text-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-focus"
-          href="/app/quizzes"
-        >
-          <QuizopiaLogo
-            markClassName="size-9 rounded-lg"
-            wordmarkClassName="hidden sm:flex"
-          />
-        </Link>
-        <span aria-hidden="true" className="h-6 w-px bg-border" />
-        <span className="text-sm font-semibold text-foreground-secondary">
-          {t("New quiz")}
-        </span>
-      </header>
-      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        <Surface className="w-full max-w-lg p-6 text-center sm:p-8">
-          {error ? (
-            <>
-              <Alert title={t("Quiz could not be created")} variant="danger">
-                {error}
-              </Alert>
-              <div className="mt-5 flex justify-center gap-3">
-                <Button
-                  onClick={() => {
-                    creationStarted.current = false;
-                    setError(null);
-                    setAttempt((current) => current + 1);
-                  }}
-                >
-                  {t("Try again")}
-                </Button>
-                <Link className={OUTLINE_LINK_CLASSES} href="/app/quizzes">
-                  {t("Back to library")}
-                </Link>
-              </div>
-            </>
-          ) : (
-            <div
-              className="flex items-center justify-center gap-3"
-              role="status"
-            >
-              <LoadingIndicator label={t("Creating quiz editor")} />
-              <span className="text-sm font-medium text-foreground-secondary">
-                {t("Preparing your editor…")}
-              </span>
-            </div>
-          )}
-        </Surface>
-      </div>
-    </div>
-  );
+  return <QuizAuthoringWorkspace quizId={null} />;
 }
 
 type LoadState = "loading" | "ready" | "forbidden" | "not-found" | "error";
@@ -558,6 +461,25 @@ export interface QuizEditorPageProps {
 }
 
 export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
+  return <QuizAuthoringWorkspace quizId={quizId} />;
+}
+
+/**
+ * Unsaved → created state machine (FB-014).
+ *
+ * `quizId === null` is the blank unsaved workspace: no draft GET, no
+ * createDraft POST, nothing persisted. The first explicit Save (gated on at
+ * least one recognizable question from the shared client parser) fires ONE
+ * createDraft with the full title/source payload, then router.replace's to
+ * `/app/quizzes/{quizId}`. Remounting the persisted editor after create is
+ * safe because the created draft is already server-persisted; later Saves
+ * use the ordinary updateDraft path against that same quizId.
+ */
+function QuizAuthoringWorkspace({
+  quizId,
+}: {
+  readonly quizId: string | null;
+}) {
   const { localize, t } = useI18n();
   const localizeRef = useLocalizeRef();
   const router = useRouter();
@@ -569,7 +491,9 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     (version: number) => version + 1,
     0,
   );
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadState, setLoadState] = useState<LoadState>(() =>
+    quizId === null ? "ready" : "loading",
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -577,6 +501,10 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const saveInFlight = useRef(false);
+  // The create transition has its own in-flight guard so rapid double Save
+  // clicks can never fire a second createDraft while the first is pending.
+  const createInFlight = useRef(false);
+  const [firstSaveBlocked, setFirstSaveBlocked] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
@@ -597,8 +525,17 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   useLayoutEffect(() => {
     latestInputRef.current = currentInput;
   }, [currentInput]);
+  // An unsaved new quiz is "dirty" exactly when the teacher typed anything:
+  // leaving an empty new-quiz screen needs no confirmation, while typed
+  // content keeps the ordinary discard confirmation. A persisted draft keeps
+  // the snapshot-difference semantics.
+  const hasUnsavedNewContent =
+    quizId === null &&
+    (source.trim() !== "" || title.trim() !== "" || description.trim() !== "");
   const dirty =
-    savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
+    quizId === null
+      ? hasUnsavedNewContent
+      : savedSnapshot !== null && inputSnapshot(currentInput) !== savedSnapshot;
 
   // Reuse the shared unsaved-work guard so link navigation, reloads and
   // workspace switches (which navigate via the user menu) all offer the same
@@ -626,7 +563,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   }, [focusRequestVersion, mobilePane, source]);
 
   useEffect(() => {
-    if (client === null) {
+    if (client === null || quizId === null) {
       return;
     }
     const controller = new AbortController();
@@ -674,11 +611,80 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     if (client === null || saveInFlight.current) {
       return false;
     }
+    const input = currentInput;
+
+    if (quizId === null) {
+      // FB-014 first-save gate: the draft must contain at least one
+      // recognizable question per the existing client grammar (the same
+      // analyzeQuizMarkdown the live preview uses). This is draft-level
+      // gating only — publish-level completeness is still enforced later by
+      // the authoritative backend publish validation.
+      if (analyzeQuizMarkdown(input.authoringSource).questions.length === 0) {
+        setFirstSaveBlocked(
+          localize(
+            "Add at least one recognizable question, for example {example}, then save again.",
+            {
+              example: "Câu 1 [SINGLE_CHOICE]:",
+            },
+          ),
+        );
+        return false;
+      }
+      if (createInFlight.current) {
+        return false;
+      }
+      createInFlight.current = true;
+      saveInFlight.current = true;
+      setFirstSaveBlocked(null);
+      setSaveError(null);
+      setPublishMessage(null);
+      setIsSaving(true);
+      // IDENTITY GAP (documented, not client-worked-around): createDraft
+      // posts WITHOUT an Idempotency-Key and the backend POST /api/quizzes
+      // contract has no idempotency semantics (QuizController#create always
+      // inserts), unlike Assessment create which carries an Idempotency-Key.
+      // A retry after an ambiguous network failure may therefore create a
+      // second quiz, so the failure copy below states that risk honestly
+      // and a retry requires an explicit Save click — no automatic replay.
+      // Smallest compatible backend addition: accept an optional
+      // Idempotency-Key request header on POST /api/quizzes, persist its
+      // hash with the Quiz row under a unique (owner, key) index, and on
+      // conflict return the already-created draft (200) instead of
+      // inserting a second Quiz.
+      try {
+        const result = await client.createDraft(input);
+        if (!result.ok) {
+          setSaveError(
+            `${failureMessage(result.error, localize)} ${localize(
+              "Quiz creation is not duplicate-protected yet. If the failed attempt reached the server, saving again may create a second quiz — check your library before retrying.",
+            )}`,
+          );
+          return false;
+        }
+        setSavedSnapshot(inputSnapshot(input));
+        router.replace(`/app/quizzes/${result.value.quizId}`);
+        return true;
+      } catch {
+        setSaveError(
+          `${localize(
+            "Unable to save the draft. Check your connection and retry.",
+          )} ${localize(
+            "Quiz creation is not duplicate-protected yet. If the failed attempt reached the server, saving again may create a second quiz — check your library before retrying.",
+          )}`,
+        );
+        return false;
+      } finally {
+        createInFlight.current = false;
+        saveInFlight.current = false;
+        setIsSaving(false);
+      }
+    }
+
     saveInFlight.current = true;
     setSaveError(null);
     setPublishMessage(null);
+    setFirstSaveBlocked(null);
     setIsSaving(true);
-    const input = currentInput;
     try {
       const result = await client.updateDraft(quizId, input);
       if (!result.ok) {
@@ -699,7 +705,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
   }
 
   async function publishDraft() {
-    if (client === null || isPublishing || isSaving) {
+    if (client === null || quizId === null || isPublishing || isSaving) {
       return;
     }
     setPublishError(null);
@@ -766,6 +772,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
     setServerDiagnostics([]);
     setPublishError(null);
     setPublishMessage(null);
+    setFirstSaveBlocked(null);
   }
 
   function handleOptionToggle(
@@ -902,23 +909,28 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
             disabled={isSaving || isPublishing}
             id="editor-title"
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setFirstSaveBlocked(null);
+            }}
             placeholder={t("Untitled quiz")}
             value={title}
           />
         </div>
         <div className="order-4 ml-auto flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto">
-          <Button
-            aria-expanded={historyOpen}
-            aria-haspopup="dialog"
-            className="px-3 sm:px-4"
-            disabled={isSaving || isPublishing}
-            onClick={() => setHistoryOpen(true)}
-            ref={historyTriggerRef}
-            variant="brand-outline"
-          >
-            {t("Published versions")}
-          </Button>
+          {quizId !== null ? (
+            <Button
+              aria-expanded={historyOpen}
+              aria-haspopup="dialog"
+              className="px-3 sm:px-4"
+              disabled={isSaving || isPublishing}
+              onClick={() => setHistoryOpen(true)}
+              ref={historyTriggerRef}
+              variant="brand-outline"
+            >
+              {t("Published versions")}
+            </Button>
+          ) : null}
           <Button
             className="px-3 sm:px-4"
             disabled={(!dirty && !saveError) || isSaving || isPublishing}
@@ -933,7 +945,7 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
             >
               {saveError ? (
                 <RetryIcon className="size-4" />
-              ) : dirty ? (
+              ) : quizId === null || dirty ? (
                 <SaveIcon className="size-4" />
               ) : (
                 <CheckIcon className="size-4" />
@@ -942,18 +954,20 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
                 ? t("Saving…")
                 : saveError
                   ? t("Retry save")
-                  : dirty
+                  : quizId === null || dirty
                     ? t("Save")
                     : t("Saved")}
             </span>
           </Button>
-          <Button
-            className="px-3 sm:px-5"
-            disabled={isSaving}
-            onClick={() => setPublishDialogOpen(true)}
-          >
-            {t("Publish")}
-          </Button>
+          {quizId !== null ? (
+            <Button
+              className="px-3 sm:px-5"
+              disabled={isSaving}
+              onClick={() => setPublishDialogOpen(true)}
+            >
+              {t("Publish")}
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -962,10 +976,22 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3"
         inert={historyOpen ? true : undefined}
       >
-        {saveError || publishError || publishMessage ? (
+        {firstSaveBlocked || saveError || publishError || publishMessage ? (
           <div className="shrink-0">
+            {firstSaveBlocked ? (
+              <Alert title={t("First save needs a question")} variant="warning">
+                {firstSaveBlocked}
+              </Alert>
+            ) : null}
             {saveError ? (
-              <Alert title={t("Draft was not saved")} variant="danger">
+              <Alert
+                title={
+                  quizId === null
+                    ? t("Quiz could not be created")
+                    : t("Draft was not saved")
+                }
+                variant="danger"
+              >
                 {saveError}
               </Alert>
             ) : null}
@@ -1045,23 +1071,25 @@ export function QuizEditorPage({ quizId }: QuizEditorPageProps) {
         </div>
       </div>
 
-      <PublishedVersionHistory
-        client={client}
-        onCreateAssessment={(version) => {
-          if (dirty && !window.confirm(editorLeaveMessage)) return;
-          const query = new URLSearchParams({
-            quizId: version.quizId,
-            quizVersionId: version.id,
-            versionNumber: String(version.versionNumber),
-          });
-          router.push(`/app/assessments/new?${query.toString()}`);
-        }}
-        isOpen={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        quizId={quizId}
-        refreshVersion={historyRefreshVersion}
-        triggerRef={historyTriggerRef}
-      />
+      {quizId !== null ? (
+        <PublishedVersionHistory
+          client={client}
+          onCreateAssessment={(version) => {
+            if (dirty && !window.confirm(editorLeaveMessage)) return;
+            const query = new URLSearchParams({
+              quizId: version.quizId,
+              quizVersionId: version.id,
+              versionNumber: String(version.versionNumber),
+            });
+            router.push(`/app/assessments/new?${query.toString()}`);
+          }}
+          isOpen={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          quizId={quizId}
+          refreshVersion={historyRefreshVersion}
+          triggerRef={historyTriggerRef}
+        />
+      ) : null}
 
       {publishDialogOpen ? (
         <div

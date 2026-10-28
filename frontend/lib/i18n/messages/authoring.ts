@@ -39,13 +39,13 @@ export const authoringMessages = {
     "Quiz Markdown có lỗi. Hãy xem lại chi tiết và thử lại.",
   "Quizopia got an unexpected response ({status}).":
     "Quizopia nhận được phản hồi không mong đợi ({status}).",
-  // Create-quiz transition page
-  "New quiz": "Bộ câu hỏi mới",
+  // Create-on-first-save workspace (FB-014)
   "Quiz could not be created": "Không thể tạo bộ câu hỏi",
-  "Try again": "Thử lại",
-  "Back to library": "Quay lại thư viện",
-  "Creating quiz editor": "Đang tạo trình soạn bộ câu hỏi",
-  "Preparing your editor…": "Đang chuẩn bị trình soạn…",
+  "First save needs a question": "Lần lưu đầu tiên cần một câu hỏi",
+  "Add at least one recognizable question, for example {example}, then save again.":
+    "Hãy thêm ít nhất một câu hỏi nhận dạng được, ví dụ {example}, rồi lưu lại.",
+  "Quiz creation is not duplicate-protected yet. If the failed attempt reached the server, saving again may create a second quiz — check your library before retrying.":
+    "Việc tạo bộ câu hỏi chưa được bảo vệ chống trùng lặp. Nếu lần gửi thất bại đã tới hệ thống, lưu lại có thể tạo bộ câu hỏi thứ hai — hãy kiểm tra thư viện trước khi thử lại.",
   // Focused editor chrome and states
   "You have unsaved changes. Leave the editor and discard them?":
     "Bạn có thay đổi chưa lưu. Rời trình soạn và bỏ các thay đổi đó?",

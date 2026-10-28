@@ -468,8 +468,9 @@ export async function publishExactSource(page: Page) {
   await pinEnglishUi(page);
   await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
   await page.getByRole("link", { name: "Create quiz" }).click();
-  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
-  const quizId = new URL(page.url()).pathname.split("/").at(-1)!;
+  // FB-014: author first, then the first explicit Save creates the quiz and
+  // moves to the persisted editor URL.
+  await expect(page).toHaveURL(/\/app\/quizzes\/new$/);
   await page
     .getByRole("textbox", { name: "Quiz title" })
     .fill("Isolated W3-A pinned source");
@@ -479,6 +480,8 @@ export async function publishExactSource(page: Page) {
       "Câu 1 [SINGLE_CHOICE]: Which protocol serves web pages?\n*A. HTTP\nB. FTP\nC. SSH\nD. SMTP",
     );
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
+  const quizId = new URL(page.url()).pathname.split("/").at(-1)!;
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page
@@ -509,8 +512,9 @@ export async function publishMultiQuestionSource(page: Page) {
   await pinEnglishUi(page);
   await page.getByRole("link", { name: "Quiz authoring", exact: true }).click();
   await page.getByRole("link", { name: "Create quiz" }).click();
-  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
-  const quizId = new URL(page.url()).pathname.split("/").at(-1)!;
+  // FB-014: author first, then the first explicit Save creates the quiz and
+  // moves to the persisted editor URL.
+  await expect(page).toHaveURL(/\/app\/quizzes\/new$/);
   await page
     .getByRole("textbox", { name: "Quiz title" })
     .fill("Isolated W3 Multi-Question Source");
@@ -523,6 +527,8 @@ export async function publishMultiQuestionSource(page: Page) {
         "Câu 4 [NUMERIC_FILL]: Compute 10 divided by 4.\nĐáp án: 2.50\n",
     );
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
+  const quizId = new URL(page.url()).pathname.split("/").at(-1)!;
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page
