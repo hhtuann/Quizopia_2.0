@@ -21,6 +21,7 @@ public class JdbcPublicationStore implements PublicationStore {
     private final JdbcTemplate db;
     private final Clock clock;
     private final TransactionTemplate transaction;
+    private final QuizRevocationGate revocations;
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
     private final SecureRandom random = new SecureRandom();
     private final com.quizopia.assessment.infrastructure.ClosureCursor cursor;
@@ -32,7 +33,16 @@ public class JdbcPublicationStore implements PublicationStore {
                 clock,
                 new com.quizopia.assessment.infrastructure.ClosureCursor(
                         new com.quizopia.assessment.configuration.ClosureProperties(
-                                false, false, false, false, 50, 50, "v1", Map.of())));
+                                false, false, false, false, 50, 50, "v1", Map.of())),
+                new QuizRevocationGate(db));
+    }
+
+    public JdbcPublicationStore(
+            JdbcTemplate db,
+            PlatformTransactionManager manager,
+            Clock clock,
+            com.quizopia.assessment.infrastructure.ClosureCursor cursor) {
+        this(db, manager, clock, cursor, new QuizRevocationGate(db));
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -40,10 +50,12 @@ public class JdbcPublicationStore implements PublicationStore {
             JdbcTemplate db,
             PlatformTransactionManager manager,
             Clock clock,
-            com.quizopia.assessment.infrastructure.ClosureCursor cursor) {
+            com.quizopia.assessment.infrastructure.ClosureCursor cursor,
+            QuizRevocationGate revocations) {
         this.db = db;
         this.cursor = cursor;
         this.clock = clock;
+        this.revocations = revocations;
         db.setQueryTimeout(3);
         transaction = new TransactionTemplate(manager);
         transaction.setTimeout(5);
@@ -98,6 +110,8 @@ public class JdbcPublicationStore implements PublicationStore {
     private Publication find(String sql, Object... args) {
         var found = db.query(sql, this::row, args);
         if (found.size() != 1) throw PublicationFailure.missing();
+        // Revocation fence: revoked quizzes never expose details, locators or replayed views.
+        revocations.requireQuizOpen(found.getFirst().configuration().quizId());
         return found.getFirst();
     }
 
@@ -126,7 +140,9 @@ public class JdbcPublicationStore implements PublicationStore {
         var args = new ArrayList<Object>();
         args.add(actor);
         String sql = "SELECT id,configuration->>'title' AS title,audience,state,start_at,end_at,created_at,revision,"
-                + "quiz_id,quiz_version_id,version_number FROM publications WHERE owner_id=?";
+                + "quiz_id,quiz_version_id,version_number FROM publications WHERE owner_id=?"
+                // Revoked quizzes are permanently removed content: their rows never appear.
+                + " AND NOT EXISTS(SELECT 1 FROM quiz_revocation_fences f WHERE f.quiz_id=publications.quiz_id)";
         if (query.state() != null) {
             sql += " AND state=?";
             args.add(query.state().name());
@@ -173,7 +189,10 @@ public class JdbcPublicationStore implements PublicationStore {
     }
 
     private Publication lock(UUID actor, UUID id) {
-        return find("SELECT * FROM publications WHERE id=? AND owner_id=? FOR UPDATE", id, actor);
+        var found = find("SELECT * FROM publications WHERE id=? AND owner_id=? FOR UPDATE", id, actor);
+        // The fence probe inside find ran under the row lock above, so a fence committing now
+        // either waited for this transaction or is visible to every later mutation.
+        return found;
     }
 
     public Publication replay(UUID actor, String key, PublicationConfiguration c) {
@@ -198,6 +217,8 @@ public class JdbcPublicationStore implements PublicationStore {
 
     public Publication create(UUID actor, String key, PublicationConfiguration c) {
         return tx(() -> {
+            // Fence denial precedes any durable write, including the idempotent replay below.
+            revocations.requireQuizOpen(c.quizId());
             // The durable unique replay key arbitrates concurrent insertions. The losing candidate is removed in this
             // transaction.
             UUID id = UUID.randomUUID();
@@ -271,6 +292,8 @@ public class JdbcPublicationStore implements PublicationStore {
     public Publication update(UUID actor, UUID id, long revision, PublicationConfiguration c) {
         return tx(() -> {
             var p = lock(actor, id);
+            // A draft may repoint to another Quiz; that target must also be unfenced.
+            revocations.requireQuizOpen(c.quizId());
             draft(p, revision);
             replace(p, c);
             return owned(actor, id);

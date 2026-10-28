@@ -27,6 +27,13 @@ public final class JdbcRealtimeInvalidationOutbox implements RealtimeInvalidatio
                   SELECT event_id FROM realtime_invalidation_outbox
                   WHERE state='PENDING' AND next_attempt_at<=clock_timestamp()
                     AND (lease_until IS NULL OR lease_until<=clock_timestamp())
+                    AND NOT EXISTS (
+                      SELECT 1 FROM publications p JOIN quiz_revocation_fences rf ON rf.quiz_id=p.quiz_id
+                      WHERE (realtime_invalidation_outbox.resource_kind='PUBLICATION'
+                          AND p.id=realtime_invalidation_outbox.resource_id)
+                        OR (realtime_invalidation_outbox.resource_kind='ATTEMPT'
+                          AND p.id=(SELECT a.publication_id FROM attempts a
+                                    WHERE a.id=realtime_invalidation_outbox.resource_id)))
                   ORDER BY next_attempt_at,created_at,event_id
                   LIMIT ? FOR UPDATE SKIP LOCKED
                 ) UPDATE realtime_invalidation_outbox o

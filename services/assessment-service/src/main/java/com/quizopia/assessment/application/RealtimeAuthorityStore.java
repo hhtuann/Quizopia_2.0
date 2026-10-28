@@ -16,7 +16,9 @@ public interface RealtimeAuthorityStore {
             UUID studentId,
             UUID ownerId,
             boolean active,
-            Instant checkedAt) {}
+            Instant checkedAt,
+            UUID quizId) {}
 
-    record PublicationView(UUID publicationId, UUID classroomId, UUID ownerId, boolean open, Instant checkedAt) {}
+    record PublicationView(
+            UUID publicationId, UUID classroomId, UUID ownerId, boolean open, Instant checkedAt, UUID quizId) {}
 }

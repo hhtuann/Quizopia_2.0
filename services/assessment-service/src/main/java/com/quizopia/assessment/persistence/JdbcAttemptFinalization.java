@@ -24,6 +24,7 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
     private final JdbcTemplate db;
     private final TransactionTemplate transaction;
     private final AssessmentTransactionProperties limits;
+    private final QuizRevocationGate revocations;
     private final GradingDocuments documents = new GradingDocuments();
     private final GradingPolicy grader = new GradingPolicy();
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
@@ -32,11 +33,20 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
         this(db, manager, AssessmentTransactionProperties.defaults());
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
     public JdbcAttemptFinalization(
             JdbcTemplate db, PlatformTransactionManager manager, AssessmentTransactionProperties limits) {
+        this(db, manager, limits, new QuizRevocationGate(db));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JdbcAttemptFinalization(
+            JdbcTemplate db,
+            PlatformTransactionManager manager,
+            AssessmentTransactionProperties limits,
+            QuizRevocationGate revocations) {
         this.db = db;
         this.limits = limits;
+        this.revocations = revocations;
         transaction = new TransactionTemplate(manager);
         transaction.setTimeout(limits.timeoutSeconds());
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
@@ -100,6 +110,9 @@ public class JdbcAttemptFinalization implements AttemptFinalization {
                 "SELECT configuration::text FROM publications WHERE id=? FOR UPDATE",
                 String.class,
                 publications.getFirst());
+        // Revocation fence after the owning publication row lock: no grading or terminal
+        // finalization may linearize after the fence commits (ADR-018 Phase A step 3).
+        revocations.requirePublicationOpen(publications.getFirst());
         db.query(
                 "SELECT id FROM closure_requests WHERE publication_id=? AND state IN ('PENDING','FINALIZING') ORDER BY id FOR UPDATE",
                 (r, n) -> r.getObject(1, UUID.class),

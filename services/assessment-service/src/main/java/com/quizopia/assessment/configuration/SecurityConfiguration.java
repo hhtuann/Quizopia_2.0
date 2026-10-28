@@ -15,7 +15,8 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 @org.springframework.boot.context.properties.EnableConfigurationProperties({
     ProctoringAuthorityProperties.class,
-    RealtimeAuthorityProperties.class
+    RealtimeAuthorityProperties.class,
+    AssessmentDeletionProperties.class
 })
 @Configuration
 @EnableWebSecurity
@@ -32,7 +33,8 @@ public class SecurityConfiguration {
             AssessmentFeatureProperties features,
             ClosureProperties closure,
             ProctoringAuthorityProperties proctoringAuthority,
-            RealtimeAuthorityProperties realtimeAuthority)
+            RealtimeAuthorityProperties realtimeAuthority,
+            AssessmentDeletionProperties deletion)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -61,6 +63,12 @@ public class SecurityConfiguration {
                                 return new AuthorizationDecision(
                                         com.quizopia.assessment.security.realtime.RealtimeAuthorityRoutes.permitted(
                                                 authentication.get(), realtimeAuthority));
+                            if (com.quizopia.assessment.security.deletion.SecurityRevocationRoutes.matches(
+                                    context.getRequest().getMethod(),
+                                    context.getRequest().getRequestURI()))
+                                return new AuthorizationDecision(
+                                        com.quizopia.assessment.security.deletion.SecurityRevocationRoutes.permitted(
+                                                authentication.get(), deletion));
                             var role = PublicationRoutes.requiredRole(
                                     context.getRequest().getMethod(),
                                     context.getRequest().getRequestURI());

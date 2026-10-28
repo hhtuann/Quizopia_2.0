@@ -24,6 +24,7 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     private final TransactionTemplate transaction;
     private final AssessmentTransactionProperties limits;
     private final AttemptFinalization finalizer;
+    private final QuizRevocationGate revocations;
     private final GradingDocuments documents = new GradingDocuments();
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
 
@@ -32,9 +33,20 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
             PlatformTransactionManager manager,
             AssessmentTransactionProperties limits,
             AttemptFinalization finalizer) {
+        this(db, manager, limits, finalizer, new QuizRevocationGate(db));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JdbcStudentAttemptStore(
+            JdbcTemplate db,
+            PlatformTransactionManager manager,
+            AssessmentTransactionProperties limits,
+            AttemptFinalization finalizer,
+            QuizRevocationGate revocations) {
         this.db = db;
         this.limits = limits;
         this.finalizer = finalizer;
+        this.revocations = revocations;
         transaction = new TransactionTemplate(manager);
         transaction.setTimeout(limits.timeoutSeconds());
     }
@@ -82,7 +94,13 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
     }
 
     private record Pub(
-            UUID id, PublicationConfiguration configuration, String state, UUID snapshot, String locator, int max) {
+            UUID id,
+            PublicationConfiguration configuration,
+            String state,
+            UUID snapshot,
+            String locator,
+            int max,
+            UUID quiz) {
         public String toString() {
             return "Pub[redacted]";
         }
@@ -97,9 +115,13 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                         r.getString("state"),
                         r.getObject("snapshot_id", UUID.class),
                         r.getString("private_locator"),
-                        r.getInt("max_attempts")),
+                        r.getInt("max_attempts"),
+                        r.getObject("quiz_id", UUID.class)),
                 id);
         if (rows.isEmpty()) throw error(404, "PUBLICATION_NOT_FOUND");
+        // Revocation fence: within mutations this probe runs after the row lock above, and
+        // therefore linearizes with the fence installer's publication-row locking (ADR-018).
+        revocations.requireQuizOpen(rows.getFirst().quiz());
         return rows.getFirst();
     }
 

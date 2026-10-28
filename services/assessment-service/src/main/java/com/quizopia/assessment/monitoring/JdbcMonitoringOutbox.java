@@ -28,6 +28,10 @@ public final class JdbcMonitoringOutbox implements MonitoringOutbox {
                     WITH candidates AS (
                       SELECT event_id FROM assessment_monitoring_outbox
                       WHERE state='PENDING' AND (lease_until IS NULL OR lease_until<=clock_timestamp())
+                        AND NOT EXISTS (
+                          SELECT 1 FROM attempts a JOIN publications p ON p.id=a.publication_id
+                            JOIN quiz_revocation_fences rf ON rf.quiz_id=p.quiz_id
+                          WHERE a.id=assessment_monitoring_outbox.attempt_id)
                       ORDER BY last_attempt_at NULLS FIRST,created_at,event_id
                       LIMIT ? FOR UPDATE SKIP LOCKED
                     ) UPDATE assessment_monitoring_outbox o

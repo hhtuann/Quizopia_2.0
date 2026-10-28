@@ -21,6 +21,7 @@ public class JdbcClosureStore implements ClosureStore {
     private final TransactionTemplate transaction;
     private final AssessmentTransactionProperties limits;
     private final ClosureCursor cursor;
+    private final QuizRevocationGate revocations;
     private final JsonMapper json = JsonMapper.builder().findAndAddModules().build();
 
     public JdbcClosureStore(
@@ -28,9 +29,20 @@ public class JdbcClosureStore implements ClosureStore {
             PlatformTransactionManager manager,
             AssessmentTransactionProperties limits,
             ClosureCursor cursor) {
+        this(db, manager, limits, cursor, new QuizRevocationGate(db));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JdbcClosureStore(
+            JdbcTemplate db,
+            PlatformTransactionManager manager,
+            AssessmentTransactionProperties limits,
+            ClosureCursor cursor,
+            QuizRevocationGate revocations) {
         this.db = db;
         this.limits = limits;
         this.cursor = cursor;
+        this.revocations = revocations;
         transaction = new TransactionTemplate(manager);
         transaction.setTimeout(limits.timeoutSeconds());
     }
@@ -72,7 +84,7 @@ public class JdbcClosureStore implements ClosureStore {
         if (!now().isBefore(actor.expiresAt())) throw error(401, "UNAUTHENTICATED");
     }
 
-    private record Pub(UUID id, UUID owner, String state, long revision, Instant end, Instant closed) {}
+    private record Pub(UUID id, UUID owner, String state, long revision, Instant end, Instant closed, UUID quiz) {}
 
     private Pub pub(Teacher actor, UUID id) {
         var rows = db.query(
@@ -83,10 +95,13 @@ public class JdbcClosureStore implements ClosureStore {
                         r.getString("state"),
                         r.getLong("revision"),
                         instant(r, "end_at"),
-                        instant(r, "closed_at")),
+                        instant(r, "closed_at"),
+                        r.getObject("quiz_id", UUID.class)),
                 id,
                 actor.id());
         if (rows.size() != 1) throw error(404, "PUBLICATION_NOT_FOUND");
+        // Fence probe under the row lock: closure commands, results and replays all route here.
+        revocations.requireQuizOpen(rows.getFirst().quiz());
         expiry(actor);
         return rows.getFirst();
     }
@@ -418,7 +433,14 @@ public class JdbcClosureStore implements ClosureStore {
     @Override
     public List<Work> candidates(int limit) {
         return safe(() -> db.query(
-                "SELECT m.publication_id,m.closure_request_id,m.attempt_id,m.student_id,m.state,m.next_work_at AS work_at FROM closure_request_members m JOIN closure_requests c ON c.id=m.closure_request_id WHERE c.state IN ('PENDING','FINALIZING') AND (m.state IN ('NOTICE_PENDING','NOTICE_PUBLISHED') AND m.next_work_at<=assessment_time() OR m.state='NOTICE_CONFIRMED' AND m.closure_cutoff_at<=assessment_time()) UNION ALL SELECT a.publication_id,c.id,a.id,a.student_id,'BOUNDED_TIMEOUT',a.deadline_at FROM attempts a JOIN closure_requests c ON c.publication_id=a.publication_id WHERE c.state IN ('PENDING','FINALIZING') AND a.state='ACTIVE' AND a.deadline_at<=assessment_time() ORDER BY work_at,closure_request_id,attempt_id LIMIT ?",
+                "SELECT m.publication_id,m.closure_request_id,m.attempt_id,m.student_id,m.state,m.next_work_at AS work_at FROM closure_request_members m JOIN closure_requests c ON c.id=m.closure_request_id"
+                        // Revoked quizzes stop all background closure work; rows remain for purge.
+                        + " JOIN publications rev_pz ON rev_pz.id=m.publication_id"
+                        + " AND NOT EXISTS(SELECT 1 FROM quiz_revocation_fences rf WHERE rf.quiz_id=rev_pz.quiz_id)"
+                        + " WHERE c.state IN ('PENDING','FINALIZING') AND (m.state IN ('NOTICE_PENDING','NOTICE_PUBLISHED') AND m.next_work_at<=assessment_time() OR m.state='NOTICE_CONFIRMED' AND m.closure_cutoff_at<=assessment_time()) UNION ALL SELECT a.publication_id,c.id,a.id,a.student_id,'BOUNDED_TIMEOUT',a.deadline_at FROM attempts a JOIN closure_requests c ON c.publication_id=a.publication_id"
+                        + " JOIN publications rev_pz2 ON rev_pz2.id=a.publication_id"
+                        + " AND NOT EXISTS(SELECT 1 FROM quiz_revocation_fences rf2 WHERE rf2.quiz_id=rev_pz2.quiz_id)"
+                        + " WHERE c.state IN ('PENDING','FINALIZING') AND a.state='ACTIVE' AND a.deadline_at<=assessment_time() ORDER BY work_at,closure_request_id,attempt_id LIMIT ?",
                 (r, n) -> new Work(
                         r.getObject(1, UUID.class),
                         r.getObject(2, UUID.class),
@@ -509,7 +531,10 @@ public class JdbcClosureStore implements ClosureStore {
     }
 
     private static final String NOTIFICATION =
-            "SELECT n.*,m.publication_id,m.confirmed_notice_at,m.closure_cutoff_at,m.state AS member_state,c.state AS request_state,a.state AS attempt_state,a.result_id,assessment_time() AS server_now FROM assessment_notifications n JOIN closure_request_members m ON m.closure_request_id=n.closure_request_id AND m.attempt_id=n.attempt_id AND m.student_id=n.recipient_id JOIN closure_requests c ON c.id=m.closure_request_id JOIN attempts a ON a.id=m.attempt_id";
+            "SELECT n.*,m.publication_id,m.confirmed_notice_at,m.closure_cutoff_at,m.state AS member_state,c.state AS request_state,a.state AS attempt_state,a.result_id,assessment_time() AS server_now FROM assessment_notifications n JOIN closure_request_members m ON m.closure_request_id=n.closure_request_id AND m.attempt_id=n.attempt_id AND m.student_id=n.recipient_id JOIN closure_requests c ON c.id=m.closure_request_id JOIN attempts a ON a.id=m.attempt_id"
+                    // Revoked quizzes never surface closure notices in any recipient inbox.
+                    + " JOIN publications rev_pz ON rev_pz.id=m.publication_id"
+                    + " AND NOT EXISTS(SELECT 1 FROM quiz_revocation_fences rf WHERE rf.quiz_id=rev_pz.quiz_id)";
 
     private Notification notificationRow(ResultSet r, int index) throws SQLException {
         String status = "PREPARING",
