@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   HttpRequest,
   HttpTransport,
@@ -78,6 +78,14 @@ function deferred<T>() {
 }
 
 describe("auth session service", () => {
+  // The per-account workspace preference persists across page loads, so
+  // storage must be hermetic between tests or one test's persona leaks
+  // into the next test's restored snapshot.
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+
   it("updates the in-memory profile after 204 without rotating tokens, and clears with null", async () => {
     const requests: HttpRequest[] = [];
     const service = createAuthSessionService({
@@ -821,6 +829,8 @@ describe("auth session service", () => {
       password: "secret",
     });
 
+    // Plain login/bootstrap persists nothing — the workspace preference is
+    // written only on an explicit switchWorkspace, never during login.
     expect(localStorageSet).not.toHaveBeenCalled();
     expect(localStorageRemove).not.toHaveBeenCalled();
     expect(window.localStorage.length).toBe(0);

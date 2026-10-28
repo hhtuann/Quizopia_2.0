@@ -1513,10 +1513,7 @@ export function AttemptScreen({
           </Alert>
         ) : null}
         {authorityPaused ? (
-          <Alert
-            title={t("Status check required")}
-            variant="warning"
-          >
+          <Alert title={t("Status check required")} variant="warning">
             {t(
               "Answers and final actions stay paused until the current state is confirmed.",
             )}

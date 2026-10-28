@@ -12,6 +12,8 @@ export const studentMessages = {
   "Switch workspace to organize your learning.":
     "Chuyển không gian làm việc để sắp xếp việc học của bạn.",
   "Assessment access unavailable": "Không thể truy cập bài kiểm tra",
+  "The authenticated request service is unavailable. Sign in again before continuing.":
+    "Dịch vụ yêu cầu đã đăng nhập hiện không khả dụng. Hãy đăng nhập lại trước khi tiếp tục.",
   // Authorized publication preview ("Audience", "Attempt duration",
   // "{minutes} minutes", "Monitoring" and "Finalized" live in the assessment
   // catalog; "Revision {revision}" and "Publication ID" also live there.)
@@ -134,6 +136,8 @@ export const studentMessages = {
     "Bài làm vẫn đang diễn ra. Hãy thử lại thao tác đang chờ.",
   "This action may not have finished. Leave anyway?":
     "Thao tác này có thể chưa xong. Vẫn rời trang?",
+  "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?":
+    "Kết quả của thao tác này chưa được xác định và khóa khôi phục chính xác chỉ còn trong bộ nhớ. Vẫn rời trang?",
   // Terminal attempt panel
   "Attempt submitted": "Đã nộp bài",
   "Attempt abandoned": "Đã bỏ bài",
@@ -154,6 +158,7 @@ export const studentMessages = {
   // Question panel and per-question save actions
   "Question {number} · {type}": "Câu hỏi {number} · {type}",
   "Retry exact save": "Thử lại đúng lần lưu",
+  "Check server": "Kiểm tra máy chủ",
   "Check status": "Kiểm tra trạng thái",
   "Save this draft": "Lưu bản nháp này",
   // Submission bar and confirmation dialogs
