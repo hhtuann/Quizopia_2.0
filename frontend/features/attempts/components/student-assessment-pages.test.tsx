@@ -56,8 +56,10 @@ function withAuth(element: React.ReactElement) {
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 const ephemeral = vi.hoisted(() => ({
-  getPublicLocator: vi.fn(() => null),
+  getPublicLocator: vi.fn((): string | null => null),
   rememberPublicLocator: vi.fn(),
+  getPublicationTitle: vi.fn((): string | null => null),
+  rememberPublicationTitle: vi.fn(),
 }));
 const monitoringMock = vi.hoisted(() => ({
   controller: {
@@ -867,5 +869,293 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
         name: /retry monitoring verification/i,
       }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Focused attempt workspace", () => {
+  const workspaceAttempt: AttemptView = {
+    ...attempt,
+    deadlineAt: null,
+    durationMinutes: 0,
+    questions: [
+      {
+        number: 1,
+        type: "SINGLE_CHOICE",
+        stemMarkdown: "Choose alpha.",
+        options: [
+          { label: "A", markdown: "Alpha" },
+          { label: "B", markdown: "Beta" },
+        ],
+      },
+      {
+        number: 2,
+        type: "NUMERIC_FILL",
+        stemMarkdown: "Enter token.",
+        options: [],
+      },
+      {
+        number: 3,
+        type: "TRUE_FALSE_MATRIX",
+        stemMarkdown: "Judge statements.",
+        options: [
+          { label: "A", markdown: "Statement A" },
+          { label: "B", markdown: "Statement B" },
+          { label: "C", markdown: "Statement C" },
+          { label: "D", markdown: "Statement D" },
+        ],
+      },
+    ],
+    answers: [
+      {
+        questionNumber: 1,
+        answer: { type: "SINGLE_CHOICE", optionLabel: null },
+      },
+      { questionNumber: 2, answer: { type: "NUMERIC_FILL", value: null } },
+      {
+        questionNumber: 3,
+        answer: {
+          type: "TRUE_FALSE_MATRIX",
+          judgments: { A: null, B: null, C: null, D: null },
+        },
+      },
+    ],
+  };
+
+  it("renders every question card in canonical order with type labels and stable navigator links", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    const stems = screen.getAllByRole("heading", { level: 2 });
+    expect(stems.map((heading) => heading.textContent)).toEqual([
+      "Choose alpha.",
+      "Enter token.",
+      "Judge statements.",
+    ]);
+    expect(screen.getByText("Question 1 · SINGLE CHOICE")).toBeVisible();
+    expect(screen.getByText("Question 2 · NUMERIC FILL")).toBeVisible();
+    expect(screen.getByText("Question 3 · TRUE FALSE MATRIX")).toBeVisible();
+    // Navigator boxes address questions by their stable canonical numbers.
+    expect(
+      screen.getByRole("button", { name: /^Question 2, Unanswered/ }),
+    ).toBeVisible();
+  });
+
+  it("shows no countdown at all for an unlimited attempt while submit stays available", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Informative countdown")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit attempt" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Abandon attempt" }),
+    ).toBeVisible();
+  });
+
+  it("shows the compact countdown and deadline only when a deadline exists", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={{ ...attempt, deadlineAt: "2026-10-16T08:40:00Z" }}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(screen.getByRole("timer")).toBeInTheDocument();
+    // Compact timer: time only, no visible explanatory label text.
+    expect(screen.getByRole("timer").textContent).toMatch(
+      /^\d{2,}:\d{2}:\d{2}$/,
+    );
+    expect(screen.queryByText("Informative countdown")).not.toBeInTheDocument();
+    expect(screen.getByText(/^Deadline /)).toBeVisible();
+  });
+
+  it("tracks answered versus unanswered questions in the navigator without implying persistence", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    // Before any edit every box reports unanswered with the saved phase.
+    expect(
+      screen.getByRole("button", { name: "Question 1, Unanswered · Saved" }),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("radio", { name: /A.*Alpha/ }));
+    // Answered but only a local draft: the label never claims the save landed.
+    expect(
+      screen.getByRole("button", {
+        name: "Question 1, Answered · Unsaved draft",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Question 2, Unanswered · Saved" }),
+    ).toBeVisible();
+    expect(screen.getByText("1 of 3 answered")).toBeVisible();
+  });
+
+  it("moves the current indicator through stable question numbers on navigator jumps", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    const first = screen.getByRole("button", {
+      name: "Question 1, Unanswered · Saved",
+    });
+    expect(first).toHaveAttribute("aria-current", "true");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Question 3, Unanswered · Saved" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Question 3, Unanswered · Saved" }),
+    ).toHaveAttribute("aria-current", "true");
+    expect(first).not.toHaveAttribute("aria-current");
+  });
+
+  it("flags questions from the card toggle and reflects them in the navigator without touching answers", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    // Flag question 2 from its card toggle.
+    const toggle = screen.getByRole("button", {
+      name: "Flag question 2",
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(
+      screen.getByRole("button", { name: "Unflag question 2" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // The navigator box reports the flag; the accessible label keeps the
+    // underlying answered state available.
+    expect(
+      screen.getByRole("button", {
+        name: "Question 2, Flagged · Unanswered · Saved",
+      }),
+    ).toBeVisible();
+    // Flagging never mutates answers or autosave.
+    expect(api.save).not.toHaveBeenCalled();
+    // Unflagging returns the box to its underlying appearance.
+    fireEvent.click(screen.getByRole("button", { name: "Unflag question 2" }));
+    expect(
+      screen.getByRole("button", { name: "Question 2, Unanswered · Saved" }),
+    ).toBeVisible();
+  });
+
+  it("shows the authorized preview title and no technical chrome; candidate line only with a session user", () => {
+    const api = client();
+    vi.mocked(ephemeral.getPublicationTitle).mockReturnValue(
+      "Kiểm tra Toán học — Chương 1",
+    );
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={workspaceAttempt}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Kiểm tra Toán học — Chương 1" }),
+    ).toBeVisible();
+    // No session user in this harness: the candidate line stays hidden
+    // rather than rendering an empty label.
+    expect(screen.queryByText(/^Candidate: /)).not.toBeInTheDocument();
+    // Technical metadata stays out of the visible header.
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(workspaceAttempt.attemptId),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Attempt 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Revision 0")).not.toBeInTheDocument();
+    vi.mocked(ephemeral.getPublicationTitle).mockReturnValue(null);
+  });
+
+  it("header renders the candidate line for a session student and a compact timer", async () => {
+    const { AttemptWorkspaceHeader } =
+      await import("./attempt-workspace-header");
+    render(
+      withAuth(
+        <AttemptWorkspaceHeader
+          actionsDisabled={false}
+          answeredCount={2}
+          onBack={() => {}}
+          remainingLabel="00:29:49"
+          savePhase="saved"
+          showActions
+          studentName="learner01"
+          title="Kiểm tra Toán học"
+          totalCount={4}
+          realtime={<span />}
+        />,
+      ),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Kiểm tra Toán học" }),
+    ).toBeVisible();
+    expect(screen.getByText("Candidate: learner01")).toBeVisible();
+    expect(screen.getByRole("timer").textContent).toBe("00:29:49");
+    // The timer carries its accessible label without visible caption text.
+    expect(screen.queryByText("Remaining time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Informative countdown")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Server time and refreshed status are authoritative."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides terminal actions once the attempt is no longer ACTIVE", () => {
+    const api = client();
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={{ ...workspaceAttempt, state: "SUBMITTED" }}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Submit attempt" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Abandon attempt" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Attempt submitted")).toBeVisible();
   });
 });

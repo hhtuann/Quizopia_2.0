@@ -64,6 +64,17 @@ async function switchToTeaching(page: Page) {
     await gate.click();
     return;
   }
+  // With the persisted workspace preference, a reload keeps TEACHING and no
+  // gate renders — if a Teaching surface is already up, nothing to do.
+  const alreadyTeaching = await page
+    .getByRole("heading", { name: "Quiz authoring" })
+    .or(page.getByRole("textbox", { name: "Quiz title" }))
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (alreadyTeaching) {
+    return;
+  }
   const userMenu = page.getByRole("button", { name: /Open user menu/ });
   await userMenu.click();
   await page.getByRole("menuitem", { name: "Switch to Teaching" }).click();
@@ -1026,6 +1037,56 @@ test("range selection touching a marker suppresses autocomplete until it collaps
       .getByRole("listbox", { name: "Quiz Markdown suggestions" })
       .getByRole("option"),
   ).toHaveCount(4);
+});
+
+test("NUMERIC_FILL empty answer line offers and inserts the canonical Đáp án marker", async ({
+  page,
+}) => {
+  await mockTeacherBootstrap(page);
+  const source = "Câu 1 [NUMERIC_FILL]: Giá trị của 10 / 4?";
+  await page.route(`**/api/quizzes/${quizId}/draft`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      status: 200,
+      body: JSON.stringify({
+        quizId,
+        title: "Numeric completion quiz",
+        description: "Numeric completion coverage",
+        authoringSource: source,
+        createdAt: "2026-09-30T12:00:00Z",
+        updatedAt: "2026-09-30T12:30:00Z",
+      }),
+    });
+  });
+
+  await page.goto(`/app/quizzes/${quizId}`);
+  await switchToTeaching(page);
+  const editor = page.getByRole("textbox", { name: "Quiz Markdown source" });
+  await editor.evaluate((element, offset) => {
+    const textarea = element as HTMLTextAreaElement;
+    textarea.focus();
+    textarea.setSelectionRange(offset, offset);
+    textarea.dispatchEvent(new Event("select", { bubbles: true }));
+  }, source.length);
+
+  await editor.press("Enter");
+  const suggestionList = page.getByRole("listbox", {
+    name: "Quiz Markdown suggestions",
+  });
+  await expect(suggestionList).toBeVisible();
+  await expect(suggestionList.getByRole("option")).toHaveText(["Đáp án:"]);
+  await editor.press("Enter");
+
+  const completed = `${source}\nĐáp án: `;
+  await expect(editor).toHaveValue(completed);
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => {
+        const textarea = element as HTMLTextAreaElement;
+        return { end: textarea.selectionEnd, start: textarea.selectionStart };
+      }),
+    )
+    .toEqual({ end: completed.length, start: completed.length });
 });
 
 test("preview correctness navigation keeps editor overlays aligned near the source end", async ({

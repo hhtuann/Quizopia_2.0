@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useI18n } from "../../lib/i18n/provider";
-import { LanguageSwitcher } from "../../components/ui/language-switcher";
+import { LanguageMenu } from "../../components/ui/language-menu";
 import type { ReactNode } from "react";
 import { QuizopiaLogo } from "../../components/brand/quizopia-logo";
 import { PageContainer } from "../../components/ui/page-container";
@@ -74,7 +74,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
               <QuizopiaLogo />
             </Link>
             <div className="mt-3 flex justify-center">
-              <LanguageSwitcher />
+              <LanguageMenu />
             </div>
 
             <Surface className="mt-6 border-primary/10 p-6 shadow-[0_20px_65px_-25px_rgba(79,70,229,0.25)] sm:p-9">

@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { HttpTransport } from "../../lib/api/http-transport";
 import { AuthProvider, useAuth, type AuthContextValue } from "./auth-provider";
 import { createAuthenticatedUser } from "./model/authenticated-user";
@@ -14,6 +14,13 @@ import { createAuthSessionService } from "./session/auth-session-service";
 import { createSessionRuntime } from "./session/session-runtime";
 
 const userId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
+
+// The workspace persona now persists per-account in localStorage; earlier
+// tests in this file switch workspaces for the same fixture identity, so
+// clear the preference between tests to keep each bootstrap deterministic.
+afterEach(() => {
+  globalThis.localStorage?.removeItem(`quizopia-workspace:${userId}`);
+});
 
 describe("AuthProvider", () => {
   it("exposes session identity and workspace semantics without credentials", () => {

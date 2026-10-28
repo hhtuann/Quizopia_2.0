@@ -2,7 +2,28 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-26 (UX feedback round 1 branch checkpoint; T4/T3 checkpoints below; historical merged checkpoint retained)
+> **Last updated:** 2026-10-26 (UI/UX Round 2 + amendment branch; Round-1 checkpoint below; T4/T3 checkpoints retained)
+
+## UI/UX Round 2 + amendment — awaiting review, not merged
+
+`feature/frontend-attempt-workspace-polish` (baseline merged PR #113
+`0a64a12`) delivers UX-07 (focused Student Attempt workspace: dedicated
+sticky header with LanguageMenu, vertical question list with stable
+question-number identity, desktop sticky/mobile collapsible navigator,
+unchanged submit/abandon/autosave/realtime/proctoring semantics), UX-08 (all
+standalone language dropdowns removed; shared `LanguageMenu` popover on
+landing/auth/editor + account menu in the app shell; `language-switcher.tsx`
+deleted), UX-09 (NUMERIC_FILL `Đáp án:` autocomplete through the existing
+grammar engine — empty-fragment offer enabled, no parser change), plus the
+earlier amendment UX-10 (rendered-geometry dropdown chevron fix with
+regression) and UX-11 (**BLOCKED FOR LEADER CONTRACT APPROVAL**; package at
+`docs/decisions/ux11-student-names-architecture-package.md`). Verification:
+850 Vitest / 142 Playwright (2 documented parallel-load flakes pass in
+isolation) / typecheck / lint / format / build green, and **18/18 real-runtime
+assertions** through the new attempt workspace (fresh OPEN publication, real
+entry/start/autosave/locale-switch/submit/100.00% grading). Production
+**NO-GO** and **BR-01 PENDING** unchanged. Full record:
+[ux-round2-verification.md](ux-round2-verification.md). PR **#114** open.
 
 ## UX feedback round 1 — awaiting review, not merged
 
