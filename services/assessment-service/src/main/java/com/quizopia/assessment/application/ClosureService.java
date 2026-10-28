@@ -2,6 +2,8 @@ package com.quizopia.assessment.application;
 
 import com.quizopia.assessment.configuration.ClosureProperties;
 import com.quizopia.assessment.domain.attempt.AttemptRecord.Reason;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -11,16 +13,19 @@ public class ClosureService {
     private final ClosureDependencies dependencies;
     private final AttemptFinalization finalizer;
     private final ClosureProperties properties;
+    private final StudentProfiles profiles;
 
     public ClosureService(
             ClosureStore store,
             ClosureDependencies dependencies,
             AttemptFinalization finalizer,
-            ClosureProperties properties) {
+            ClosureProperties properties,
+            StudentProfiles profiles) {
         this.store = store;
         this.dependencies = dependencies;
         this.finalizer = finalizer;
         this.properties = properties;
+        this.profiles = profiles;
     }
 
     public ClosureViews.Reply command(ClosureStore.Teacher actor, ClosureStore.Command command) {
@@ -73,7 +78,25 @@ public class ClosureService {
 
     public ClosureViews.Page<ClosureViews.TeacherRow> results(
             ClosureStore.Teacher actor, UUID publication, int limit, String cursor) {
-        return store.results(actor, publication, limit, cursor);
+        // Ownership and page authorization complete (root transaction committed) before any
+        // profile lookup; one bounded batch of only the CURRENT page ids, no cache, fail-open.
+        var page = store.results(actor, publication, limit, cursor);
+        if (page.items().isEmpty()) return page;
+        var ids = new LinkedHashSet<UUID>();
+        for (var row : page.items()) if (row.studentId() != null) ids.add(row.studentId());
+        if (ids.isEmpty()) return page;
+        var names = profiles.displayNames(ids);
+        if (names.isEmpty()) return page;
+        var enriched = new ArrayList<ClosureViews.TeacherRow>(page.items().size());
+        for (var row : page.items())
+            enriched.add(new ClosureViews.TeacherRow(
+                    row.attemptId(),
+                    row.studentId(),
+                    row.ordinal(),
+                    row.state(),
+                    row.result(),
+                    names.get(row.studentId())));
+        return new ClosureViews.Page<>(enriched, page.nextCursor());
     }
 
     public ClosureViews.Page<ClosureViews.Notification> inbox(UUID actor, int limit, String cursor) {

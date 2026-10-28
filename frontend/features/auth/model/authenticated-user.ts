@@ -3,6 +3,7 @@ export const AUTH_ROLES = ["STUDENT", "TEACHER", "ADMIN"] as const;
 export type AuthRole = (typeof AUTH_ROLES)[number];
 
 export interface AuthenticatedUser {
+  readonly displayName?: string | null;
   readonly email: string;
   readonly id: string;
   readonly roles: readonly AuthRole[];
@@ -16,6 +17,7 @@ export function isAuthRole(value: unknown): value is AuthRole {
 }
 
 export function createAuthenticatedUser(input: {
+  readonly displayName?: string | null;
   readonly email: string;
   readonly id: string;
   readonly roles: readonly unknown[];
@@ -44,6 +46,7 @@ export function createAuthenticatedUser(input: {
   }
 
   return Object.freeze({
+    displayName: input.displayName ?? null,
     email: input.email,
     id: input.id,
     roles: Object.freeze(roles),

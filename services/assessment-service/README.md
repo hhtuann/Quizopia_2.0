@@ -59,6 +59,30 @@ CLOSE, REQUEST/CANCEL/COMPLETE and the recipient-owned inbox. See
 The internal finalizer requires a root transaction; callers must establish current
 authority separately. The bounded closure worker defaults OFF.
 
+## FB-012 owner-results display names
+
+`GET /publications/{id}/results` adds a nullable `studentName` (contract `1.5.0`)
+resolved AFTER ownership and page authorization commit: one bounded direct
+service-to-service Identity batch (`POST /internal/security/user-profiles/batch`,
+SERVICE JWT scope `identity.user-profile.read`, <=100 distinct CURRENT-page ids,
+unknown ids omitted). The lookup is fail-open — any Identity failure, non-200 or
+defensively invalid entry leaves `studentName` null while the authorized rows,
+scores and cursor are returned unchanged and no error surfaces to the Teacher.
+Zero result-name cache (Leader decision #115), no N+1, no client-supplied mapping,
+no public/Gateway route for the internal Identity call. Controlled by
+`quizopia.student-profiles.enabled` (env `ASSESSMENT_STUDENT_PROFILE_ENABLED`,
+default false) with short independent
+connect/response/total timeouts so an Identity outage cannot stall the page;
+requires Identity admission credentials when enabled. The exact wire schema is in
+`contracts/publications.openapi.yaml`.
+
+Names accept Identity display names up to 100 Unicode code points and legacy
+username fallbacks up to 255, without truncation. The private batch response is
+capped at 100 entries and 128 KiB (including a full page of Unicode legacy
+usernames). Invalid names/unknown IDs are omitted; Identity 429 rate limits,
+transport errors and timeouts yield null `studentName` while preserving
+authorized rows. No name cache is retained.
+
 Default local port: 8084. See `.env.example` and the root development documentation for configuration.
 
 ## LD-05 admission boundary

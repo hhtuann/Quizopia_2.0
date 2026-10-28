@@ -5,6 +5,7 @@ import type {
   TeacherResultRow,
 } from "../../assessments/api/publication-contract.generated";
 import type { TeacherResultsApiClient } from "../api/teacher-results-api-client";
+import { teacherResultsSchema } from "../model/teacher-results";
 import {
   PublicationResultsSection,
   TeacherResultsScreen,
@@ -96,6 +97,37 @@ describe("Teacher Publication results", () => {
       name: "Scrollable Publication attempt results",
     });
     expect(region).toHaveAttribute("tabindex", "0");
+  });
+
+  it("shows the resolved student name prominently with the ID secondary", async () => {
+    const api = client();
+    vi.mocked(api.results).mockResolvedValue({
+      ok: true,
+      status: 200,
+      value: {
+        items: [{ ...submitted, studentName: "Nguyễn Văn An" }],
+        nextCursor: null,
+      },
+    });
+    render(<TeacherResultsScreen client={api} publicationId={publicationId} />);
+    expect(await screen.findByText("Nguyễn Văn An")).toBeInTheDocument();
+    // The ID remains visible as secondary identification.
+    expect(screen.getByText(studentId)).toBeInTheDocument();
+  });
+
+  it("falls back to the student ID alone when no name is available", async () => {
+    const api = client();
+    vi.mocked(api.results).mockResolvedValue({
+      ok: true,
+      status: 200,
+      value: { items: [submitted], nextCursor: null },
+    });
+    render(<TeacherResultsScreen client={api} publicationId={publicationId} />);
+    expect(await screen.findByText(studentId)).toBeInTheDocument();
+    // No fabricated name cell content beyond the ID.
+    expect(
+      screen.getByTitle("Student ID shown because no name is available"),
+    ).toBeInTheDocument();
   });
 
   it("paginates with the exact opaque cursor and keeps real Attempt IDs", async () => {
@@ -192,5 +224,49 @@ describe("Teacher Publication results", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("100.00%")).toBeInTheDocument();
     expect(screen.queryByText("No results yet")).not.toBeInTheDocument();
+  });
+});
+
+describe("teacherResultsSchema wire contract", () => {
+  it("accepts the real backend row shape including the enriched studentName", () => {
+    const parsed = teacherResultsSchema.safeParse({
+      items: [
+        {
+          attemptId: submittedAttemptId,
+          studentId,
+          ordinal: exactResult.ordinal,
+          state: "SUBMITTED",
+          studentName: "Nguyễn Minh Anh FB012",
+          result: exactResult,
+        },
+        {
+          attemptId: activeAttemptId,
+          studentId,
+          ordinal: "2",
+          state: "ACTIVE",
+          studentName: null,
+          result: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a fabricated name longer than the wire bound", () => {
+    const parsed = teacherResultsSchema.safeParse({
+      items: [
+        {
+          attemptId: submittedAttemptId,
+          studentId,
+          ordinal: exactResult.ordinal,
+          state: "SUBMITTED",
+          studentName: "x".repeat(256),
+          result: exactResult,
+        },
+      ],
+      nextCursor: null,
+    });
+    expect(parsed.success).toBe(false);
   });
 });

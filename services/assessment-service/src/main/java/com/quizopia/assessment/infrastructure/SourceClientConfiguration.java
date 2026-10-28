@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.*;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(SourceProperties.class)
+@EnableConfigurationProperties({SourceProperties.class, StudentProfileProperties.class})
 public class SourceClientConfiguration {
     @Bean(destroyMethod = "close")
     ProctoringTargetClient proctoringTargetClient(
@@ -18,5 +18,10 @@ public class SourceClientConfiguration {
     @Bean(destroyMethod = "close")
     PublicationSourceClient publicationSourceClient(SourceProperties sources, AdmissionProperties admission) {
         return new PublicationSourceClient(sources, admission);
+    }
+
+    @Bean(destroyMethod = "close")
+    StudentProfileClient studentProfileClient(StudentProfileProperties profiles, AdmissionProperties admission) {
+        return new StudentProfileClient(profiles, admission);
     }
 }

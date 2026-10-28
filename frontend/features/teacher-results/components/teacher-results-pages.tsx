@@ -306,7 +306,7 @@ export function PublicationResultsSection({
                   {t("Attempt ID")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
-                  {t("Student ID")}
+                  {t("Student")}
                 </th>
                 <th className="px-4 py-3 font-semibold" scope="col">
                   {t("State")}
@@ -339,8 +339,26 @@ export function PublicationResultsSection({
                       {row.attemptId}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {row.studentId}
+                  <td className="px-4 py-3">
+                    {row.studentName == null ? (
+                      <span
+                        className="break-all font-mono text-xs text-foreground-secondary"
+                        title={t(
+                          "Student ID shown because no name is available",
+                        )}
+                      >
+                        {row.studentId}
+                      </span>
+                    ) : (
+                      <span className="block min-w-0">
+                        <span className="break-words font-semibold">
+                          {row.studentName}
+                        </span>
+                        <span className="mt-0.5 block break-all font-mono text-[0.65rem] text-foreground-muted">
+                          {row.studentId}
+                        </span>
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 tabular-nums">
                     <StateBadge variant={attemptStateVariants[row.state]}>

@@ -24,6 +24,9 @@ public class UserAccountEntity {
     @Column(name = "account_status", length = 64)
     private String accountStatus;
 
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
     @Column(name = "email_verified_at")
     private Instant emailVerifiedAt;
 
@@ -71,6 +74,14 @@ public class UserAccountEntity {
 
     public String getAccountStatus() {
         return accountStatus;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 
     public Instant getEmailVerifiedAt() {

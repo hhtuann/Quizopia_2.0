@@ -223,16 +223,15 @@ export function AuthenticatedUserMenu() {
           <button
             className={menuItemClasses}
             onClick={() => {
+              if (!confirmUnsavedWorkLeaving()) return;
               clearNotice();
-              setMessage("Account settings are not available yet.");
+              closeAndRestoreFocus();
+              router.push("/app/settings/profile");
             }}
             role="menuitem"
             type="button"
           >
             {t("Account settings")}
-            <span className="ml-auto text-xs text-foreground-muted">
-              {t("Unavailable")}
-            </span>
           </button>
 
           {canSwitchToLearning ? (

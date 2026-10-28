@@ -24,6 +24,12 @@ export interface AuthenticatedSessionInput {
 }
 
 export interface SessionRuntime {
+  updateDisplayName(
+    displayName: string | null,
+    userId: string,
+    sessionGeneration: number,
+    operationGeneration: number,
+  ): boolean;
   beginOperation(): number;
   getOperationGeneration(): number;
   getSessionGeneration(): number;
@@ -92,6 +98,27 @@ export function createSessionRuntime(
   }
 
   const runtime: SessionRuntime = {
+    updateDisplayName(
+      displayName,
+      userId,
+      sessionGeneration,
+      operationGeneration,
+    ) {
+      if (
+        !hasAuthenticatedIdentity(state) ||
+        state.user.id !== userId ||
+        runtime.getSessionGeneration() !== sessionGeneration ||
+        !runtime.isCurrentOperation(operationGeneration)
+      )
+        return false;
+      publish(
+        Object.freeze({
+          ...state,
+          user: Object.freeze({ ...state.user, displayName }),
+        }),
+      );
+      return true;
+    },
     beginOperation() {
       const generation = accessTokenVault.invalidateOperations();
       // A superseded refresh must not leave the existing identity refreshing.

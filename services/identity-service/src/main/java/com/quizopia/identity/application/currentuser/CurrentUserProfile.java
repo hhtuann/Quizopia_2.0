@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public record CurrentUserProfile(UUID id, String username, String email, List<String> roles) {
+public record CurrentUserProfile(UUID id, String username, String displayName, String email, List<String> roles) {
     public CurrentUserProfile {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(email, "email");

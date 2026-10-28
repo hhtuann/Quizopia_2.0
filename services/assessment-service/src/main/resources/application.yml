@@ -97,6 +97,14 @@ quizopia:
     total-timeout: ${USER_ADMISSION_TOTAL_TIMEOUT:PT5S}
     max-connections: ${USER_ADMISSION_MAX_CONNECTIONS:8}
     pending-acquires: ${USER_ADMISSION_PENDING_ACQUIRES:32}
+  # FB-012 owner-results display-name enrichment; default OFF, fail-open, zero cache.
+  student-profiles:
+    enabled: ${ASSESSMENT_STUDENT_PROFILE_ENABLED:false}
+    connect-timeout: ${ASSESSMENT_STUDENT_PROFILE_CONNECT_TIMEOUT:PT2S}
+    response-timeout: ${ASSESSMENT_STUDENT_PROFILE_RESPONSE_TIMEOUT:PT2S}
+    total-timeout: ${ASSESSMENT_STUDENT_PROFILE_TOTAL_TIMEOUT:PT5S}
+    max-connections: ${ASSESSMENT_STUDENT_PROFILE_MAX_CONNECTIONS:4}
+    pending-acquires: ${ASSESSMENT_STUDENT_PROFILE_PENDING_ACQUIRES:16}
 
 # Dedicated credential clients must remain redacted even when root logging is DEBUG/TRACE.
 logging:

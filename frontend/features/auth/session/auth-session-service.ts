@@ -14,6 +14,8 @@ import {
 } from "../api/auth-api-client";
 import type { AuthenticatedUser } from "../model/authenticated-user";
 import { hasRole } from "../model/authenticated-user";
+import { displayNameSchema, optionalDisplayName } from "../model/display-name";
+import { hasAuthenticatedIdentity } from "../model/session-state";
 import { createAccessTokenVault } from "./access-token-vault";
 import {
   createRefreshCoordinator,
@@ -24,6 +26,8 @@ import { createSessionRuntime, type SessionRuntime } from "./session-runtime";
 import { withBrowserAuthLock } from "./browser-auth-lock";
 
 export interface AuthSessionService {
+  /** Optional for pre-profile injected service adapters; the browser service provides it. */
+  updateDisplayName?(displayName: string | null): Promise<AuthApiResult<void>>;
   readonly authenticatedRequests: AuthenticatedRequestExecutor;
   /** In-memory only; read for same-session realtime frame authentication, never persisted. */
   readonly readAccessToken: () => string | null;
@@ -41,6 +45,7 @@ export interface AuthSessionService {
   logout(): Promise<AuthApiResult<void>>;
   retryVerification(): Promise<AuthApiResult<AuthenticatedUser>>;
   register(input: {
+    readonly displayName?: string;
     readonly email: string;
     readonly password: string;
     readonly username: string;
@@ -84,7 +89,8 @@ export function createAuthSessionService(
     readonly apiBaseUrl?: string;
     readonly transport?: HttpTransport;
   } = {},
-): AuthSessionService {
+): AuthSessionService &
+  Required<Pick<AuthSessionService, "updateDisplayName">> {
   const transport = options.transport ?? createFetchHttpTransport();
   const accessTokenVault = createAccessTokenVault();
   const runtime = createSessionRuntime(accessTokenVault);
@@ -362,7 +368,39 @@ export function createAuthSessionService(
     }
   }
 
-  const service: AuthSessionService = {
+  const service: AuthSessionService &
+    Required<Pick<AuthSessionService, "updateDisplayName">> = {
+    async updateDisplayName(input) {
+      const state = runtime.getSnapshot();
+      if (!hasAuthenticatedIdentity(state))
+        return clientStateFailure("no-session");
+      if (input !== null && !displayNameSchema.safeParse(input).success)
+        return clientStateFailure("invalid-display-name");
+      const displayName = input === null ? null : optionalDisplayName(input);
+      const generation = runtime.getOperationGeneration();
+      const sessionGeneration = runtime.getSessionGeneration();
+      await refreshCoordinator.waitForIdle();
+      if (
+        !runtime.isCurrentOperation(generation) ||
+        runtime.getSessionGeneration() !== sessionGeneration
+      )
+        return clientStateFailure("session-changed");
+      const result = await requestForOperation(
+        generation,
+        (signal) =>
+          client.updateDisplayName(authenticatedRequests, displayName, signal),
+        10_000,
+      );
+      if (!result.ok) return result;
+      return runtime.updateDisplayName(
+        displayName,
+        state.user.id,
+        sessionGeneration,
+        generation,
+      )
+        ? result
+        : clientStateFailure("session-changed");
+    },
     authenticatedRequests,
     readAccessToken: () => accessTokenVault.read(),
     runtime,

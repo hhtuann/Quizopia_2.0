@@ -78,6 +78,109 @@ function deferred<T>() {
 }
 
 describe("auth session service", () => {
+  it("updates the in-memory profile after 204 without rotating tokens, and clears with null", async () => {
+    const requests: HttpRequest[] = [];
+    const service = createAuthSessionService({
+      transport: {
+        async execute(request) {
+          requests.push(request);
+          return emptyResponse(204);
+        },
+      },
+    });
+    service.runtime.establishAuthenticatedSession({
+      accessToken: "in-memory",
+      user: {
+        id: userId,
+        username: "learner",
+        email: "learner@gmail.com",
+        roles: ["STUDENT", "TEACHER"],
+      },
+    });
+    service.runtime.switchWorkspace("TEACHING");
+    const generation = service.runtime.getSessionGeneration();
+    expect(await service.updateDisplayName("  Nguyễn An  ")).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      user: { displayName: "Nguyễn An" },
+      activeWorkspace: "TEACHING",
+    });
+    expect(service.readAccessToken()).toBe("in-memory");
+    expect(service.runtime.getSessionGeneration()).toBe(generation);
+    expect(await service.updateDisplayName(null)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(service.runtime.getSnapshot()).toMatchObject({
+      user: { displayName: null },
+    });
+    expect(requests.map((r) => JSON.parse(String(r.body)))).toEqual([
+      { displayName: "Nguyễn An" },
+      { displayName: null },
+    ]);
+    expect(requests.every((r) => authorization(r) === "Bearer in-memory")).toBe(
+      true,
+    );
+  });
+
+  it.each([false, true])(
+    "ignores a late successful update after replacement session (same user: %j)",
+    async (sameUser) => {
+      const pending = deferred<HttpTransportResult>();
+      const execute = vi.fn(() => pending.promise);
+      const service = createAuthSessionService({ transport: { execute } });
+      const user = {
+        id: userId,
+        username: "learner",
+        email: "learner@gmail.com",
+        roles: ["STUDENT"] as const,
+        displayName: "Original",
+      };
+      service.runtime.establishAuthenticatedSession({
+        accessToken: "first",
+        user,
+      });
+      const updating = service.updateDisplayName("Old request");
+      await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+      service.runtime.clearLocalSession();
+      service.runtime.establishAuthenticatedSession({
+        accessToken: "second",
+        user: {
+          ...user,
+          id: sameUser ? userId : "other-user",
+          displayName: "Replacement",
+        },
+      });
+      pending.resolve(emptyResponse(204));
+      expect(await updating).toMatchObject({ ok: false });
+      expect(service.runtime.getSnapshot()).toMatchObject({
+        user: { displayName: "Replacement" },
+      });
+      expect(service.readAccessToken()).toBe("second");
+      expect(execute).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("does not send profile mutations without a session or with invalid input", async () => {
+    const execute = vi.fn();
+    const service = createAuthSessionService({ transport: { execute } });
+    expect(await service.updateDisplayName("An")).toMatchObject({ ok: false });
+    service.runtime.establishAuthenticatedSession({
+      accessToken: "first",
+      user: {
+        id: userId,
+        username: "learner",
+        email: "l@gmail.com",
+        roles: ["STUDENT"],
+      },
+    });
+    expect(await service.updateDisplayName("An\u0085")).toMatchObject({
+      ok: false,
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
   it("restores a page-load session with exactly one cookie refresh and authoritative /me hydration", async () => {
     const requests: HttpRequest[] = [];
     const transport: HttpTransport = {
@@ -106,6 +209,7 @@ describe("auth session service", () => {
       activeWorkspace: "LEARNING",
       status: "authenticated",
       user: {
+        displayName: null,
         email: "learner01@gmail.com",
         id: userId,
         roles: ["STUDENT", "TEACHER"],
@@ -160,6 +264,7 @@ describe("auth session service", () => {
     expect(result).toEqual({
       ok: true,
       value: {
+        displayName: null,
         email: "learner01@gmail.com",
         id: userId,
         roles: ["STUDENT"],
@@ -321,6 +426,7 @@ describe("auth session service", () => {
     await expect(firstAttempt).resolves.toEqual({
       ok: true,
       value: {
+        displayName: null,
         email: "learner01@gmail.com",
         id: userId,
         roles: ["STUDENT", "TEACHER"],

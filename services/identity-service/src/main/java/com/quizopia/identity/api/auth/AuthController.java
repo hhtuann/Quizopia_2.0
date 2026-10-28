@@ -1,5 +1,6 @@
 package com.quizopia.identity.api.auth;
 
+import com.quizopia.identity.application.account.DisplayNameUpdateService;
 import com.quizopia.identity.application.currentuser.CurrentUserService;
 import com.quizopia.identity.application.emailverification.EmailVerificationStatus;
 import com.quizopia.identity.application.emailverification.UsernameEmailVerificationService;
@@ -40,6 +41,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -56,6 +58,7 @@ public class AuthController {
     public static final String REFRESH_PATH = AUTH_ROOT + "/refresh";
     public static final String LOGOUT_PATH = AUTH_ROOT + "/logout";
     public static final String ME_PATH = AUTH_ROOT + "/me";
+    public static final String ME_DISPLAY_NAME_PATH = ME_PATH + "/display-name";
     public static final String TEACHER_ENABLEMENT_PATH = AUTH_ROOT + "/teacher-enablement";
     public static final String REQUEST_PATH = AUTH_ROOT + "/email-verification/request";
     public static final String CONFIRM_PATH = AUTH_ROOT + "/email-verification/confirm";
@@ -73,6 +76,7 @@ public class AuthController {
     private final CurrentSessionLogoutService logoutService;
     private final CurrentUserService currentUserService;
     private final TeacherEnablementService teacherEnablementService;
+    private final DisplayNameUpdateService displayNameUpdateService;
     private final RefreshCookieCredentialResolver refreshCredentialResolver;
     private final RefreshCookieFactory refreshCookieFactory;
     private final Clock clock;
@@ -85,6 +89,7 @@ public class AuthController {
             CurrentSessionLogoutService logoutService,
             CurrentUserService currentUserService,
             TeacherEnablementService teacherEnablementService,
+            DisplayNameUpdateService displayNameUpdateService,
             RefreshCookieCredentialResolver refreshCredentialResolver,
             RefreshCookieFactory refreshCookieFactory,
             @Qualifier("identityClock") Clock clock) {
@@ -95,6 +100,7 @@ public class AuthController {
         this.logoutService = logoutService;
         this.currentUserService = currentUserService;
         this.teacherEnablementService = teacherEnablementService;
+        this.displayNameUpdateService = displayNameUpdateService;
         this.refreshCredentialResolver = refreshCredentialResolver;
         this.refreshCookieFactory = refreshCookieFactory;
         this.clock = clock;
@@ -133,7 +139,7 @@ public class AuthController {
     })
     public ResponseEntity<AuthStatusResponse> register(@Valid @RequestBody RegistrationRequest request) {
         var result = registrationService.register(new LocalRegistrationInput(
-                request.username(), request.email(), RawLocalPassword.from(request.password())));
+                request.username(), request.email(), RawLocalPassword.from(request.password()), request.displayName()));
         if (result.status() == LocalRegistrationStatus.USERNAME_CONFLICT) {
             throw new AuthApiException(AUTH_USERNAME_UNAVAILABLE, "Username is unavailable.", HttpStatus.CONFLICT);
         }
@@ -320,6 +326,41 @@ public class AuthController {
                 .findEligible(UUID.fromString(jwt.getSubject()), jwt.getIssuedAt())
                 .map(CurrentUserResponse::from)
                 .orElseThrow(AuthController::accessDenied);
+    }
+
+    @PutMapping("/me/display-name")
+    @Operation(
+            summary = "Update the current user's optional display name",
+            description = "Requires a Quizopia USER bearer token and the same current eligibility as /api/auth/me."
+                    + " Only the authenticated subject's own account is updated; the request carries no account"
+                    + " identifier. A JSON null displayName clears the stored name.",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Display name updated or cleared"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "DISPLAY_NAME_INVALID or request validation failed",
+                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Missing, invalid, or expired bearer token"),
+        @ApiResponse(
+                responseCode = "403",
+                description = "Authenticated principal is not an eligible current user",
+                content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public ResponseEntity<Void> updateDisplayName(
+            @AuthenticationPrincipal Jwt jwt, @RequestBody DisplayNameUpdateRequest request) {
+        if (jwt == null || jwt.getIssuedAt() == null) {
+            throw accessDenied();
+        }
+        var profile = currentUserService.findEligible(UUID.fromString(jwt.getSubject()), jwt.getIssuedAt());
+        if (profile.isEmpty()) {
+            throw accessDenied();
+        }
+        if (request == null) {
+            throw new AuthApiException("INVALID_REQUEST", "Request validation failed.", HttpStatus.BAD_REQUEST);
+        }
+        displayNameUpdateService.update(profile.get().id(), request.displayName());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/teacher-enablement")

@@ -650,7 +650,7 @@ public class JdbcClosureStore implements ClosureStore {
                                     instant(r, "finalized_at"));
                         }
                         return new TeacherRow(
-                                id, r.getObject("student_id", UUID.class), ordinal, r.getString("state"), result);
+                                id, r.getObject("student_id", UUID.class), ordinal, r.getString("state"), result, null);
                     },
                     args.toArray());
             boolean more = rows.size() > limit;

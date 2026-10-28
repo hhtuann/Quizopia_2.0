@@ -29,16 +29,19 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @EnableConfigurationProperties({
     UserAdmissionProperties.class,
     NoticeRecipientProperties.class,
-    ProctoringStudentProperties.class
+    ProctoringStudentProperties.class,
+    UserProfileProperties.class
 })
 public class UserAdmissionConfiguration {
     public static final String PATH = "/internal/security/user-admissions";
     public static final String SCOPE = "identity.user-admission";
     public static final String USER_HEADER = "X-Quizopia-User-Evidence";
+    public static final String PROFILE_BATCH_PATH = "/internal/security/user-profiles/batch";
+    public static final String PROFILE_SCOPE = "identity.user-profile.read";
 
     @Bean
     @org.springframework.boot.autoconfigure.condition.ConditionalOnExpression(
-            "${quizopia.identity.user-admission.enabled:false} or ${quizopia.identity.notice-recipients.enabled:false} or ${quizopia.identity.proctoring-students.enabled:false}")
+            "${quizopia.identity.user-admission.enabled:false} or ${quizopia.identity.notice-recipients.enabled:false} or ${quizopia.identity.proctoring-students.enabled:false} or ${quizopia.identity.user-profiles.enabled:false}")
     AdmissionTokenVerifier admissionTokenVerifier(
             @Qualifier("identitySigningJwk") RSAKey key,
             AuthorizationServerProperties properties,
@@ -54,6 +57,7 @@ public class UserAdmissionConfiguration {
             UserAdmissionProperties properties,
             NoticeRecipientProperties recipients,
             ProctoringStudentProperties proctoring,
+            UserProfileProperties profiles,
             org.springframework.core.env.Environment environment,
             ObjectProvider<AdmissionTokenVerifier> verifier,
             QuizopiaJwtAuthenticationConverter converter)
@@ -63,6 +67,8 @@ public class UserAdmissionConfiguration {
             throw new IllegalStateException("Private recipient HTTPS is required in production");
         if (environment.matchesProfiles("prod") && proctoring.enabled() && !proctoring.requireSecureTransport())
             throw new IllegalStateException("Private proctoring eligibility HTTPS is required in production");
+        if (environment.matchesProfiles("prod") && profiles.enabled() && !profiles.requireSecureTransport())
+            throw new IllegalStateException("Private user-profile HTTPS is required in production");
         http.securityMatcher("/internal/security/**")
                 .csrf(csrf -> csrf.disable())
                 .requestCache(cache -> cache.disable())
@@ -82,14 +88,20 @@ public class UserAdmissionConfiguration {
                                         request.getRequestURI().startsWith("/internal/security/notice-recipients/");
                                 boolean target =
                                         request.getRequestURI().startsWith("/internal/security/proctoring-students/");
+                                boolean profileBatch =
+                                        request.getRequestURI().startsWith("/internal/security/user-profiles/");
                                 boolean enabled = target
                                         ? proctoring.enabled()
-                                        : recipient ? recipients.enabled() : properties.isEnabled();
+                                        : recipient
+                                                ? recipients.enabled()
+                                                : profileBatch ? profiles.enabled() : properties.isEnabled();
                                 boolean secure = target
                                         ? proctoring.requireSecureTransport()
                                         : recipient
                                                 ? recipients.requireSecureTransport()
-                                                : properties.isRequireSecureTransport();
+                                                : profileBatch
+                                                        ? profiles.requireSecureTransport()
+                                                        : properties.isRequireSecureTransport();
                                 if (!enabled || (secure && !request.isSecure())) {
                                     AdmissionErrors.write(response, 503, "AUTHORITY_UNAVAILABLE");
                                     return;
@@ -98,7 +110,7 @@ public class UserAdmissionConfiguration {
                             }
                         },
                         UsernamePasswordAuthenticationFilter.class);
-        if (properties.isEnabled() || recipients.enabled() || proctoring.enabled()) {
+        if (properties.isEnabled() || recipients.enabled() || proctoring.enabled() || profiles.enabled()) {
             http.oauth2ResourceServer(oauth -> oauth.authenticationEntryPoint((request, response, exception) ->
                             AdmissionErrors.write(response, 401, "SERVICE_AUTHENTICATION_INVALID"))
                     .accessDeniedHandler((request, response, exception) ->
@@ -133,9 +145,14 @@ public class UserAdmissionConfiguration {
                                 "/internal/security/proctoring-students/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/eligibility")
                         && authorities.contains("SCOPE_identity.proctoring-student.read")
                         && proctoring.assessmentClientId().equals(caller.getName());
+                boolean profileBatch = "POST".equals(request.getMethod())
+                        && profiles.enabled()
+                        && PROFILE_BATCH_PATH.equals(path)
+                        && authorities.contains("SCOPE_" + PROFILE_SCOPE)
+                        && profiles.assessmentClientId().equals(caller.getName());
                 return new AuthorizationDecision(caller.isAuthenticated()
                         && authorities.contains("TOKEN_SERVICE")
-                        && (admission || recipient || target));
+                        && (admission || recipient || target || profileBatch));
             }));
         } else http.authorizeHttpRequests(authorize -> authorize.anyRequest().denyAll());
         return http.build();

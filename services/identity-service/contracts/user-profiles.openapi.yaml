@@ -1,0 +1,125 @@
+openapi: 3.1.0
+info:
+  title: Identity private Student profile batch
+  version: 1.0.0
+  description: >-
+    FB-012 capability (Issue #118, Leader-approved with amendments), implemented default
+    disabled pending independent review. Narrowly purpose-bound Assessment SERVICE batch
+    lookup of self-provided display names for owner-authorized results enrichment. Never
+    Student authentication, generic account introspection, public/Gateway routing, or bulk
+    enumeration. Private HTTPS and exact caller/destination allowlists are required.
+paths:
+  /internal/security/user-profiles/batch:
+    post:
+      operationId: resolveStudentProfiles
+      x-required-service-scope: identity.user-profile.read
+      x-required-client: exact-configured-assessment-client
+      description: >-
+        Requires independently verified RS256 SERVICE credentials carrying TOKEN_SERVICE
+        authority, the exact configured Assessment client subject, and scope
+        identity.user-profile.read; anything else is 403, invalid/expired credentials are 401.
+        Rejects query strings, Cookie/Transfer-Encoding/Content-Encoding headers, forbidden
+        identity headers (X-Quizopia-*, X-Authenticated-*, X-User-Id, X-User-Roles,
+        X-Service-Identity), unknown/duplicate JSON fields, trailing tokens, non-array or
+        non-canonical ids, duplicates, empty or over-100-id batches, and bodies over 16384
+        bytes. Exactly one Content-Type is accepted: application/json with optional UTF-8
+        charset only. One repository query per request; unknown, deleted, or non-ACTIVE
+        accounts are omitted entirely. displayName is the stored self-provided display_name
+        when non-blank, else the username fallback; it is never a verified legal name and is
+        HTML-escaped only by the rendering client. Responses are sorted by studentId for
+        deterministic merging, carry Cache-Control: no-store, and never contain email,
+        roles, or status. A fixed-memory rolling-minute request budget is shared by all
+        tokens of the sole admitted Assessment caller on each Identity instance: default 60
+        requests/minute (configurable 1..6000), including malformed authenticated requests.
+        Excess requests receive sanitized 429 PROFILE_RATE_LIMITED before parsing or lookup.
+      security:
+        - serviceBearer: []
+      requestBody:
+        required: true
+        description: Exactly one studentIds field; 1..100 unique canonical lowercase UUID strings; maximum 16384 bytes.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [studentIds]
+              properties:
+                studentIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  uniqueItems: true
+                  items:
+                    type: string
+                    format: uuid
+                    pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Only ACTIVE accounts; deterministic order; username fallback when no display name is stored.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [studentId, displayName]
+                      properties:
+                        studentId:
+                          type: string
+                          format: uuid
+                        displayName:
+                          type: [string, "null"]
+                          description: Stored display_name (1..100 Unicode code points) when non-blank, else username (up to 255); may be null only for username-less legacy accounts.
+                          maxLength: 255
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: RS256 SERVICE JWT; exact Assessment client and identity.user-profile.read required
+  responses:
+    Error:
+      description: Sanitized code only; INVALID_INTERNAL_REQUEST, SERVICE_AUTHENTICATION_INVALID, SERVICE_CALLER_FORBIDDEN, PROFILE_RATE_LIMITED or AUTHORITY_UNAVAILABLE.
+      headers:
+        Cache-Control:
+          schema:
+            type: string
+            const: no-store
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [code]
+            properties:
+              code:
+                type: string
+                enum:
+                  [
+                    INVALID_INTERNAL_REQUEST,
+                    SERVICE_AUTHENTICATION_INVALID,
+                    SERVICE_CALLER_FORBIDDEN,
+                    PROFILE_RATE_LIMITED,
+                    AUTHORITY_UNAVAILABLE,
+                  ]

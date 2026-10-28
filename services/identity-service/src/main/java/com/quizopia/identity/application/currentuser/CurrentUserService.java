@@ -59,6 +59,7 @@ public class CurrentUserService {
             return Optional.empty();
         }
 
-        return Optional.of(new CurrentUserProfile(user.getId(), user.getUsername(), user.getEmail(), roles));
+        return Optional.of(new CurrentUserProfile(
+                user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(), roles));
     }
 }
