@@ -1,7 +1,10 @@
 # FB-015 — Quiz & Dependent-Data Deletion: Architecture Decision Package
 
-> **Status: DESIGN READY / APPROVAL PENDING — no destructive behavior
-> implemented.** Cross-service destructive deletion requires explicit Leader
+> **Status: SUPERSEDED on 2026-10-28 by [ADR-018](ADR-018-fb015-permanent-quiz-erasure.md).**
+> This file preserves the earlier design proposal for historical review only;
+> its retain-results, graceful-ACTIVE, 90-day retention, lifecycle enum and restore
+> recommendations are **not** the accepted FB-015 policy. No destructive behavior
+> has been implemented by this document change. Cross-service destructive deletion requires explicit Leader
 > approval of this package before any backend migration, purge job, privileged
 > API or frontend delete control ships. Product request (Issue #115) is NOT
 > blanket approval.
