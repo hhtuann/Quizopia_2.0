@@ -149,8 +149,8 @@ export function confirmedCutoff(notification: NotificationContract): {
 
 export function missingCutoffLabel(notification: NotificationContract): string {
   return notification.noticeStatus === "PREPARING"
-    ? "Not started — your notice is not confirmed yet"
-    : "No confirmed cutoff was established";
+    ? "Waiting for notice confirmation"
+    : "No confirmed cutoff";
 }
 
 /**
@@ -198,20 +198,20 @@ export function cutoffRemainingGuidance(
   if (remaining === null) return null;
   switch (remaining.kind) {
     case "reached":
-      return "the cutoff has been reached on the server";
+      return "the cutoff has been reached";
     case "at-least-48h":
-      return "at least 48 hours remain (server guidance)";
+      return "at least 48 hours remain";
     case "hours-minutes": {
       const hoursPart = `${remaining.hours} hour${remaining.hours === 1 ? "" : "s"}`;
       const minutesPart =
         remaining.minutes === 0
           ? ""
           : ` ${remaining.minutes} minute${remaining.minutes === 1 ? "" : "s"}`;
-      return `about ${hoursPart}${minutesPart} remain (server guidance)`;
+      return `about ${hoursPart}${minutesPart} remain`;
     }
     case "minutes":
-      return `about ${remaining.minutes} minute${remaining.minutes === 1 ? "" : "s"} remain (server guidance)`;
+      return `about ${remaining.minutes} minute${remaining.minutes === 1 ? "" : "s"} remain`;
     default:
-      return "less than a minute remains (server guidance)";
+      return "less than a minute remains";
   }
 }

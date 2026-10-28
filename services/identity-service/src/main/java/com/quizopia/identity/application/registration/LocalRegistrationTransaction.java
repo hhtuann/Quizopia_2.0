@@ -46,6 +46,9 @@ public class LocalRegistrationTransaction {
 
         UserAccountEntity user = new UserAccountEntity(input.email(), input.username());
         user.setAccountStatus(AccountLifecycleStatus.PENDING_EMAIL_VERIFICATION);
+        if (input.displayName() != null) {
+            user.setDisplayName(input.displayName());
+        }
         UserAccountEntity persistedUser = userAccountRepository.saveAndFlush(user);
         localCredentialRepository.saveAndFlush(new LocalCredentialEntity(persistedUser, encodedPassword));
         if (emailVerificationTransaction.issueGeneratedChallenge(persistedUser.getId())

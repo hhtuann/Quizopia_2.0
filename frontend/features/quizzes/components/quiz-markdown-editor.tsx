@@ -174,7 +174,7 @@ export const QuizMarkdownEditor = forwardRef<
         id="quiz-editor-help"
       >
         {t(
-          "Structural completion works at column 1 outside fenced code blocks. The backend remains authoritative when publishing.",
+          "Autocomplete works at column 1, outside fenced code blocks. Publishing always re-validates.",
         )}
       </p>
       <textarea

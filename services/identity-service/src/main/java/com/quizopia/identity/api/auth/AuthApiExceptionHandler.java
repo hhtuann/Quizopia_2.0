@@ -1,5 +1,6 @@
 package com.quizopia.identity.api.auth;
 
+import com.quizopia.identity.application.account.DisplayNameInvalidException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.MDC;
@@ -14,10 +15,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class AuthApiExceptionHandler {
     static final String INVALID_REQUEST = "INVALID_REQUEST";
     static final String AUTH_VERIFICATION_FAILED = "AUTH_VERIFICATION_FAILED";
+    static final String DISPLAY_NAME_INVALID = "DISPLAY_NAME_INVALID";
 
     @ExceptionHandler(AuthApiException.class)
     ResponseEntity<ApiErrorResponse> handleAuthFailure(AuthApiException failure, HttpServletRequest request) {
         return response(failure.code(), failure.getMessage(), failure.status(), request);
+    }
+
+    @ExceptionHandler(DisplayNameInvalidException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidDisplayName(
+            DisplayNameInvalidException failure, HttpServletRequest request) {
+        // Never echo the rejected value.
+        return response(DISPLAY_NAME_INVALID, "Display name is invalid.", HttpStatus.BAD_REQUEST, request);
     }
 
     @ExceptionHandler({

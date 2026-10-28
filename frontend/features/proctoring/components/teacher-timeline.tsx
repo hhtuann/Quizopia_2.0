@@ -17,9 +17,7 @@ export function TeacherTimeline({
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border-strong p-6 text-sm text-foreground-secondary">
-        {t(
-          "No monitoring evidence is available for this authorized session yet.",
-        )}
+        {t("No monitoring events yet for this session.")}
       </div>
     );
   }
@@ -52,15 +50,15 @@ export function TeacherTimeline({
             </p>
             <p className="mt-1 text-xs text-foreground-muted">
               {t(
-                "Browser observations can be incomplete or manipulated. Persistence facts mean Assessment stored metadata; neither proves misconduct.",
+                "Observations can be incomplete or manipulated, and saved facts only show what was stored — neither proves misconduct.",
               )}
             </p>
           </div>
           <div className="space-y-1 text-xs text-foreground-muted sm:text-right">
             <p>
               {item.observedAt === null
-                ? t("Observed/occurred: {value}", { value: t("not reported") })
-                : t("Observed/occurred: {value}", {
+                ? t("Observed: {value}", { value: t("not reported") })
+                : t("Observed: {value}", {
                     value: formatInstant(locale, item.observedAt),
                   })}
             </p>

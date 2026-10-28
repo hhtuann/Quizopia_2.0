@@ -374,13 +374,11 @@ test("offline and visible reconnects fence editing until authoritative status re
   await expect(confirm).toBeVisible();
 
   await context.setOffline(true);
-  await expect(
-    page.getByText("Authoritative reconciliation required"),
-  ).toBeVisible();
+  await expect(page.getByText("Status check required")).toBeVisible();
   await expect(firstAnswer).toBeDisabled();
   await confirm.click();
   expect(assessment.read().submittedBody).toBeNull();
-  await expect(page.getByText(/Submission is paused/)).toBeVisible();
+  await expect(page.getByText(/Submitting is paused/)).toBeVisible();
   await context.setOffline(false);
   await expect
     .poll(() => assessment.read().gets)
@@ -400,7 +398,7 @@ test("same-document browser history warns before leaving an unsaved answer", asy
   const dialogPromise = page.waitForEvent("dialog");
   const back = page.evaluate(() => history.back());
   const dialog = await dialogPromise;
-  expect(dialog.message()).toContain("unsaved or unresolved answers");
+  expect(dialog.message()).toContain("unsaved or pending answers");
   await dialog.dismiss();
   await back;
   await expect(page.getByRole("radio", { name: /A.*Alpha/ })).toBeChecked();
@@ -509,7 +507,7 @@ test("dependency 503 remains a feature error without logout or refresh cascade",
   await page.getByLabel("43-character private locator").fill(locator);
   await page.getByRole("button", { name: "Check access" }).click();
   await expect(
-    page.getByText(/required authority or assessment dependency/),
+    page.getByText(/A required part of Quizopia is unavailable/),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /Open user menu for student/ }),

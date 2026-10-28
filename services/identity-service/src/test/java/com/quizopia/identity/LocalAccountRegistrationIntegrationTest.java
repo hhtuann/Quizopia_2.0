@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.quizopia.identity.application.account.AccountLifecycleStatus;
@@ -196,6 +198,46 @@ class LocalAccountRegistrationIntegrationTest {
         assertEquals(LocalRegistrationStatus.CREATED_PENDING_VERIFICATION, upper.status());
         assertEquals(LocalRegistrationStatus.CREATED_PENDING_VERIFICATION, lower.status());
         assertEquals(2L, count("SELECT COUNT(*) FROM user_account WHERE email = ?", email));
+    }
+
+    @Test
+    void registrationCapturesNormalizedDisplayNameAndOmitsAbsentOrBlank() {
+        String captured = "display-captured-" + UUID.randomUUID();
+        String decomposed = "Nguy" + 'e' + '\u0302' + '\u0303' + "n";
+
+        LocalRegistrationResult withName = registrationService.register(new LocalRegistrationInput(
+                captured,
+                captured + "@gmail.com",
+                RawLocalPassword.from("display-secret-1"),
+                "  " + decomposed + "  "));
+
+        assertEquals(LocalRegistrationStatus.CREATED_PENDING_VERIFICATION, withName.status());
+        UserAccountEntity capturedAccount =
+                userAccountRepository.findById(withName.userId().orElseThrow()).orElseThrow();
+        assertEquals("Nguy\u1ec5n", capturedAccount.getDisplayName());
+
+        String omitted = "display-omitted-" + UUID.randomUUID();
+        LocalRegistrationResult withoutName = registrationService.register(
+                new LocalRegistrationInput(omitted, omitted + "@gmail.com", RawLocalPassword.from("display-secret-2")));
+        UserAccountEntity omittedAccount = userAccountRepository
+                .findById(withoutName.userId().orElseThrow())
+                .orElseThrow();
+        assertNull(omittedAccount.getDisplayName());
+
+        String blanked = "display-blanked-" + UUID.randomUUID();
+        LocalRegistrationResult withBlank = registrationService.register(new LocalRegistrationInput(
+                blanked, blanked + "@gmail.com", RawLocalPassword.from("display-secret-3"), "   "));
+        UserAccountEntity blankedAccount =
+                userAccountRepository.findById(withBlank.userId().orElseThrow()).orElseThrow();
+        assertNull(blankedAccount.getDisplayName());
+
+        assertThrows(
+                com.quizopia.identity.application.account.DisplayNameInvalidException.class,
+                () -> registrationService.register(new LocalRegistrationInput(
+                        "display-invalid-" + UUID.randomUUID(),
+                        "display-invalid-" + UUID.randomUUID() + "@gmail.com",
+                        RawLocalPassword.from("display-secret-4"),
+                        "Bad\u0000Name")));
     }
 
     private LocalRegistrationResult register(String username, String email, String rawPassword) {

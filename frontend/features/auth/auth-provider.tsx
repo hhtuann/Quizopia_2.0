@@ -24,6 +24,9 @@ import {
 import type { SessionRuntime } from "./session/session-runtime";
 
 export interface AuthContextValue {
+  readonly updateDisplayName: NonNullable<
+    AuthSessionService["updateDisplayName"]
+  >;
   readonly getSessionGeneration: () => number | null;
   /** In-memory access token reader for same-session realtime frame authentication. */
   readonly getAccessToken: () => string | null;
@@ -92,6 +95,8 @@ export function AuthProvider({
     const user = sessionUser(session);
 
     return {
+      updateDisplayName:
+        activeService?.updateDisplayName ?? (() => unavailableResult<void>()),
       getSessionGeneration: activeRuntime.getSessionGeneration,
       getAccessToken: activeService?.readAccessToken ?? (() => null),
       activeWorkspace: hasAuthenticatedIdentity(session)

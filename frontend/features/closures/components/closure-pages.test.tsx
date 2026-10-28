@@ -140,7 +140,7 @@ describe("Teacher closure management", () => {
       expect.any(AbortSignal),
     );
     expect(
-      await screen.findByText(/Publication is NOT closed/),
+      await screen.findByText(/assessment is not closed yet/),
     ).toBeInTheDocument();
   });
 
@@ -313,7 +313,7 @@ describe("Teacher closure request detail", () => {
     await waitFor(() => expect(retry).toBeEnabled());
     expect(closureClient.get).toHaveBeenCalledTimes(2);
     fireEvent.click(retry);
-    await screen.findByText("Bounded progress committed");
+    await screen.findByText("Progress saved");
     expect(
       vi.mocked(closureClient.complete).mock.calls[1]?.slice(0, 4),
     ).toEqual(vi.mocked(closureClient.complete).mock.calls[0]?.slice(0, 4));

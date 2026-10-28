@@ -394,7 +394,7 @@ describe("Teacher Publication creation", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Retry same creation" }),
     );
-    await screen.findByText(/The server denied this operation/);
+    await screen.findByText(/You need the Teacher role and ownership/);
     expect(screen.getByLabelText("Publication title")).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Review and create DRAFT" }),
@@ -548,7 +548,7 @@ describe("Authoritative Publication lifecycle", () => {
       await screen.findByRole("button", { name: "Review and OPEN" }),
     ).toBeDisabled();
     expect(
-      screen.getByText("Explicit monitoring choice required"),
+      screen.getByText("Choose a monitoring option first"),
     ).toBeInTheDocument();
     expect(api.open).not.toHaveBeenCalled();
   });
@@ -578,7 +578,7 @@ describe("Authoritative Publication lifecycle", () => {
       screen.getByRole("button", { name: "Review DRAFT changes" }),
     );
     confirm("Save DRAFT");
-    await screen.findByText("Review the current server configuration");
+    await screen.findByText("Review the latest configuration");
     expect(screen.getByLabelText("Publication title")).toHaveValue(
       "Local unsaved title",
     );
@@ -589,7 +589,7 @@ describe("Authoritative Publication lifecycle", () => {
     expect(api.update.mock.calls[0]?.[1].configuration.maxAttempts).toBe(2);
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Use server configuration (discard local edits)",
+        name: "Use the latest configuration (discard my edits)",
       }),
     );
     expect(screen.getByLabelText("Publication title")).toHaveValue(
@@ -612,7 +612,7 @@ describe("Authoritative Publication lifecycle", () => {
     );
     confirm("OPEN Publication");
     await screen.findByText(
-      "Authoritative details confirm the current state. No mutation was replayed.",
+      "The latest details confirm the current state; nothing was repeated.",
     );
     expect(api.open).toHaveBeenCalledTimes(1);
     expect(api.open.mock.calls[0]?.[1]).toEqual({ expectedRevision: 0 });
@@ -636,7 +636,7 @@ describe("Authoritative Publication lifecycle", () => {
     );
     confirm("OPEN Publication");
     const retry = await screen.findByRole("button", {
-      name: "Retry original command",
+      name: "Retry",
     });
     await waitFor(() => expect(retry).toBeEnabled());
     fireEvent.click(retry);
@@ -658,18 +658,14 @@ describe("Authoritative Publication lifecycle", () => {
       await screen.findByRole("button", { name: "Review and OPEN" }),
     );
     confirm("OPEN Publication");
-    await screen.findByRole("button", { name: "Reconcile state" });
+    await screen.findByRole("button", { name: "Check now" });
     expect(api.get).toHaveBeenCalledTimes(1);
     expect(api.open).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByRole("button", { name: "Retry original command" }),
-    ).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Reconcile state" }));
+    expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Check now" }));
     await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Retry original command" }),
-      ).toBeEnabled(),
+      expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled(),
     );
     expect(
       screen.queryByRole("button", { name: "Review and CLOSE" }),
@@ -719,7 +715,7 @@ describe("Authoritative Publication lifecycle", () => {
     );
     confirm("Save schedule extension");
     const discard = await screen.findByRole("button", {
-      name: "Use server schedule (discard local extension)",
+      name: "Use the latest schedule (discard my extension)",
     });
     expect(
       screen.getByLabelText("Extended participation end", { exact: true }),
@@ -909,8 +905,8 @@ describe("Authoritative Publication lifecycle", () => {
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
     confirm("CLOSE Publication");
-    await screen.findByText(/Active Attempts prevent closure/);
-    expect(screen.queryByText("Publication CLOSED")).not.toBeInTheDocument();
+    await screen.findByText(/Active attempts prevent closing/);
+    expect(screen.queryByText("Assessment closed")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Review and CLOSE" }),
@@ -918,7 +914,7 @@ describe("Authoritative Publication lifecycle", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Review and CLOSE" }));
     confirm("CLOSE Publication");
-    await screen.findByText("Publication CLOSED");
+    await screen.findByText("Assessment closed");
     expect(api.close).toHaveBeenCalledTimes(2);
     expect(
       screen.queryByRole("button", { name: "Review and CLOSE" }),
@@ -948,12 +944,12 @@ describe("Authoritative Publication lifecycle", () => {
     );
     confirm("CLOSE Publication");
     const retry = await screen.findByRole("button", {
-      name: "Retry original command",
+      name: "Retry",
     });
     await waitFor(() => expect(retry).toBeEnabled());
     expect(api.close).toHaveBeenCalledTimes(1);
     fireEvent.click(retry);
-    await screen.findByText("Publication CLOSED");
+    await screen.findByText("Assessment closed");
     expect(api.close.mock.calls[1]?.slice(0, 3)).toEqual(
       api.close.mock.calls[0]?.slice(0, 3),
     );
@@ -981,15 +977,13 @@ describe("Authoritative Publication lifecycle", () => {
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
     confirm("CLOSE Publication");
-    expect(
-      await screen.findByText("Mutation identity retained"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Retrying safely")).toBeInTheDocument();
     const retry = screen.getByRole("button", {
-      name: "Retry original command",
+      name: "Retry",
     });
     await waitFor(() => expect(retry).toBeEnabled());
     fireEvent.click(retry);
-    await screen.findByText("Publication CLOSED");
+    await screen.findByText("Assessment closed");
     expect(api.close.mock.calls[1]?.slice(0, 3)).toEqual(
       api.close.mock.calls[0]?.slice(0, 3),
     );
@@ -1017,13 +1011,15 @@ describe("Authoritative Publication lifecycle", () => {
     );
     confirm("CLOSE Publication");
     const retry = await screen.findByRole("button", {
-      name: "Retry original command",
+      name: "Retry",
     });
     await waitFor(() => expect(retry).toBeEnabled());
     fireEvent.click(retry);
-    await screen.findByText(/Revision 2/);
+    await waitFor(() =>
+      expect(screen.getAllByText(/Version 3/).length).toBeGreaterThan(0),
+    );
     expect(
-      screen.queryByRole("button", { name: "Retry original command" }),
+      screen.queryByRole("button", { name: "Retry" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Review and CLOSE" }),
@@ -1050,10 +1046,10 @@ describe("Authoritative Publication lifecycle", () => {
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     );
     confirm("CLOSE Publication");
-    await screen.findByText("Publication CLOSED");
+    await screen.findByText("Assessment closed");
     expect(api.close).toHaveBeenCalledTimes(1);
     expect(
-      screen.queryByRole("button", { name: "Retry original command" }),
+      screen.queryByRole("button", { name: "Retry" }),
     ).not.toBeInTheDocument();
   });
 
@@ -1068,23 +1064,17 @@ describe("Authoritative Publication lifecycle", () => {
     );
     await screen.findByRole("heading", { name: configuration.title });
     expect(screen.queryByText(locator)).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Copy private locator" }),
-    );
-    await screen.findByText("Private locator copied.");
+    fireEvent.click(screen.getByRole("button", { name: "Copy locator" }));
+    await screen.findByText("Copied.");
     expect(writeText).toHaveBeenCalledWith(locator);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Reveal private locator" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Show locator" }));
     expect(screen.getByText(locator)).toBeInTheDocument();
     expect(
       Array.from(document.querySelectorAll("a")).some((link) =>
         link.href.includes(locator),
       ),
     ).toBe(false);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Hide private locator" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Hide locator" }));
     expect(screen.queryByText(locator)).not.toBeInTheDocument();
   });
 
@@ -1249,19 +1239,19 @@ describe("Publication detail results-first layout (UX-04)", () => {
       undefined,
       expect.any(AbortSignal),
     );
-    // Results-first ordering: summary card, then lifecycle controls, then
-    // the embedded Results section.
+    // Results-first ordering: the embedded Results section (main column)
+    // precedes the sidebar configuration summary and lifecycle actions.
     const summaryToggle = screen.getByText("Configuration summary");
     const closeControl = screen.getByRole("button", {
       name: "Review and CLOSE",
     });
     const resultsHeading = screen.getByRole("heading", { name: "Results" });
     expect(
-      summaryToggle.compareDocumentPosition(closeControl) &
+      resultsHeading.compareDocumentPosition(summaryToggle) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      closeControl.compareDocumentPosition(resultsHeading) &
+      summaryToggle.compareDocumentPosition(closeControl) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
@@ -1271,10 +1261,10 @@ describe("Publication detail results-first layout (UX-04)", () => {
     renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
     expect(
       await screen.findByRole("heading", {
-        name: "Authoritative configuration",
+        name: "Configuration",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Immutable source")).toBeInTheDocument();
+    expect(screen.getByText("Source version")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Results" }),
     ).not.toBeInTheDocument();

@@ -10,9 +10,11 @@ import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { TextField } from "../../../components/ui/text-field";
 import { useAuth } from "../auth-provider";
+import { displayNameSchema, optionalDisplayName } from "../model/display-name";
 
 const registrationSchema = z
   .object({
+    displayName: displayNameSchema,
     username: z
       .string()
       .max(255, "Username must be 255 characters or fewer.")
@@ -47,6 +49,7 @@ export function RegistrationForm() {
     register,
   } = useForm<RegistrationFields>({
     defaultValues: {
+      displayName: "",
       confirmPassword: "",
       email: "",
       password: "",
@@ -58,6 +61,9 @@ export function RegistrationForm() {
   async function onSubmit(fields: RegistrationFields) {
     setServerError(null);
     const result = await registerAccount({
+      ...(fields.displayName === ""
+        ? {}
+        : { displayName: optionalDisplayName(fields.displayName)! }),
       email: fields.email,
       password: fields.password,
       username: fields.username,
@@ -104,6 +110,17 @@ export function RegistrationForm() {
         label={t("Email address")}
         type="email"
         {...register("email")}
+      />
+      <TextField
+        autoComplete="nickname"
+        label={t("Display name (optional)")}
+        helperText={t(
+          "A name you provide, not a verified legal name. Teachers may see it in results.",
+        )}
+        error={
+          errors.displayName?.message && localize(errors.displayName.message)
+        }
+        {...register("displayName")}
       />
       <TextField
         autoComplete="new-password"

@@ -621,14 +621,14 @@ describe("Publication boundary failures and cancellation", () => {
         status: 409,
         code: "ACTIVE_ATTEMPTS",
       }),
-    ).toContain("force-close is not available");
+    ).toContain("there is no force-close");
     expect(
       publicationFailureMessage({
         kind: "api",
         status: 503,
         code: "AUTHORITY_UNAVAILABLE",
       }),
-    ).toContain("has not been logged out");
+    ).toContain("You are still signed in");
     expect(
       publicationFailureMessage({
         kind: "api",

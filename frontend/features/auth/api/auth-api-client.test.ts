@@ -41,6 +41,88 @@ function requestBody(request: HttpRequest): unknown {
 }
 
 describe("auth API client", () => {
+  it.each([undefined, null, "Nguyễn An"])(
+    "accepts legacy and additive /me displayName %j",
+    async (displayName) => {
+      const response = jsonResponse(200, {
+        id: "user-1",
+        username: "learner",
+        email: "learner@gmail.com",
+        roles: ["STUDENT"],
+        ...(displayName === undefined ? {} : { displayName }),
+      });
+      const executor = {
+        execute: vi.fn(),
+        executeOnce: vi.fn(),
+        executeOnceWithAccessToken: vi.fn().mockResolvedValue(response),
+      };
+      const client = createAuthApiClient({ transport: { execute: vi.fn() } });
+      expect(await client.me(executor, "memory-token")).toMatchObject({
+        ok: true,
+        value: { displayName: displayName ?? null },
+      });
+    },
+  );
+
+  it.each([42, {}, []])(
+    "rejects malformed /me displayName %j",
+    async (displayName) => {
+      const executor = {
+        execute: vi.fn(),
+        executeOnce: vi.fn(),
+        executeOnceWithAccessToken: vi.fn().mockResolvedValue(
+          jsonResponse(200, {
+            id: "u",
+            username: "u",
+            email: "u@gmail.com",
+            roles: ["STUDENT"],
+            displayName,
+          }),
+        ),
+      };
+      const client = createAuthApiClient({ transport: { execute: vi.fn() } });
+      expect(await client.me(executor, "memory-token")).toMatchObject({
+        ok: false,
+        error: { kind: "unexpected-response" },
+      });
+    },
+  );
+
+  it.each(["Nguyễn An", null])(
+    "updates own display name through the authenticated executor: %j",
+    async (displayName) => {
+      const transport = { execute: vi.fn() };
+      const execute = vi.fn<AuthenticatedRequestExecutor["execute"]>(
+        async (request) => {
+          const created = request.createRequest();
+          expect(created.target).toBe(
+            "https://gateway.example/api/auth/me/display-name",
+          );
+          expect(created.method).toBe("PUT");
+          expect(requestBody(created)).toEqual({ displayName });
+          expect(new Headers(created.headers).has("authorization")).toBe(false);
+          expect(created.credentials).toBeUndefined();
+          return emptyResponse(204);
+        },
+      );
+      const client = createAuthApiClient({
+        apiBaseUrl: "https://gateway.example",
+        transport,
+      });
+      expect(
+        await client.updateDisplayName(
+          {
+            execute,
+            executeOnce: vi.fn(),
+            executeOnceWithAccessToken: vi.fn(),
+          },
+          displayName,
+        ),
+      ).toEqual({ ok: true, value: undefined });
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(transport.execute).not.toHaveBeenCalled();
+    },
+  );
   it("sends the exact registration DTO to the configured public API origin", async () => {
     const execute = vi.fn(async (request: HttpRequest) => {
       expect(request.target).toBe("https://gateway.example/api/auth/register");
@@ -277,6 +359,7 @@ describe("auth API client", () => {
     expect(result).toEqual({
       ok: true,
       value: {
+        displayName: null,
         email: "learner01@gmail.com",
         id: "8ad4c564-3c27-4e6d-91aa-a004334aa8f8",
         roles: ["STUDENT", "TEACHER"],

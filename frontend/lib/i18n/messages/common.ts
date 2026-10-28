@@ -1,5 +1,18 @@
 // Stable English source keys. Only product presentation belongs in this catalog.
 export const commonMessages = {
+  "Display name (optional)": "Tên hiển thị (không bắt buộc)",
+  "A name you provide, not a verified legal name. Teachers may see it in results.":
+    "Tên do bạn cung cấp, không phải tên pháp lý đã xác minh. Giáo viên có thể thấy tên này trong kết quả.",
+  "Enter a display name of 1–100 characters without control characters, or leave it empty.":
+    "Nhập tên hiển thị từ 1–100 ký tự, không chứa ký tự điều khiển, hoặc để trống.",
+  "Leave empty and save to remove your display name. Your username will be used instead.":
+    "Để trống rồi lưu để xóa tên hiển thị. Tên đăng nhập sẽ được dùng thay thế.",
+  "Your display name could not be saved. Check your connection and try again.":
+    "Không thể lưu tên hiển thị. Hãy kiểm tra kết nối và thử lại.",
+  "Display name not saved": "Chưa lưu tên hiển thị",
+  "Display name saved.": "Đã lưu tên hiển thị.",
+  "Saving display name": "Đang lưu tên hiển thị",
+  "Save display name": "Lưu tên hiển thị",
   "Quizopia home": "Trang chủ Quizopia",
   "Primary navigation": "Điều hướng chính",
   "Public navigation": "Điều hướng công khai",
@@ -41,8 +54,7 @@ export const commonMessages = {
   "Sign out": "Đăng xuất",
   "Sign out could not be completed. Your session is still active.":
     "Không thể hoàn tất đăng xuất. Phiên đăng nhập của bạn vẫn đang hoạt động.",
-  "Account settings are unavailable until Identity exposes profile and avatar update APIs.":
-    "Cài đặt tài khoản chưa khả dụng cho đến khi dịch vụ Identity hỗ trợ cập nhật hồ sơ và ảnh đại diện.",
+  "Account settings are not available yet.": "Cài đặt tài khoản chưa khả dụng.",
   "Teacher registration could not be completed. Your current access has not changed. Try again.":
     "Không thể hoàn tất đăng ký giáo viên. Quyền truy cập hiện tại của bạn không thay đổi. Hãy thử lại.",
   "Teacher access is ready. You can now switch to the Teaching workspace.":
@@ -53,8 +65,8 @@ export const commonMessages = {
     "Tài khoản này không thể đăng ký làm giáo viên.",
   Your: "Không gian của bạn:",
   "Quizopia workspace": "Quizopia",
-  "Welcome back, {username}. Access the tools available to your account and keep your learning and teaching work organized.":
-    "Chào mừng trở lại, {username}. Truy cập các công cụ dành cho tài khoản của bạn và quản lý việc học tập, giảng dạy ngăn nắp.",
+  "Welcome back, {username}. Everything for your learning and teaching is here.":
+    "Chào mừng trở lại, {username}. Mọi thứ cho việc học tập và giảng dạy của bạn đều ở đây.",
   "Open quiz authoring": "Mở công cụ soạn câu hỏi",
   "Enter an assessment": "Vào bài kiểm tra",
   "Current account context": "Thông tin tài khoản hiện tại",
@@ -65,8 +77,8 @@ export const commonMessages = {
   Teacher: "Giáo viên",
   Administrator: "Quản trị viên",
   "No workspace is selected": "Chưa chọn không gian làm việc",
-  "Learning and teaching views are available only when the matching account role is present.":
-    "Chế độ học tập và giảng dạy chỉ khả dụng khi tài khoản có vai trò tương ứng.",
+  "Learning and teaching views appear when your account has the matching role.":
+    "Chế độ học tập và giảng dạy xuất hiện khi tài khoản có vai trò tương ứng.",
   "THE NEXT CHAPTER OF LEARNING": "CHƯƠNG MỚI CỦA HỌC TẬP",
   "A smarter space to": "Không gian thông minh để",
   "learn and teach.": "học tập và giảng dạy.",
@@ -185,8 +197,8 @@ export const commonMessages = {
   "This version cannot restore a signed-in session.":
     "Phiên bản này không thể khôi phục phiên đăng nhập.",
   "Open the Quizopia application": "Mở ứng dụng Quizopia",
-  "Sign in is required to continue. Account access is not available in this version. No session was created.":
-    "Bạn cần đăng nhập để tiếp tục. Truy cập tài khoản chưa khả dụng trong phiên bản này. Chưa có phiên đăng nhập nào được tạo.",
+  "Sign in is required to continue. Account access is not available in this version.":
+    "Bạn cần đăng nhập để tiếp tục. Truy cập tài khoản chưa khả dụng trong phiên bản này.",
   "Account access required": "Yêu cầu truy cập tài khoản",
   "Sign in to open the Quizopia application.":
     "Đăng nhập để mở ứng dụng Quizopia.",
@@ -199,6 +211,7 @@ export const commonMessages = {
     "Quizopia không thể kiểm tra phiên trình duyệt hiện tại.",
   "Sign in to continue. No authenticated content was shown.":
     "Đăng nhập để tiếp tục. Chưa hiển thị nội dung yêu cầu đăng nhập.",
+  "Please sign in to continue.": "Hãy đăng nhập để tiếp tục.",
   "Your session has ended": "Phiên đăng nhập của bạn đã kết thúc",
   "Sign in again to continue using the Quizopia application.":
     "Đăng nhập lại để tiếp tục sử dụng ứng dụng Quizopia.",
@@ -208,13 +221,15 @@ export const commonMessages = {
   "Verify your account to continue": "Xác minh tài khoản để tiếp tục",
   "Account verification is temporarily unavailable":
     "Tạm thời không thể xác minh tài khoản",
-  "We could not verify your account yet. Access remains unavailable until verification succeeds. Try again when the service is available, or sign in with another account.":
-    "Chưa thể xác minh tài khoản của bạn. Bạn chưa thể truy cập cho đến khi xác minh thành công. Hãy thử lại khi dịch vụ khả dụng hoặc đăng nhập bằng tài khoản khác.",
+  "We could not verify your account yet. Please try again, or sign in with another account.":
+    "Chưa xác minh được tài khoản của bạn. Vui lòng thử lại hoặc đăng nhập bằng tài khoản khác.",
+  "Your session has ended. Please sign in again.":
+    "Đã hết phiên đăng nhập. Vui lòng đăng nhập lại.",
   "Verification progress": "Tiến trình xác minh",
   "Checking your account. Please wait.":
     "Đang kiểm tra tài khoản của bạn. Vui lòng chờ.",
-  "Verification attempt {count} could not be completed. Access remains unavailable. You can retry or sign in again.":
-    "Không thể hoàn tất lần xác minh thứ {count}. Bạn vẫn chưa thể truy cập. Bạn có thể thử lại hoặc đăng nhập lại.",
+  "Verification attempt {count} could not be completed. You can retry or sign in again.":
+    "Không thể hoàn tất lần xác minh thứ {count}. Bạn có thể thử lại hoặc đăng nhập lại.",
   "Verifying account": "Đang xác minh tài khoản",
   "Retry account verification": "Thử xác minh tài khoản lại",
   Loading: "Đang tải",

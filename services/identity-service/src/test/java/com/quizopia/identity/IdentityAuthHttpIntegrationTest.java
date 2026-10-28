@@ -942,6 +942,7 @@ class IdentityAuthHttpIntegrationTest {
         assertEquals(user.getId().toString(), body.path("id").asText());
         assertEquals(user.getUsername(), body.path("username").asText());
         assertEquals(user.getEmail(), body.path("email").asText());
+        assertTrue(body.path("displayName").isNull(), "legacy account must expose a null displayName");
         assertEquals(List.of("STUDENT", "TEACHER"), objectMapper.convertValue(body.path("roles"), List.class));
         for (String absent : List.of(
                 "persona", "workspace", "refresh", "session", "accessToken", "tokenType", "expiresIn", "password")) {
@@ -988,6 +989,173 @@ class IdentityAuthHttpIntegrationTest {
         assertEquals(HttpStatus.FORBIDDEN, me(signedServiceToken()).getStatusCode());
         assertEquals(HttpStatus.UNAUTHORIZED, me(null).getStatusCode());
         assertEquals(HttpStatus.UNAUTHORIZED, me("not-a-jwt").getStatusCode());
+    }
+
+    @Test
+    void displayNameSelfUpdateNormalizesClearsAndReflectsImmediatelyInMe() throws Exception {
+        String password = "display-secret-" + UUID.randomUUID();
+        UserAccountEntity user =
+                persistLoginUser("display-update", password, AccountLifecycleStatus.ACTIVE, true, true);
+        String accessToken =
+                json(login(user.getUsername(), password)).path("accessToken").asText();
+        String decomposed = "Nguy" + 'e' + '\u0302' + '\u0303' + "n V" + 'a' + '\u0306' + "n An";
+        String composed = "Nguy\u1ec5n V\u0103n An";
+
+        ResponseEntity<String> update = putDisplayName(accessToken, displayNameBody(decomposed));
+
+        assertEquals(HttpStatus.NO_CONTENT, update.getStatusCode(), update.getBody());
+        assertTrue(update.getBody() == null || update.getBody().isEmpty());
+        assertEquals(composed, text("SELECT display_name FROM user_account WHERE id = ?", user.getId()));
+        ResponseEntity<String> after = me(accessToken);
+        assertEquals(HttpStatus.OK, after.getStatusCode());
+        assertEquals(composed, json(after).path("displayName").asText());
+        assertFalse(after.getBody().contains(decomposed));
+
+        ResponseEntity<String> clear = putDisplayName(accessToken, "{\"displayName\":null}");
+
+        assertEquals(HttpStatus.NO_CONTENT, clear.getStatusCode());
+        assertNull(value("SELECT display_name FROM user_account WHERE id = ?", user.getId()));
+        assertTrue(json(me(accessToken)).path("displayName").isNull());
+    }
+
+    @Test
+    void displayNameSelfUpdateValidatesStrictlyAndNeverEchoesTheCandidate() throws Exception {
+        String password = "display-invalid-secret-" + UUID.randomUUID();
+        UserAccountEntity user =
+                persistLoginUser("display-invalid", password, AccountLifecycleStatus.ACTIVE, true, true);
+        String accessToken =
+                json(login(user.getUsername(), password)).path("accessToken").asText();
+        for (String candidate : List.of(
+                "   ",
+                "\t",
+                "n".repeat(101),
+                "Bad\u0000Name",
+                "Bad\u007fName",
+                "   \u2009  ",
+                "  " + "n".repeat(120) + "  ")) {
+            ResponseEntity<String> response = putDisplayName(accessToken, displayNameBody(candidate));
+            assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode(), candidate);
+            assertEquals("DISPLAY_NAME_INVALID", json(response).path("code").asText());
+            String visible = candidate.strip();
+            if (!visible.isEmpty()) {
+                assertFalse(response.getBody().contains(visible), candidate);
+            }
+            assertNull(value("SELECT display_name FROM user_account WHERE id = ?", user.getId()));
+        }
+        ResponseEntity<String> malformed = putDisplayName(accessToken, "not-json");
+        assertEquals(HttpStatus.BAD_REQUEST, malformed.getStatusCode());
+        assertEquals("INVALID_REQUEST", json(malformed).path("code").asText());
+    }
+
+    @Test
+    void displayNameSelfUpdateTouchesOnlyTheAuthenticatedSubject() throws Exception {
+        String password = "display-own-secret-" + UUID.randomUUID();
+        UserAccountEntity actor =
+                persistLoginUser("display-actor", password, AccountLifecycleStatus.ACTIVE, true, true);
+        UserAccountEntity other =
+                persistLoginUser("display-other", password + "-other", AccountLifecycleStatus.ACTIVE, true, true);
+        other.setDisplayName("Unchanged Name");
+        userAccountRepository.saveAndFlush(other);
+        String accessToken =
+                json(login(actor.getUsername(), password)).path("accessToken").asText();
+
+        ResponseEntity<String> response = putDisplayName(accessToken, displayNameBody("Actor Name"));
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertEquals("Actor Name", text("SELECT display_name FROM user_account WHERE id = ?", actor.getId()));
+        assertEquals("Unchanged Name", text("SELECT display_name FROM user_account WHERE id = ?", other.getId()));
+        assertFalse(response.getBody() != null
+                && response.getBody().contains(other.getId().toString()));
+    }
+
+    @Test
+    void displayNameSelfUpdateRequiresEligibleUserBearer() throws Exception {
+        String password = "display-authz-secret-" + UUID.randomUUID();
+        UserAccountEntity user = persistLoginUser("display-authz", password, AccountLifecycleStatus.ACTIVE, true, true);
+        String accessToken =
+                json(login(user.getUsername(), password)).path("accessToken").asText();
+        assertEquals(
+                HttpStatus.FORBIDDEN,
+                putDisplayName(signedServiceToken(), displayNameBody("Service Name"))
+                        .getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                putDisplayName(null, displayNameBody("Anonymous Name")).getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, me(null).getStatusCode());
+
+        jdbc.update("UPDATE user_account SET account_status = 'DISABLED' WHERE id = ?", user.getId());
+        ResponseEntity<String> disabled = putDisplayName(accessToken, displayNameBody("Late Name"));
+        assertEquals(HttpStatus.FORBIDDEN, disabled.getStatusCode());
+        assertEquals("ACCESS_DENIED", json(disabled).path("code").asText());
+        assertNull(value("SELECT display_name FROM user_account WHERE id = ?", user.getId()));
+    }
+
+    @Test
+    void registrationCapturesValidatesAndOmitsOptionalDisplayName() throws Exception {
+        String capturedUsername = username("name-captured");
+        ResponseEntity<String> captured = registerWithDisplayName(
+                capturedUsername, email("name-captured"), "secret-name-1", "Nguy\u1ec5n V\u0103n An");
+        assertEquals(HttpStatus.ACCEPTED, captured.getStatusCode(), captured.getBody());
+        assertEquals(
+                "Nguy\u1ec5n V\u0103n An",
+                text("SELECT display_name FROM user_account WHERE username = ?", capturedUsername));
+
+        String omittedUsername = username("name-omitted");
+        ResponseEntity<String> omitted =
+                registerWithDisplayName(omittedUsername, email("name-omitted"), "secret-name-2", null);
+        assertEquals(HttpStatus.ACCEPTED, omitted.getStatusCode(), omitted.getBody());
+        assertNull(value("SELECT display_name FROM user_account WHERE username = ?", omittedUsername));
+
+        String blankedUsername = username("name-blanked");
+        ResponseEntity<String> blanked =
+                registerWithDisplayName(blankedUsername, email("name-blanked"), "secret-name-3", "   ");
+        assertEquals(HttpStatus.ACCEPTED, blanked.getStatusCode(), blanked.getBody());
+        assertNull(value("SELECT display_name FROM user_account WHERE username = ?", blankedUsername));
+
+        long before = count("SELECT COUNT(*) FROM user_account");
+        ResponseEntity<String> invalid = registerWithDisplayName(
+                username("name-invalid"), email("name-invalid"), "secret-name-4", "Bad\u0000Name");
+        assertEquals(HttpStatus.BAD_REQUEST, invalid.getStatusCode());
+        assertEquals("DISPLAY_NAME_INVALID", json(invalid).path("code").asText());
+        assertEquals(before, count("SELECT COUNT(*) FROM user_account"));
+    }
+
+    private ResponseEntity<String> registerWithDisplayName(
+            String username, String email, String password, String displayName) throws Exception {
+        StringBuilder body = new StringBuilder("{\"username\":")
+                .append(objectMapper.writeValueAsString(username))
+                .append(",\"email\":")
+                .append(objectMapper.writeValueAsString(email))
+                .append(",\"password\":")
+                .append(objectMapper.writeValueAsString(password));
+        if (displayName != null) {
+            body.append(",\"displayName\":").append(objectMapper.writeValueAsString(displayName));
+        }
+        return restTemplate.exchange(
+                AuthController.REGISTER_PATH,
+                HttpMethod.POST,
+                raw(body.append("}").toString()),
+                String.class);
+    }
+
+    private HttpEntity<String> raw(String body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return new HttpEntity<>(body, headers);
+    }
+
+    private String displayNameBody(String displayName) throws Exception {
+        return "{\"displayName\":" + objectMapper.writeValueAsString(displayName) + "}";
+    }
+
+    private ResponseEntity<String> putDisplayName(String accessToken, String body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        if (accessToken != null) {
+            headers.setBearerAuth(accessToken);
+        }
+        return restTemplate.exchange(
+                AuthController.ME_DISPLAY_NAME_PATH, HttpMethod.PUT, new HttpEntity<>(body, headers), String.class);
     }
 
     @Test
@@ -1084,6 +1252,15 @@ class IdentityAuthHttpIntegrationTest {
         assertEquals(
                 HttpStatus.UNAUTHORIZED,
                 restTemplate
+                        .exchange(
+                                AuthController.ME_DISPLAY_NAME_PATH,
+                                HttpMethod.PUT,
+                                jsonEntity(Map.of("displayName", "Anonymous")),
+                                String.class)
+                        .getStatusCode());
+        assertEquals(
+                HttpStatus.UNAUTHORIZED,
+                restTemplate
                         .exchange(AuthController.ME_PATH, HttpMethod.POST, jsonEntity(Map.of()), String.class)
                         .getStatusCode());
         assertEquals(
@@ -1105,6 +1282,7 @@ class IdentityAuthHttpIntegrationTest {
         assertTrue(paths.path(AuthController.REFRESH_PATH).has("post"));
         assertTrue(paths.path(AuthController.LOGOUT_PATH).has("post"));
         assertTrue(paths.path(AuthController.ME_PATH).has("get"));
+        assertTrue(paths.path(AuthController.ME_DISPLAY_NAME_PATH).has("put"));
         assertFalse(paths.path(AuthController.REGISTER_PATH).has("get"));
         assertFalse(paths.path(AuthController.LOGIN_PATH).has("get"));
         assertFalse(paths.path(AuthController.LOGOUT_PATH).has("get"));
@@ -1169,6 +1347,20 @@ class IdentityAuthHttpIntegrationTest {
                 paths.path(AuthController.ME_PATH).path("get").path("responses").has("401"));
         assertTrue(
                 paths.path(AuthController.ME_PATH).path("get").path("responses").has("403"));
+        assertTrue(paths.path(AuthController.ME_DISPLAY_NAME_PATH)
+                .path("put")
+                .path("responses")
+                .has("204"));
+        assertTrue(paths.path(AuthController.ME_DISPLAY_NAME_PATH)
+                .path("put")
+                .path("responses")
+                .has("400"));
+        assertTrue(paths.path(AuthController.ME_DISPLAY_NAME_PATH)
+                .path("put")
+                .path("security")
+                .get(0)
+                .propertyNames()
+                .contains("bearerAuth"));
         assertTrue(paths.path(AuthController.ME_PATH)
                 .path("get")
                 .path("security")

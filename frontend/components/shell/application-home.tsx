@@ -58,7 +58,7 @@ export function ApplicationHome() {
           </h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-foreground-secondary">
             {t(
-              "Welcome back, {username}. Access the tools available to your account and keep your learning and teaching work organized.",
+              "Welcome back, {username}. Everything for your learning and teaching is here.",
               { username: user.username },
             )}
           </p>
@@ -142,7 +142,7 @@ export function ApplicationHome() {
         {activeWorkspace === null ? (
           <Alert className="mt-6" title={t("No workspace is selected")}>
             {t(
-              "Learning and teaching views are available only when the matching account role is present.",
+              "Learning and teaching views appear when your account has the matching role.",
             )}
           </Alert>
         ) : null}

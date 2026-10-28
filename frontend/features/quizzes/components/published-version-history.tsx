@@ -64,24 +64,17 @@ function failureMessage(failure: QuizApiFailure, localize: Localize): string {
     return failure.error.message;
   }
   if (failure.kind === "transport-error") {
-    return localize("Quizopia could not reach the Quiz service. Try again.");
+    return localize("Quizopia could not connect. Try again.");
   }
   if (failure.kind === "authentication-failure") {
-    return localize(
-      "Your authenticated session is not available for this request.",
-    );
+    return localize("Your session has ended. Please sign in again.");
   }
   if (failure.kind === "validation-error") {
-    return localize(
-      "The Quiz service returned an unexpected validation response.",
-    );
+    return localize("Quizopia got an unexpected validation response.");
   }
-  return localize(
-    "The Quiz service returned an unexpected response ({status}).",
-    {
-      status: failure.status,
-    },
-  );
+  return localize("Quizopia got an unexpected response ({status}).", {
+    status: failure.status,
+  });
 }
 
 function appendUniqueVersions(
@@ -446,7 +439,7 @@ export function PublishedVersionHistory({
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
               {t(
-                "Immutable snapshots. Previewing a version never changes your current draft.",
+                "Published versions are read-only. Previewing one never changes your draft.",
               )}
             </p>
           </div>
@@ -506,9 +499,7 @@ export function PublishedVersionHistory({
                   {t("No published versions yet")}
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-foreground-muted">
-                  {t(
-                    "Publish the current draft to create its first immutable snapshot.",
-                  )}
+                  {t("Publish the current draft to create its first version.")}
                 </p>
               </div>
             ) : (
@@ -598,9 +589,7 @@ export function PublishedVersionHistory({
                     {t("Select a published version")}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-foreground-muted">
-                    {t(
-                      "Snapshot source and content load only when you open a version.",
-                    )}
+                    {t("A version's content loads when you open it.")}
                   </p>
                 </div>
               </div>
@@ -648,7 +637,7 @@ export function PublishedVersionHistory({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-primary">
-                        {localize("Immutable version {number}", {
+                        {localize("Version {number}", {
                           number: detailState.detail.versionNumber,
                         })}
                       </p>
@@ -694,7 +683,7 @@ export function PublishedVersionHistory({
                 <div className="rounded-xl border border-border bg-surface p-4 sm:p-5">
                   <QuizPreview
                     description={t(
-                      "Read-only preview from this immutable published snapshot. Current Draft content is not used here.",
+                      "Read-only preview of this published version.",
                     )}
                     readOnly
                     source={detailState.detail.sourceSnapshot}

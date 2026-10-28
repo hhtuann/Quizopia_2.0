@@ -61,60 +61,58 @@ export function isUncertainAssessmentFailure(
 
 const codeMessages: Record<string, string> = {
   ACTIVE_ATTEMPTS:
-    "Active Attempts prevent direct closure. Manage the delayed closure workflow or refresh after learners finish; force-close is not available.",
+    "Active attempts prevent closing. Refresh after learners finish; there is no force-close.",
   CLOSURE_PENDING:
-    "A closure workflow is already live for this Publication. Manage that request instead of creating another.",
+    "A closure request is already live for this Publication. Manage that request instead of creating another.",
   REVISION_CONFLICT:
-    "This Publication changed on the server. Refresh authoritative state and review the current revision before trying again.",
+    "This Publication changed. Refresh and review the current revision before trying again.",
   PUBLICATION_CONFLICT:
-    "The Publication state or revision changed. Refresh authoritative details and review your action.",
+    "This Publication changed. Refresh and review the current revision before trying again.",
   IDEMPOTENCY_CONFLICT:
-    "This operation identity conflicts with an earlier request. Do not repeat it with different settings; refresh state and start a new deliberate action.",
+    "This request conflicts with an earlier one. Do not repeat it with different settings.",
   WINDOW_NOT_ENDED:
-    "The server's authoritative clock has not reached the participation end. Delayed closure cannot be requested yet; browser time is never used.",
+    "The participation end has not passed yet, so delayed closure cannot be requested. Quizopia uses its own clock, not your device's.",
   CLOSURE_NOT_READY:
-    "The server still waits on confirmed notices or 48-hour cutoffs. Already committed progress remains; refresh the request status.",
+    "Some notices or 48-hour cutoffs are still pending. Progress so far is kept; refresh the request status.",
   CLOSURE_FINALIZATION_STARTED:
-    "Closure finalization has durably started, so this request can no longer be cancelled.",
+    "Finalization has started, so this request can no longer be cancelled.",
   CLOSURE_RESOLVED:
-    "This closure request is already resolved. Start a new deliberate action if one is still required.",
+    "This closure request is already resolved. Start a new action if one is still required.",
   PUBLICATION_NOT_FOUND:
     "This Publication is unavailable or you do not have permission to view it.",
   CLOSURE_REQUEST_NOT_FOUND:
     "This closure request is unavailable or you do not have permission to view it.",
   NOTIFICATION_NOT_FOUND:
     "This notification is unavailable or does not belong to the current account.",
-  ACCESS_DENIED:
-    "The server denied this operation. Current role authority and ownership are required.",
-  INVALID_REQUEST:
-    "The server rejected the request as malformed. No mutation occurred.",
+  ACCESS_DENIED: "You need the right role and ownership for this action.",
+  INVALID_REQUEST: "The request was malformed. Nothing was changed.",
   CAPACITY_EXCEEDED:
-    "The server is temporarily throttling this operation. Retry the same operation key after a short wait.",
+    "Too many requests. Wait a moment, then retry the same action.",
 };
 
 export function assessmentFailureMessage(failure: AssessmentFailure): string {
   if (failure.kind === "session")
-    return "Your session changed or could not be refreshed. Sign in or verify your account before continuing.";
+    return "Your session changed or could not be refreshed. Please sign in again.";
   if (failure.kind === "aborted")
-    return "The request was cancelled. A mutation may still have reached the server.";
+    return "The request was cancelled and may still have gone through.";
   if (failure.kind === "unavailable")
-    return "Verification or the connection is temporarily unavailable. Your account has not been logged out.";
+    return "The connection is temporarily unavailable. You are still signed in.";
   if (failure.kind === "invalid-input")
     return "Check the identifier, revision and query before sending this request.";
   if (failure.kind === "invalid-response")
-    return "The server response could not be verified. Refresh authoritative state before retrying a change.";
+    return "The response could not be verified. Refresh before retrying a change.";
   if (failure.status === 503)
-    return "Required authority, dependency, persistence or grading is unavailable. Your account has not been logged out.";
+    return "Part of Quizopia is temporarily unavailable. You are still signed in.";
   if (failure.status === 401)
-    return "Your session could not authorize this request. Sign in again before continuing.";
+    return "Your session has ended. Please sign in again.";
   if (failure.status === 403)
-    return "The server denied this operation for the current account or role.";
+    return "This action is not allowed for your account or role.";
   if (failure.status === 404)
     return "The resource is unavailable or not accessible for the current account.";
   if (failure.status === 429) return codeMessages.CAPACITY_EXCEEDED;
   return (
     codeMessages[failure.code] ??
-    `The server could not complete the operation (HTTP ${failure.status}). Refresh status before retrying.`
+    `Quizopia could not complete the operation (HTTP ${failure.status}). Refresh before retrying.`
   );
 }
 

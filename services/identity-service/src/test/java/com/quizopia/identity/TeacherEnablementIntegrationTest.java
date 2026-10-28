@@ -218,7 +218,7 @@ class TeacherEnablementIntegrationTest {
 
     @Test
     void cleanV12MigrationAndHibernateValidationExposeOnlyMinimalAuditFields() {
-        assertEquals("13", flyway.info().current().getVersion().getVersion());
+        assertEquals("14", flyway.info().current().getVersion().getVersion());
         assertEquals(
                 1L,
                 jdbc.queryForObject(

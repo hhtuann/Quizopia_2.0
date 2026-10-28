@@ -106,7 +106,7 @@ export function PublicationSummary({
     [t("Title"), configuration.title, false],
     [t("Description"), configuration.description || t("No description"), false],
     [
-      t("Immutable source"),
+      t("Source version"),
       t("Version {number}", { number: configuration.versionNumber }),
       false,
     ],
@@ -163,9 +163,6 @@ export function PublicationSummary({
                 withTimeZone: true,
               })}
             </time>
-            <span className="mt-1 block break-all font-mono text-xs text-foreground-muted">
-              {configuration[field]}
-            </span>
           </dd>
         </div>
       ))}

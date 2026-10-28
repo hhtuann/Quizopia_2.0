@@ -61,7 +61,7 @@ function TeacherPublicationPage({
       {!user?.roles.includes("TEACHER") ? (
         <Alert title={t("Teacher access required")} variant="warning">
           {t(
-            "Current Teacher authority and ownership are required. Workspace selection does not grant a role.",
+            "Teacher role and ownership are required. Switching workspace does not grant a role.",
           )}{" "}
           <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
@@ -74,9 +74,7 @@ function TeacherPublicationPage({
             {t("Open the Teaching workspace")}
           </h1>
           <p className="mt-3 text-foreground-secondary">
-            {t(
-              "Use your existing Teacher role to manage Publications. The server checks authority for every operation.",
-            )}
+            {t("Assessment management lives in the Teaching workspace.")}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
             {t("Switch to Teaching workspace")}
@@ -84,9 +82,7 @@ function TeacherPublicationPage({
         </Surface>
       ) : client === null || quizClient === null ? (
         <Alert title={t("Publication access unavailable")} variant="warning">
-          {t(
-            "Your authenticated request service is unavailable. Sign in again before continuing.",
-          )}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : publicationId !== undefined ? (
         <PublicationDetailScreen

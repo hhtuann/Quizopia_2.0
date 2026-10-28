@@ -51,9 +51,7 @@ describe("Teacher monitoring bilingual timeline labels", () => {
       ),
     ).toBeVisible();
     expect(screen.getAllByText(/^Đã nhận: /).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^Quan sát\/xảy ra: /).length).toBeGreaterThan(
-      0,
-    );
+    expect(screen.getAllByText(/^Quan sát: /).length).toBeGreaterThan(0);
   });
 
   it("keeps English labels deterministic without a provider", () => {
@@ -62,7 +60,7 @@ describe("Teacher monitoring bilingual timeline labels", () => {
     expect(screen.getByText(/^Browser observation ·/)).toBeVisible();
     expect(
       screen.getByText(
-        "Assessment persistence fact · Question 2 · Assessment revision 42",
+        "Saved assessment fact · Question 2 · Assessment revision 42",
       ),
     ).toBeVisible();
   });
@@ -74,9 +72,7 @@ describe("Teacher monitoring bilingual timeline labels", () => {
       </I18nProvider>,
     );
     expect(
-      screen.getByText(
-        "Chưa có dữ liệu giám sát nào cho phiên được cấp quyền này.",
-      ),
+      screen.getByText("Chưa có sự kiện giám sát nào cho phiên này."),
     ).toBeVisible();
   });
 });

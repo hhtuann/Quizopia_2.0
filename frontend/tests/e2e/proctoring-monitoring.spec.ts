@@ -188,7 +188,7 @@ test("Teacher uses fresh attempt lookup and sees distinct provenance without glo
   await page.goto(`/app/monitoring/teacher/attempts/${attemptId}`);
   await expect(
     page.getByText(
-      "Assessment persistence fact · Question 2 · Assessment revision 42",
+      "Saved assessment fact · Question 2 · Assessment revision 42",
     ),
   ).toBeVisible();
   expect(paths[0]).toBe(
@@ -209,6 +209,6 @@ test("foreign or inaccessible Teacher Attempt remains masked", async ({
   await page.goto(`/app/monitoring/teacher/attempts/${attemptId}`);
   await expect(page.getByText("Session not accessible")).toBeVisible();
   await expect(
-    page.getByText(/does not reveal whether a foreign resource exists/),
+    page.getByText(/No monitoring session is available for that attempt/),
   ).toBeVisible();
 });

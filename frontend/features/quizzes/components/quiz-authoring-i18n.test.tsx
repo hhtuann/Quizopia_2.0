@@ -229,7 +229,7 @@ describe("quiz authoring bilingual presentation", () => {
     {
       locale: "vi" as const,
       expectedError:
-        "Hệ thống phát hiện lỗi Quiz Markdown. Chọn một mục xác thực để đưa con trỏ trình soạn tới vị trí nguồn tương ứng.",
+        "Quiz Markdown có lỗi. Chọn một mục để nhảy tới vị trí nguồn.",
       validationHeading: "Xác thực xuất bản",
       publishButton: "Xuất bản QuizVersion",
       dialogTitle: "Xuất bản QuizVersion bất biến",
@@ -239,7 +239,7 @@ describe("quiz authoring bilingual presentation", () => {
     {
       locale: "en" as const,
       expectedError:
-        "The backend found Quiz Markdown errors. Select a validation item to move the editor caret to its source location.",
+        "Quiz Markdown has errors. Select an item to jump to its source.",
       validationHeading: "Publish validation",
       publishButton: "Publish QuizVersion",
       dialogTitle: "Publish immutable QuizVersion",

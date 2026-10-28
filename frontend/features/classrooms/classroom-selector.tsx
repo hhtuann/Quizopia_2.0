@@ -92,13 +92,11 @@ export function ClassroomSelector({
         {t("Choose one Classroom")}
       </legend>
       <p className="text-sm text-foreground-muted" id={`${id}-help`}>
-        {t(
-          "Only your owned Classrooms are available. Select one to assign this assessment.",
-        )}
+        {t("Only classrooms you own are shown. Pick one for this assessment.")}
       </p>
       {!client ? (
         <Alert title={t("Classroom access unavailable")} variant="warning">
-          {t("Your authenticated Classroom connection is unavailable.")}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : null}
       {value && !selected ? (
@@ -189,7 +187,7 @@ export function ClassroomSelector({
       {!loading && !failure && choices.length === 0 ? (
         <p className="rounded-xl bg-surface-muted p-4 text-sm">
           {t(
-            "No owned Classrooms yet. A Classroom must be created before you can assign a CLASS assessment. You can save a PUBLIC assessment instead.",
+            "No classrooms yet. Create a classroom first, or save this assessment as PUBLIC.",
           )}
         </p>
       ) : null}

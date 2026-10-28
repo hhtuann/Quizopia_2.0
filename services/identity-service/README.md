@@ -34,7 +34,18 @@ idempotently revokes only the recognized current refresh family, and clears the
 cookie without creating access-token blacklist state. `GET /api/auth/me`
 requires a USER bearer token and returns only the authoritative current ID,
 username, email, and persisted roles after current eligibility and PostgreSQL
-revocation-cutoff checks. `POST /api/auth/teacher-enablement` requires a USER
+revocation-cutoff checks. Accounts also own an optional, self-provided
+`display_name` (V14, nullable `VARCHAR(100)`, never a verified legal name, no
+backfill for legacy accounts — they return `displayName: null` and downstream
+consumers fall back to username, then UUID). Display-name input is
+NFC-normalized, Unicode-trimmed, must be 1..100 characters, and rejects ISO
+control characters; violations return sanitized `400 DISPLAY_NAME_INVALID`
+without echoing the value. `POST /api/auth/register` accepts an optional
+`displayName` (absent/blank stores none). `PUT /api/auth/me/display-name`
+requires the same eligible USER bearer as `/me`, takes only
+`{"displayName": string|null}` (no account id — only the authenticated
+subject's own row is touched), returns 204, and a JSON null clears the name;
+the value itself is never logged. `POST /api/auth/teacher-enablement` requires a USER
 bearer token and no body, then requires the authoritative account to remain
 active, email-verified, and assigned `STUDENT` before idempotently granting
 `TEACHER`. Missing persisted `STUDENT` fails closed; eligible users preserve
@@ -241,3 +252,38 @@ The concurrency budget is eight (configurable 1–64); primary and Redis query
 bounds remain governed by the existing LD-05 settings. Authority uncertainty is
 sanitized 503, with no JWT fallback or positive eligibility cache. Independent
 security and actual multi-service review are required before activation.
+
+## Private Student profile batch (FB-012)
+
+The default-disabled [private contract](contracts/user-profiles.openapi.yaml)
+adds `POST /internal/security/user-profiles/batch` for Assessment's
+owner-authorized results enrichment. The caller must be a verified SERVICE
+principal whose subject is exactly the configured Assessment client
+(`IDENTITY_USER_PROFILES_ASSESSMENT_CLIENT_ID`, default `assessment-service`)
+and whose token carries the dedicated `identity.user-profile.read` scope;
+wrong client, wrong/missing scope, and USER principals receive sanitized 403.
+Requests carry exactly one `studentIds` array of 1..100 unique canonical
+lowercase UUID strings (body capped at 16384 bytes; duplicates, extra fields,
+non-canonical ids, query strings, cookies, transfer/content encoding, and
+identity-spoofing headers are rejected as `INVALID_INTERNAL_REQUEST`). One
+repository query serves the batch; unknown, deleted, and non-ACTIVE accounts
+are omitted entirely, and each returned item contains only `studentId` and
+`displayName` (stored self-provided `display_name` when non-blank, else the
+username fallback). Items are sorted by `studentId`; responses are
+`Cache-Control: no-store` and never expose email, roles, or status. Operator
+controls: `IDENTITY_USER_PROFILES_ENABLED` (default false),
+`IDENTITY_USER_PROFILES_REQUIRE_SECURE_TRANSPORT` (default true; mandatory in
+production), `IDENTITY_USER_PROFILES_MAX_CONCURRENT` (default 8, range 1–64),
+and `IDENTITY_USER_PROFILES_REQUESTS_PER_MINUTE` (default 60, range 1–6000).
+In addition to concurrent-query capacity, a fixed-memory rolling 60-second
+request budget admits only the exact authorized Assessment caller. All its
+tokens share one budget per Identity instance; changing tokens or requested
+student IDs does not reset it. Authenticated malformed requests also consume
+budget; rejected callers do not. Excess requests receive only
+`429 {"code":"PROFILE_RATE_LIMITED"}` with `Cache-Control: no-store`, before
+body parsing or database lookup. No PII/request/token keys or logs are used.
+This is an instance-local anti-enumeration bound (aggregate capacity scales
+with replicas and resets on restart); size deployment budgets accordingly.
+Register the scope only through the existing operator-owned client
+registration mechanism; no default grants are installed, and there is no
+Gateway or browser route.

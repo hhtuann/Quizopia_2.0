@@ -78,6 +78,23 @@ python3 scripts/local/generate-classroom-types.py
 python3 scripts/local/generate-classroom-types.py --check
 ```
 
+## Quiz authoring creates on first save (FB-014)
+
+`/app/quizzes/new` opens a blank, deliberately unsaved authoring workspace:
+no network call happens until the teacher's first explicit **Save**, so
+cancelling never leaves an empty Quiz record. The first Save is gated on at
+least one recognizable question (the same client `analyzeQuizMarkdown`
+grammar the live preview uses; publish-level completeness stays enforced by
+the backend publish validation). It fires exactly one `createDraft` with the
+authored title/source, then `router.replace`s to `/app/quizzes/{quizId}` so
+reload works; later Saves use the ordinary `updateDraft` on that same quiz.
+Rapid double Saves are collapsed by an in-flight guard, and a create failure
+never auto-retries: `POST /api/quizzes` has no Idempotency-Key contract
+(unlike Assessment create), so the failure copy states honestly that an
+explicit retry may create a duplicate if the first attempt reached the
+server. Leaving an empty new-quiz screen asks nothing; typed content keeps
+the standard discard confirmation.
+
 ## Teacher Assessment Publications
 
 In the Teaching workspace, open an owned Quiz, choose **Published versions**, select

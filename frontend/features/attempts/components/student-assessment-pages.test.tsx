@@ -385,9 +385,7 @@ describe("Student assessment entry and result boundaries", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Submit complete answers" }),
     );
-    expect(
-      await screen.findByText(/Attempt changed on the server/),
-    ).toBeVisible();
+    expect(await screen.findByText(/attempt changed elsewhere/i)).toBeVisible();
     expect(api.getAttempt).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Submit attempt" }));
@@ -533,7 +531,7 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Assessment work is available while the authorized CLASS projection is checked/,
+        /You can start working while monitoring is being checked/,
       ),
     ).toBeInTheDocument();
     expect(monitoringMock.controller.start).not.toHaveBeenCalled();
@@ -551,7 +549,7 @@ describe("IntegratedAttemptScreen and Proctoring monitoring composition", () => 
       ),
     );
     expect(
-      screen.getByText("Monitoring authority unavailable"),
+      screen.getByText("Monitoring requirement unavailable"),
     ).toBeInTheDocument();
     expect(monitoringMock.controller.start).not.toHaveBeenCalled();
   });

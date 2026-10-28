@@ -105,7 +105,7 @@ function TeacherClosurePage({
       {!user?.roles.includes("TEACHER") ? (
         <Alert title={t("Teacher access required")} variant="warning">
           {t(
-            "Current Teacher authority and Publication ownership are required. Workspace selection does not grant a role.",
+            "You need the Teacher role and ownership of this assessment. Switching workspace does not grant a role.",
           )}{" "}
           <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
@@ -118,9 +118,7 @@ function TeacherClosurePage({
             {t("Open the Teaching workspace")}
           </h1>
           <p className="mt-3 text-foreground-secondary">
-            {t(
-              "The closure workflow uses your existing Teacher role. The server checks ownership and admission for every operation.",
-            )}
+            {t("Closure management lives in the Teaching workspace.")}
           </p>
           <Button className="mt-5" onClick={() => switchWorkspace("TEACHING")}>
             {t("Switch to Teaching workspace")}
@@ -128,9 +126,7 @@ function TeacherClosurePage({
         </Surface>
       ) : publicationClient === null || closureClient === null ? (
         <Alert title={t("Closure access unavailable")} variant="warning">
-          {t(
-            "Your authenticated request service is unavailable. Sign in again before continuing.",
-          )}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : (
         <ClosureManagementScreen
@@ -215,7 +211,7 @@ export function ClosureManagementScreen({
     inFlight.current = true;
     setBusy(true);
     setMutationFailureText(null);
-    setStatus("Sending reviewed closure request…");
+    setStatus("Sending your request…");
     const signal = lifetime.current?.signal;
     const result = await closureClient.request(
       publicationId,
@@ -230,8 +226,8 @@ export function ClosureManagementScreen({
       setCreatedIsNew(result.value.created);
       setStatus(
         result.value.created
-          ? "Closure request created. The Publication is NOT closed; notices prepare independently."
-          : "The server returned the existing request for this operation identity.",
+          ? "Request created. The assessment is not closed yet; notices are being prepared."
+          : "This request already existed; the existing one is shown.",
       );
       setLoading(true);
       await refresh();
@@ -245,11 +241,11 @@ export function ClosureManagementScreen({
       setReconciled(false);
       setStatus(
         result.error.kind === "api" && result.error.status === 429
-          ? "The server throttled this operation. Reading authoritative state before an explicit same-key retry."
+          ? "Too many requests. Checking the current state; retry repeats your original request."
           : uncertain
-            ? "Outcome uncertain. Reading authoritative state before another action."
+            ? "Outcome unclear. Checking the current state before another action."
             : conflict
-              ? "The command conflicted with server state. Reading authoritative details before another action."
+              ? "Something changed. Checking the latest details before another action."
               : "Closure request was not created.",
       );
       if (
@@ -294,7 +290,7 @@ export function ClosureManagementScreen({
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
             <LoadingIndicator label={t("Loading Publication")} />
-            {t("Loading authoritative details…")}
+            {t("Loading details…")}
           </div>
         ) : (
           <>
@@ -305,10 +301,8 @@ export function ClosureManagementScreen({
             >
               {readFailure
                 ? localize(readFailure)
-                : t("Publication metadata is unavailable.")}{" "}
-              {t(
-                "The closure workflow requires an owner-authorized Publication.",
-              )}
+                : t("Publication details are unavailable.")}{" "}
+              {t("The closure workflow requires an assessment you own.")}
             </Alert>
             <Button
               className="mt-4"
@@ -349,7 +343,7 @@ export function ClosureManagementScreen({
         <Button
           disabled={busy}
           isLoading={loading}
-          loadingLabel={t("Refreshing authoritative details")}
+          loadingLabel={t("Refreshing details")}
           onClick={() => void reconcile()}
           variant="secondary"
         >
@@ -371,10 +365,7 @@ export function ClosureManagementScreen({
           title={t("Current state could not be refreshed")}
           variant="warning"
         >
-          {localize(readFailure)}{" "}
-          {t(
-            "Previously verified metadata remains visible; refresh before changing it.",
-          )}
+          {localize(readFailure)} {t("The details below may be outdated.")}
         </Alert>
       ) : null}
       {mutationFailureText ? (
@@ -394,7 +385,7 @@ export function ClosureManagementScreen({
           <h2 className="font-semibold">{t("Reconcile before continuing")}</h2>
           <p className="text-sm leading-6">
             {t(
-              "The closure request may have committed. Refresh reads current authority; it never repeats a mutation. An explicit retry re-sends only the original revision with the same idempotency key; a matching replay returns the existing request instead of creating another.",
+              "This request may have gone through. Refresh shows the current state without repeating it. Retry repeats only your original request — if it already succeeded, the existing request is returned.",
             )}
           </p>
           <div className="flex flex-wrap gap-3">
@@ -425,10 +416,10 @@ export function ClosureManagementScreen({
           </h2>
           <p className="text-sm leading-6 text-foreground-secondary">
             {t(
-              "A successful request records durable intent and starts recipient notice preparation. It does",
+              "A successful request starts preparing student notices. It does",
             )}{" "}
             <strong>{t("not")}</strong>{" "}
-            {t("close the Publication; track progress on the request page.")}
+            {t("close the assessment; track progress on the request page.")}
           </p>
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -460,12 +451,12 @@ export function ClosureManagementScreen({
       ) : null}
       <Surface className="p-5 sm:p-6">
         <h2 className="mb-4 font-heading text-xl font-bold">
-          {t("Authoritative window")}
+          {t("Participation window")}
         </h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-sm font-medium text-foreground-muted">
-              {t("Participation end (server authority)")}
+              {t("Participation end")}
             </dt>
             <dd className="mt-1 text-sm">
               {formatInstant(locale, publication.configuration.endAt, {
@@ -479,14 +470,14 @@ export function ClosureManagementScreen({
             </dt>
             <dd className="mt-1 text-sm">
               {publication.configuration.durationMinutes === 0
-                ? t("Yes — captured by delayed closure")
-                : t("No — bounded attempts finalize by their own deadlines")}
+                ? t("Yes — handled by delayed closure")
+                : t("No — bounded attempts end at their own deadlines")}
             </dd>
           </div>
         </dl>
         <p className="mt-4 text-sm leading-6 text-foreground-secondary">
           {t(
-            "Delayed closure may be requested only after the server's authoritative clock passes the participation end. This screen never decides eligibility from browser time; the server rejects a request that is too early.",
+            "Delayed closure can be requested only after the participation end has passed. Quizopia uses its own clock, not your device's; a too-early request is rejected.",
           )}
         </p>
       </Surface>
@@ -497,7 +488,7 @@ export function ClosureManagementScreen({
           </h2>
           <p className="text-sm leading-6 text-foreground-secondary">
             {t(
-              "A closure request captures every currently ACTIVE unlimited Attempt and queues durable warning preparation for each recipient. The backend publishes each notice asynchronously and confirms it only after proving recipient access; only a confirmed recipient gets a 48-hour cutoff before eligible saved answers may be finalized. An unverifiable recipient may remain unconfirmed indefinitely. Zero captured recipients is valid. While a request is live, schedule changes and new attempts are blocked.",
+              "A closure request covers every active unlimited attempt. Each student first gets a notice; their 48-hour period starts only after the notice is confirmed accessible. A student who cannot be verified can delay closure indefinitely — there is no force-close. While a request is live, schedule changes and new attempts are blocked.",
             )}
           </p>
           <div className="flex flex-wrap gap-3">
@@ -520,19 +511,16 @@ export function ClosureManagementScreen({
           title={t("Closure requests require an OPEN Publication")}
           variant="info"
         >
-          {t(
-            "This Publication is {state}. Direct CLOSE and its reconciliation remain on the",
-            {
-              state: publication.state,
-            },
-          )}{" "}
+          {t("This assessment is {state}. Direct CLOSE stays on the", {
+            state: publication.state,
+          })}{" "}
           <Link
             className="font-semibold underline"
             href={`/app/assessments/${publicationId}`}
           >
             {t("Publication details")}
           </Link>{" "}
-          {t("screen; a delayed-closure workflow applies only while OPEN.")}
+          {t("page; delayed closure applies only while OPEN.")}
         </Alert>
       )}
       <Surface className="p-5 sm:p-6">
@@ -541,14 +529,14 @@ export function ClosureManagementScreen({
         </h2>
         <p className="mt-2 text-sm text-foreground-muted">
           {t(
-            "There is no closure-request list API. Enter a known request UUID; the server verifies ownership.",
+            "Requests are opened by ID. Paste a closure request ID you saved; ownership is verified.",
           )}
         </p>
         <form className="mt-4 space-y-4" noValidate onSubmit={openKnownRequest}>
           <TextField
             error={
               knownInvalid
-                ? t("Enter a canonical lowercase closure request UUID.")
+                ? t("Enter the closure request ID exactly as saved.")
                 : undefined
             }
             label={t("Closure request ID")}
@@ -579,18 +567,18 @@ export function ClosureManagementScreen({
         >
           <p>
             {t(
-              "Current authoritative revision: {revision}. The request will be sent with this revision and one durable operation key.",
+              "This request uses revision {revision}. Retries repeat exactly this request.",
               { revision: publication.revision },
             )}
           </p>
           <p>
             {t(
-              "Requesting closure does not close the Publication. Each recipient first receives a durable notice; the 48-hour period for a recipient starts only when the server confirms their notice is genuinely accessible — never at this button click.",
+              "Requesting closure does not close the assessment yet. Each student first receives a notice; their 48-hour period starts only when that notice is confirmed accessible — not at this click.",
             )}
           </p>
           <p>
             {t(
-              "An ineligible, disabled or unverifiable recipient can block closure indefinitely; that accepted limitation has no force-close or automatic workaround.",
+              "A recipient who cannot be verified can block closure indefinitely; there is no force-close.",
             )}
           </p>
         </TypedConfirmation>
@@ -640,9 +628,7 @@ function TeacherClosureDetailPage({
       </div>
       {!user?.roles.includes("TEACHER") ? (
         <Alert title={t("Teacher access required")} variant="warning">
-          {t(
-            "Current Teacher authority and Publication ownership are required.",
-          )}{" "}
+          {t("You need the Teacher role and ownership of this assessment.")}{" "}
           <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
@@ -659,9 +645,7 @@ function TeacherClosureDetailPage({
         </Surface>
       ) : closureClient === null ? (
         <Alert title={t("Closure access unavailable")} variant="warning">
-          {t(
-            "Your authenticated request service is unavailable. Sign in again before continuing.",
-          )}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : (
         <ClosureDetailScreen
@@ -748,7 +732,7 @@ export function ClosureDetailScreen({
     inFlight.current = true;
     setBusy(true);
     setMutationFailureText(null);
-    setStatus("Sending reviewed command…");
+    setStatus("Sending your command…");
     const signal = lifetime.current?.signal;
     if (command.kind === "cancel") {
       const result = await closureClient.cancel(
@@ -763,7 +747,7 @@ export function ClosureDetailScreen({
         setView(result.value);
         setPending(null);
         setCompletion(null);
-        setStatus("Cancellation confirmed by the server.");
+        setStatus("The request was cancelled.");
       } else await handleFailure(result.error, command, signal);
     } else {
       const result = await closureClient.complete(
@@ -779,8 +763,8 @@ export function ClosureDetailScreen({
         setPending(null);
         setStatus(
           result.value.closed
-            ? "Completion committed the durable CLOSED transition."
-            : "Committed bounded progress (closed=false). Inspect status; start another batch with a new key when ready.",
+            ? "The assessment is now CLOSED."
+            : "Progress was saved, but the assessment is not CLOSED yet. Check the status and run COMPLETE again to continue.",
         );
         setLoading(true);
         await refresh();
@@ -804,11 +788,11 @@ export function ClosureDetailScreen({
     setReconciled(false);
     setStatus(
       error.kind === "api" && error.status === 429
-        ? "The server throttled this operation. Reading authoritative status before an explicit same-key retry."
+        ? "Too many requests. Checking the current state; retry repeats your original request."
         : uncertain
-          ? "Outcome uncertain. Reading authoritative state before another action."
+          ? "Outcome unclear. Checking the current state before another action."
           : conflict
-            ? "The command conflicted with server state. Reading authoritative status before another action."
+            ? "Something changed. Checking the latest status before another action."
             : "Operation was not confirmed.",
     );
     if (
@@ -823,7 +807,7 @@ export function ClosureDetailScreen({
         setPending(null);
         setMutationFailureText(null);
         setStatus(
-          "Authoritative status confirms the command's effect. No mutation was replayed.",
+          "The latest status confirms the command already took effect; nothing was repeated.",
         );
       }
     }
@@ -838,7 +822,7 @@ export function ClosureDetailScreen({
       setPending(null);
       setMutationFailureText(null);
       setStatus(
-        "Authoritative status confirms the command's effect. No mutation was replayed.",
+        "The latest status confirms the command already took effect; nothing was repeated.",
       );
     }
   }
@@ -852,7 +836,7 @@ export function ClosureDetailScreen({
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
             <LoadingIndicator label={t("Loading closure request")} />
-            {t("Loading authoritative status…")}
+            {t("Loading status…")}
           </div>
         ) : (
           <>
@@ -863,7 +847,7 @@ export function ClosureDetailScreen({
             >
               {readFailureText
                 ? localize(readFailureText)
-                : t("Closure request metadata is unavailable.")}
+                : t("Closure request details are unavailable.")}
             </Alert>
             <Button
               className="mt-4"
@@ -904,7 +888,7 @@ export function ClosureDetailScreen({
         <Button
           disabled={busy}
           isLoading={loading}
-          loadingLabel={t("Refreshing authoritative status")}
+          loadingLabel={t("Refreshing status")}
           onClick={() => void reconcile()}
           variant="secondary"
         >
@@ -920,10 +904,7 @@ export function ClosureDetailScreen({
       </p>
       {readFailureText ? (
         <Alert title={t("Status could not be refreshed")} variant="warning">
-          {localize(readFailureText)}{" "}
-          {t(
-            "Previously verified status remains visible; refresh before issuing commands.",
-          )}
+          {localize(readFailureText)} {t("The status above may be outdated.")}
         </Alert>
       ) : null}
       {mutationFailureText ? (
@@ -943,7 +924,7 @@ export function ClosureDetailScreen({
           <h2 className="font-semibold">{t("Reconcile before continuing")}</h2>
           <p className="text-sm leading-6">
             {t(
-              "This command may have committed. Refresh reads current authority; it never repeats a mutation. An explicit retry re-sends only the original revision with the same idempotency key, preserving the durable command identity.",
+              "This command may have gone through. Refresh shows the current state without repeating it. Retry repeats only your original command — if it already succeeded, nothing changes.",
             )}
           </p>
           <div className="flex flex-wrap gap-3">
@@ -967,12 +948,12 @@ export function ClosureDetailScreen({
       ) : null}
       <Surface className="p-5 sm:p-6">
         <h2 className="mb-5 font-heading text-xl font-bold">
-          {t("Durable request record")}
+          {t("Request record")}
         </h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <dt className="text-xs font-medium text-foreground-muted">
-              {t("Closure request ID (exact)")}
+              {t("Closure request ID")}
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
               {view.closureRequestId}
@@ -984,14 +965,6 @@ export function ClosureDetailScreen({
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
               {view.publicationId}
-            </dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt className="text-xs font-medium text-foreground-muted">
-              {t("Requesting Teacher identity (as returned by the server)")}
-            </dt>
-            <dd className="mt-1 break-all font-mono text-xs">
-              {view.requestingTeacherId}
             </dd>
           </div>
           <div>
@@ -1024,7 +997,7 @@ export function ClosureDetailScreen({
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              {t("Authoritative Publication revision")}
+              {t("Publication revision")}
             </dt>
             <dd className="mt-1 text-sm">{view.publicationRevision}</dd>
           </div>
@@ -1034,25 +1007,21 @@ export function ClosureDetailScreen({
         </p>
         <p className="mt-3 text-sm leading-6 text-foreground-muted">
           {t(
-            "Recipient counts, per-recipient cutoffs and completion percentages are not disclosed by the server for this workflow; none are shown.",
+            "Per-student cutoffs and completion percentages are not shown in this workflow.",
           )}
         </p>
       </Surface>
       {completion ? (
         <Alert
           title={
-            completion.closed
-              ? t("Publication CLOSED")
-              : t("Bounded progress committed")
+            completion.closed ? t("Publication CLOSED") : t("Progress saved")
           }
           variant={completion.closed ? "success" : "info"}
         >
           {completion.closed
-            ? t(
-                "The server confirmed the durable CLOSED transition for this Publication.",
-              )
+            ? t("The assessment is now CLOSED.")
             : t(
-                "This operation key committed its bounded batch (closed=false). Its acknowledgment is immutable; use the request status and a new deliberate command to continue.",
+                "Progress was saved, but the assessment is not CLOSED yet. Check the status and run COMPLETE again to continue.",
               )}
         </Alert>
       ) : null}
@@ -1063,7 +1032,7 @@ export function ClosureDetailScreen({
           </h2>
           <p className="text-sm leading-6 text-foreground-secondary">
             {t(
-              "COMPLETE reconciles overdue bounded work and processes due confirmed recipients in bounded batches; only the owning Teacher's command can commit the final CLOSED transition. CANCEL is possible only before the first closure-driven finalization.",
+              "COMPLETE processes the next batch of due work; only your command can make the final CLOSED transition. CANCEL works only before finalization starts.",
             )}
           </p>
           <div className="flex flex-wrap gap-3">
@@ -1091,7 +1060,7 @@ export function ClosureDetailScreen({
           {view.state === "FINALIZING" ? (
             <p className="text-sm text-foreground-muted">
               {t(
-                "The request is FINALIZING; cancellation can no longer win. Use COMPLETE to continue bounded batches.",
+                "The request is FINALIZING and can no longer be cancelled. Use COMPLETE to continue.",
               )}
             </p>
           ) : null}
@@ -1099,7 +1068,7 @@ export function ClosureDetailScreen({
       ) : (
         <Alert title={t("This request is resolved")} variant="info">
           {t(
-            "Resolved workflow states never return to live states. A replacement, if still needed, is a new request with fresh notices and fresh 48-hour periods.",
+            "Resolved requests stay resolved. If needed, start a new request with fresh notices and 48-hour periods.",
           )}
         </Alert>
       )}
@@ -1130,20 +1099,20 @@ export function ClosureDetailScreen({
         >
           <p>
             {t(
-              "Command revision: {revision}. The command is sent with this authoritative revision and one durable operation key.",
+              "This command uses revision {revision}. Retries repeat exactly this command.",
               { revision: view.publicationRevision },
             )}
           </p>
           {confirming === "cancel" ? (
             <p>
               {t(
-                "Cancellation resolves this request while preserving published notices to recipients as non-actionable history. A later replacement is a new request with new notices and fresh 48-hour periods.",
+                "Cancelling resolves this request. Students keep their notices as history only. A later replacement is a new request with new notices and 48-hour periods.",
               )}
             </p>
           ) : (
             <p>
               {t(
-                "Completion processes eligible due work in bounded batches. If confirmed notices or cutoffs are still outstanding, the server answers CLOSURE_NOT_READY without undoing committed progress. The Publication closes only when every Attempt is terminal and every captured member is resolved.",
+                "COMPLETE processes due work in batches. If notices or cutoffs are still outstanding, it returns CLOSURE_NOT_READY and keeps progress. The assessment closes only when every attempt is finished and every included student is resolved.",
               )}
             </p>
           )}

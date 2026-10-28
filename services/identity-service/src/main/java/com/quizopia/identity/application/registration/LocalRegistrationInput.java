@@ -1,5 +1,6 @@
 package com.quizopia.identity.application.registration;
 
+import com.quizopia.identity.application.account.DisplayName;
 import com.quizopia.identity.security.password.RawLocalPassword;
 import java.util.Objects;
 
@@ -10,11 +11,17 @@ public final class LocalRegistrationInput {
     private final String username;
     private final String email;
     private final RawLocalPassword rawPassword;
+    private final String displayName;
 
     public LocalRegistrationInput(String username, String email, RawLocalPassword rawPassword) {
+        this(username, email, rawPassword, null);
+    }
+
+    public LocalRegistrationInput(String username, String email, RawLocalPassword rawPassword, String displayName) {
         this.username = validateRequiredText(username, "username", MAX_USERNAME_LENGTH);
         this.email = validateGmailAddress(validateRequiredText(email, "email", MAX_EMAIL_LENGTH));
         this.rawPassword = Objects.requireNonNull(rawPassword, "rawPassword");
+        this.displayName = normalizeOptionalDisplayName(displayName);
     }
 
     public String username() {
@@ -29,9 +36,19 @@ public final class LocalRegistrationInput {
         return rawPassword;
     }
 
+    public String displayName() {
+        return displayName;
+    }
+
     @Override
     public String toString() {
-        return "LocalRegistrationInput{usernamePresent=true, emailPresent=true, rawPasswordPresent=true}";
+        return "LocalRegistrationInput{usernamePresent=true, emailPresent=true, rawPasswordPresent=true"
+                + ", displayNamePresent=" + (displayName != null) + "}";
+    }
+
+    private static String normalizeOptionalDisplayName(String value) {
+        if (value == null || value.isBlank()) return null;
+        return DisplayName.normalize(value);
     }
 
     private static String validateRequiredText(String value, String fieldName, int maxLength) {

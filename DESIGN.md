@@ -1241,6 +1241,27 @@ Do not:
 - treat frontend role visibility as security;
 - trade task clarity for visual spectacle.
 
+## 27.1 Editorial voice
+
+User-facing copy is part of the design system. It must be concise, human, and
+natural in both English keys and Vietnamese catalog values.
+
+- Write short, action-oriented sentences; prefer plain Vietnamese in the vi
+  catalog. If a sentence exceeds roughly a line of UI text, cut it.
+- Never expose backend vocabulary in user-facing copy (including aria labels
+  and helpers): JWT, gateway, service names, "authoritative", "snapshot",
+  "revision metadata", "idempotency", "backend", "server". Say what the user
+  can do, not which system performs it.
+- Never render raw timestamps or raw UUIDs as ordinary UI text. Show
+  `Intl`-formatted dates/times; keep technical IDs only where genuinely useful
+  for support or navigation (for example the publication ID row or notification
+  attempt links).
+- Keep essential safety copy: consent and privacy disclosures, deadlines and
+  cutoffs, destructive-action consequences, and actionable error recovery.
+  Shorten wording, never the warning.
+- Authored quiz content, canonical API enums (`DRAFT`/`OPEN`/`CLOSED`, ...),
+  and error codes stay verbatim per the i18n README.
+
 ---
 
 # 28. Design Governance

@@ -303,8 +303,8 @@ export function PublicationDetailScreen({
       setExtension(null);
       setStatus(
         command.kind === "close"
-          ? "CLOSED confirmed by the server."
-          : "Publication change confirmed by the server.",
+          ? "The assessment is now CLOSED."
+          : "Publication change confirmed.",
       );
     } else {
       setMutationFailure(result.error);
@@ -317,9 +317,9 @@ export function PublicationDetailScreen({
       setReconciled(false);
       setStatus(
         capacityRetry
-          ? "The server throttled direct CLOSE. Reading authoritative state before an explicit same-key retry."
+          ? "Too many requests. Checking the current state; retry repeats your original request."
           : retainCommand
-            ? "Outcome uncertain. Reading authoritative state before another action."
+            ? "Outcome unclear. Checking the current state before another action."
             : "Operation was not confirmed.",
       );
       if (
@@ -340,7 +340,7 @@ export function PublicationDetailScreen({
           setEditBase(null);
           setExtension(null);
           setStatus(
-            "Authoritative details confirm the current state. No mutation was replayed.",
+            "The latest details confirm the current state; nothing was repeated.",
           );
         }
       }
@@ -360,7 +360,7 @@ export function PublicationDetailScreen({
       setEditBase(null);
       setExtension(null);
       setStatus(
-        "Authoritative details confirm the current state. No mutation was replayed.",
+        "The latest details confirm the current state; nothing was repeated.",
       );
     }
   }
@@ -374,7 +374,7 @@ export function PublicationDetailScreen({
         {loading ? (
           <div className="mt-5 flex items-center gap-3" role="status">
             <LoadingIndicator label={t("Loading Publication")} />
-            {t("Loading authoritative details…")}
+            {t("Loading details…")}
           </div>
         ) : (
           <>
@@ -385,7 +385,7 @@ export function PublicationDetailScreen({
             >
               {readFailure
                 ? localize(publicationFailureMessage(readFailure))
-                : t("Publication metadata is unavailable.")}
+                : t("Publication details are unavailable.")}
             </Alert>
             <Button
               className="mt-4"
@@ -407,50 +407,43 @@ export function PublicationDetailScreen({
     editBase !== null &&
     (editBase.revision !== publication.revision ||
       publication.state !== "DRAFT");
-  return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-primary">
-            {t("Assessment Publication")}
-          </p>
-          <h1 className="mt-1 break-words font-heading text-3xl font-bold">
-            {publication.configuration.title}
-          </h1>
-          <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-            {/* Canonical API state enum rendered verbatim by policy. */}
-            <StateBadge variant={publicationStateVariants[publication.state]}>
-              {publication.state}
-            </StateBadge>
-            <span className="text-foreground-muted">
-              {t("Revision {revision}", { revision: publication.revision })}
-            </span>
-          </p>
-          <div className="mt-2">
-            <RealtimeStatusInline status={realtimeStatus} />
-          </div>
+
+  // Shared header: compact title/status + refresh (all states).
+  const header = (
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="break-words font-heading text-3xl font-bold">
+          {publication.configuration.title}
+        </h1>
+        <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+          {/* Canonical API state enum rendered verbatim by policy. */}
+          <StateBadge variant={publicationStateVariants[publication.state]}>
+            {publication.state}
+          </StateBadge>
+          <span className="text-foreground-muted">
+            {t("Version {number}", {
+              number: publication.configuration.versionNumber,
+            })}
+          </span>
+        </p>
+        <div className="mt-2">
+          <RealtimeStatusInline status={realtimeStatus} />
         </div>
-        <Button
-          aria-label={
-            loading ? t("Refreshing authoritative details") : undefined
-          }
-          disabled={busy}
-          isLoading={loading}
-          loadingLabel={t("Refreshing authoritative details")}
-          onClick={() => void reconcile()}
-          variant="secondary"
-        >
-          {t("Refresh status")}
-        </Button>
-      </header>
-      <p className="break-all font-mono text-xs text-foreground-muted">
-        {t("Publication ID: {id}", { id: publication.publicationId })}
-      </p>
-      <p className="text-sm text-foreground-muted">
-        {t(
-          "OPEN finalizes the snapshot. Participation start/end and individual Attempt deadlines are separate. Window end never means CLOSED.",
-        )}
-      </p>
+      </div>
+      <Button
+        aria-label={loading ? t("Refreshing…") : undefined}
+        disabled={busy}
+        isLoading={loading}
+        loadingLabel={t("Refreshing…")}
+        onClick={() => void reconcile()}
+        variant="secondary"
+      >
+        {t("Refresh")}
+      </Button>
+    </header>
+  );
+  const statusArea = (
+    <>
       <p
         aria-live="polite"
         className="text-sm font-medium text-foreground-secondary"
@@ -459,14 +452,9 @@ export function PublicationDetailScreen({
         {localize(status)}
       </p>
       {readFailure ? (
-        <Alert
-          title={t("Current state could not be refreshed")}
-          variant="warning"
-        >
+        <Alert title={t("Could not refresh")} variant="warning">
           {localize(publicationFailureMessage(readFailure))}{" "}
-          {t(
-            "Previously verified metadata remains visible; refresh before changing it.",
-          )}
+          {t("The details below may be outdated.")}
         </Alert>
       ) : null}
       {mutationFailure ? (
@@ -475,10 +463,10 @@ export function PublicationDetailScreen({
             pending &&
             mutationFailure.kind === "api" &&
             mutationFailure.status === 429
-              ? t("Mutation identity retained")
+              ? t("Retrying safely")
               : pending
-                ? t("Mutation outcome is uncertain")
-                : t("Operation was not confirmed")
+                ? t("Outcome unclear")
+                : t("Action was not completed")
           }
           variant="warning"
         >
@@ -487,15 +475,11 @@ export function PublicationDetailScreen({
       ) : null}
       {pending ? (
         <Surface className="space-y-3 border-warning p-5">
-          <h2 className="font-semibold">{t("Reconcile before continuing")}</h2>
+          <h2 className="font-semibold">{t("Check the latest state first")}</h2>
           <p className="text-sm leading-6">
             {t(
-              "This operation may have committed. Refresh reads current authority; it never repeats a mutation. After a successful read, an explicit retry sends only the original command and revision",
+              "This action may have already succeeded. Refresh to see the current state; retrying repeats only your original request.",
             )}
-            {pending.kind === "close"
-              ? t(" with the same idempotency key")
-              : null}
-            {t(". No newer revision is substituted.")}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
@@ -503,200 +487,222 @@ export function PublicationDetailScreen({
               onClick={() => void reconcile()}
               variant="secondary"
             >
-              {t("Reconcile state")}
+              {t("Check now")}
             </Button>
             <Button
-              aria-label={busy ? t("Retrying original command") : undefined}
+              aria-label={busy ? t("Retrying…") : undefined}
               disabled={!reconciled || loading || readFailure !== null}
               isLoading={busy}
-              loadingLabel={t("Retrying original command")}
+              loadingLabel={t("Retrying…")}
               onClick={() => void send(pending)}
             >
-              {t("Retry original command")}
+              {t("Retry")}
             </Button>
           </div>
         </Surface>
       ) : null}
-      {publication.state === "DRAFT" ? (
+    </>
+  );
+
+  const confirmationDialog = confirmation ? (
+    <PublicationConfirmation
+      confirmLabel={
+        confirmation === "open" ? t("OPEN Publication") : t("CLOSE Publication")
+      }
+      destructive={confirmation === "close"}
+      onCancel={() => setConfirmation(null)}
+      onConfirm={() => {
+        const action = confirmation;
+        setConfirmation(null);
+        void send(
+          action === "open"
+            ? {
+                kind: "open",
+                input: { expectedRevision: publication.revision },
+              }
+            : {
+                kind: "close",
+                input: { expectedRevision: publication.revision },
+                key: newIdempotencyKey(),
+              },
+        );
+      }}
+      title={
+        confirmation === "open"
+          ? t("Review and OPEN Publication")
+          : t("Confirm direct CLOSE")
+      }
+    >
+      <PublicationSummary configuration={publication.configuration} />
+      {confirmation === "open" ? (
+        <p>
+          {t(
+            "Opening freezes the quiz version, audience and monitoring. Students can start when the participation window opens.",
+          )}
+        </p>
+      ) : (
+        <p>
+          {t(
+            "Closing ends new attempts. Students with active attempts may prevent closure; no one’s work is submitted or discarded by this action.",
+          )}
+        </p>
+      )}
+    </PublicationConfirmation>
+  ) : null;
+
+  if (publication.state === "DRAFT") {
+    // DRAFT has no results: management-first, full width.
+    return (
+      <div className="space-y-5">
+        {header}
+        {statusArea}
         <Surface className="p-5 sm:p-6">
           <h2 className="mb-5 font-heading text-xl font-bold">
-            {t("Authoritative configuration")}
+            {t("Configuration")}
           </h2>
           <PublicationSummary configuration={publication.configuration} />
           {publication.configuration.audience === "PUBLIC" &&
           publication.privateLocator !== null ? (
-            <PrivatePublicationLocator
-              key={`${publication.publicationId}:${publication.revision}`}
-              locator={publication.privateLocator}
-            />
+            <div className="mt-5">
+              <PrivatePublicationLocator
+                key={`${publication.publicationId}:${publication.revision}`}
+                locator={publication.privateLocator}
+              />
+            </div>
           ) : null}
         </Surface>
-      ) : (
-        <ConfigurationSummaryCard publication={publication} />
-      )}
-      {publication.state === "DRAFT" && !editBase ? (
-        <div className="flex flex-wrap gap-3">
-          <Button
-            disabled={blocked || readFailure !== null}
-            onClick={() => {
-              setEditBase(publication);
-              setMutationFailure(null);
-            }}
-            variant="secondary"
-          >
-            {t("Edit DRAFT")}
-          </Button>
-          <Button
-            disabled={
-              blocked ||
-              readFailure !== null ||
-              publication.configuration.monitoringChoice === "UNCONFIGURED"
-            }
-            onClick={() => setConfirmation("open")}
-          >
-            {t("Review and OPEN")}
-          </Button>
-        </div>
-      ) : null}
-      {publication.state === "DRAFT" &&
-      publication.configuration.monitoringChoice === "UNCONFIGURED" ? (
-        <Alert
-          title={t("Explicit monitoring choice required")}
-          variant="warning"
-        >
-          {t(
-            "Edit this CLASS DRAFT and choose enabled or disabled before OPEN.",
-          )}
-        </Alert>
-      ) : null}
-      {editBase ? (
-        <section className="space-y-4">
-          <h2 className="font-heading text-2xl font-bold">
-            {t("Edit DRAFT configuration")}
-          </h2>
-          <p className="text-sm text-foreground-muted">
-            {t(
-              "Your form is based on revision {base}; current server revision is {current}. Source version remains pinned.",
-              { base: editBase.revision, current: publication.revision },
-            )}
-          </p>
-          {editingConflict ? (
-            <Alert
-              title={t("Review the current server configuration")}
-              variant="warning"
-            >
-              {t(
-                "Your entered values remain below. They will not be replayed against a newer revision.",
-              )}{" "}
-              {publication.state === "DRAFT" ? (
-                <Button
-                  className="mt-3"
-                  disabled={blocked}
-                  onClick={() => {
-                    setEditBase(publication);
-                    setEditReset((value) => value + 1);
-                    setMutationFailure(null);
-                  }}
-                  variant="secondary"
-                >
-                  {t("Use server configuration (discard local edits)")}
-                </Button>
-              ) : (
-                t("The Publication is no longer editable.")
-              )}
-            </Alert>
-          ) : null}
-          <PublicationConfigurationForm
-            disabled={blocked || editingConflict || readFailure !== null}
-            initial={editBase.configuration}
-            isPending={busy}
-            key={editReset}
-            mode="edit"
-            onDirtyChange={setEditDirty}
-            onSubmit={(configuration) =>
-              void send({
-                kind: "update",
-                input: { expectedRevision: editBase.revision, configuration },
-              })
-            }
-          />
-          <Button
-            disabled={blocked}
-            onClick={() => {
-              // Cancel editing discards unsaved values; confirm first.
-              // Cancelling keeps the form open with values intact.
-              if (
-                editDirty &&
-                !window.confirm(
-                  localize(
-                    "This form has unsaved changes. Discard them and stop editing?",
-                  ),
-                )
-              )
-                return;
-              setEditBase(null);
-            }}
-            variant="secondary"
-          >
-            {t("Cancel editing")}
-          </Button>
-        </section>
-      ) : null}
-      {publication.state === "OPEN" ? (
-        <section className="space-y-4">
+        {!editBase ? (
           <div className="flex flex-wrap gap-3">
             <Button
               disabled={blocked || readFailure !== null}
               onClick={() => {
-                if (extension === null) {
-                  setExtension(publication);
-                  return;
-                }
-                // The Hide toggle discards unsaved extension values; confirm
-                // first. Cancelling keeps the form open with values intact.
+                setEditBase(publication);
+                setMutationFailure(null);
+              }}
+              variant="secondary"
+            >
+              {t("Edit DRAFT")}
+            </Button>
+            <Button
+              disabled={
+                blocked ||
+                readFailure !== null ||
+                publication.configuration.monitoringChoice === "UNCONFIGURED"
+              }
+              onClick={() => setConfirmation("open")}
+            >
+              {t("Review and OPEN")}
+            </Button>
+          </div>
+        ) : null}
+        {publication.configuration.monitoringChoice === "UNCONFIGURED" ? (
+          <Alert
+            title={t("Choose a monitoring option first")}
+            variant="warning"
+          >
+            {t("Edit this DRAFT and choose enabled or disabled before OPEN.")}
+          </Alert>
+        ) : null}
+        {editBase ? (
+          <section className="space-y-4">
+            <h2 className="font-heading text-2xl font-bold">
+              {t("Edit DRAFT configuration")}
+            </h2>
+            <p className="text-sm text-foreground-muted">
+              {t(
+                "Your edits are based on revision {base}; the current revision is {current}. The quiz version stays the same.",
+                { base: editBase.revision, current: publication.revision },
+              )}
+            </p>
+            {editingConflict ? (
+              <Alert
+                title={t("Review the latest configuration")}
+                variant="warning"
+              >
+                {t(
+                  "Your entered values remain below. They will not be replayed against a newer revision.",
+                )}{" "}
+                {publication.state === "DRAFT" ? (
+                  <Button
+                    className="mt-3"
+                    disabled={blocked}
+                    onClick={() => {
+                      setEditBase(publication);
+                      setEditReset((value) => value + 1);
+                      setMutationFailure(null);
+                    }}
+                    variant="secondary"
+                  >
+                    {t("Use the latest configuration (discard my edits)")}
+                  </Button>
+                ) : (
+                  t("The Publication is no longer editable.")
+                )}
+              </Alert>
+            ) : null}
+            <PublicationConfigurationForm
+              disabled={blocked || editingConflict || readFailure !== null}
+              initial={editBase.configuration}
+              isPending={busy}
+              key={editReset}
+              mode="edit"
+              onDirtyChange={setEditDirty}
+              onSubmit={(configuration) =>
+                void send({
+                  kind: "update",
+                  input: { expectedRevision: editBase.revision, configuration },
+                })
+              }
+            />
+            <Button
+              disabled={blocked}
+              onClick={() => {
+                // Cancel editing discards unsaved values; confirm first.
+                // Cancelling keeps the form open with values intact.
                 if (
-                  extensionDirty &&
+                  editDirty &&
                   !window.confirm(
                     localize(
-                      "The schedule extension has unsaved values. Hide it and discard them?",
+                      "This form has unsaved changes. Discard them and stop editing?",
                     ),
                   )
                 )
                   return;
-                setExtension(null);
+                setEditBase(null);
               }}
               variant="secondary"
             >
-              {extension
-                ? t("Hide schedule extension")
-                : t("Extend participation schedule")}
+              {t("Cancel editing")}
             </Button>
-            <Button
-              disabled={blocked || readFailure !== null}
-              onClick={() => setConfirmation("close")}
-              variant="danger"
-            >
-              {t("Review and CLOSE")}
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              className={OUTLINE_LINK_CLASSES}
-              href={`/app/assessments/${publication.publicationId}/closure`}
-            >
-              {t("Manage delayed closure")}
-            </Link>
-            <Link
-              className={OUTLINE_LINK_CLASSES}
-              href={`/app/assessments/${publication.publicationId}/results`}
-            >
-              {t("View attempt results")}
-            </Link>
-          </div>
+          </section>
+        ) : null}
+        {confirmation ? confirmationDialog : null}
+      </div>
+    );
+  }
+
+  // OPEN/CLOSED: results-first workspace — dominant main column with the
+  // authorized results, compact configuration/actions sidebar on the right.
+  return (
+    <div className="space-y-5">
+      {header}
+      {statusArea}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="min-w-0 space-y-5">
+          {publication.state === "CLOSED" ? (
+            <Alert title={t("Assessment closed")} variant="success">
+              {t(
+                "Students who submitted can now review their answers according to the review policy.",
+              )}
+            </Alert>
+          ) : null}
           {extension ? (
-            <div className="space-y-4">
+            <section className="space-y-4">
+              <h2 className="font-heading text-2xl font-bold">
+                {t("Extend participation schedule")}
+              </h2>
               {extension.revision !== publication.revision ? (
-                <Alert title={t("Schedule revision changed")} variant="warning">
+                <Alert title={t("Schedule was changed")} variant="warning">
                   {t(
                     "Your extension values remain below and will not be applied to a newer revision.",
                   )}
@@ -706,7 +712,7 @@ export function PublicationDetailScreen({
                     onClick={() => setExtension(publication)}
                     variant="secondary"
                   >
-                    {t("Use server schedule (discard local extension)")}
+                    {t("Use the latest schedule (discard my extension)")}
                   </Button>
                 </Alert>
               ) : null}
@@ -722,88 +728,85 @@ export function PublicationDetailScreen({
                 onSubmit={(input) => void send({ kind: "extend", input })}
                 publication={extension}
               />
-            </div>
+            </section>
           ) : null}
-        </section>
-      ) : null}
-      {publication.state === "CLOSED" ? (
-        <>
-          <Alert title={t("Publication CLOSED")} variant="success">
-            {t(
-              "Durable closure is confirmed. Eligible submitted Students may review according to backend policy. Student results and answer-review UI are outside this Teacher workflow.",
-            )}
-          </Alert>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              className={OUTLINE_LINK_CLASSES}
-              href={`/app/assessments/${publication.publicationId}/results`}
-            >
-              {t("View attempt results")}
-            </Link>
-          </div>
-        </>
-      ) : null}
-      {publication.state !== "DRAFT" ? (
-        resultsClient !== null ? (
-          <PublicationResultsSection
-            client={resultsClient}
-            publicationId={publication.publicationId}
-          />
-        ) : (
-          <Alert title={t("Results unavailable")} variant="warning">
-            {t(
-              "Your authenticated request service is unavailable. Sign in again before continuing.",
-            )}
-          </Alert>
-        )
-      ) : null}
-      {confirmation ? (
-        <PublicationConfirmation
-          confirmLabel={
-            confirmation === "open"
-              ? t("OPEN Publication")
-              : t("CLOSE Publication")
-          }
-          destructive={confirmation === "close"}
-          onCancel={() => setConfirmation(null)}
-          onConfirm={() => {
-            const action = confirmation;
-            setConfirmation(null);
-            void send(
-              action === "open"
-                ? {
-                    kind: "open",
-                    input: { expectedRevision: publication.revision },
-                  }
-                : {
-                    kind: "close",
-                    input: { expectedRevision: publication.revision },
-                    key: newIdempotencyKey(),
-                  },
-            );
-          }}
-          title={
-            confirmation === "open"
-              ? t("Review and OPEN Publication")
-              : t("Confirm direct CLOSE")
-          }
-        >
-          <PublicationSummary configuration={publication.configuration} />
-          {confirmation === "open" ? (
-            <p>
-              {t(
-                "OPEN finalizes an immutable, self-contained assessment snapshot. Source, audience and monitoring freeze; OPEN does not mean the participation window has started.",
-              )}
-            </p>
+          {resultsClient !== null ? (
+            <PublicationResultsSection
+              client={resultsClient}
+              publicationId={publication.publicationId}
+            />
           ) : (
-            <p>
-              {t(
-                "CLOSE is separate from participation-window end. Active Attempts may prevent closure. There is no force-close here. Durable CLOSED controls eligible Student answer review; this command does not ask the browser to submit or abandon anyone’s work.",
-              )}
-            </p>
+            <Alert title={t("Results unavailable")} variant="warning">
+              {t("Please sign in again to view results.")}
+            </Alert>
           )}
-        </PublicationConfirmation>
-      ) : null}
+        </div>
+        <aside
+          aria-label={t("Configuration and actions")}
+          className="min-w-0 space-y-4 lg:sticky lg:top-6"
+        >
+          <ConfigurationSummaryCard publication={publication} />
+          <Surface className="space-y-3 p-5">
+            <h2 className="font-heading text-lg font-bold">{t("Actions")}</h2>
+            {publication.state === "OPEN" ? (
+              <>
+                <Button
+                  className="w-full"
+                  disabled={blocked || readFailure !== null}
+                  onClick={() => {
+                    if (extension === null) {
+                      setExtension(publication);
+                      return;
+                    }
+                    // The Hide toggle discards unsaved extension values;
+                    // confirm first; cancelling keeps the form intact.
+                    if (
+                      extensionDirty &&
+                      !window.confirm(
+                        localize(
+                          "The schedule extension has unsaved values. Hide it and discard them?",
+                        ),
+                      )
+                    )
+                      return;
+                    setExtension(null);
+                  }}
+                  variant="secondary"
+                >
+                  {extension
+                    ? t("Hide schedule extension")
+                    : t("Extend participation schedule")}
+                </Button>
+                <Link
+                  className={`${OUTLINE_LINK_CLASSES} w-full`}
+                  href={`/app/assessments/${publication.publicationId}/closure`}
+                >
+                  {t("Manage delayed closure")}
+                </Link>
+                <Button
+                  className="w-full"
+                  disabled={blocked || readFailure !== null}
+                  onClick={() => setConfirmation("close")}
+                  variant="danger"
+                >
+                  {t("Review and CLOSE")}
+                </Button>
+              </>
+            ) : (
+              <Link
+                className={`${OUTLINE_LINK_CLASSES} w-full`}
+                href={`/app/assessments/${publication.publicationId}/closure`}
+              >
+                {t("Manage delayed closure")}
+              </Link>
+            )}
+            <p className="break-all pt-1 font-mono text-[0.65rem] leading-4 text-foreground-muted">
+              {publication.publicationId}
+            </p>
+          </Surface>
+        </aside>
+      </div>
+      {confirmation ? confirmationDialog : null}
     </div>
   );
 }

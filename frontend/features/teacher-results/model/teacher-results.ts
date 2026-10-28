@@ -64,6 +64,7 @@ export const teacherResultRowSchema = z
     studentId: canonicalUuid,
     ordinal: ordinalSchema,
     state: z.enum(["ACTIVE", "SUBMITTED", "ABANDONED"]),
+    studentName: z.string().min(1).max(255).nullish(),
     result: resultSchema.nullable(),
   })
   .strict()

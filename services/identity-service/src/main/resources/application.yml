@@ -123,6 +123,13 @@ quizopia.identity.proctoring-students:
   assessment-client-id: ${IDENTITY_PROCTORING_STUDENTS_ASSESSMENT_CLIENT_ID:assessment-service}
   max-concurrent: ${IDENTITY_PROCTORING_STUDENTS_MAX_CONCURRENT:8}
 
+quizopia.identity.user-profiles:
+  enabled: ${IDENTITY_USER_PROFILES_ENABLED:false}
+  require-secure-transport: ${IDENTITY_USER_PROFILES_REQUIRE_SECURE_TRANSPORT:true}
+  assessment-client-id: ${IDENTITY_USER_PROFILES_ASSESSMENT_CLIENT_ID:assessment-service}
+  max-concurrent: ${IDENTITY_USER_PROFILES_MAX_CONCURRENT:8}
+  requests-per-minute: ${IDENTITY_USER_PROFILES_REQUESTS_PER_MINUTE:60}
+
 # Suppress raw HTTP credential/body dumps even under diagnostic root logging.
 logging:
   level:

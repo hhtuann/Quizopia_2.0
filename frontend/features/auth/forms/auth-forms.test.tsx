@@ -92,6 +92,71 @@ beforeEach(() => {
   });
 });
 
+describe("registration display name", () => {
+  function fillRegistration(displayName: string) {
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "learner01" },
+    });
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "learner01@gmail.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.change(screen.getByLabelText("Display name (optional)"), {
+      target: { value: displayName },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+  }
+
+  it("sends optional normalized Vietnamese display name without changing credentials", async () => {
+    render(<RegistrationForm />);
+    fillRegistration("  Nguyễn An  ");
+    await waitFor(() =>
+      expect(auth.register).toHaveBeenCalledExactlyOnceWith({
+        username: "learner01",
+        email: "learner01@gmail.com",
+        password: "secret",
+        displayName: "Nguyễn An",
+      }),
+    );
+    expect(navigation.push).toHaveBeenCalledWith(
+      "/verify-email?username=learner01",
+    );
+  });
+
+  it("keeps the field optional and omits an empty display name", async () => {
+    render(<RegistrationForm />);
+    fillRegistration("");
+    await waitFor(() =>
+      expect(auth.register).toHaveBeenCalledExactlyOnceWith({
+        username: "learner01",
+        email: "learner01@gmail.com",
+        password: "secret",
+      }),
+    );
+  });
+
+  it.each([" ", "a".repeat(101), "An\u0085"])(
+    "blocks invalid display name %j and retains input",
+    async (value) => {
+      render(<RegistrationForm />);
+      fillRegistration(value);
+      expect(
+        await screen.findByText(/Enter a display name of 1–100 characters/),
+      ).toBeVisible();
+      expect(screen.getByLabelText("Display name (optional)")).toHaveValue(
+        value,
+      );
+      expect(auth.register).not.toHaveBeenCalled();
+      expect(navigation.push).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("login form", () => {
   it("switches validation and server errors without clearing exact credentials or replaying login", async () => {
     auth.login.mockResolvedValueOnce(apiError("AUTH_INVALID_CREDENTIALS", 401));

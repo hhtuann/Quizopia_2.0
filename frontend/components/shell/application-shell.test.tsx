@@ -20,7 +20,7 @@ import { SkipLink } from "../ui/skip-link";
 import { ApplicationHome } from "./application-home";
 import { ApplicationShell } from "./application-shell";
 
-const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+const navigation = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => navigation,
@@ -32,6 +32,7 @@ const accessToken = "shell-test-access-token";
 afterEach(() => {
   vi.restoreAllMocks();
   navigation.replace.mockClear();
+  navigation.push.mockClear();
 });
 
 function renderAuthenticatedShell(roles: readonly AuthRole[]) {
@@ -184,14 +185,12 @@ describe("application shell workspace presentation", () => {
     fireEvent.keyDown(accountSettings, { key: "ArrowDown" });
     expect(teacherRegistration).toHaveFocus();
 
-    fireEvent.click(accountSettings);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
-    );
-
     fireEvent.keyDown(teacherRegistration, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Account settings" }));
+    expect(navigation.push).toHaveBeenCalledWith("/app/settings/profile");
   });
 
   it("does not show redundant teacher enablement for an existing teacher", () => {

@@ -37,7 +37,7 @@ export function StudentCamera(props: {
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-foreground-secondary">
           {t(
-            "Your authorized Teacher may view this camera while the eligible monitored Attempt is active. Quizopia does not request your microphone, screen, unrelated tab URLs, keyboard input, or browser history. Camera permission alone is not a disciplinary decision or proof of misconduct.",
+            "Your teacher may view this camera while the monitored attempt is active. Quizopia does not request your microphone, screen, unrelated tab URLs, keyboard input, or browser history. Allowing the camera is not, by itself, a disciplinary decision or proof of wrongdoing.",
           )}
         </p>
       </div>
@@ -92,7 +92,7 @@ function CleanupStatus({ report }: { readonly report: MediaCleanupReport }) {
   return (
     <Alert title={t("Cleanup results")} variant="info">
       {t(
-        "Local track: {local}. SDK disconnect: {sdk}. Backend revoke: {backend}. A backend revoke result records local intent/state only; hard provider revocation is not claimed.",
+        "Camera stopped: {local}. Connection closed: {sdk}. Access revocation: {backend}.",
         {
           local: report.localTrack,
           sdk: report.sdkDisconnect,
@@ -125,29 +125,25 @@ function CameraStatus({ state }: { readonly state: string }) {
     },
     connecting: {
       title: t("Connecting"),
-      text: t(
-        "A scoped credential was issued; the camera is not live until publishing succeeds.",
-      ),
+      text: t("Connecting. The camera is not live yet."),
       variant: "info",
     },
     live: {
       title: t("Camera is live"),
-      text: t(
-        "The SDK is connected and your camera track is published. No microphone is published.",
-      ),
+      text: t("Your camera is being shared. Your microphone is never shared."),
       variant: "success",
     },
     reconnecting: {
       title: t("Fresh authorization required"),
       text: t(
-        "The connection changed. Disconnect and backend revoke cleanup are in progress before Quizopia can request a fresh credential.",
+        "The connection changed. Quizopia is cleaning up before requesting fresh access.",
       ),
       variant: "warning",
     },
     "permission-denied": {
       title: t("Camera permission denied"),
       text: t(
-        "No camera is active. The academic outcome for refusal is not defined by this interface.",
+        "No camera is active. Refusing the camera does not automatically affect your result.",
       ),
       variant: "warning",
     },
@@ -161,28 +157,28 @@ function CameraStatus({ state }: { readonly state: string }) {
     "device-error": {
       title: t("Camera stopped or failed"),
       text: t(
-        "The device could not provide a usable video track. No automatic penalty was applied.",
+        "The camera could not provide video. No automatic penalty was applied.",
       ),
       variant: "danger",
     },
     unavailable: {
       title: t("Monitoring media unavailable"),
       text: t(
-        "Authorization, provider qualification, or the media service is unavailable. The camera is not active.",
+        "Camera access is temporarily unavailable. The camera is not active.",
       ),
       variant: "warning",
     },
     disconnected: {
       title: t("Camera disconnected"),
       text: t(
-        "Local cleanup finished. See the separate SDK and backend outcomes below; reauthorization is required before reconnecting.",
+        "Cleanup finished — see details below. Reconnect requires fresh permission.",
       ),
       variant: "warning",
     },
     stopping: {
       title: t("Stopping camera"),
       text: t(
-        "The local track, SDK connection, and backend grant are being cleaned up separately.",
+        "The camera, its connection, and its access grant are being cleaned up.",
       ),
       variant: "info",
     },

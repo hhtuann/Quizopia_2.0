@@ -223,18 +223,15 @@ export function AuthenticatedUserMenu() {
           <button
             className={menuItemClasses}
             onClick={() => {
+              if (!confirmUnsavedWorkLeaving()) return;
               clearNotice();
-              setMessage(
-                "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
-              );
+              closeAndRestoreFocus();
+              router.push("/app/settings/profile");
             }}
             role="menuitem"
             type="button"
           >
             {t("Account settings")}
-            <span className="ml-auto text-xs text-foreground-muted">
-              {t("Unavailable")}
-            </span>
           </button>
 
           {canSwitchToLearning ? (

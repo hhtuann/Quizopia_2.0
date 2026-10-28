@@ -124,7 +124,7 @@ describe("My Assessments directory", () => {
       .mockResolvedValue(page([]));
     render(<PublicationDirectory client={api} />);
     expect(
-      await screen.findByText(/account has not been logged out/),
+      await screen.findByText(/You are still signed in/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry assessments" }));
     await screen.findByText("No assessments yet");

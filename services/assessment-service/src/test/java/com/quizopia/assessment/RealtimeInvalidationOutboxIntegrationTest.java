@@ -277,7 +277,7 @@ class RealtimeInvalidationOutboxIntegrationTest {
 
             public void teacher(ClosureStore.Teacher actor) {}
         };
-        var service = new ClosureService(store, deps, f.core, properties);
+        var service = new ClosureService(store, deps, f.core, properties, studentProfiles -> java.util.Map.of());
         UUID attempt = f.active(seed, 0);
         assertEquals(1L, events(attempt));
         f.core.submit(f.manual(attempt, 0, GradingDocumentsTest.replacement()));

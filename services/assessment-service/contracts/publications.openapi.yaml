@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Assessment Publication, Attempt, closure and inbox backend
-  version: 1.4.0
+  version: 1.5.0
   description:
     Implemented W3-A/B1/C1/B2/B3, default disabled pending independent security/runtime review and Leader
     merge approval. Gateway and Assessment independently enforce RS256 USER issued/current role and LD-05 admission.
@@ -1435,9 +1435,13 @@ paths:
       operationId: readOwnedPublicationResults
       x-contract-status: IMPLEMENTED_B3_DEFAULT_DISABLED_PENDING_REVIEW
       x-required-user-role: TEACHER
-      description:
+      description: >-
         TEACHER USER, independent JWT/current LD-05 admission at Gateway and Assessment. Persisted Publication
-        owner. UUID ascending Attempt cursor; ACTIVE/ABANDONED result null. No answers/keys.
+        owner. UUID ascending Attempt cursor; ACTIVE/ABANDONED result null. No answers/keys. FB-012 additive
+        enrichment: after ownership and page authorization commit, one bounded (<=100 distinct ids, current page
+        only) direct Identity SERVICE batch lookup adds nullable studentName (display name or username fallback);
+        unknown ids and any Identity failure leave studentName null without failing or delaying the authorized
+        rows. Zero result-name cache; no N+1, no client-supplied mapping, no cross-service database access.
       parameters:
         - name: publicationId
           in: path
@@ -3267,6 +3271,14 @@ components:
           anyOf:
             - $ref: "#/components/schemas/Result"
             - type: "null"
+        studentName:
+          type:
+            - string
+            - "null"
+          maxLength: 255
+          description: >-
+            Resolved display name (up to 100 Unicode code points) or legacy username (up to 255) from Identity; null when unavailable, unknown or the bounded
+            batch lookup failed. Additive fail-open enrichment only; never replaces studentId.
     ClosedPublication:
       type: object
       additionalProperties: false

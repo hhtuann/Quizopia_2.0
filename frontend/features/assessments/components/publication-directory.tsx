@@ -87,11 +87,11 @@ export function PublicationDirectory({
             {t("My Assessments")}
           </h1>
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
-            {t("Manage your assessment Publications, schedules and results.")}
+            {t("Manage your assessments, schedules and results.")}
           </p>
           <p className="mt-2 text-sm leading-6 text-foreground-muted">
             {t(
-              "To create an assessment, choose an immutable published version in your Quiz Library.",
+              "To create an assessment, choose a published version in your Quiz Library.",
             )}
           </p>
         </div>

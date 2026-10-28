@@ -22,12 +22,12 @@ object; `TranslationKey = keyof typeof messages`.
 - The **value is Vietnamese presentation only** (e.g. `"Bài kiểm tra của tôi"`).
 - Catalogs are split by domain, not by locale:
 
-  | Catalog                  | Domain                                                 | Keys (verified 2026-10-26) |
+  | Catalog                  | Domain                                                 | Keys (verified 2026-10-28) |
   | ------------------------ | ------------------------------------------------------ | -------------------------: |
-  | `messages/common.ts`     | shell, navigation, workspaces, landing, auth chrome    |                        166 |
-  | `messages/authoring.ts`  | Quiz Library, editor, publish/version history          |                        123 |
-  | `messages/assessment.ts` | teacher Publications, closures, results, notifications |                        459 |
-  | `messages/student.ts`    | student attempts/join/result/review, realtime status   |                        195 |
+  | `messages/common.ts`     | shell, navigation, workspaces, landing, auth chrome    |                        168 |
+  | `messages/authoring.ts`  | Quiz Library, editor, publish/version history          |                        121 |
+  | `messages/assessment.ts` | teacher Publications, closures, results, notifications |                        463 |
+  | `messages/student.ts`    | student attempts/join/result/review, realtime status   |                        190 |
   | `messages/monitoring.ts` | proctoring consent/camera and teacher monitoring       |                        126 |
 
 - `{placeholder}` interpolation is shared by `translate`/`translateMessage`;
@@ -128,7 +128,7 @@ alternates; extend this table when a term is first used.
 | Publication                                                                                        | **Publication (kept in vi)**               | deliberate: canonical entity name; `Publication state` / `Trạng thái Publication`, `Publication ID` / `Mã Publication`, `Publication details` / `Chi tiết Publication` |
 | Classroom                                                                                          | Lớp học                                    |                                                                                                                                                                        |
 | Attempt — teacher chrome                                                                           | **Attempt (kept in vi)**                   | `Attempt duration` / `Thời lượng Attempt`, `Attempt ID` / `Mã Attempt`                                                                                                 |
-| Attempt — student, specific session                                                                | Bài làm                                    | `Attempt {attemptId}` / `Bài làm {attemptId}`, `Attempt result` / `Kết quả bài làm`                                                                                    |
+| Attempt — student, specific session                                                                | Bài làm                                    | `Attempt result` / `Kết quả bài làm`; the student header no longer prints the raw attempt UUID                                                                         |
 | Attempt — occurrence / entitlement                                                                 | Lượt làm bài                               | `Attempt {ordinal}` / `Lượt làm bài {ordinal}`; `Best successfully graded Attempt` / `Lượt làm đã chấm có điểm cao nhất`                                               |
 | Submit attempt / Abandon                                                                           | Nộp bài / Bỏ bài                           | `Attempt submitted` / `Đã nộp bài`, `Attempt abandoned` / `Đã bỏ bài`                                                                                                  |
 | Grading policy                                                                                     | Chính sách chấm điểm                       | graded / đã chấm                                                                                                                                                       |

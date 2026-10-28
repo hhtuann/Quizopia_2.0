@@ -106,7 +106,7 @@ function useStudentAccessBlock() {
     return (
       <Alert title={t("Student access required")} variant="warning">
         {t(
-          "An authenticated account with current Student authority is required. The frontend does not verify admission or class membership itself.",
+          "Please sign in with a Student account to continue.",
         )}
       </Alert>
     );
@@ -118,7 +118,7 @@ function useStudentAccessBlock() {
         </h1>
         <p className="mt-3 leading-7 text-foreground-secondary">
           {t(
-            "Switch workspace to organize the Student experience. The Gateway and Assessment Service still authorize every operation.",
+            "Switch workspace to organize your learning.",
           )}
         </p>
         <Button className="mt-5" onClick={() => switchWorkspace("LEARNING")}>
@@ -202,9 +202,7 @@ function ClientUnavailable() {
   const { t } = useI18n();
   return (
     <Alert title={t("Assessment access unavailable")} variant="warning">
-      {t(
-        "The authenticated request service is unavailable. Sign in again before continuing.",
-      )}
+      {t("Your session has ended. Please sign in again.")}
     </Alert>
   );
 }
@@ -221,7 +219,7 @@ function PublicationPreview({
     [
       t("Attempt duration"),
       publication.durationMinutes === 0
-        ? t("Unlimited; server closure rules still apply")
+        ? t("Unlimited; closing rules still apply")
         : t("{minutes} minutes", {
             minutes: formatNumber(locale, publication.durationMinutes),
           }),
@@ -316,9 +314,7 @@ export function StudentAssessmentJoinScreen({
   const [uncertain, setUncertain] = useState<CreationIntent | null>(null);
   useUnsavedNavigationGuard(
     uncertain !== null || busy === "start",
-    t(
-      "This start outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
-    ),
+    t("This start action may not have finished. Leave anyway?"),
   );
 
   const enter = async (event: FormEvent) => {
@@ -326,7 +322,7 @@ export function StudentAssessmentJoinScreen({
     if (uncertain !== null) {
       setError(
         localizeRef.current(
-          "Resolve the uncertain start with its retained exact request before checking another assessment.",
+          "Retry the unfinished start before checking another assessment.",
         ),
       );
       return;
@@ -341,7 +337,7 @@ export function StudentAssessmentJoinScreen({
         localizeRef.current(
           mode === "PUBLIC"
             ? "Enter the exact 43-character private locator."
-            : "Enter a canonical lowercase Publication UUID.",
+            : "Enter the Publication ID exactly as given (lowercase).",
         ),
       );
       return;
@@ -401,9 +397,7 @@ export function StudentAssessmentJoinScreen({
           {t("Enter an assessment")}
         </h1>
         <p className="mt-3 max-w-2xl leading-7 text-foreground-secondary">
-          {t(
-            "Public assessments still require a signed-in Student. Class access is checked against current authoritative membership.",
-          )}
+          {t("Public assessments still require a signed-in Student.")}
         </p>
       </div>
 
@@ -444,7 +438,7 @@ export function StudentAssessmentJoinScreen({
               autoComplete="off"
               error={error ?? undefined}
               helperText={t(
-                "The locator stays in temporary application memory and is sent only in the authorized request body.",
+                "The locator is kept in memory only and is never saved.",
               )}
               label={t("43-character private locator")}
               maxLength={43}
@@ -459,9 +453,7 @@ export function StudentAssessmentJoinScreen({
             <TextField
               autoComplete="off"
               error={error ?? undefined}
-              helperText={t(
-                "Class browsing is not available. Ask your instructor for the canonical Publication ID.",
-              )}
+              helperText={t("Ask your instructor for the Publication ID.")}
               label={t("Publication ID")}
               onChange={(event) => setPublicationId(event.target.value)}
               required
@@ -488,7 +480,7 @@ export function StudentAssessmentJoinScreen({
               variant="warning"
             >
               {t(
-                "Server-provided availability is {status}. A browser clock does not grant entry.",
+                "Availability is {status}, checked by Quizopia — not your device clock.",
                 { status: preview.windowStatus.replaceAll("_", " ") },
               )}
             </Alert>
@@ -519,7 +511,7 @@ export function StudentAssessmentJoinScreen({
       {uncertain ? (
         <Alert title={t("Start outcome is uncertain")} variant="warning">
           {t(
-            "The original body and Idempotency-Key are retained in memory. Retry the same request; do not create a new start intent.",
+            "Your original request is kept in memory. Retry the same request; do not start a new one.",
           )}
         </Alert>
       ) : null}
@@ -575,7 +567,7 @@ function AttemptLoading() {
   const { t } = useI18n();
   return (
     <Surface className="p-8">
-      <LoadingIndicator label={t("Loading authoritative attempt")} />
+      <LoadingIndicator label={t("Loading your attempt")} />
     </Surface>
   );
 }
@@ -900,15 +892,15 @@ function AttemptMonitoringStatus({
     return (
       <Alert title={t("Checking monitoring requirement")} variant="info">
         {t(
-          "Assessment work is available while the authorized CLASS projection is checked. No activity or camera collection has started.",
+          "You can start working while monitoring is being checked. Nothing is being recorded yet.",
         )}
       </Alert>
     );
   if (projection.status === "unavailable")
     return (
-      <Alert title={t("Monitoring authority unavailable")} variant="warning">
+      <Alert title={t("Monitoring requirement unavailable")} variant="warning">
         {t(
-          "The current monitoring requirement could not be verified, so activity and camera collection remain off. Assessment saves and submission stay independent.",
+          "Monitoring could not be verified, so recording stays off. Saving and submitting are not affected.",
         )}
       </Alert>
     );
@@ -917,7 +909,7 @@ function AttemptMonitoringStatus({
       <div className="space-y-5">
         <Alert title={t("Activity monitoring active")} variant="info">
           {t(
-            "Fresh server authorization confirmed this bounded CLASS Attempt. Browser evidence contains interaction metadata only and is not proof of misconduct. Assessment SAVE and SUBMIT do not wait for Proctoring.",
+            "Monitoring is on for this class attempt. Browser signals help with review and are never proof of cheating. Saving and submitting never wait for monitoring.",
           )}
         </Alert>
         <StudentCamera activity={state.activity} session={state.session} />
@@ -944,9 +936,7 @@ function AttemptMonitoringStatus({
     );
   return (
     <Alert title={t("Starting activity monitoring")} variant="info">
-      {t(
-        "Current backend authority is being verified before any browser observer or camera control becomes active.",
-      )}
+      {t("Checking permission before any monitoring starts.")}
     </Alert>
   );
 }
@@ -1085,9 +1075,7 @@ export function AttemptScreen({
   const authorityRequest = useRef(0);
   useUnsavedNavigationGuard(
     uncertain !== null || terminalBusy,
-    t(
-      "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
-    ),
+    t("This action may not have finished. Leave anyway?"),
   );
   /** Leaving the focused workspace confirms first while a terminal mutation
    * outcome is unresolved; plain link navigation is guarded by the same hook. */
@@ -1126,7 +1114,7 @@ export function AttemptScreen({
     } else {
       setTerminalError(
         localizeRef.current(
-          "Authoritative status could not be refreshed. Actions remain paused. {message}",
+          "Status could not be refreshed. Actions remain paused. {message}",
           {
             message: attemptFailureMessage(result.error, localizeRef.current),
           },
@@ -1142,7 +1130,7 @@ export function AttemptScreen({
       setAuthorityPaused(true);
       setTerminalError(
         localizeRef.current(
-          "The browser is offline. Actions are paused until authoritative Attempt status is refreshed.",
+          "You are offline. Actions are paused until the attempt status is refreshed.",
         ),
       );
     };
@@ -1259,7 +1247,7 @@ export function AttemptScreen({
       if (mutationsBlocked) {
         setTerminalError(
           localizeRef.current(
-            "Actions are paused until authoritative Attempt status is refreshed.",
+            "Actions are paused until the attempt status is refreshed.",
           ),
         );
         return;
@@ -1300,10 +1288,10 @@ export function AttemptScreen({
           setTerminalError(
             fresh.ok
               ? localizeRef.current(
-                  "The Attempt changed on the server. Your complete local answer set is preserved; resolve any highlighted conflicts, then confirm the action again.",
+                  "This attempt changed elsewhere. Your answers are preserved; resolve the highlighted conflicts, then confirm the action again.",
                 )
               : localizeRef.current(
-                  "The Attempt revision changed, and authoritative refresh failed. {message}",
+                  "The attempt changed and refreshing failed. {message}",
                   {
                     message: attemptFailureMessage(
                       fresh.error,
@@ -1347,7 +1335,7 @@ export function AttemptScreen({
     if (mutationsBlocked) {
       setTerminalError(
         localizeRef.current(
-          "Submission is paused until authoritative Attempt status is refreshed.",
+          "Submitting is paused until the attempt status is refreshed.",
         ),
       );
       return;
@@ -1356,7 +1344,7 @@ export function AttemptScreen({
     if (snapshot === null) {
       setTerminalError(
         localizeRef.current(
-          "Resolve every failed, conflicting, or uncertain save before submission.",
+          "Resolve every failed, conflicting, or pending save before submission.",
         ),
       );
       return;
@@ -1379,7 +1367,7 @@ export function AttemptScreen({
     ) {
       setTerminalError(
         localizeRef.current(
-          "The complete answer set exceeds the server body limit. Nothing was truncated or submitted.",
+          "Your answers are too large to submit. Nothing was cut or sent.",
         ),
       );
       return;
@@ -1392,7 +1380,7 @@ export function AttemptScreen({
     if (mutationsBlocked) {
       setTerminalError(
         localizeRef.current(
-          "Abandon is paused until authoritative Attempt status is refreshed.",
+          "Abandoning is paused until the attempt status is refreshed.",
         ),
       );
       return;
@@ -1417,7 +1405,7 @@ export function AttemptScreen({
     if (mutationsBlocked) {
       setTerminalError(
         localizeRef.current(
-          "Retake is paused until authoritative Attempt status is refreshed.",
+          "Retaking is paused until the attempt status is refreshed.",
         ),
       );
       return;
@@ -1434,7 +1422,7 @@ export function AttemptScreen({
     if (uncertain?.action === "retake") {
       setTerminalError(
         localizeRef.current(
-          "A retake cannot be discovered from the old Attempt. Retry the retained exact operation to resolve its outcome.",
+          "Retry the pending action first to start a retake.",
         ),
       );
       return;
@@ -1450,7 +1438,7 @@ export function AttemptScreen({
     else
       setTerminalError(
         localizeRef.current(
-          "Authoritative state is still ACTIVE. Retry the retained operation to resolve its outcome.",
+          "The attempt is still active. Retry the pending action to resolve it.",
         ),
       );
   };
@@ -1497,7 +1485,7 @@ export function AttemptScreen({
             variant="warning"
           >
             {t(
-              "The authoritative cutoff is {cutoff}. Only committed answers are included if the server finalizes the attempt.",
+              "The cutoff is {cutoff}. Only saved answers count if the attempt is finalized.",
               {
                 cutoff: formatInstant(locale, attempt.closure.closureCutoffAt, {
                   withTimeZone: true,
@@ -1508,9 +1496,9 @@ export function AttemptScreen({
         ) : null}
         {monitoringContent}
         {expired && attempt.state === "ACTIVE" ? (
-          <Alert title={t("Checking authoritative status")} variant="warning">
+          <Alert title={t("Checking status")} variant="warning">
             {t(
-              "The local countdown reached zero. Editing is paused while the Attempt is reconciled with the server.",
+              "Time is up. Editing is paused while the final state is confirmed.",
             )}
             <div className="mt-3">
               <Button
@@ -1530,11 +1518,11 @@ export function AttemptScreen({
         ) : null}
         {authorityPaused ? (
           <Alert
-            title={t("Authoritative reconciliation required")}
+            title={t("Status check required")}
             variant="warning"
           >
             {t(
-              "Answer and terminal actions remain paused until current server state is confirmed.",
+              "Answers and final actions stay paused until the current state is confirmed.",
             )}
             <div className="mt-3">
               <Button
@@ -1554,7 +1542,7 @@ export function AttemptScreen({
             })}
             variant="warning"
           >
-            {t("The original body and Idempotency-Key remain in memory.")}
+            {t("Your original request is kept in memory.")}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 disabled={mutationsBlocked}
@@ -1572,7 +1560,7 @@ export function AttemptScreen({
                   size="compact"
                   variant="ghost"
                 >
-                  {t("Check authoritative state")}
+                  {t("Check current state")}
                 </Button>
               ) : null}
             </div>
@@ -1588,7 +1576,7 @@ export function AttemptScreen({
             </h2>
             <p className="mt-3 leading-7 text-foreground-secondary">
               {t(
-                "This terminal state was read from the server. Answers can no longer be changed.",
+                "This attempt has ended. Answers can no longer be changed.",
               )}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -1618,7 +1606,7 @@ export function AttemptScreen({
             {locatorContext.getPublicLocator(attempt.publicationId) === null ? (
               <p className="mt-4 text-xs text-foreground-muted">
                 {t(
-                  "If this is a PUBLIC assessment and the page was reloaded, enter its private locator again before retaking. The locator is never persisted.",
+                  "For a PUBLIC assessment after a reload, enter its private locator again before retaking. The locator is never saved.",
                 )}
               </p>
             ) : null}
@@ -1670,7 +1658,7 @@ export function AttemptScreen({
         {attempt.state === "ACTIVE" ? (
           <p className="max-w-3xl text-xs leading-5 text-foreground-muted">
             {t(
-              "Submission sends the complete answer collection and never truncates it. Abandon is distinct, irreversible, and creates no result.",
+              "Submitting sends all your answers. Abandoning is irreversible and leaves no result.",
             )}
           </p>
         ) : null}
@@ -1684,7 +1672,7 @@ export function AttemptScreen({
           >
             <p>
               {t(
-                "Quizopia will save pending drafts, then submit exactly one answer for every question. The server computes and persists the grade atomically.",
+                "Quizopia will save pending drafts, then submit one answer per question. Your grade is calculated right after.",
               )}
             </p>
           </PublicationConfirmation>
@@ -1699,7 +1687,7 @@ export function AttemptScreen({
           >
             <p>
               {t(
-                "Abandoning is irreversible, consumes this Attempt entitlement, and creates no result. Closing the browser never performs this action.",
+                "Abandoning is irreversible, uses up this attempt, and creates no result. Closing the browser never abandons for you.",
               )}
             </p>
           </PublicationConfirmation>
@@ -1773,7 +1761,7 @@ export function ResultScreen({
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-          {t("Server-issued result")}
+          {t("Official result")}
         </p>
         <h1 className="mt-2 font-heading text-3xl font-extrabold">
           {t("Attempt result")}
@@ -1831,7 +1819,7 @@ export function ResultScreen({
       ) : null}
       <Alert title={t("Answer details remain protected")} variant="info">
         {t(
-          "Correct answers and explanations are available only through the separate, server-authorized review route after durable Publication closure.",
+          "Correct answers and explanations unlock in the review page after the assessment closes.",
         )}
       </Alert>
       <div className="flex flex-wrap gap-3">
@@ -1896,7 +1884,7 @@ export function ReviewScreen({
       <div className="mx-auto max-w-3xl space-y-5">
         <Alert title={t("Answer review unavailable")} variant="warning">
           {localize(
-            "{message} No correct-answer request was made before opening this explicit review page.",
+            "{message} No answer review was requested before opening this page.",
             { message: attemptFailureMessage(failure, localize) },
           )}
         </Alert>
@@ -1920,7 +1908,7 @@ export function ReviewScreen({
         </h1>
         <p className="mt-3 text-foreground-secondary">
           {t(
-            "The server released these details for this submitted owner after durable closure.",
+            "These details are available because you submitted and the assessment has closed.",
           )}
         </p>
       </div>

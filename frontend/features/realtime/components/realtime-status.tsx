@@ -33,7 +33,7 @@ export function RealtimeStatusInline({
       className="text-xs text-foreground-muted"
       data-realtime-state={status.state}
       title={t(
-        "Live update hints are best-effort; server state stays authoritative.",
+        "Live update hints are best-effort; refresh for the exact state.",
       )}
     >
       {text}
