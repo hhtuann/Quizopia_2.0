@@ -409,13 +409,16 @@ test("real teacher preserves published A/B history while current draft advances 
   await expect(page).toHaveURL(/\/app\/quizzes$/);
 
   await page.getByRole("link", { name: "Create quiz" }).click();
-  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
-  const quizUrl = page.url();
+  // FB-014: the new-quiz route is an unsaved workspace; the quiz is created
+  // by the first explicit Save, which then moves to the editor URL.
+  await expect(page).toHaveURL(/\/app\/quizzes\/new$/);
   await page.getByRole("textbox", { name: "Quiz title" }).fill(title);
   await page
     .getByRole("textbox", { name: "Quiz Markdown source" })
     .fill(sourceA);
   await page.getByRole("button", { name: "Save" }).click();
+  await expect(page).toHaveURL(/\/app\/quizzes\/[0-9a-f-]+$/);
+  const quizUrl = page.url();
   await expect(page.getByText("Saved")).toBeVisible();
 
   await page.reload();
