@@ -49,6 +49,7 @@ function draft(authoringSource: string) {
     authoringSource,
     createdAt: "2026-09-30T12:00:00Z",
     updatedAt: "2026-09-30T12:00:01Z",
+    deletionStatus: null,
   };
 }
 
@@ -120,6 +121,7 @@ describe("quiz authoring bilingual presentation", () => {
           createdAt: "2026-09-30T12:00:00Z",
           updatedAt: "2026-10-01T03:00:00Z",
           latestVersionNumber: 3,
+          deletionStatus: null,
         },
         {
           quizId: "9bd4c564-3c27-4e6d-91aa-a004334aa8f7",
@@ -128,6 +130,7 @@ describe("quiz authoring bilingual presentation", () => {
           createdAt: "2026-09-30T12:00:00Z",
           updatedAt: "2026-10-01T03:00:00Z",
           latestVersionNumber: null,
+          deletionStatus: null,
         },
       ],
       nextCursor: null,

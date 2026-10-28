@@ -40,6 +40,7 @@ function draft(authoringSource: string) {
     authoringSource,
     createdAt: "2026-09-30T12:00:00Z",
     updatedAt: "2026-09-30T12:00:01Z",
+    deletionStatus: null,
   };
 }
 
@@ -53,6 +54,7 @@ function libraryPage(nextCursor: string | null = "opaque-next") {
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-10-01T03:00:00Z",
         latestVersionNumber: 3,
+        deletionStatus: null,
       },
     ],
     nextCursor,

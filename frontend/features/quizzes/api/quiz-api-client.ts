@@ -9,6 +9,27 @@ import type {
 } from "../../../lib/api/http-transport";
 import { publicApiTarget } from "../../../lib/api/public-api";
 
+/**
+ * FB-015: forward-only durable states of a quiz deletion operation, mirrored
+ * from QuizDeletionState. Enum values are canonical API tokens and never pass
+ * through the i18n catalog directly.
+ */
+export const quizDeletionStatusSchema = z.enum([
+  "REQUESTED",
+  "QUIZ_FENCED",
+  "DEPENDENCIES_FENCING",
+  "ACCESS_REVOKED",
+  "PURGE_PENDING",
+  "PURGING",
+  "PRIMARY_PURGED",
+  "ALL_COPIES_ERASED",
+  "WAITING_DEPENDENCY",
+  "BLOCKED_BY_RETENTION",
+  "PENDING_POLICY",
+  "RETRYABLE_FAILURE",
+]);
+export type QuizDeletionStatus = z.infer<typeof quizDeletionStatusSchema>;
+
 const draftSchema = z
   .object({
     quizId: z.string().uuid(),
@@ -17,6 +38,7 @@ const draftSchema = z
     authoringSource: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    deletionStatus: quizDeletionStatusSchema.nullable(),
   })
   .strict();
 
@@ -89,6 +111,7 @@ const libraryItemSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     latestVersionNumber: z.number().int().positive().nullable(),
+    deletionStatus: quizDeletionStatusSchema.nullable(),
   })
   .strict();
 

@@ -177,6 +177,7 @@ test("application and editor headers keep compact branding and usable navigation
         authoringSource: "Câu 1 [NUMERIC_FILL]: 2 + 2?\nĐáp án: 4",
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -383,6 +384,7 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:00:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -399,6 +401,7 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
           authoringSource: source,
           createdAt: "2026-09-30T12:00:00Z",
           updatedAt: "2026-09-30T12:30:00Z",
+          deletionStatus: null,
         }),
       });
       return;
@@ -423,6 +426,7 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
           authoringSource: source,
           createdAt: "2026-09-30T12:00:00Z",
           updatedAt: "2026-09-30T12:31:00Z",
+          deletionStatus: null,
         }),
       });
       return;
@@ -719,6 +723,7 @@ test("create failure states the duplicate risk honestly and retries only on expl
         authoringSource: body.authoringSource,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:00:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -733,6 +738,7 @@ test("create failure states the duplicate risk honestly and retries only on expl
         authoringSource: validSource,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     }),
   );
@@ -794,6 +800,7 @@ test("teacher lists a backend quiz and opens its existing draft", async ({
             createdAt: "2026-09-30T12:00:00Z",
             updatedAt: "2026-10-01T03:00:00Z",
             latestVersionNumber: 2,
+            deletionStatus: null,
           },
         ],
         nextCursor: null,
@@ -812,6 +819,7 @@ test("teacher lists a backend quiz and opens its existing draft", async ({
         authoringSource: existingSource,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-10-01T03:00:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -869,6 +877,7 @@ test("teacher loads the next opaque-cursor library page", async ({ page }) => {
                   createdAt: "2026-09-30T12:00:00Z",
                   updatedAt: "2026-10-01T03:00:00Z",
                   latestVersionNumber: null,
+                  deletionStatus: null,
                 },
               ],
               nextCursor: "opaque-next-token",
@@ -882,6 +891,7 @@ test("teacher loads the next opaque-cursor library page", async ({ page }) => {
                   createdAt: "2026-09-30T11:00:00Z",
                   updatedAt: "2026-10-01T02:00:00Z",
                   latestVersionNumber: 1,
+                  deletionStatus: null,
                 },
               ],
               nextCursor: null,
@@ -927,6 +937,7 @@ test("question marker replacement keeps visible text and textarea caret aligned"
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -977,6 +988,7 @@ test("range selection touching a marker suppresses autocomplete until it collaps
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -1054,6 +1066,7 @@ test("preview correctness navigation keeps editor overlays aligned near the sour
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -1138,6 +1151,7 @@ test("autocomplete follows a scrolled caret and flips inside the editor", async 
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -1204,6 +1218,7 @@ test("quiz authoring remains usable without horizontal overflow at 375px", async
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",
         updatedAt: "2026-09-30T12:30:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -1264,6 +1279,7 @@ test("teacher previews published snapshots without replacing the current draft",
         authoringSource: sourceC,
         createdAt: "2026-10-08T01:00:00Z",
         updatedAt: "2026-10-08T04:00:00Z",
+        deletionStatus: null,
       }),
     });
   });
@@ -1394,6 +1410,7 @@ for (const width of [375, 768, 1280, 1440, 1600]) {
               createdAt: "2026-09-30T12:00:00Z",
               updatedAt: "2026-10-08T01:00:00Z",
               latestVersionNumber: 1,
+              deletionStatus: null,
             },
           ],
           nextCursor: null,
@@ -1411,6 +1428,7 @@ for (const width of [375, 768, 1280, 1440, 1600]) {
           authoringSource: source,
           createdAt: "2026-09-30T12:00:00Z",
           updatedAt: "2026-10-08T01:00:00Z",
+          deletionStatus: null,
         }),
       });
     });

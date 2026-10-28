@@ -77,6 +77,7 @@ function mockQuizLibrary(page: Page) {
           createdAt: "2026-10-16T07:00:00Z",
           updatedAt: "2026-10-16T07:00:00Z",
           latestVersionNumber: n,
+          deletionStatus: null,
         })),
         nextCursor: null,
       }),

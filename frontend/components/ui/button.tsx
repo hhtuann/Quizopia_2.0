@@ -5,6 +5,7 @@ export type ButtonVariant =
   | "primary"
   | "secondary"
   | "danger"
+  | "danger-outline"
   | "brand-outline"
   | "neutral-outline"
   | "ghost"
@@ -26,6 +27,8 @@ const variantClasses: Record<ButtonVariant, string> = {
   ghost: "quiz-button-ghost",
   danger:
     "border-danger bg-danger text-foreground-inverse hover:brightness-90 active:brightness-75 disabled:border-danger/20 disabled:bg-danger/10 disabled:text-danger disabled:shadow-none disabled:hover:brightness-100",
+  "danger-outline":
+    "border-danger/40 bg-surface text-danger hover:border-danger hover:bg-danger/5 active:bg-danger/10 disabled:border-danger/20 disabled:text-danger/50 disabled:hover:bg-surface",
   destructive:
     "border-danger bg-danger text-foreground-inverse hover:brightness-90 active:brightness-75 disabled:border-danger/20 disabled:bg-danger/10 disabled:text-danger disabled:shadow-none",
 };

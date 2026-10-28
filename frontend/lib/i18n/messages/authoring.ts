@@ -165,4 +165,58 @@ export const authoringMessages = {
     "Có {count} gợi ý Quiz Markdown.",
   "Autocomplete works at column 1, outside fenced code blocks. Publishing always re-validates.":
     "Gợi ý hoàn thành hoạt động tại cột 1, ngoài các khối mã. Khi xuất bản luôn kiểm tra lại.",
+  // FB-015 quiz deletion (owner-only destructive flow)
+  "Delete quiz": "Xóa bộ câu hỏi",
+  "Delete this quiz permanently?": "Xóa vĩnh viễn bộ câu hỏi này?",
+  "This permanently deletes the quiz, its draft and every published version. Linked assessments, answers, grades and results are permanently deleted when they are eligible; some records can be kept longer only when the law requires it.":
+    "Thao tác này xóa vĩnh viễn bộ câu hỏi, bản nháp và mọi phiên bản đã xuất bản. Các bài kiểm tra, câu trả lời, điểm số và kết quả liên quan sẽ bị xóa vĩnh viễn khi đủ điều kiện; một số hồ sơ chỉ được lưu giữ lâu hơn khi pháp luật yêu cầu.",
+  "Students immediately lose access once revocation completes.":
+    "Học sinh mất quyền truy cập ngay khi việc thu hồi hoàn tất.",
+  "Type the exact title to confirm": "Gõ chính xác tiêu đề để xác nhận",
+  "Current title": "Tiêu đề hiện tại",
+  "The title does not match. Type it exactly, including capitalization.":
+    "Tiêu đề chưa khớp. Hãy gõ chính xác, kể cả chữ hoa chữ thường.",
+  "This quiz has no title yet. Save a title before deleting it.":
+    "Bộ câu hỏi này chưa có tiêu đề. Hãy lưu tiêu đề trước khi xóa.",
+  "Delete permanently": "Xóa vĩnh viễn",
+  "Requesting deletion": "Đang gửi yêu cầu xóa",
+  "Deletion could not be requested": "Không thể gửi yêu cầu xóa",
+  "A deletion was already requested for this quiz. Reload to see its current status.":
+    "Bộ câu hỏi này đã có sẵn yêu cầu xóa. Tải lại để xem trạng thái hiện tại.",
+  "The typed title does not match the current quiz title. Reload the quiz and try again.":
+    "Tiêu đề vừa gõ không khớp tiêu đề hiện tại của bộ câu hỏi. Tải lại bộ câu hỏi rồi thử lại.",
+  "This quiz no longer exists. Reload your quiz library.":
+    "Bộ câu hỏi này không còn tồn tại. Hãy tải lại thư viện bộ câu hỏi.",
+  "This quiz is already being deleted.": "Bộ câu hỏi này đang được xóa.",
+  "Deletion progress": "Tiến trình xóa",
+  "Revoking access": "Đang thu hồi truy cập",
+  "Access blocked · Deleting data": "Đã chặn truy cập · Đang xóa dữ liệu",
+  "Waiting for the mandatory retention period":
+    "Chờ hết thời gian lưu giữ bắt buộc",
+  "Quizopia is retrying automatically; nothing needs your attention right now.":
+    "Quizopia đang tự động thử lại; hiện bạn chưa cần làm gì.",
+  "Primary data deleted": "Đã xóa dữ liệu chính",
+  "Primary data deleted · Waiting for backup copies to be erased":
+    "Đã xóa dữ liệu chính · Đang chờ xóa các bản sao dự phòng",
+  "Fully deleted": "Đã xóa hoàn toàn",
+  "Latest note: {reason}": "Ghi chú mới nhất: {reason}",
+  "The deletion status could not be refreshed.":
+    "Không thể làm mới trạng thái xóa.",
+  "The last known status is shown. Refresh to keep following the deletion.":
+    "Trạng thái đã biết cuối cùng đang được hiển thị. Hãy làm mới để tiếp tục theo dõi việc xóa.",
+  // "Refresh status" is owned by the assessment catalog (cross-catalog key).
+  "Refreshing deletion status": "Đang làm mới trạng thái xóa",
+  "Close deletion progress": "Đóng tiến trình xóa",
+  "This quiz is being deleted": "Bộ câu hỏi này đang được xóa",
+  "Editing and publishing are disabled while the deletion is in progress.":
+    "Chỉnh sửa và xuất bản bị tắt trong khi việc xóa đang diễn ra.",
+  "This quiz is being deleted, so it can no longer be saved or published.":
+    "Bộ câu hỏi này đang được xóa nên không thể lưu hay xuất bản được nữa.",
+  "View deletion progress": "Xem tiến trình xóa",
+  "If you just deleted this quiz, its removal has completed.":
+    "Nếu bạn vừa xóa bộ câu hỏi này thì việc xóa đã hoàn tất.",
+  "Quiz deleted": "Đã xóa bộ câu hỏi",
+  "“{title}” was deleted. Students can no longer access it.":
+    "“{title}” đã được xóa. Học sinh không còn truy cập được nữa.",
+  "Being deleted": "Đang được xóa",
 } as const;

@@ -197,6 +197,7 @@ async function mockQuiz(page: Page) {
         authoringSource: "Câu 1 [NUMERIC_FILL]: Current draft?\nĐáp án: 99",
         createdAt: draft.createdAt,
         updatedAt: draft.createdAt,
+        deletionStatus: null,
       }),
     }),
   );

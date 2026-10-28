@@ -85,6 +85,7 @@ async function mockDraft(page: Page, source = longSource) {
         authoringSource: source,
         createdAt: "2026-10-08T01:00:00Z",
         updatedAt: "2026-10-08T04:00:00Z",
+        deletionStatus: null,
       }),
     }),
   );
@@ -273,6 +274,7 @@ test("long Quiz Library uses stable branded document scrolling", async ({
           createdAt: "2026-10-08T01:00:00Z",
           updatedAt: "2026-10-08T04:00:00Z",
           latestVersionNumber: 1,
+          deletionStatus: null,
         })),
         nextCursor: null,
       }),
