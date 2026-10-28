@@ -105,9 +105,7 @@ function useStudentAccessBlock() {
   if (!user?.roles.includes("STUDENT"))
     return (
       <Alert title={t("Student access required")} variant="warning">
-        {t(
-          "Please sign in with a Student account to continue.",
-        )}
+        {t("Please sign in with a Student account to continue.")}
       </Alert>
     );
   if (activeWorkspace !== "LEARNING")
@@ -117,9 +115,7 @@ function useStudentAccessBlock() {
           {t("Open the Learning workspace")}
         </h1>
         <p className="mt-3 leading-7 text-foreground-secondary">
-          {t(
-            "Switch workspace to organize your learning.",
-          )}
+          {t("Switch workspace to organize your learning.")}
         </p>
         <Button className="mt-5" onClick={() => switchWorkspace("LEARNING")}>
           {t("Switch to Learning")}
@@ -1575,9 +1571,7 @@ export function AttemptScreen({
                 : t("Attempt abandoned")}
             </h2>
             <p className="mt-3 leading-7 text-foreground-secondary">
-              {t(
-                "This attempt has ended. Answers can no longer be changed.",
-              )}
+              {t("This attempt has ended. Answers can no longer be changed.")}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               {attempt.state === "SUBMITTED" ? (
