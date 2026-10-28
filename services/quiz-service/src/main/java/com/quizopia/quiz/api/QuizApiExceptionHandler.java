@@ -1,7 +1,13 @@
 package com.quizopia.quiz.api;
 
+import com.quizopia.quiz.application.DeletionConflictException;
+import com.quizopia.quiz.application.DeletionTitleConfirmationRequiredException;
+import com.quizopia.quiz.application.IllegalDeletionTransitionException;
+import com.quizopia.quiz.application.InvalidDeletionRequestException;
 import com.quizopia.quiz.application.InvalidQuizLibraryRequestException;
 import com.quizopia.quiz.application.InvalidQuizVersionRequestException;
+import com.quizopia.quiz.application.QuizDeletionNotFoundException;
+import com.quizopia.quiz.application.QuizDeletionPendingException;
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
 import com.quizopia.quiz.application.QuizMarkdownInvalidException;
 import com.quizopia.quiz.application.QuizNotFoundException;
@@ -35,10 +41,36 @@ public final class QuizApiExceptionHandler {
         HttpMessageNotReadableException.class,
         MethodArgumentTypeMismatchException.class,
         InvalidQuizLibraryRequestException.class,
-        InvalidQuizVersionRequestException.class
+        InvalidQuizVersionRequestException.class,
+        InvalidDeletionRequestException.class
     })
     ResponseEntity<QuizApiError> invalidRequest(Exception exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Request is invalid", request);
+    }
+
+    @ExceptionHandler(DeletionTitleConfirmationRequiredException.class)
+    ResponseEntity<QuizApiError> deletionTitleConfirmationRequired(
+            DeletionTitleConfirmationRequiredException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "TITLE_CONFIRMATION_REQUIRED", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({DeletionConflictException.class, IllegalDeletionTransitionException.class})
+    ResponseEntity<QuizApiError> deletionConflict(Exception exception, HttpServletRequest request) {
+        return response(
+                HttpStatus.CONFLICT,
+                "DELETION_CONFLICT",
+                "Deletion request conflicts with an existing operation",
+                request);
+    }
+
+    @ExceptionHandler(QuizDeletionPendingException.class)
+    ResponseEntity<QuizApiError> deletionPending(QuizDeletionPendingException exception, HttpServletRequest request) {
+        return response(HttpStatus.CONFLICT, "QUIZ_DELETION_PENDING", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(QuizDeletionNotFoundException.class)
+    ResponseEntity<QuizApiError> deletionNotFound(QuizDeletionNotFoundException exception, HttpServletRequest request) {
+        return response(HttpStatus.NOT_FOUND, "QUIZ_DELETION_NOT_FOUND", exception.getMessage(), request);
     }
 
     @ExceptionHandler(QuizNotFoundException.class)

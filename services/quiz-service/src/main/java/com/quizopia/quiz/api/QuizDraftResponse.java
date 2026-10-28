@@ -11,7 +11,8 @@ public record QuizDraftResponse(
         @Schema(types = {"string", "null"}) String description,
         @Schema(types = {"string", "null"}) String authoringSource,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant updatedAt) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant updatedAt,
+        @Schema(types = {"string", "null"}) String deletionStatus) {
     public static QuizDraftResponse from(QuizDraftDetails details) {
         return new QuizDraftResponse(
                 details.quiz().id(),
@@ -19,6 +20,9 @@ public record QuizDraftResponse(
                 details.draft().description(),
                 details.draft().authoringSource(),
                 details.quiz().createdAt(),
-                details.draft().updatedAt());
+                details.draft().updatedAt(),
+                details.deletionStatus() == null
+                        ? null
+                        : details.deletionStatus().name());
     }
 }

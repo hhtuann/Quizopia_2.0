@@ -5,7 +5,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 /** Stable identity and ownership for a quiz across its mutable draft and future versions. */
-public record Quiz(UUID id, UUID ownerUserId, Instant createdAt) {
+public record Quiz(UUID id, UUID ownerUserId, Instant createdAt, Instant deletionFencedAt) {
+    public Quiz(UUID id, UUID ownerUserId, Instant createdAt) {
+        this(id, ownerUserId, createdAt, null);
+    }
+
     public Quiz {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(ownerUserId, "ownerUserId");
@@ -14,5 +18,9 @@ public record Quiz(UUID id, UUID ownerUserId, Instant createdAt) {
 
     public boolean isOwnedBy(UUID userId) {
         return ownerUserId.equals(Objects.requireNonNull(userId, "userId"));
+    }
+
+    public boolean isDeletionFenced() {
+        return deletionFencedAt != null;
     }
 }

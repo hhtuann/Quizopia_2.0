@@ -54,6 +54,8 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
 
 quizopia:
+  deletion:
+    enabled: ${QUIZ_DELETION_ENABLED:false}
   internal-authority:
     enabled: ${INTERNAL_AUTHORITY_ENABLED:false}
     require-tls: ${INTERNAL_AUTHORITY_REQUIRE_TLS:true}

@@ -10,7 +10,8 @@ public record QuizLibraryItemResponse(
         String description,
         Instant createdAt,
         Instant updatedAt,
-        Integer latestVersionNumber) {
+        Integer latestVersionNumber,
+        String deletionStatus) {
     static QuizLibraryItemResponse from(QuizLibraryItem item) {
         return new QuizLibraryItemResponse(
                 item.quizId(),
@@ -18,6 +19,7 @@ public record QuizLibraryItemResponse(
                 item.description(),
                 item.createdAt(),
                 item.updatedAt(),
-                item.latestVersionNumber());
+                item.latestVersionNumber(),
+                item.deletionStatus() == null ? null : item.deletionStatus().name());
     }
 }

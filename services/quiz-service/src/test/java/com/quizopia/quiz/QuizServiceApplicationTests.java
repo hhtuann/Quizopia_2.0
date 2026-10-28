@@ -131,18 +131,24 @@ class QuizServiceApplicationTests {
 
     @Test
     void contextLoadsAfterFlywayMigrationAndHibernateValidation() {
-        assertEquals("3", flyway.info().current().getVersion().getVersion());
+        assertEquals("4", flyway.info().current().getVersion().getVersion());
         assertEquals(0, flyway.info().pending().length);
         flyway.validate();
         assertEquals(
-                3,
+                4,
                 jdbc.queryForObject(
-                        "select count(*) from flyway_schema_history where version in ('1', '2', '3') and success",
+                        "select count(*) from flyway_schema_history where version in ('1', '2', '3', '4') and success",
                         Integer.class));
         assertTrue(entityManagerFactory.isOpen());
-        assertEquals(3, entityManagerFactory.getMetamodel().getEntities().size());
+        assertEquals(5, entityManagerFactory.getMetamodel().getEntities().size());
         assertEquals(
-                Set.of("flyway_schema_history", "quiz_drafts", "quiz_versions", "quizzes"),
+                Set.of(
+                        "flyway_schema_history",
+                        "quiz_drafts",
+                        "quiz_versions",
+                        "quizzes",
+                        "quiz_deletion_operations",
+                        "quiz_deletion_outbox"),
                 new HashSet<>(jdbc.queryForList(
                         "select tablename from pg_tables where schemaname = 'public'", String.class)));
     }
@@ -372,7 +378,7 @@ class QuizServiceApplicationTests {
                 ownerUserId,
                 jdbc.queryForObject("select owner_user_id from quizzes where id = ?", UUID.class, quiz.id()));
         assertEquals(
-                Set.of("quizzes"),
+                Set.of("quizzes", "quiz_deletion_operations"),
                 new HashSet<>(jdbc.queryForList(
                         "select confrelid::regclass::text from pg_constraint "
                                 + "where contype = 'f' and connamespace = 'public'::regnamespace",
@@ -806,6 +812,36 @@ class QuizServiceApplicationTests {
                         "select count(*) from quizzes q left join quiz_drafts d on d.quiz_id = q.id "
                                 + "where d.quiz_id is null",
                         Integer.class));
+    }
+
+    @Test
+    void deletionRoutesReturnStandardQuizNotFoundWithoutTheFeatureFlagAndCreateNothing() throws Exception {
+        UUID ownerUserId = UUID.randomUUID();
+        String token = "deletion-flag-off";
+        when(jwtDecoder.decode(token)).thenReturn(jwt(ownerUserId, List.of("TEACHER")));
+        UUID quizId = UUID.randomUUID();
+        jdbc.update("insert into quizzes (id, owner_user_id, created_at) values (?, ?, now())", quizId, ownerUserId);
+
+        mvc.perform(post("/api/quizzes/{quizId}/deletion-requests", quizId)
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "flag-off-key-000000000001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmTitle\":\"Flag off\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUIZ_NOT_FOUND"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.path").value("/api/quizzes/" + quizId + "/deletion-requests"));
+        mvc.perform(get("/api/quizzes/{quizId}/deletion-requests/{operationId}", quizId, UUID.randomUUID())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("QUIZ_NOT_FOUND"));
+
+        assertEquals(
+                null,
+                jdbc.queryForObject(
+                        "select deletion_fenced_at from quizzes where id = ?", OffsetDateTime.class, quizId));
+        assertEquals(0, jdbc.queryForObject("select count(*) from quiz_deletion_operations", Integer.class));
+        assertEquals(0, jdbc.queryForObject("select count(*) from quiz_deletion_outbox", Integer.class));
     }
 
     private String draftRequest(String title, String description, String authoringSource) throws Exception {

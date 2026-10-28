@@ -1,0 +1,251 @@
+openapi: 3.1.0
+info:
+  title: Quiz deletion requests (FB-015 / ADR-018)
+  version: 1.0.0
+  description:
+    Guarded owner-only deletion request API. Only active while
+    quizopia.deletion.enabled is true (env QUIZ_DELETION_ENABLED, default
+    false); when disabled the routes answer with the standard quiz 404
+    envelope and create nothing. Gateway-routed, TEACHER role required, and
+    the quiz must be owned by the authenticated user. No purge, restore, or
+    bulk endpoint exists in this contract.
+paths:
+  /api/quizzes/{quizId}/deletion-requests:
+    post:
+      operationId: quiz_deletion_request
+      summary: Request irreversible deletion of an owned quiz (202, idempotent).
+      security:
+        - quizopiaBearerAuth: []
+      parameters:
+        - name: quizId
+          in: path
+          required: true
+          schema: &uuid
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 16 to 128 canonical [A-Za-z0-9_-] characters.
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+            pattern: "^[A-Za-z0-9_-]{16,128}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizDeletionRequest"
+      responses:
+        "202":
+          description: Operation accepted or safely replayed with the same id.
+          headers:
+            Cache-Control: &noStore
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizDeletionRequestAccepted"
+        "400":
+          description: Malformed request or missing exact title confirmation.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication is required.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Missing TEACHER role or quiz ownership denied.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Quiz was not found.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Idempotency conflict or deletion already pending.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/quizzes/{quizId}/deletion-requests/{operationId}:
+    get:
+      operationId: quiz_deletion_status
+      summary: Read the owner-only status of one deletion operation.
+      security:
+        - quizopiaBearerAuth: []
+      parameters:
+        - name: quizId
+          in: path
+          required: true
+          schema: *uuid
+        - name: operationId
+          in: path
+          required: true
+          schema: *uuid
+      responses:
+        "200":
+          description: Owned operation status without PII.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizDeletionStatus"
+        "400":
+          description: Malformed request.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Authentication is required.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Missing TEACHER role.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Operation not found for this caller (anti-enumeration).
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    quizopiaBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    QuizDeletionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmTitle
+      properties:
+        confirmTitle:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: Exact current draft title, trimmed and case-sensitive.
+    QuizDeletionRequestAccepted:
+      type: object
+      additionalProperties: false
+      required:
+        - operationId
+        - status
+      properties:
+        operationId: *uuid
+        status:
+          type: string
+          enum:
+            - REQUESTED
+            - QUIZ_FENCED
+            - DEPENDENCIES_FENCING
+            - ACCESS_REVOKED
+            - PURGE_PENDING
+            - PURGING
+            - PRIMARY_PURGED
+            - ALL_COPIES_ERASED
+            - WAITING_DEPENDENCY
+            - BLOCKED_BY_RETENTION
+            - PENDING_POLICY
+            - RETRYABLE_FAILURE
+    QuizDeletionStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - operationId
+        - status
+        - createdAt
+        - updatedAt
+        - lastReason
+        - stages
+      properties:
+        operationId: *uuid
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastReason:
+          type:
+            - string
+            - "null"
+        stages:
+          type: array
+          description: Forward-only main stage order for progress UI.
+          items:
+            type: string
+            enum:
+              - REQUESTED
+              - QUIZ_FENCED
+              - DEPENDENCIES_FENCING
+              - ACCESS_REVOKED
+              - PURGE_PENDING
+              - PURGING
+              - PRIMARY_PURGED
+              - ALL_COPIES_ERASED
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - status
+        - path
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_REQUEST
+            - TITLE_CONFIRMATION_REQUIRED
+            - DELETION_CONFLICT
+            - QUIZ_DELETION_PENDING
+            - QUIZ_NOT_FOUND
+            - QUIZ_DELETION_NOT_FOUND
+        message:
+          type: string
+        status:
+          type: integer
+        path:
+          type: string

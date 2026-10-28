@@ -54,13 +54,27 @@ public class QuizVersionQueryService {
                 .orElseThrow(() -> new QuizVersionNotFoundException(quizId, versionNumber));
     }
 
-    private void requireOwnedQuiz(UUID callerUserId, UUID quizId) {
+    @Transactional(readOnly = true)
+    public QuizVersion getOwnedForPublicationHandoff(UUID callerUserId, UUID quizId, int versionNumber) {
+        if (requireOwnedQuiz(callerUserId, quizId).isDeletionFenced()) {
+            throw new QuizDeletionPendingException(quizId);
+        }
+        if (versionNumber < 1) {
+            throw new InvalidQuizVersionRequestException("Quiz version number must be positive");
+        }
+        return quizVersionRepository
+                .findByQuizIdAndVersionNumber(quizId, versionNumber)
+                .orElseThrow(() -> new QuizVersionNotFoundException(quizId, versionNumber));
+    }
+
+    private Quiz requireOwnedQuiz(UUID callerUserId, UUID quizId) {
         Objects.requireNonNull(callerUserId, "callerUserId");
         Objects.requireNonNull(quizId, "quizId");
         Quiz quiz = quizRepository.findById(quizId).orElseThrow(() -> new QuizNotFoundException(quizId));
         if (!quiz.isOwnedBy(callerUserId)) {
             throw new QuizOwnershipDeniedException(quizId, callerUserId);
         }
+        return quiz;
     }
 
     private static void validateLimit(int limit) {

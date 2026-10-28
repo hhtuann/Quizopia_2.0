@@ -139,7 +139,14 @@ class QuizApiSecurityIntegrationTest {
 
         assertEquals(Set.of("items", "nextCursor"), fieldNames(objectMapper.readTree(body)));
         assertEquals(
-                Set.of("quizId", "title", "description", "createdAt", "updatedAt", "latestVersionNumber"),
+                Set.of(
+                        "quizId",
+                        "title",
+                        "description",
+                        "createdAt",
+                        "updatedAt",
+                        "latestVersionNumber",
+                        "deletionStatus"),
                 fieldNames(objectMapper.readTree(body).path("items").get(0)));
         verify(quizLibraryService).listOwned(ownerUserId, 20, null);
     }
@@ -732,7 +739,14 @@ class QuizApiSecurityIntegrationTest {
                 Set.of("items", "nextCursor"),
                 fieldNames(schemas.path("QuizLibraryResponse").path("properties")));
         assertEquals(
-                Set.of("quizId", "title", "description", "createdAt", "updatedAt", "latestVersionNumber"),
+                Set.of(
+                        "quizId",
+                        "title",
+                        "description",
+                        "createdAt",
+                        "updatedAt",
+                        "latestVersionNumber",
+                        "deletionStatus"),
                 fieldNames(schemas.path("QuizLibraryItemResponse").path("properties")));
         JsonNode requestSchema = schemas.path("QuizDraftRequest");
         assertEquals(Set.of("title", "description", "authoringSource"), fieldNames(requestSchema.path("properties")));
@@ -744,7 +758,7 @@ class QuizApiSecurityIntegrationTest {
 
         JsonNode responseSchema = schemas.path("QuizDraftResponse");
         assertEquals(
-                Set.of("quizId", "title", "description", "authoringSource", "createdAt", "updatedAt"),
+                Set.of("quizId", "title", "description", "authoringSource", "createdAt", "updatedAt", "deletionStatus"),
                 fieldNames(responseSchema.path("properties")));
         assertEquals(Set.of("quizId", "createdAt", "updatedAt"), textValues(responseSchema.path("required")));
         assertNonNullableString(responseSchema.path("properties").path("quizId"));

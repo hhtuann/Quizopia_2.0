@@ -1,6 +1,7 @@
 package com.quizopia.quiz.application;
 
 import com.quizopia.quiz.domain.Quiz;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,4 +12,6 @@ public interface QuizRepository {
     Optional<Quiz> findById(UUID id);
 
     Optional<Quiz> findByIdForUpdate(UUID id);
+
+    void markDeletionFenced(UUID quizId, Instant fencedAt);
 }

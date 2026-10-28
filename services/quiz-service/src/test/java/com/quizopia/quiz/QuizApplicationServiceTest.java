@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.quizopia.quiz.application.QuizApplicationService;
+import com.quizopia.quiz.application.QuizDeletionOperationRepository;
+import com.quizopia.quiz.application.QuizDeletionPendingException;
 import com.quizopia.quiz.application.QuizDraftDetails;
 import com.quizopia.quiz.application.QuizDraftInput;
 import com.quizopia.quiz.application.QuizDraftNotFoundException;
@@ -20,6 +22,8 @@ import com.quizopia.quiz.application.QuizRepository;
 import com.quizopia.quiz.application.QuizVersionIdGenerator;
 import com.quizopia.quiz.application.QuizVersionRepository;
 import com.quizopia.quiz.domain.Quiz;
+import com.quizopia.quiz.domain.QuizDeletionOperation;
+import com.quizopia.quiz.domain.QuizDeletionState;
 import com.quizopia.quiz.domain.QuizDraft;
 import com.quizopia.quiz.domain.QuizVersion;
 import com.quizopia.quiz.domain.markdown.QuizMarkdownParser;
@@ -327,11 +331,29 @@ class QuizApplicationServiceTest {
         assertEquals(0, versions.insertCount);
     }
 
+    @Test
+    void fencedQuizRejectsDraftUpdateAndPublishWithDeletionPending() {
+        UUID ownerUserId = UUID.randomUUID();
+        Quiz fencedQuiz = new Quiz(UUID.randomUUID(), ownerUserId, INITIAL_TIME, INITIAL_TIME);
+        quizzes.insert(fencedQuiz);
+        drafts.save(new QuizDraft(fencedQuiz.id(), "Title", null, validSingleChoiceSource("x"), INITIAL_TIME));
+        drafts.resetCounts();
+
+        assertThrows(
+                QuizDeletionPendingException.class,
+                () -> service.updateOwnedDraft(
+                        ownerUserId, fencedQuiz.id(), new QuizDraftInput("Changed", null, "changed")));
+        assertThrows(QuizDeletionPendingException.class, () -> service.publishOwnedDraft(ownerUserId, fencedQuiz.id()));
+        assertEquals(0, drafts.saveCount);
+        assertEquals(0, versions.insertCount);
+    }
+
     private QuizApplicationService serviceAt(Instant instant) {
         return new QuizApplicationService(
                 quizzes,
                 drafts,
                 versions,
+                new RecordingDeletionRepository(),
                 idGenerator,
                 versionIdGenerator,
                 markdownParser,
@@ -370,6 +392,47 @@ class QuizApplicationServiceTest {
         @Override
         public Optional<Quiz> findByIdForUpdate(UUID id) {
             return findById(id);
+        }
+
+        @Override
+        public void markDeletionFenced(UUID quizId, Instant fencedAt) {
+            Quiz quiz = values.get(quizId);
+            if (quiz != null) {
+                values.put(quizId, new Quiz(quiz.id(), quiz.ownerUserId(), quiz.createdAt(), fencedAt));
+            }
+        }
+    }
+
+    private static final class RecordingDeletionRepository implements QuizDeletionOperationRepository {
+        @Override
+        public void insert(QuizDeletionOperation operation) {}
+
+        @Override
+        public void update(QuizDeletionOperation operation) {}
+
+        @Override
+        public Optional<QuizDeletionOperation> findById(UUID id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<QuizDeletionOperation> findByIdForUpdate(UUID id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<QuizDeletionOperation> findByQuizIdAndIdempotencyKey(UUID quizId, String idempotencyKey) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<QuizDeletionOperation> findLatestByQuizId(UUID quizId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public java.util.Map<UUID, QuizDeletionState> findLatestStatusesByQuizIdIn(java.util.Collection<UUID> quizIds) {
+            return java.util.Map.of();
         }
     }
 

@@ -4,6 +4,7 @@ import com.quizopia.quiz.application.QuizRepository;
 import com.quizopia.quiz.domain.Quiz;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
@@ -35,5 +36,15 @@ public class JpaQuizRepository implements QuizRepository {
     public Optional<Quiz> findByIdForUpdate(UUID id) {
         return Optional.ofNullable(entityManager.find(QuizEntity.class, id, LockModeType.PESSIMISTIC_WRITE))
                 .map(QuizEntity::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public void markDeletionFenced(UUID quizId, Instant fencedAt) {
+        QuizEntity entity = entityManager.find(QuizEntity.class, quizId, LockModeType.PESSIMISTIC_WRITE);
+        if (entity != null) {
+            entity.markDeletionFenced(fencedAt);
+            entityManager.flush();
+        }
     }
 }

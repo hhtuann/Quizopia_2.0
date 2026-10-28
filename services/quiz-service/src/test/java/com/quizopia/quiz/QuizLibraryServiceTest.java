@@ -6,22 +6,29 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.quizopia.quiz.application.InvalidQuizLibraryRequestException;
+import com.quizopia.quiz.application.QuizDeletionOperationRepository;
 import com.quizopia.quiz.application.QuizLibraryCursorCodec;
 import com.quizopia.quiz.application.QuizLibraryItem;
 import com.quizopia.quiz.application.QuizLibraryPage;
 import com.quizopia.quiz.application.QuizLibraryPosition;
 import com.quizopia.quiz.application.QuizLibraryRepository;
 import com.quizopia.quiz.application.QuizLibraryService;
+import com.quizopia.quiz.domain.QuizDeletionOperation;
+import com.quizopia.quiz.domain.QuizDeletionState;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class QuizLibraryServiceTest {
     private final RecordingRepository repository = new RecordingRepository();
     private final QuizLibraryCursorCodec cursorCodec = new QuizLibraryCursorCodec();
-    private final QuizLibraryService service = new QuizLibraryService(repository, cursorCodec);
+    private final RecordingDeletionRepository deletionRepository = new RecordingDeletionRepository();
+    private final QuizLibraryService service = new QuizLibraryService(repository, cursorCodec, deletionRepository);
 
     @Test
     void firstPageFetchesOneExtraAndReturnsCursorFromLastVisibleItem() {
@@ -90,6 +97,24 @@ class QuizLibraryServiceTest {
         assertEquals(101, repository.fetchLimit);
     }
 
+    @Test
+    void deletionStatusesAreAttachedToItemsWithoutChangingPagination() {
+        UUID owner = UUID.randomUUID();
+        UUID fencedId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID openId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        repository.results = List.of(
+                item(openId.toString(), "2026-10-01T03:00:00Z"), item(fencedId.toString(), "2026-10-01T02:00:00Z"));
+        deletionRepository.statuses = Map.of(fencedId, QuizDeletionState.QUIZ_FENCED);
+
+        QuizLibraryPage page = service.listOwned(owner, 2, null);
+
+        assertEquals(QuizDeletionState.QUIZ_FENCED, page.items().get(1).deletionStatus());
+        assertEquals(null, page.items().get(0).deletionStatus());
+        assertEquals(
+                List.of(openId, fencedId),
+                deletionRepository.requestedQuizIds.stream().toList());
+    }
+
     private static QuizLibraryItem item(String id, String updatedAt) {
         return new QuizLibraryItem(
                 UUID.fromString(id),
@@ -114,6 +139,43 @@ class QuizLibraryServiceTest {
             this.before = before;
             this.fetchLimit = fetchLimit;
             return results;
+        }
+    }
+
+    private static final class RecordingDeletionRepository implements QuizDeletionOperationRepository {
+        private Map<UUID, QuizDeletionState> statuses = Map.of();
+        private final Collection<UUID> requestedQuizIds = new ArrayList<>();
+
+        @Override
+        public void insert(QuizDeletionOperation operation) {}
+
+        @Override
+        public void update(QuizDeletionOperation operation) {}
+
+        @Override
+        public Optional<QuizDeletionOperation> findById(UUID id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<QuizDeletionOperation> findByIdForUpdate(UUID id) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<QuizDeletionOperation> findByQuizIdAndIdempotencyKey(UUID quizId, String idempotencyKey) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<QuizDeletionOperation> findLatestByQuizId(UUID quizId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Map<UUID, QuizDeletionState> findLatestStatusesByQuizIdIn(Collection<UUID> quizIds) {
+            requestedQuizIds.addAll(quizIds);
+            return statuses;
         }
     }
 }
