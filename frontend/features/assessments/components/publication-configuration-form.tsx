@@ -156,7 +156,7 @@ export function PublicationConfigurationForm({
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
               {t(
-                "Immutable source: version {versionNumber}. Creating a Publication does not publish or modify the Quiz Draft.",
+                "Source: version {versionNumber}. Creating this assessment does not change your Quiz draft.",
                 { versionNumber: initial.versionNumber },
               )}
             </p>
@@ -289,7 +289,7 @@ export function PublicationConfigurationForm({
                   id={`${id}-monitoring-help`}
                 >
                   {t(
-                    "Choose explicitly before OPEN. Enabled records the Activity Evidence and LiveKit Camera bundle; collection, camera access and privacy readiness require separate runtime approval. This page does not activate monitoring.",
+                    "Choose before OPEN. Enabling here does not start collection — students approve monitoring separately during the attempt.",
                   )}
                 </p>
                 {errors.monitoringChoice ? (
@@ -305,7 +305,7 @@ export function PublicationConfigurationForm({
                 variant="info"
               >
                 {t(
-                  "PUBLIC has no Classroom and monitoring is disabled. Participants need current authenticated STUDENT authority. A private locator is not anonymous access.",
+                  "PUBLIC has no Classroom and no monitoring. Students must be signed in; a private locator is not anonymous access.",
                 )}
               </Alert>
             )}
@@ -316,7 +316,7 @@ export function PublicationConfigurationForm({
             </h2>
             <p className="mt-1 text-sm leading-6 text-foreground-muted">
               {t(
-                "Dates and times are shown in your local timezone and converted to UTC automatically. Participation end does not close the Publication or shorten an existing Attempt.",
+                "Times use your local timezone. The end time does not close the assessment or shorten a running attempt.",
               )}
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -339,7 +339,7 @@ export function PublicationConfigurationForm({
               {initial.durationMinutes === 0 ? (
                 <Alert title={t("Existing unlimited duration")}>
                   {t(
-                    "This Publication has unlimited Attempts. This bounded workflow preserves that duration and cannot enable monitoring.",
+                    "This assessment has unlimited attempts, which stays unchanged; monitoring cannot be enabled.",
                   )}
                 </Alert>
               ) : (
@@ -350,7 +350,7 @@ export function PublicationConfigurationForm({
                       : undefined
                   }
                   helperText={t(
-                    "Whole minutes from 5 to 240. The server sets each Attempt deadline when it starts.",
+                    "Whole minutes from 5 to 240. Each attempt's deadline starts when the student begins.",
                   )}
                   label={t("Attempt duration (minutes)")}
                   max={240}
@@ -366,15 +366,12 @@ export function PublicationConfigurationForm({
               )}
             </div>
             <p className="mt-3 text-sm text-foreground-muted">
-              {t(
-                "Maximum Attempts: {attempts}. This workflow preserves that setting.",
-                {
-                  attempts:
-                    initial.maxAttempts === 0
-                      ? t("unlimited")
-                      : formatNumber(locale, initial.maxAttempts ?? 1),
-                },
-              )}
+              {t("Maximum Attempts: {attempts}. This setting stays fixed.", {
+                attempts:
+                  initial.maxAttempts === 0
+                    ? t("unlimited")
+                    : formatNumber(locale, initial.maxAttempts ?? 1),
+              })}
             </p>
           </Surface>
           {Object.keys(errors).length > 0 ? (

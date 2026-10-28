@@ -224,9 +224,7 @@ export function AuthenticatedUserMenu() {
             className={menuItemClasses}
             onClick={() => {
               clearNotice();
-              setMessage(
-                "Account settings are unavailable until Identity exposes profile and avatar update APIs.",
-              );
+              setMessage("Account settings are not available yet.");
             }}
             role="menuitem"
             type="button"

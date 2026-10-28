@@ -166,7 +166,7 @@ test("Teacher requests delayed closure and sees bounded completion without a fal
   await expect(
     page.getByRole("heading", { name: "Closure request created" }),
   ).toBeVisible();
-  await expect(page.getByText(/does not close the Publication/i)).toBeVisible();
+  await expect(page.getByText(/does not close the assessment/i)).toBeVisible();
   await expect(
     page.getByText("Publication CLOSED", { exact: true }),
   ).toHaveCount(0);
@@ -188,7 +188,7 @@ test("Teacher requests delayed closure and sees bounded completion without a fal
   await completionDialog
     .getByRole("button", { name: "COMPLETE closure", exact: true })
     .click();
-  await expect(page.getByText("Bounded progress committed")).toBeVisible();
+  await expect(page.getByText("Progress saved")).toBeVisible();
   await expect(page.getByText("Finalizing", { exact: true })).toBeVisible();
   await expect(
     page.getByText("Publication CLOSED", { exact: true }),
@@ -342,9 +342,7 @@ test("Student inbox distinguishes preparation from a confirmed recipient cutoff 
   await expect(
     page.getByText("Notice preparing", { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Not started — your notice is not confirmed yet"),
-  ).toBeVisible();
+  await expect(page.getByText("Waiting for notice confirmation")).toBeVisible();
   await expect(page.getByText(/acknowledge/i)).toHaveCount(0);
   await page.getByRole("link", { name: "View notice" }).click();
   await expect(

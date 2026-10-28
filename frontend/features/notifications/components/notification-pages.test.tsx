@@ -145,11 +145,9 @@ describe("Student notification inbox", () => {
       <NotificationDetailScreen client={api} notificationId={notificationId} />,
     );
     expect(
-      await screen.findAllByText(
-        "Not started — your notice is not confirmed yet",
-      ),
+      await screen.findAllByText("Waiting for notice confirmation"),
     ).toHaveLength(2);
-    expect(screen.getByText(/no cutoff and no countdown/)).toBeInTheDocument();
+    expect(screen.getByText(/there is no cutoff/)).toBeInTheDocument();
     expect(screen.queryByText(/acknowledge/i)).not.toBeInTheDocument();
   });
 

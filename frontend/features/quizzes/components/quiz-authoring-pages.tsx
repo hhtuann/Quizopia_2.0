@@ -90,25 +90,20 @@ function failureMessage(failure: QuizApiFailure, localize: Localize): string {
   }
   if (failure.kind === "transport-error") {
     return localize(
-      "Quizopia could not reach the Quiz service. Your editor content is still here; try again.",
+      "Quizopia could not connect. Your editor content is still here; try again.",
     );
   }
   if (failure.kind === "authentication-failure") {
-    return localize(
-      "Your authenticated session is not available for this request.",
-    );
+    return localize("Your session has ended. Please sign in again.");
   }
   if (failure.kind === "validation-error") {
     return localize(
-      "The backend rejected the Quiz Markdown. Review the validation details and try again.",
+      "The Quiz Markdown has errors. Review the details and try again.",
     );
   }
-  return localize(
-    "The Quiz service returned an unexpected response ({status}).",
-    {
-      status: failure.status,
-    },
-  );
+  return localize("Quizopia got an unexpected response ({status}).", {
+    status: failure.status,
+  });
 }
 
 function inputSnapshot(input: QuizDraftInput): string {
@@ -158,7 +153,7 @@ function libraryFailureMessage(
 ): string {
   if (failure.kind === "transport-error") {
     return localize(
-      "Quizopia could not reach the Quiz service. Try again without losing the quizzes already loaded on this page.",
+      "Quizopia could not connect. Your loaded quizzes stay on this page; try again.",
     );
   }
   return failureMessage(failure, localize);
@@ -338,9 +333,7 @@ export function QuizLibraryPage() {
             {t("Quiz authoring")}
           </h1>
           <p className="mt-3 text-base leading-7 text-foreground-secondary">
-            {t(
-              "Create a real teacher-owned draft, then author, preview, save, and publish its Quiz Markdown.",
-            )}
+            {t("Create a draft, write your quiz, preview it, and publish.")}
           </p>
         </div>
         <Link
@@ -359,9 +352,7 @@ export function QuizLibraryPage() {
           {t("Your quizzes")}
         </h2>
         <p className="mt-2 text-sm leading-6 text-foreground-muted">
-          {t(
-            "Your library is loaded from the Quiz service and ordered by most recently updated.",
-          )}
+          {t("Manage your quizzes.")}
         </p>
 
         {client === null || isLoading ? (
@@ -755,7 +746,7 @@ function QuizAuthoringWorkspace({
         setServerDiagnostics(result.error.errors);
         setPublishError(
           localize(
-            "The backend found Quiz Markdown errors. Select a validation item to move the editor caret to its source location.",
+            "Quiz Markdown has errors. Select an item to jump to its source.",
           ),
         );
         return;
@@ -765,7 +756,7 @@ function QuizAuthoringWorkspace({
     }
     setPublishMessage(
       result.value.created
-        ? localize("Published immutable version {version}.", {
+        ? localize("Published version {version}.", {
             version: result.value.version.versionNumber,
           })
         : localize("Version {version} already matches this unchanged draft.", {
@@ -829,9 +820,7 @@ function QuizAuthoringWorkspace({
           title={t("You cannot edit this quiz")}
           variant="danger"
         >
-          {t(
-            "The Quiz service denied this teacher-authoring request. Authorization and quiz ownership are enforced by the backend.",
-          )}
+          {t("You do not have permission to edit this quiz.")}
         </Alert>
       </Surface>
     );
@@ -844,9 +833,7 @@ function QuizAuthoringWorkspace({
           {t("Quiz draft not found")}
         </h1>
         <p className="mt-3 text-base leading-7 text-foreground-secondary">
-          {t(
-            "This Quiz ID does not resolve to an available draft for the current request.",
-          )}
+          {t("No draft was found for this Quiz ID.")}
         </p>
         <Link className={`${linkButtonClasses} mt-6`} href="/app/quizzes">
           {t("Back to quiz authoring")}

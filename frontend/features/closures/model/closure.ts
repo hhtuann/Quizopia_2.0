@@ -91,13 +91,13 @@ export const closureStateVariants: Record<
  */
 export const closureStateDescriptions: Record<ClosureState, string> = {
   PENDING:
-    "The closure request is durably recorded. Student notices are prepared and confirmed independently; the Publication is not CLOSED yet.",
+    "The request is recorded. Student notices are prepared and confirmed one by one; the assessment is not CLOSED yet.",
   FINALIZING:
-    "Closure-driven finalization has started. Due confirmed notices have begun producing system submissions; cancellation can no longer win.",
+    "Finalization has started. Confirmed due notices now produce system submissions; cancelling is no longer possible.",
   CANCELLED:
-    "The request was cancelled before any closure-driven finalization. Published notices remain visible to their recipients as non-actionable history.",
+    "The request was cancelled before finalization. Students keep their notices as history only.",
   COMPLETED:
-    "All Attempts were terminal and all captured members resolved; the owning Teacher's COMPLETE command committed the durable CLOSED transition.",
+    "Every attempt was finished and every included student resolved; your COMPLETE command closed the assessment.",
   RESOLVED_EARLY:
-    "The workflow was resolved without its own cutoff path, together with an ordinary all-terminal Publication closure.",
+    "The workflow was resolved without its own cutoff path, alongside the normal closure.",
 };

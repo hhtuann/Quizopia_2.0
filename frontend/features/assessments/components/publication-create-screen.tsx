@@ -156,9 +156,7 @@ export function PublicationCreateScreen({
           {t("Create Assessment Publication")}
         </h1>
         <p className="mt-2 text-foreground-secondary">
-          {t(
-            "Configure a DRAFT from the exact immutable version you selected. OPEN comes later.",
-          )}
+          {t("Configure a DRAFT from the selected version. OPEN comes later.")}
         </p>
       </header>
       {sourceError ? (
@@ -168,7 +166,7 @@ export function PublicationCreateScreen({
             variant="danger"
           >
             {t(
-              "The version may be unavailable, inaccessible or temporarily unreachable. Your selection has not been replaced with a newer version.",
+              "The version could not be reached. Your selection was not changed.",
             )}
           </Alert>
           <Button
@@ -190,12 +188,12 @@ export function PublicationCreateScreen({
         <>
           {created ? (
             <Alert title={t("Publication confirmed")} variant="success">
-              {t("The server confirmed {state}.", { state: created.state })}{" "}
+              {t("Created as {state}.", { state: created.state })}{" "}
               <Link
                 className="font-semibold underline"
                 href={`/app/assessments/${created.id}`}
               >
-                {t("Open authoritative Publication details")}
+                {t("Open the assessment")}
               </Link>
               .
             </Alert>
@@ -214,7 +212,7 @@ export function PublicationCreateScreen({
               {uncertain ? (
                 <p className="mt-2">
                   {t(
-                    "The server may have created this Publication. Retry the exact original request below; settings are locked. Reloading or leaving this page loses the in-memory key and cannot safely locate an uncertain creation automatically.",
+                    "This creation may have gone through. Retry the exact request below; settings stay locked. Leaving this page loses the safe retry key.",
                   )}
                 </p>
               ) : null}

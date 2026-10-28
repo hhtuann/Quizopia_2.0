@@ -580,7 +580,7 @@ test("teacher creates, authors, saves, reloads and publishes a real-contract dra
   await page.getByRole("button", { name: "Publish QuizVersion" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Publish complete" }),
-  ).toContainText("Published immutable version 1");
+  ).toContainText("Published version 1");
   expect(publishCalls).toBe(1);
 });
 

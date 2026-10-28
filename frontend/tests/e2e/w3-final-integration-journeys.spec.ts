@@ -239,9 +239,7 @@ test.describe("W3 Final Frontend Integration Journeys", () => {
     // Verify monitoring active banner and camera controls
     await expect(page.getByText("Activity monitoring active")).toBeVisible();
     await expect(
-      page.getByText(
-        /Fresh server authorization confirmed this bounded CLASS Attempt/,
-      ),
+      page.getByText(/Monitoring is on for this class attempt/),
     ).toBeVisible();
     await expect(page.getByText("Student camera")).toBeVisible();
     await expect(
@@ -517,7 +515,7 @@ test.describe("W3 Final Frontend Integration Journeys", () => {
     await page.goto(`/app/monitoring/teacher/attempts/${foreignAttemptId}`);
     await expect(page.getByText("Session not accessible")).toBeVisible();
     await expect(
-      page.getByText(/does not reveal whether a foreign resource exists/),
+      page.getByText(/No monitoring session is available for that attempt/),
     ).toBeVisible();
   });
 });

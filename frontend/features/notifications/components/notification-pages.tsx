@@ -48,9 +48,9 @@ function useCutoffGuidance() {
     if (remaining === null) return null;
     switch (remaining.kind) {
       case "reached":
-        return t("the cutoff has been reached on the server");
+        return t("the cutoff has been reached");
       case "at-least-48h":
-        return t("at least 48 hours remain (server guidance)");
+        return t("at least 48 hours remain");
       case "hours-minutes": {
         const parts: string[] = [
           t(remaining.hours === 1 ? "{count} hour" : "{count} hours", {
@@ -63,19 +63,19 @@ function useCutoffGuidance() {
               count: remaining.minutes,
             }),
           );
-        return t("about {duration} remain (server guidance)", {
+        return t("about {duration} remain", {
           duration: parts.join(" "),
         });
       }
       case "minutes":
-        return t("about {duration} remain (server guidance)", {
+        return t("about {duration} remain", {
           duration: t(
             remaining.minutes === 1 ? "{count} minute" : "{count} minutes",
             { count: remaining.minutes },
           ),
         });
       default:
-        return t("less than a minute remains (server guidance)");
+        return t("less than a minute remains");
     }
   };
 }
@@ -97,9 +97,7 @@ function StudentNotificationsPage() {
     <ApplicationShell currentSection="notifications">
       {!user?.roles.includes("STUDENT") ? (
         <Alert title={t("Student access required")} variant="warning">
-          {t(
-            "The assessment inbox belongs to the authenticated recipient with current Student authority.",
-          )}{" "}
+          {t("The inbox is for signed-in Student accounts.")}{" "}
           <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
@@ -107,9 +105,7 @@ function StudentNotificationsPage() {
         </Alert>
       ) : client === null ? (
         <Alert title={t("Inbox unavailable")} variant="warning">
-          {t(
-            "Your authenticated request service is unavailable. Sign in again before continuing.",
-          )}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : (
         <InboxScreen client={client} key={scope} />
@@ -230,7 +226,7 @@ export function InboxScreen({
             </h1>
             <p className="mt-2 text-sm text-foreground-secondary">
               {t(
-                "Durable closure notices addressed to your account. Reading a notice is not an acknowledgment and never starts or changes a 48-hour period; only the server's confirmed accessibility of your notice does.",
+                "Closure notices for your account. Reading a notice never starts or changes its 48-hour period.",
               )}
             </p>
           </div>
@@ -268,7 +264,7 @@ export function InboxScreen({
           </h2>
           <p className="mt-2 text-sm text-foreground-secondary">
             {t(
-              "When a Teacher requests delayed closure of an assessment you have an active attempt in, a durable notice appears here.",
+              "When your teacher starts closing an assessment you are working on, a notice appears here.",
             )}
           </p>
         </Surface>
@@ -305,7 +301,7 @@ export function InboxScreen({
                       <dt className="text-xs font-medium text-foreground-muted">
                         {cutoff === null
                           ? t("48-hour period")
-                          : t("Confirmed cutoff (authoritative)")}
+                          : t("Confirmed cutoff")}
                       </dt>
                       <dd className="mt-0.5">
                         {cutoff === null
@@ -320,7 +316,7 @@ export function InboxScreen({
                   item.noticeStatus === "NOTICE_CONFIRMED" ? (
                     <p className="text-sm text-foreground-secondary">
                       {cutoffGuidance(item.serverNow, cutoff.closureCutoffAt) ??
-                        t("Cutoff confirmed; refresh for current guidance.")}
+                        t("Cutoff confirmed; refresh for the latest.")}
                     </p>
                   ) : null}
                   <Link
@@ -382,9 +378,7 @@ function StudentNotificationDetailPage({
       </div>
       {!user?.roles.includes("STUDENT") ? (
         <Alert title={t("Student access required")} variant="warning">
-          {t(
-            "This notice belongs to its recipient with current Student authority.",
-          )}{" "}
+          {t("This notice is for its recipient's Student account.")}{" "}
           <Link className="rounded py-2 font-semibold underline" href="/app">
             {t("Return to application")}
           </Link>
@@ -392,9 +386,7 @@ function StudentNotificationDetailPage({
         </Alert>
       ) : client === null ? (
         <Alert title={t("Notice unavailable")} variant="warning">
-          {t(
-            "Your authenticated request service is unavailable. Sign in again before continuing.",
-          )}
+          {t("Your session has ended. Please sign in again.")}
         </Alert>
       ) : (
         <NotificationDetailScreen
@@ -537,9 +529,7 @@ export function NotificationDetailScreen({
         </p>
       </Surface>
       <Surface className="p-5 sm:p-6">
-        <h2 className="mb-5 font-heading text-xl font-bold">
-          {t("Authoritative timeline")}
-        </h2>
+        <h2 className="mb-5 font-heading text-xl font-bold">{t("Timeline")}</h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
@@ -577,7 +567,7 @@ export function NotificationDetailScreen({
           </div>
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              {t("Server time of this response")}
+              {t("Checked at")}
             </dt>
             <dd className="mt-1 text-sm">
               {formatInstant(locale, notice.serverNow, { withTimeZone: true })}
@@ -587,8 +577,7 @@ export function NotificationDetailScreen({
         {cutoff !== null && notice.noticeStatus === "NOTICE_CONFIRMED" ? (
           <p className="mt-4 text-sm font-medium text-foreground-secondary">
             {cutoffGuidance(notice.serverNow, cutoff.closureCutoffAt) ??
-              t("Cutoff confirmed; refresh for current guidance.")}{" "}
-            {t("The server timestamps above remain authoritative.")}
+              t("Cutoff confirmed; refresh for the latest.")}{" "}
           </p>
         ) : null}
         {notice.noticeStatus === "PREPARING" ? (
@@ -598,14 +587,14 @@ export function NotificationDetailScreen({
             variant="info"
           >
             {t(
-              "The 48-hour period starts only when the server confirms this notice is genuinely accessible for you. Until then there is no cutoff and no countdown; nothing is asked of you yet.",
+              "The 48-hour period starts only when this notice is confirmed for you. Until then there is no cutoff — nothing is asked of you yet.",
             )}
           </Alert>
         ) : null}
         {notice.noticeStatus === "CANCELLED" ? (
           <Alert className="mt-4" title={t("Closure cancelled")} variant="info">
             {t(
-              "The Teacher cancelled this closure request. This notice is retained as history and is no longer actionable.",
+              "The teacher cancelled this closure. This notice stays as history only.",
             )}
           </Alert>
         ) : null}
@@ -634,7 +623,7 @@ export function NotificationDetailScreen({
                 ? t("You abandoned this attempt; it has no grade.")
                 : notice.noticeStatus === "CUTOFF_REACHED"
                   ? t(
-                      "The confirmed cutoff was reached. Refresh to track server finalization of eligible saved answers.",
+                      "The cutoff was reached. Refresh to see the finalization of saved answers.",
                     )
                   : notice.noticeStatus === "FINALIZED"
                     ? t(
@@ -644,9 +633,7 @@ export function NotificationDetailScreen({
                         "This workflow was resolved without a cutoff finalization.",
                       )}
             {notice.resultId !== null
-              ? ` ${t(
-                  "A result exists for this attempt; use the Student results experience to view it.",
-                )}`
+              ? ` ${t("A result exists — open it from your attempt page.")}`
               : ""}
           </Alert>
         ) : null}
@@ -658,7 +645,7 @@ export function NotificationDetailScreen({
         <dl className="grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-xs font-medium text-foreground-muted">
-              {t("Your attempt (authorized)")}
+              {t("Your attempt")}
             </dt>
             <dd className="mt-1 break-all font-mono text-xs">
               <Link
@@ -696,7 +683,7 @@ export function NotificationDetailScreen({
         </dl>
         <p className="mt-4 text-sm leading-6 text-foreground-muted">
           {t(
-            "Opening your attempt or result always revalidates your current access on the server. This notice remains readable as your own history even if you leave the class or the assessment closes.",
+            "Opening your attempt or result always re-checks your access. This notice stays readable as your history even if you leave the class or the assessment closes.",
           )}
         </p>
       </Surface>

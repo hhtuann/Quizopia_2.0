@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 const DEFAULT_MESSAGE =
-  "This Attempt has unsaved or unresolved work. Leave this page anyway?";
+  "This attempt has unsaved or pending work. Leave this page anyway?";
 
 interface UnsavedWorkEntry {
   readonly confirmLeave: () => boolean;

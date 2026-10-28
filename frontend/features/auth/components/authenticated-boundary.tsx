@@ -114,7 +114,7 @@ export function AuthenticatedBoundary({
         title="Open the Quizopia application"
       >
         {t(
-          "Sign in is required to continue. Account access is not available in this version. No session was created.",
+          "Sign in is required to continue. Account access is not available in this version.",
         )}
       </SessionMessage>
     ) : (
@@ -145,7 +145,7 @@ export function AuthenticatedBoundary({
         showLoginAction
         title="Open the Quizopia application"
       >
-        {t("Sign in to continue. No authenticated content was shown.")}
+        {t("Please sign in to continue.")}
       </SessionMessage>
     );
   }

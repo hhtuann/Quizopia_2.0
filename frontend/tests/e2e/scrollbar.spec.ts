@@ -367,7 +367,9 @@ test("Published Versions scroll panes retain draft and stable dialog geometry", 
     .poll(() => aside.evaluate((node) => node.scrollTop))
     .toBeGreaterThan(0);
   await history.getByRole("button", { name: /Version 22/ }).click();
-  await expect(dialog.getByText("Immutable version 22")).toBeVisible();
+  await expect(
+    dialog.getByText("Published preview · Version 22"),
+  ).toBeVisible();
   await expect
     .poll(() =>
       detail.evaluate((node) => node.scrollHeight > node.clientHeight),

@@ -349,7 +349,7 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
   await page.getByRole("button", { name: "Review and CLOSE" }).click();
   await confirm(page, "CLOSE Publication");
   await expect(
-    page.getByText("Publication CLOSED", { exact: true }),
+    page.getByText("Assessment closed", { exact: true }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
@@ -510,9 +510,9 @@ test("intercepted CLASS requires explicit monitoring and blocked CLOSE remains O
   await confirm(page, "OPEN Publication");
   await page.getByRole("button", { name: "Review and CLOSE" }).click();
   await confirm(page, "CLOSE Publication");
-  await expect(page.getByText(/Active Attempts prevent closure/)).toBeVisible();
+  await expect(page.getByText(/Active attempts prevent closing/)).toBeVisible();
   await expect(
-    page.getByText("Publication CLOSED", { exact: true }),
+    page.getByText("Assessment closed", { exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Review and CLOSE" }),

@@ -4,20 +4,19 @@
 // enums, Quiz ID/UUID tokens and backend diagnostics never pass through here.
 export const authoringMessages = {
   // Quiz Library hero, filters, cards, empty/loading/error/pagination
-  "Create a real teacher-owned draft, then author, preview, save, and publish its Quiz Markdown.":
-    "Tạo bản nháp thực sự thuộc quyền giáo viên, rồi soạn, xem trước, lưu và xuất bản Quiz Markdown của bạn.",
+  "Create a draft, write your quiz, preview it, and publish.":
+    "Tạo bản nháp, soạn bài, xem trước rồi xuất bản.",
   "Create quiz": "Tạo bộ câu hỏi",
   "Your quizzes": "Bộ câu hỏi của bạn",
-  "Your library is loaded from the Quiz service and ordered by most recently updated.":
-    "Thư viện được tải từ dịch vụ Quiz và sắp xếp theo thời gian cập nhật mới nhất.",
+  "Manage your quizzes.": "Quản lý các bộ câu hỏi của bạn.",
   "Loading quiz library": "Đang tải thư viện bộ câu hỏi",
   "Loading quiz library…": "Đang tải thư viện bộ câu hỏi…",
   "Quiz library authentication required":
     "Cần đăng nhập để xem thư viện bộ câu hỏi",
   "Quiz library access denied": "Truy cập thư viện bộ câu hỏi bị từ chối",
   "Quiz library could not be loaded": "Không thể tải thư viện bộ câu hỏi",
-  "Quizopia could not reach the Quiz service. Try again without losing the quizzes already loaded on this page.":
-    "Quizopia không thể kết nối dịch vụ Quiz. Hãy thử lại mà không mất các bộ câu hỏi đã tải trên trang này.",
+  "Quizopia could not connect. Your loaded quizzes stay on this page; try again.":
+    "Quizopia không thể kết nối. Các bộ câu hỏi đã tải vẫn còn trên trang; hãy thử lại.",
   "No quizzes yet": "Chưa có bộ câu hỏi nào",
   "Create your first quiz to start authoring and publishing Quiz Markdown.":
     "Tạo bộ câu hỏi đầu tiên để bắt đầu soạn và xuất bản Quiz Markdown.",
@@ -34,14 +33,12 @@ export const authoringMessages = {
   Updated: "Ngày cập nhật",
   "Back to Quiz Library": "Quay lại thư viện bộ câu hỏi",
   // Shared authoring API failure presentation
-  "Quizopia could not reach the Quiz service. Your editor content is still here; try again.":
-    "Quizopia không thể kết nối dịch vụ Quiz. Nội dung trình soạn của bạn vẫn còn; hãy thử lại.",
-  "Your authenticated session is not available for this request.":
-    "Phiên đăng nhập của bạn không khả dụng cho yêu cầu này.",
-  "The backend rejected the Quiz Markdown. Review the validation details and try again.":
-    "Hệ thống đã từ chối Quiz Markdown. Hãy xem lại chi tiết xác thực và thử lại.",
-  "The Quiz service returned an unexpected response ({status}).":
-    "Dịch vụ Quiz trả về phản hồi không mong đợi ({status}).",
+  "Quizopia could not connect. Your editor content is still here; try again.":
+    "Quizopia không thể kết nối. Nội dung trình soạn của bạn vẫn còn; hãy thử lại.",
+  "The Quiz Markdown has errors. Review the details and try again.":
+    "Quiz Markdown có lỗi. Hãy xem lại chi tiết và thử lại.",
+  "Quizopia got an unexpected response ({status}).":
+    "Quizopia nhận được phản hồi không mong đợi ({status}).",
   // Create-on-first-save workspace (FB-014)
   "Quiz could not be created": "Không thể tạo bộ câu hỏi",
   "First save needs a question": "Lần lưu đầu tiên cần một câu hỏi",
@@ -58,21 +55,20 @@ export const authoringMessages = {
     "Bản nháp đã thay đổi trong lúc lưu. Hãy lưu các thay đổi mới nhất trước khi xuất bản.",
   "Unable to publish. Check your connection and retry.":
     "Không thể xuất bản. Hãy kiểm tra kết nối và thử lại.",
-  "The backend found Quiz Markdown errors. Select a validation item to move the editor caret to its source location.":
-    "Hệ thống phát hiện lỗi Quiz Markdown. Chọn một mục xác thực để đưa con trỏ trình soạn tới vị trí nguồn tương ứng.",
-  "Published immutable version {version}.":
-    "Đã xuất bản phiên bản bất biến {version}.",
+  "Quiz Markdown has errors. Select an item to jump to its source.":
+    "Quiz Markdown có lỗi. Chọn một mục để nhảy tới vị trí nguồn.",
+  "Published version {version}.": "Đã xuất bản phiên bản {version}.",
   "Version {version} already matches this unchanged draft.":
     "Phiên bản {version} đã trùng với bản nháp không thay đổi này.",
   "Loading quiz draft": "Đang tải bản nháp bộ câu hỏi",
   "Loading quiz draft…": "Đang tải bản nháp bộ câu hỏi…",
   "Quiz access denied": "Truy cập bộ câu hỏi bị từ chối",
   "You cannot edit this quiz": "Bạn không thể chỉnh sửa bộ câu hỏi này",
-  "The Quiz service denied this teacher-authoring request. Authorization and quiz ownership are enforced by the backend.":
-    "Dịch vụ Quiz đã từ chối yêu cầu soạn thảo của giáo viên này. Quyền truy cập và quyền sở hữu bộ câu hỏi do hệ thống phía sau kiểm soát.",
+  "You do not have permission to edit this quiz.":
+    "Bạn không có quyền chỉnh sửa bộ câu hỏi này.",
   "Quiz draft not found": "Không tìm thấy bản nháp bộ câu hỏi",
-  "This Quiz ID does not resolve to an available draft for the current request.":
-    "Mã bộ câu hỏi này không tương ứng với bản nháp nào sẵn có cho yêu cầu hiện tại.",
+  "No draft was found for this Quiz ID.":
+    "Không tìm thấy bản nháp nào cho mã bộ câu hỏi này.",
   "Back to quiz authoring": "Quay lại soạn bộ câu hỏi",
   "Quiz could not be loaded": "Không thể tải bộ câu hỏi",
   "Loading failed": "Tải không thành công",
@@ -112,25 +108,25 @@ export const authoringMessages = {
   "Registering as teacher": "Đang đăng ký làm giáo viên",
   "Open the Teaching workspace": "Mở không gian Giảng dạy",
   "Teacher access is ready": "Quyền giáo viên đã sẵn sàng",
-  "Your authoritative account now includes Student and Teacher access. Open the Teaching workspace to continue.":
+  "Your account now has Student and Teacher access. Open the Teaching workspace to continue.":
     "Tài khoản của bạn hiện có cả quyền Học sinh và Giáo viên. Hãy mở không gian Giảng dạy để tiếp tục.",
   "Quiz authoring belongs to your Teaching workspace. Switching workspace changes presentation only; your account roles remain unchanged.":
     "Soạn bộ câu hỏi thuộc không gian Giảng dạy. Việc chuyển không gian chỉ thay đổi hiển thị; vai trò tài khoản của bạn không đổi.",
   // Published version history dialog
-  "Quizopia could not reach the Quiz service. Try again.":
-    "Quizopia không thể kết nối dịch vụ Quiz. Hãy thử lại.",
-  "The Quiz service returned an unexpected validation response.":
-    "Dịch vụ Quiz trả về phản hồi xác thực không mong đợi.",
-  "Immutable snapshots. Previewing a version never changes your current draft.":
-    "Các bản chụp bất biến. Xem trước một phiên bản không bao giờ làm thay đổi bản nháp hiện tại.",
+  "Quizopia could not connect. Try again.":
+    "Quizopia không thể kết nối. Hãy thử lại.",
+  "Quizopia got an unexpected validation response.":
+    "Quizopia nhận được phản hồi xác thực không mong đợi.",
+  "Published versions are read-only. Previewing one never changes your draft.":
+    "Các phiên bản đã xuất bản là chỉ đọc. Xem trước không bao giờ làm thay đổi bản nháp của bạn.",
   "Close published versions": "Đóng các phiên bản đã xuất bản",
   "Loading published versions": "Đang tải các phiên bản đã xuất bản",
   "Loading versions...": "Đang tải các phiên bản...",
   "Version history could not be loaded": "Không thể tải lịch sử phiên bản",
   "Retry history": "Thử lại lịch sử",
   "No published versions yet": "Chưa có phiên bản nào được xuất bản",
-  "Publish the current draft to create its first immutable snapshot.":
-    "Xuất bản bản nháp hiện tại để tạo bản chụp bất biến đầu tiên.",
+  "Publish the current draft to create its first version.":
+    "Xuất bản bản nháp hiện tại để tạo phiên bản đầu tiên.",
   "Published version history": "Lịch sử phiên bản đã xuất bản",
   "Version {number}": "Phiên bản {number}",
   "Schema {version}": "Lược đồ {version}",
@@ -139,17 +135,16 @@ export const authoringMessages = {
   "Load more versions": "Tải thêm phiên bản",
   "All published versions loaded.": "Đã tải toàn bộ phiên bản đã xuất bản.",
   "Select a published version": "Chọn một phiên bản đã xuất bản",
-  "Snapshot source and content load only when you open a version.":
-    "Nguồn và nội dung bản chụp chỉ được tải khi bạn mở một phiên bản.",
+  "A version's content loads when you open it.":
+    "Nội dung phiên bản được tải khi bạn mở nó.",
   "Loading version {number}": "Đang tải phiên bản {number}",
   "Loading version {number}...": "Đang tải phiên bản {number}...",
   "Version {number} could not be loaded": "Không thể tải phiên bản {number}",
   "Retry version": "Thử lại phiên bản",
-  "Immutable version {number}": "Phiên bản bất biến {number}",
   "Create assessment from version {number}":
     "Tạo bài kiểm tra từ phiên bản {number}",
-  "Read-only preview from this immutable published snapshot. Current Draft content is not used here.":
-    "Bản xem trước chỉ đọc từ bản chụp đã xuất bản bất biến này. Nội dung bản nháp hiện tại không được dùng ở đây.",
+  "Read-only preview of this published version.":
+    "Bản xem trước chỉ đọc của phiên bản đã xuất bản này.",
   "Published preview · Version {number}":
     "Xem trước đã xuất bản · Phiên bản {number}",
   // Live preview and diagnostics presentation
@@ -168,6 +163,6 @@ export const authoringMessages = {
   "Quiz Markdown suggestions": "Gợi ý Quiz Markdown",
   "{count} Quiz Markdown suggestions available.":
     "Có {count} gợi ý Quiz Markdown.",
-  "Structural completion works at column 1 outside fenced code blocks. The backend remains authoritative when publishing.":
-    "Gợi ý cấu trúc hoạt động tại cột 1, bên ngoài các khối mã. Khi xuất bản, hệ thống phía sau vẫn là nơi quyết định.",
+  "Autocomplete works at column 1, outside fenced code blocks. Publishing always re-validates.":
+    "Gợi ý hoàn thành hoạt động tại cột 1, ngoài các khối mã. Khi xuất bản luôn kiểm tra lại.",
 } as const;
