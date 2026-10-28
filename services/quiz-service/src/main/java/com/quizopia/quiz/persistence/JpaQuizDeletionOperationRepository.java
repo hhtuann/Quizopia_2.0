@@ -111,4 +111,20 @@ public class JpaQuizDeletionOperationRepository implements QuizDeletionOperation
         latest.forEach((quizId, operation) -> statuses.put(quizId, operation.status()));
         return statuses;
     }
+
+    @Override
+    public List<QuizDeletionOperation> findSagaCandidates(int limit) {
+        return entityManager
+                .createQuery(
+                        "select o from QuizDeletionOperationEntity o"
+                                + " where o.mainProgress < :terminalProgress order by o.updatedAt asc",
+                        QuizDeletionOperationEntity.class)
+                .setParameter("terminalProgress", QuizDeletionState.PRIMARY_PURGED.mainOrder())
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(entity -> entity.toDomain(deletionJson))
+                .filter(operation -> !operation.status().equals(QuizDeletionState.PENDING_POLICY)
+                        && !operation.status().equals(QuizDeletionState.RETRYABLE_FAILURE))
+                .toList();
+    }
 }

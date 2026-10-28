@@ -289,7 +289,8 @@ class ProctoringAuthorityIntegrationTest {
                         "studentId",
                         "active",
                         "deadlineAt",
-                        "checkedAt"),
+                        "checkedAt",
+                        "quizId"),
                 body.keySet());
         assertEquals(student.toString(), body.get("actorId"));
         assertEquals(true, body.get("active"));

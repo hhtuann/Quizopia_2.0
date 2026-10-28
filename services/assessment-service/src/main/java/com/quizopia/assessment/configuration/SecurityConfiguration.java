@@ -69,6 +69,12 @@ public class SecurityConfiguration {
                                 return new AuthorizationDecision(
                                         com.quizopia.assessment.security.deletion.SecurityRevocationRoutes.permitted(
                                                 authentication.get(), deletion));
+                            if (com.quizopia.assessment.security.deletion.SecurityPurgeRoutes.matches(
+                                    context.getRequest().getMethod(),
+                                    context.getRequest().getRequestURI()))
+                                return new AuthorizationDecision(
+                                        com.quizopia.assessment.security.deletion.SecurityPurgeRoutes.permitted(
+                                                authentication.get(), deletion));
                             var role = PublicationRoutes.requiredRole(
                                     context.getRequest().getMethod(),
                                     context.getRequest().getRequestURI());

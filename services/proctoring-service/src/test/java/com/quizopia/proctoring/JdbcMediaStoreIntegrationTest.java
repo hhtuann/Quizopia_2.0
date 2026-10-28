@@ -95,7 +95,7 @@ class JdbcMediaStoreIntegrationTest {
     @Test
     void freshFlywayAppliesAdditiveV2AndStoresNoUserBearerColumns() {
         assertEquals(
-                List.of("1", "2", "3"),
+                List.of("1", "2", "3", "4"),
                 db.queryForList(
                         "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                         String.class));

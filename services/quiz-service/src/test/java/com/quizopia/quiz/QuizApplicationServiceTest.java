@@ -401,6 +401,11 @@ class QuizApplicationServiceTest {
                 values.put(quizId, new Quiz(quiz.id(), quiz.ownerUserId(), quiz.createdAt(), fencedAt));
             }
         }
+
+        @Override
+        public void purgeQuizContent(UUID quizId) {
+            values.remove(quizId);
+        }
     }
 
     private static final class RecordingDeletionRepository implements QuizDeletionOperationRepository {
@@ -433,6 +438,11 @@ class QuizApplicationServiceTest {
         @Override
         public java.util.Map<UUID, QuizDeletionState> findLatestStatusesByQuizIdIn(java.util.Collection<UUID> quizIds) {
             return java.util.Map.of();
+        }
+
+        @Override
+        public java.util.List<QuizDeletionOperation> findSagaCandidates(int limit) {
+            return java.util.List.of();
         }
     }
 

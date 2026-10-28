@@ -479,6 +479,7 @@ class JdbcMonitoringStoreIntegrationTest {
         db.execute("GRANT USAGE ON SCHEMA public TO monitoring_runtime_test");
         db.execute("GRANT SELECT,INSERT,UPDATE ON monitoring_sessions TO monitoring_runtime_test");
         db.execute("GRANT SELECT,INSERT ON monitoring_evidence,monitoring_access_audit TO monitoring_runtime_test");
+        db.execute("GRANT SELECT ON quiz_revocation_fences TO monitoring_runtime_test");
         db.execute("GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO monitoring_runtime_test");
         try (var connection = source.getConnection();
                 var statement = connection.createStatement()) {

@@ -21,7 +21,32 @@ public interface MonitoringAuthority {
             UUID studentId,
             boolean active,
             Instant deadlineAt,
-            Instant checkedAt) {}
+            Instant checkedAt,
+            UUID quizId) {
+        /** Pre-FB015 spelling; a null quiz skips the Proctoring revocation fence probe. */
+        public Snapshot(
+                UUID actorId,
+                String viewerRole,
+                UUID attemptId,
+                UUID publicationId,
+                UUID classroomId,
+                UUID studentId,
+                boolean active,
+                Instant deadlineAt,
+                Instant checkedAt) {
+            this(
+                    actorId,
+                    viewerRole,
+                    attemptId,
+                    publicationId,
+                    classroomId,
+                    studentId,
+                    active,
+                    deadlineAt,
+                    checkedAt,
+                    null);
+        }
+    }
 
     Snapshot check(Actor actor, UUID attempt, String role);
 

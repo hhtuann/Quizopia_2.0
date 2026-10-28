@@ -177,5 +177,10 @@ class QuizLibraryServiceTest {
             requestedQuizIds.addAll(quizIds);
             return statuses;
         }
+
+        @Override
+        public List<QuizDeletionOperation> findSagaCandidates(int limit) {
+            return List.of();
+        }
     }
 }

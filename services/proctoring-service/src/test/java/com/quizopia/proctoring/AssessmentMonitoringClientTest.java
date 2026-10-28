@@ -24,6 +24,7 @@ class AssessmentMonitoringClientTest {
     static final UUID ATTEMPT = UUID.fromString("00000000-0000-0000-0000-000000000002");
     static final UUID PUBLICATION = UUID.fromString("00000000-0000-0000-0000-000000000003");
     static final UUID CLASSROOM = UUID.fromString("00000000-0000-0000-0000-000000000004");
+    static final UUID QUIZ = UUID.fromString("00000000-0000-0000-0000-000000000005");
     AtomicInteger tokens = new AtomicInteger(), checks = new AtomicInteger();
     AtomicReference<String> wireBody = new AtomicReference<>(),
             wireEvidence = new AtomicReference<>(),
@@ -45,7 +46,7 @@ class AssessmentMonitoringClientTest {
                 + ATTEMPT
                 + "\",\"publicationId\":\"" + PUBLICATION + "\",\"classroomId\":\"" + CLASSROOM + "\",\"studentId\":\""
                 + ACTOR + "\",\"active\":true,\"deadlineAt\":\"" + Instant.now().plusSeconds(120)
-                + "\",\"checkedAt\":\"" + Instant.now() + "\"}";
+                + "\",\"checkedAt\":\"" + Instant.now() + "\",\"quizId\":\"" + QUIZ + "\"}";
     }
 
     DisposableServer server(boolean slow) {

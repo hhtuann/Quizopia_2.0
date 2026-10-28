@@ -11,7 +11,13 @@ public record QuizDeletionStatusResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant updatedAt,
         @Schema(types = {"string", "null"}) String lastReason,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> stages) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> stages,
+        @Schema(
+                        types = {"string", "null"},
+                        description = "Copy-expiry note. Present only at PRIMARY_PURGED: primary data is gone while "
+                                + "backups/media-provider copies await verified erasure, so the operation is "
+                                + "deliberately not reported as ALL_COPIES_ERASED.")
+                String note) {
     public static QuizDeletionStatusResponse from(com.quizopia.quiz.domain.QuizDeletionOperation operation) {
         return new QuizDeletionStatusResponse(
                 operation.id(),
@@ -21,6 +27,10 @@ public record QuizDeletionStatusResponse(
                 operation.lastReason(),
                 com.quizopia.quiz.domain.QuizDeletionState.MAIN_ORDER.stream()
                         .map(state -> state.name())
-                        .toList());
+                        .toList(),
+                // Honest copies-pending note: ALL_COPIES_ERASED is unreachable in this PR.
+                operation.status() == com.quizopia.quiz.domain.QuizDeletionState.PRIMARY_PURGED
+                        ? com.quizopia.quiz.application.DeletionSagaService.COPIES_PENDING_NOTE
+                        : null);
     }
 }
