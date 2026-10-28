@@ -1,11 +1,16 @@
 package com.quizopia.quiz.application;
 
 import com.quizopia.quiz.domain.Quiz;
+import com.quizopia.quiz.domain.QuizDeletionState;
 import com.quizopia.quiz.domain.QuizDraft;
 import java.util.Objects;
 
 /** Stable quiz identity together with its current mutable draft. */
-public record QuizDraftDetails(Quiz quiz, QuizDraft draft) {
+public record QuizDraftDetails(Quiz quiz, QuizDraft draft, QuizDeletionState deletionStatus) {
+    public QuizDraftDetails(Quiz quiz, QuizDraft draft) {
+        this(quiz, draft, null);
+    }
+
     public QuizDraftDetails {
         Objects.requireNonNull(quiz, "quiz");
         Objects.requireNonNull(draft, "draft");

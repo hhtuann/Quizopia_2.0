@@ -1,6 +1,8 @@
 package com.quizopia.quiz.application;
 
+import com.quizopia.quiz.domain.QuizDeletionState;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -13,10 +15,16 @@ public class QuizLibraryService {
 
     private final QuizLibraryRepository repository;
     private final QuizLibraryCursorCodec cursorCodec;
+    private final QuizDeletionOperationRepository deletionOperationRepository;
 
-    public QuizLibraryService(QuizLibraryRepository repository, QuizLibraryCursorCodec cursorCodec) {
+    public QuizLibraryService(
+            QuizLibraryRepository repository,
+            QuizLibraryCursorCodec cursorCodec,
+            QuizDeletionOperationRepository deletionOperationRepository) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.cursorCodec = Objects.requireNonNull(cursorCodec, "cursorCodec");
+        this.deletionOperationRepository =
+                Objects.requireNonNull(deletionOperationRepository, "deletionOperationRepository");
     }
 
     @Transactional(readOnly = true)
@@ -28,12 +36,32 @@ public class QuizLibraryService {
         List<QuizLibraryItem> fetched = repository.findOwned(ownerUserId, before, limit + 1);
         boolean hasMore = fetched.size() > limit;
         List<QuizLibraryItem> items = hasMore ? List.copyOf(fetched.subList(0, limit)) : List.copyOf(fetched);
+        Map<UUID, QuizDeletionState> deletionStatuses = deletionOperationRepository.findLatestStatusesByQuizIdIn(
+                items.stream().map(item -> item.quizId()).toList());
+        List<QuizLibraryItem> enriched = items.stream()
+                .map(item -> withDeletionStatus(item, deletionStatuses))
+                .toList();
         String nextCursor = null;
         if (hasMore && !items.isEmpty()) {
             QuizLibraryItem last = items.get(items.size() - 1);
             nextCursor = cursorCodec.encode(new QuizLibraryPosition(last.updatedAt(), last.quizId()));
         }
-        return new QuizLibraryPage(items, nextCursor);
+        return new QuizLibraryPage(enriched, nextCursor);
+    }
+
+    private static QuizLibraryItem withDeletionStatus(QuizLibraryItem item, Map<UUID, QuizDeletionState> statuses) {
+        QuizDeletionState deletionStatus = statuses.get(item.quizId());
+        if (deletionStatus == null) {
+            return item;
+        }
+        return new QuizLibraryItem(
+                item.quizId(),
+                item.title(),
+                item.description(),
+                item.createdAt(),
+                item.updatedAt(),
+                item.latestVersionNumber(),
+                deletionStatus);
     }
 
     private static void validateLimit(int limit) {

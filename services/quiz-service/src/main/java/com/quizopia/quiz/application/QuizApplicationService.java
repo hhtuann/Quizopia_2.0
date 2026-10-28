@@ -19,6 +19,7 @@ public class QuizApplicationService {
     private final QuizRepository quizRepository;
     private final QuizDraftRepository quizDraftRepository;
     private final QuizVersionRepository quizVersionRepository;
+    private final QuizDeletionOperationRepository deletionOperationRepository;
     private final QuizIdGenerator quizIdGenerator;
     private final QuizVersionIdGenerator quizVersionIdGenerator;
     private final QuizMarkdownParser quizMarkdownParser;
@@ -28,6 +29,7 @@ public class QuizApplicationService {
             QuizRepository quizRepository,
             QuizDraftRepository quizDraftRepository,
             QuizVersionRepository quizVersionRepository,
+            QuizDeletionOperationRepository deletionOperationRepository,
             QuizIdGenerator quizIdGenerator,
             QuizVersionIdGenerator quizVersionIdGenerator,
             QuizMarkdownParser quizMarkdownParser,
@@ -35,6 +37,8 @@ public class QuizApplicationService {
         this.quizRepository = Objects.requireNonNull(quizRepository, "quizRepository");
         this.quizDraftRepository = Objects.requireNonNull(quizDraftRepository, "quizDraftRepository");
         this.quizVersionRepository = Objects.requireNonNull(quizVersionRepository, "quizVersionRepository");
+        this.deletionOperationRepository =
+                Objects.requireNonNull(deletionOperationRepository, "deletionOperationRepository");
         this.quizIdGenerator = Objects.requireNonNull(quizIdGenerator, "quizIdGenerator");
         this.quizVersionIdGenerator = Objects.requireNonNull(quizVersionIdGenerator, "quizVersionIdGenerator");
         this.quizMarkdownParser = Objects.requireNonNull(quizMarkdownParser, "quizMarkdownParser");
@@ -59,23 +63,31 @@ public class QuizApplicationService {
     @Transactional(readOnly = true)
     public QuizDraftDetails getOwnedDraft(UUID callerUserId, UUID quizId) {
         Quiz quiz = requireOwnedQuiz(callerUserId, quizId);
-        return new QuizDraftDetails(quiz, requireDraft(quizId));
+        return new QuizDraftDetails(
+                quiz,
+                requireDraft(quizId),
+                deletionOperationRepository
+                        .findLatestByQuizId(quizId)
+                        .map(operation -> operation.status())
+                        .orElse(null));
     }
 
     @Transactional
     public QuizDraftDetails updateOwnedDraft(UUID callerUserId, UUID quizId, QuizDraftInput input) {
         Objects.requireNonNull(input, "input");
         Quiz quiz = requireOwnedQuizForUpdate(callerUserId, quizId);
+        requireNotDeletionFenced(quiz);
         QuizDraft currentDraft = requireDraft(quizId);
         QuizDraft updatedDraft = new QuizDraft(
                 currentDraft.quizId(), input.title(), input.description(), input.authoringSource(), clock.instant());
         quizDraftRepository.save(updatedDraft);
-        return new QuizDraftDetails(quiz, updatedDraft);
+        return new QuizDraftDetails(quiz, updatedDraft, null);
     }
 
     @Transactional
     public QuizPublishResult publishOwnedDraft(UUID callerUserId, UUID quizId) {
-        requireOwnedQuizForUpdate(callerUserId, quizId);
+        Quiz quiz = requireOwnedQuizForUpdate(callerUserId, quizId);
+        requireNotDeletionFenced(quiz);
         QuizDraft draft = requireDraft(quizId);
 
         QuizMarkdownParseResult parseResult = quizMarkdownParser.parse(draft.authoringSource());
@@ -125,6 +137,12 @@ public class QuizApplicationService {
             throw new QuizOwnershipDeniedException(quizId, callerUserId);
         }
         return quiz;
+    }
+
+    private static void requireNotDeletionFenced(Quiz quiz) {
+        if (quiz.isDeletionFenced()) {
+            throw new QuizDeletionPendingException(quiz.id());
+        }
     }
 
     private static boolean hasSameSnapshot(QuizVersion version, QuizDraft draft) {

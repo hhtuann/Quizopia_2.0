@@ -25,7 +25,8 @@ public class QuizSnapshotController {
             @PathVariable("quizVersionId") UUID quizVersionId,
             @PathVariable("versionNumber") int versionNumber,
             HttpServletRequest request) {
-        var version = versions.getOwned(InternalAuthorityFilter.actor(request), quizId, versionNumber);
+        var version =
+                versions.getOwnedForPublicationHandoff(InternalAuthorityFilter.actor(request), quizId, versionNumber);
         if (!version.id().equals(quizVersionId)) throw new QuizVersionNotFoundException(quizId, versionNumber);
         return new Snapshot(
                 1,
@@ -60,7 +61,8 @@ public class QuizSnapshotController {
     @ExceptionHandler({
         QuizNotFoundException.class,
         QuizVersionNotFoundException.class,
-        QuizOwnershipDeniedException.class
+        QuizOwnershipDeniedException.class,
+        QuizDeletionPendingException.class
     })
     void inaccessible(HttpServletResponse response) throws IOException {
         InternalErrors.write(response, 404, "SOURCE_NOT_ACCESSIBLE");

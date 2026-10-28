@@ -21,15 +21,23 @@ class QuizEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "deletion_fenced_at")
+    private Instant deletionFencedAt;
+
     protected QuizEntity() {}
 
     QuizEntity(Quiz quiz) {
         this.id = quiz.id();
         this.ownerUserId = quiz.ownerUserId();
         this.createdAt = quiz.createdAt();
+        this.deletionFencedAt = quiz.deletionFencedAt();
+    }
+
+    void markDeletionFenced(Instant fencedAt) {
+        this.deletionFencedAt = fencedAt;
     }
 
     Quiz toDomain() {
-        return new Quiz(id, ownerUserId, createdAt);
+        return new Quiz(id, ownerUserId, createdAt, deletionFencedAt);
     }
 }
