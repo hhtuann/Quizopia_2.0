@@ -62,6 +62,16 @@ springdoc:
     enabled: ${OPENAPI_ENABLED:true}
 
 quizopia:
+  # FB-015 PR B quiz-ID revocation fence (ADR-018 Phase A). Route enforcement is always compiled
+  # and table-driven; this flag gates only the private command endpoint and ack worker.
+  deletion:
+    enabled: ${ASSESSMENT_DELETION_ENABLED:false}
+    quiz-service-client-id: ${ASSESSMENT_DELETION_QUIZ_CLIENT_ID:quiz-service}
+    allow-insecure-loopback: ${ASSESSMENT_DELETION_ALLOW_INSECURE_LOOPBACK:false}
+    max-concurrent: ${ASSESSMENT_DELETION_MAX_CONCURRENT:8}
+    requests-per-minute: ${ASSESSMENT_DELETION_REQUESTS_PER_MINUTE:30}
+    ack-poll-delay-seconds: ${ASSESSMENT_DELETION_ACK_POLL_DELAY_SECONDS:10}
+    ack-batch-size: ${ASSESSMENT_DELETION_ACK_BATCH_SIZE:20}
   assessment:
     transactions:
       timeout-seconds: ${ATTEMPT_TRANSACTION_TIMEOUT_SECONDS:15}

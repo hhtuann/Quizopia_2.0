@@ -141,3 +141,47 @@ capture/publication is unconditionally rejected pending privacy/security accepta
 The fact contains bindings/question/revision/time only, no answer, answer digest,
 Quiz key or JWT, and can reflect server normalization after deadline rather than a
 Student action. No final result/gradebook event or retention policy is introduced.
+
+## FB-015 PR B: quiz-ID revocation fence
+
+ADR-018 Phase A steps 2-3. V9 adds `quiz_revocation_fences` (quiz_id primary
+key; row presence means revoked; no cross-service FK) and the ADR-009
+`deletion_command_inbox` (unique operation id for dedup/redelivery). Everything
+is default OFF behind `ASSESSMENT_DELETION_ENABLED=false`
+(`quizopia.deletion.enabled`): only the private command endpoint and the
+acknowledgment worker follow the flag. Route enforcement is always compiled and
+table-driven; with an empty fence table behavior is byte-identical, and a
+`RECONCILE`-installed fence is enforced even while the flag is off.
+
+The private `POST /internal/security/quiz-revocations/batch` mirrors the
+Identity user-profiles hardening: exact Quiz deletion SERVICE client
+(`ASSESSMENT_DELETION_QUIZ_CLIENT_ID`, default `quiz-service`), dedicated
+`quiz.deletion.revoke` scope, RS256 + iat/exp + TOKEN_SERVICE checks, HTTPS
+required outside explicit loopback, no query/Cookie/TE/CE, forged-identity
+headers rejected, single application/json Content-Type, 16KB body cap, strict
+duplicate/trailing JSON rejection, 1..50 unique canonical UUIDs, semaphore plus
+rolling per-minute budget (429 `REVOCATION_RATE_LIMITED`), `no-store`
+everywhere. Responses are sanitized: accepted/alreadyRevoked with quiz id,
+operation id and revokedAt only. Installation first locks all affected
+`publications` rows in id order, then samples `revoked_at` from the database
+clock and inserts fence/inbox rows (`ON CONFLICT DO NOTHING`).
+
+Serialization: every Assessment writer takes the owning publication row lock
+first and rechecks the fence inside the same transaction. A START/SAVE/SUBMIT
+that commits before the fence keeps its rows for the later purge; every
+operation after the fence denies with the stable non-disclosing 404
+`ASSESSMENT_REMOVED` - including exact-key idempotent replays, closure
+commands/replays, teacher results, monitoring/proctoring/realtime authority
+reads and new publication creation. No new grading or terminal finalization can
+linearize after the fence. The owner directory, recipient notification inbox,
+closure worker scans and both outbox claim queries silently exclude revoked
+quizzes. Deadline/CLOSE behavior for unrelated quizzes is unchanged.
+
+`GET /internal/security/quiz-revocations/{quizId}/status` (same hardening)
+reports truthful aggregate state: revokedAt, acknowledgedAt and
+publication/attempt counts, no PII. acknowledgedAt is set only by the bounded
+background drainer after it holds the affected publication row locks and
+verifies that no committed mutation timestamp (attempt answers, grades,
+operation receipts, finalization audit, creation receipts) postdates
+revoked_at. The exact wire contract is in `contracts/quiz-revocations.openapi.yaml`.
+Production activation remains unauthorized (ADR-018 gates).

@@ -2,6 +2,7 @@ package com.quizopia.assessment.persistence;
 
 import com.quizopia.assessment.application.ProctoringAuthorityStore;
 import com.quizopia.assessment.application.PublicationFailure;
+import com.quizopia.assessment.application.QuizRevocationGate;
 import java.util.UUID;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -10,9 +11,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class JdbcProctoringAuthorityStore implements ProctoringAuthorityStore {
     private final JdbcTemplate db;
+    private final QuizRevocationGate revocations;
 
-    public JdbcProctoringAuthorityStore(JdbcTemplate db) {
+    public JdbcProctoringAuthorityStore(JdbcTemplate db, QuizRevocationGate revocations) {
         this.db = db;
+        this.revocations = revocations;
     }
 
     @Override
@@ -21,7 +24,7 @@ public class JdbcProctoringAuthorityStore implements ProctoringAuthorityStore {
             var rows = db.query(
                     """
                 WITH sample AS MATERIALIZED (SELECT clock_timestamp() AS now)
-                SELECT a.id,a.publication_id,p.classroom_id,a.student_id,p.owner_id,
+                SELECT a.id,a.publication_id,p.classroom_id,a.student_id,p.owner_id,p.quiz_id,
                     (p.audience='CLASS' AND p.monitoring_choice='ENABLED'
                      AND p.classroom_id IS NOT NULL AND p.duration_minutes BETWEEN 5 AND 240
                      AND a.duration_minutes BETWEEN 5 AND 240 AND a.deadline_at IS NOT NULL
@@ -43,9 +46,12 @@ public class JdbcProctoringAuthorityStore implements ProctoringAuthorityStore {
                             row.getTimestamp("deadline_at") == null
                                     ? null
                                     : row.getTimestamp("deadline_at").toInstant(),
-                            row.getTimestamp("checked_at").toInstant()),
+                            row.getTimestamp("checked_at").toInstant(),
+                            row.getObject("quiz_id", UUID.class)),
                     id);
             if (rows.size() != 1) throw new PublicationFailure(404, "PROCTORING_NOT_ACCESSIBLE");
+            // Revoked quizzes expose no monitoring evidence (ADR-018 Phase A step 2).
+            revocations.requireQuizOpen(rows.getFirst().quizId());
             return rows.getFirst();
         } catch (DataAccessException failure) {
             throw new PublicationFailure(503, "PERSISTENCE_UNAVAILABLE");
