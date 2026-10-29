@@ -1063,6 +1063,7 @@ test("NUMERIC_FILL empty answer line offers and inserts the canonical Đáp án 
       body: JSON.stringify({
         quizId,
         title: "Numeric completion quiz",
+        deletionStatus: null,
         description: "Numeric completion coverage",
         authoringSource: source,
         createdAt: "2026-09-30T12:00:00Z",

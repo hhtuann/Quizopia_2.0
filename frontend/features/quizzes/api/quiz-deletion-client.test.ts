@@ -215,7 +215,7 @@ describe("quiz deletion client", () => {
     ]);
   });
 
-  it("accepts a COPY_EXPIRY_PENDING note and a missing note key", async () => {
+  it("accepts COPY_EXPIRY_PENDING and rejects missing required note", async () => {
     let calls = 0;
     const { executor } = harness(async () => {
       calls += 1;
@@ -249,7 +249,36 @@ describe("quiz deletion client", () => {
       value: { note: "COPY_EXPIRY_PENDING" },
     });
     const second = await api.getDeletionStatus(quizId, operationId);
-    expect(second).toMatchObject({ ok: true, value: { note: null } });
+    expect(second).toMatchObject({
+      ok: false,
+      error: { kind: "unexpected-response" },
+    });
+  });
+
+  it("discovers the latest owned receipt with no-store and no operation id", async () => {
+    const { executor } = harness(async (request) => {
+      const built = request.createRequest();
+      expect(built.target).toBe(
+        `/api/quizzes/${quizId}/deletion-requests/latest`,
+      );
+      expect(built.method).toBe("GET");
+      expect(built.cache).toBe("no-store");
+      return jsonResponse(200, {
+        operationId,
+        status: "PRIMARY_PURGED",
+        createdAt: "2026-10-20T08:00:00Z",
+        updatedAt: "2026-10-20T09:00:00Z",
+        lastReason: null,
+        stages: ["REQUESTED", "PRIMARY_PURGED"],
+        note: "COPY_EXPIRY_PENDING",
+      });
+    });
+    await expect(
+      client({ executor }).getLatestDeletionStatus(quizId),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { operationId, note: "COPY_EXPIRY_PENDING" },
+    });
   });
 
   it("rejects malformed successful payloads instead of trusting them", async () => {

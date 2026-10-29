@@ -22,8 +22,8 @@ import {
  * FB-015 destructive confirmation dialog (ADR-018 UX).
  *
  * Mount the component only while the dialog is open (parents render it
- * conditionally); every mount is one user intent with a FRESH Idempotency-Key
- * held in state for that intent's lifetime. Retries of the same intent reuse
+ * conditionally). Unresolved intents retain their Idempotency-Key in tab storage.
+ * Retries of the same intent reuse
  * the key verbatim, so an ambiguous network failure can never create a second
  * deletion operation. The confirm action unlocks only when the teacher types
  * the EXACT current quiz title (trimmed, case-sensitive) as known from server
@@ -105,16 +105,35 @@ export function QuizDeletionDialog({
   const { localize, t } = useI18n();
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // One key per mounted intent (new dialog = new intent = new key).
-  const [idempotencyKey] = useState(() => newDeletionIdempotencyKey());
+  // Persist the identity before sending: an uncertain outcome survives reopen/reload.
+  const intentStorageKey = `quizopia.quiz-deletion.intent.${quizId}`;
+  const [isRecoveredIntent] = useState(() => {
+    try {
+      return sessionStorage.getItem(intentStorageKey) !== null;
+    } catch {
+      return false;
+    }
+  });
+  const [idempotencyKey] = useState(() => {
+    try {
+      return (
+        sessionStorage.getItem(intentStorageKey) ?? newDeletionIdempotencyKey()
+      );
+    } catch {
+      return newDeletionIdempotencyKey();
+    }
+  });
   const [confirmation, setConfirmation] = useState("");
+  const [untitledConfirmed, setUntitledConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [failure, setFailure] = useState<QuizDeletionFailure | null>(null);
 
   const canonicalTitle = authoritativeTitle?.trim() ?? "";
   const hasTitle = canonicalTitle !== "";
   const typed = confirmation.trim();
-  const matchesExactly = hasTitle && typed !== "" && typed === canonicalTitle;
+  const matchesExactly = hasTitle
+    ? typed === canonicalTitle
+    : untitledConfirmed;
   const showMismatch = !matchesExactly && typed !== "" && !isSubmitting;
 
   useEffect(() => {
@@ -133,12 +152,46 @@ export function QuizDeletionDialog({
     }
     setIsSubmitting(true);
     setFailure(null);
+    try {
+      sessionStorage.setItem(intentStorageKey, idempotencyKey);
+    } catch {
+      // Same mounted intent still retains its key if storage is unavailable.
+    }
+    // Reconcile first on retries; never blindly create another operation.
+    if (failure !== null || isRecoveredIntent) {
+      const latest = await client.getLatestDeletionStatus(quizId);
+      if (latest.ok) {
+        try {
+          sessionStorage.removeItem(intentStorageKey);
+        } catch {
+          /* Optional storage. */
+        }
+        setIsSubmitting(false);
+        onAccepted({
+          operationId: latest.value.operationId,
+          status: latest.value.status as QuizDeletionAccepted["status"],
+        });
+        return;
+      }
+      if (!(
+        latest.error.kind === "api-error" && latest.error.error.status === 404
+      )) {
+        setIsSubmitting(false);
+        setFailure(latest.error);
+        return;
+      }
+    }
     const result = await client.requestDeletion(quizId, {
-      confirmTitle: typed,
+      confirmTitle: hasTitle ? typed : "",
       idempotencyKey,
     });
     setIsSubmitting(false);
     if (result.ok) {
+      try {
+        sessionStorage.removeItem(intentStorageKey);
+      } catch {
+        /* Optional storage. */
+      }
       onAccepted(result.value);
       return;
     }
@@ -239,13 +292,19 @@ export function QuizDeletionDialog({
             ) : null}
           </div>
         ) : (
-          <Alert
-            className="mt-5"
-            title={t(
-              "This quiz has no title yet. Save a title before deleting it.",
+          <label className="mt-5 flex items-start gap-3 text-sm font-semibold text-danger">
+            <input
+              checked={untitledConfirmed}
+              className="mt-1 size-5 shrink-0"
+              disabled={isSubmitting}
+              onChange={(event) => setUntitledConfirmed(event.target.checked)}
+              ref={inputRef}
+              type="checkbox"
+            />
+            {t(
+              "I understand that permanently deleting this untitled quiz is irreversible.",
             )}
-            variant="warning"
-          />
+          </label>
         )}
 
         {failure !== null ? (

@@ -28,6 +28,18 @@ const deletionAcceptedSchema = z
   })
   .strict();
 
+// Derived from QuizDeletionStatus in quiz-deletion.openapi.yaml v1.1.0.
+// Only main stages belong in `stages`; pause/failure states remain valid status strings.
+export const deletionStageSchema = quizDeletionStatusSchema.exclude([
+  "WAITING_DEPENDENCY",
+  "BLOCKED_BY_RETENTION",
+  "PENDING_POLICY",
+  "RETRYABLE_FAILURE",
+]);
+const deletionRequestSchema = z
+  .object({ confirmTitle: z.string().max(300) })
+  .strict();
+
 const deletionStatusSchema = z
   .object({
     operationId: z.string().uuid(),
@@ -35,8 +47,8 @@ const deletionStatusSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     lastReason: z.string().nullable(),
-    stages: z.array(z.string()),
-    note: z.string().nullable().optional(),
+    stages: z.array(deletionStageSchema),
+    note: z.string().nullable(),
   })
   .strict();
 
@@ -71,14 +83,18 @@ export type QuizDeletionResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: QuizDeletionFailure };
 
-export interface QuizDeletionRequestInput {
+export type QuizDeletionRequestInput = z.infer<typeof deletionRequestSchema> & {
   /** Exact current quiz title; the backend trims and compares case-sensitively. */
   readonly confirmTitle: string;
   /** Generated once per user intent; reused verbatim across retries. */
   readonly idempotencyKey: string;
-}
+};
 
 export interface QuizDeletionApiClient {
+  getLatestDeletionStatus(
+    quizId: string,
+    signal?: AbortSignal,
+  ): Promise<QuizDeletionResult<QuizDeletionOperationStatus>>;
   requestDeletion(
     quizId: string,
     input: QuizDeletionRequestInput,
@@ -222,6 +238,7 @@ export function createQuizDeletionApiClient(options: {
               );
             }
             return {
+              cache: "no-store",
               method,
               target: publicApiTarget(path, apiBaseUrl),
               body: body === undefined ? undefined : JSON.stringify(body),
@@ -255,8 +272,26 @@ export function createQuizDeletionApiClient(options: {
   }
 
   const client: QuizDeletionApiClient = {
-    async requestDeletion(quizId, input, signal) {
+    async getLatestDeletionStatus(quizId, signal) {
       if (!requireUuid(quizId)) {
+        return { ok: false, error: { kind: "invalid-input" } };
+      }
+      return execute(
+        `/api/quizzes/${encodeURIComponent(quizId)}/deletion-requests/latest`,
+        "GET",
+        undefined,
+        undefined,
+        deletionStatusSchema,
+        [200],
+        signal,
+      );
+    },
+    async requestDeletion(quizId, input, signal) {
+      if (
+        !requireUuid(quizId) ||
+        !deletionRequestSchema.safeParse({ confirmTitle: input.confirmTitle })
+          .success
+      ) {
         return { ok: false, error: { kind: "invalid-input" } };
       }
       return execute(

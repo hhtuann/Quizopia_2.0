@@ -176,8 +176,8 @@ export const authoringMessages = {
   "Current title": "Tiêu đề hiện tại",
   "The title does not match. Type it exactly, including capitalization.":
     "Tiêu đề chưa khớp. Hãy gõ chính xác, kể cả chữ hoa chữ thường.",
-  "This quiz has no title yet. Save a title before deleting it.":
-    "Bộ câu hỏi này chưa có tiêu đề. Hãy lưu tiêu đề trước khi xóa.",
+  "I understand that permanently deleting this untitled quiz is irreversible.":
+    "Tôi hiểu rằng việc xóa vĩnh viễn bộ câu hỏi chưa có tiêu đề này là không thể hoàn tác.",
   "Delete permanently": "Xóa vĩnh viễn",
   "Requesting deletion": "Đang gửi yêu cầu xóa",
   "Deletion could not be requested": "Không thể gửi yêu cầu xóa",

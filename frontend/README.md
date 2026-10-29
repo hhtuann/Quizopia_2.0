@@ -95,6 +95,35 @@ explicit retry may create a duplicate if the first attempt reached the
 server. Leaving an empty new-quiz screen asks nothing; typed content keeps
 the standard discard confirmation.
 
+## Permanent quiz deletion (FB-015 / ADR-018)
+
+The owner-only library/editor action confirms the server-persisted title,
+trimmed and case-sensitive, rather than the unsaved editor text or the localized
+"Untitled quiz" display label. Historical null/blank titles require an explicit,
+localized irreversible-deletion checkbox and send `confirmTitle: ""`.
+
+Fenced library cards and editor drafts discover the durable owner receipt with
+`GET /api/quizzes/{quizId}/deletion-requests/latest`. A detail URL also discovers
+that receipt after a draft 404/410, including after primary purge. Status requests
+use `cache: "no-store"`; errors offer explicit refresh without claiming completion.
+No in-session operation ID is required for recovery. The runtime schemas/types
+are derived from `services/quiz-service/contracts/quiz-deletion.openapi.yaml`;
+the parity test checks the accepted-state and progress-stage inventories.
+
+An unresolved request's random idempotency key is retained in tab session storage
+before transmission. Reopen/reload retries first reconcile the latest receipt;
+only a not-found response permits replay with that same key. No credentials or
+quiz content are stored with the key. When browser storage is unavailable, the
+key survives only within the mounted dialog; server-side status discovery still
+works. `PRIMARY_PURGED` receipts and navigation notices distinguish primary-data
+deletion from pending backup-copy erasure; only `ALL_COPIES_ERASED` renders
+"Fully deleted".
+
+`tests/e2e/quiz-deletion.spec.ts` exercises Chromium with intercepted responses,
+including untitled records, reload discovery, vi/en accessibility and uncertain
+retries. It does not establish real Browser → Gateway → service deletion,
+authorization, purge correctness or provider/backup erasure evidence.
+
 ## Teacher Assessment Publications
 
 In the Teaching workspace, open an owned Quiz, choose **Published versions**, select

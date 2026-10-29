@@ -116,7 +116,7 @@ function useQuizDeletionApiClient(): QuizDeletionApiClient | null {
  */
 const DELETION_NOTICE_STORAGE_KEY = "quizopia.quiz-deletion.notice";
 
-function readPendingDeletionNotice(): { title: string } | null {
+function readPendingDeletionNotice(): { title: string; status: string } | null {
   try {
     const raw = window.sessionStorage.getItem(DELETION_NOTICE_STORAGE_KEY);
     if (raw === null) {
@@ -129,7 +129,10 @@ function readPendingDeletionNotice(): { title: string } | null {
       parsed !== null &&
       typeof (parsed as { title?: unknown }).title === "string"
     ) {
-      return { title: (parsed as { title: string }).title };
+      return {
+        title: (parsed as { title: string }).title,
+        status: (parsed as { status?: string }).status ?? "PRIMARY_PURGED",
+      };
     }
     return null;
   } catch {
@@ -137,11 +140,11 @@ function readPendingDeletionNotice(): { title: string } | null {
   }
 }
 
-function writePendingDeletionNotice(title: string): void {
+function writePendingDeletionNotice(title: string, status: string): void {
   try {
     window.sessionStorage.setItem(
       DELETION_NOTICE_STORAGE_KEY,
-      JSON.stringify({ title }),
+      JSON.stringify({ title, status }),
     );
   } catch {
     // Storage can be unavailable (private mode); the navigation still works.
@@ -344,6 +347,7 @@ export function QuizLibraryPage() {
   const client = useQuizApiClient();
   const deletionClient = useQuizDeletionApiClient();
   const formatLibraryDate = useLibraryDateFormatter();
+  const deleteTriggerRef = useRef<HTMLElement | null>(null);
   const [libraryState, setLibraryState] = useState<{
     readonly client: QuizApiClient | null;
     readonly failure: QuizApiFailure | null;
@@ -368,6 +372,7 @@ export function QuizLibraryPage() {
   } | null>(null);
   const [deletionNotice, setDeletionNotice] = useState<{
     readonly title: string;
+    readonly status: string;
   } | null>(() => readPendingDeletionNotice());
   const [libraryRefreshVersion, setLibraryRefreshVersion] = useState(0);
 
@@ -418,6 +423,14 @@ export function QuizLibraryPage() {
       return;
     }
     setDeletionDialog(null);
+    setLibraryState((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.quizId === deletionDialog.quizId
+          ? { ...item, deletionStatus: accepted.status }
+          : item,
+      ),
+    }));
     setDeletionProgress({
       quizId: deletionDialog.quizId,
       operationId: accepted.operationId,
@@ -426,10 +439,10 @@ export function QuizLibraryPage() {
     });
   }
 
-  function handleDeletionTerminal() {
+  function handleDeletionTerminal(status: string) {
     const finished = deletionProgress;
     setDeletionProgress(null);
-    setDeletionNotice({ title: finished?.title ?? t("Untitled quiz") });
+    setDeletionNotice({ title: finished?.title ?? t("Untitled quiz"), status });
     // The purge removes the row; reload so the library stays truthful.
     setLibraryRefreshVersion((current) => current + 1);
   }
@@ -500,6 +513,13 @@ export function QuizLibraryPage() {
                 title: deletionNotice.title,
               },
             )}
+            <p>
+              {deletionNotice.status === "ALL_COPIES_ERASED"
+                ? t("Fully deleted")
+                : t(
+                    "Primary data deleted · Waiting for backup copies to be erased",
+                  )}
+            </p>
           </Alert>
         ) : null}
 
@@ -552,12 +572,16 @@ export function QuizLibraryPage() {
                   formatLibraryDate={formatLibraryDate}
                   item={item}
                   key={item.quizId}
-                  onDelete={(target) =>
+                  onDelete={(target) => {
+                    deleteTriggerRef.current =
+                      document.activeElement instanceof HTMLElement
+                        ? document.activeElement
+                        : null;
                     setDeletionDialog({
                       quizId: target.quizId,
                       title: target.title,
-                    })
-                  }
+                    });
+                  }}
                   progress={
                     deletionProgress !== null &&
                     deletionProgress.quizId === item.quizId &&
@@ -574,6 +598,18 @@ export function QuizLibraryPage() {
                           initialStatus={deletionProgress.status}
                           onClose={() => setDeletionProgress(null)}
                           onTerminal={handleDeletionTerminal}
+                        />
+                      </div>
+                    ) : item.deletionStatus !== null &&
+                      deletionClient !== null ? (
+                      <div className="mt-4">
+                        <QuizDeletionProgress
+                          getDeletionStatus={(signal) =>
+                            deletionClient.getLatestDeletionStatus(
+                              item.quizId,
+                              signal,
+                            )
+                          }
                         />
                       </div>
                     ) : null
@@ -618,6 +654,7 @@ export function QuizLibraryPage() {
           onAccepted={handleDeletionAccepted}
           onClose={() => setDeletionDialog(null)}
           quizId={deletionDialog.quizId}
+          triggerRef={deleteTriggerRef}
         />
       ) : null}
     </div>
@@ -788,7 +825,8 @@ function QuizAuthoringWorkspace({
         }
         if (
           result.error.kind === "api-error" &&
-          result.error.error.status === 404
+          (result.error.error.status === 404 ||
+            result.error.error.status === 410)
         ) {
           setLoadState("not-found");
           return;
@@ -1014,10 +1052,13 @@ function QuizAuthoringWorkspace({
     setFirstSaveBlocked(null);
   }
 
-  function handleDeletionTerminal() {
+  function handleDeletionTerminal(status: string) {
     // The operation reached its terminal state; the editor's data is gone or
     // unrecoverable, so leave it for the library with an honest notice.
-    writePendingDeletionNotice(title.trim() || localize("Untitled quiz"));
+    writePendingDeletionNotice(
+      title.trim() || localize("Untitled quiz"),
+      status,
+    );
     router.push("/app/quizzes");
   }
 
@@ -1081,9 +1122,13 @@ function QuizAuthoringWorkspace({
         <p className="mt-3 text-base leading-7 text-foreground-secondary">
           {t("No draft was found for this Quiz ID.")}
         </p>
-        <p className="mt-2 text-sm leading-6 text-foreground-muted">
-          {t("If you just deleted this quiz, its removal has completed.")}
-        </p>
+        {deletionClient !== null && quizId !== null ? (
+          <QuizDeletionProgress
+            getDeletionStatus={(signal) =>
+              deletionClient.getLatestDeletionStatus(quizId, signal)
+            }
+          />
+        ) : null}
         <Link className={`${linkButtonClasses} mt-6`} href="/app/quizzes">
           {t("Back to quiz authoring")}
         </Link>
@@ -1251,6 +1296,12 @@ function QuizAuthoringWorkspace({
                 }
                 initialStatus={deletionOperation.status}
                 onTerminal={handleDeletionTerminal}
+              />
+            ) : deletionFenced && deletionClient !== null && quizId !== null ? (
+              <QuizDeletionProgress
+                getDeletionStatus={(signal) =>
+                  deletionClient.getLatestDeletionStatus(quizId, signal)
+                }
               />
             ) : null}
             {firstSaveBlocked ? (

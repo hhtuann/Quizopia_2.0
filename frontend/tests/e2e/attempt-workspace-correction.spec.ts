@@ -103,6 +103,7 @@ async function mockDraft(page: Page) {
       body: JSON.stringify({
         quizId,
         title: "Geometry parity quiz",
+        deletionStatus: null,
         description: "",
         authoringSource: "Câu 1 [SINGLE_CHOICE]: One?\n*A. Yes\nB. No",
         createdAt: "2026-10-01T07:00:00Z",

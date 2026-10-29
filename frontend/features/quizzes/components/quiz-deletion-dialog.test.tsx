@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   QuizDeletionAccepted,
   QuizDeletionApiClient,
@@ -10,6 +10,7 @@ import { QuizDeletionDialog } from "./quiz-deletion-dialog";
 
 const quizId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
 const operationId = "1c9d0d7e-5c8a-4b8f-9a55-1d3a6d3a2a11";
+beforeEach(() => sessionStorage.clear());
 
 type RequestCall = {
   readonly confirmTitle: string;
@@ -57,6 +58,18 @@ function makeClient(outcomes: ReadonlyArray<RequestOutcome>) {
       input: { confirmTitle: string; idempotencyKey: string },
     ) => requestDeletion(quizId, input),
     getDeletionStatus: vi.fn(),
+    getLatestDeletionStatus: vi.fn(async () => ({
+      ok: false as const,
+      error: {
+        kind: "api-error" as const,
+        error: {
+          code: "QUIZ_DELETION_NOT_FOUND",
+          message: "Not found",
+          status: 404,
+          path: "/",
+        },
+      },
+    })),
   } satisfies QuizDeletionApiClient;
   return { calls, client, requestDeletion };
 }
@@ -173,21 +186,55 @@ describe("QuizDeletionDialog exact-title confirmation", () => {
     ).toBeEnabled();
   });
 
-  it("requires a saved title before deletion is possible", () => {
-    const { client } = makeClient([]);
-    renderDialog({ client, authoritativeTitle: "   " });
+  it.each([null, "", "   "])(
+    "requires explicit irreversible confirmation for untitled %s and sends empty title",
+    async (authoritativeTitle) => {
+      const { client, calls } = makeClient([]);
+      renderDialog({ client, authoritativeTitle });
 
-    expect(
-      screen.getByText(
-        "This quiz has no title yet. Save a title before deleting it.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("Type the exact title to confirm"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Delete permanently" }),
-    ).toBeDisabled();
+      expect(
+        screen.getByText(
+          "I understand that permanently deleting this untitled quiz is irreversible.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Type the exact title to confirm"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Delete permanently" }),
+      ).toBeDisabled();
+      fireEvent.click(screen.getByRole("checkbox"));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Delete permanently" }),
+      );
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]?.confirmTitle).toBe("");
+    },
+  );
+
+  it("preserves the retry key after an uncertain outcome and dialog remount, reconciling first", async () => {
+    const { client, calls } = makeClient([
+      {
+        ok: false,
+        error: { kind: "transport-error", error: { kind: "network" } },
+      },
+      accepted(),
+    ]);
+    const first = renderDialog({ client });
+    fireEvent.change(screen.getByLabelText("Type the exact title to confirm"), {
+      target: { value: "Network quiz" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
+    await screen.findByText("Quizopia could not connect. Try again.");
+    first.view.unmount();
+    renderDialog({ client });
+    fireEvent.change(screen.getByLabelText("Type the exact title to confirm"), {
+      target: { value: "Network quiz" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(client.getLatestDeletionStatus).toHaveBeenCalledWith(quizId);
+    expect(calls[1]).toEqual(calls[0]);
   });
 
   it("sends the trimmed exact title with a freshly generated key on confirm", async () => {

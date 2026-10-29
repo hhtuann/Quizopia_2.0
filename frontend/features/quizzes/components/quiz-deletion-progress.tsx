@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
@@ -65,6 +65,7 @@ export function QuizDeletionProgress({
   onClose,
 }: QuizDeletionProgressProps) {
   const { localize, t } = useI18n();
+  const titleId = useId();
   const [operation, setOperation] = useState<KnownStatus | null>(
     initialStatus === undefined
       ? null
@@ -169,15 +170,12 @@ export function QuizDeletionProgress({
 
   return (
     <section
-      aria-labelledby="quiz-deletion-progress-title"
+      aria-labelledby={titleId}
       className="rounded-xl border border-danger/30 bg-danger/5 p-4 sm:p-5"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3
-            className="text-base font-semibold text-foreground"
-            id="quiz-deletion-progress-title"
-          >
+          <h3 className="text-base font-semibold text-foreground" id={titleId}>
             {t("Deletion progress")}
           </h3>
           <div aria-live="polite" className="mt-1 flex items-center gap-2">
