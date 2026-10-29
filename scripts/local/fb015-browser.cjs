@@ -6,6 +6,7 @@ const { chromium } = require(path.resolve(__dirname, '../../frontend/node_module
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
+  const ui = require('./fb015-ui.cjs')(browser);
   try {
     const page = await browser.newPage();
     page.setDefaultTimeout(20000);
@@ -15,6 +16,10 @@ async function main() {
       const command = JSON.parse(line);
       if (command.close) break;
       try {
+        if (command.ui) {
+          console.log(JSON.stringify(await ui(command)));
+          continue;
+        }
         if (command.gateway) {
           origin = new URL(command.gateway).origin;
           if (new URL(origin).hostname !== '127.0.0.1') throw new Error('Loopback required');
@@ -46,7 +51,8 @@ async function main() {
           return { status: response.status, body, cacheControl: response.headers.get('cache-control') };
         }, command);
         console.log(JSON.stringify(result));
-      } catch {
+      } catch (error) {
+        if (command.ui) console.error(`FB015 UI ${command.ui} failed: ${error.message.replace(/Bearer\s+\S+/g, 'Bearer [redacted]').slice(0, 3000)}`);
         console.log(JSON.stringify({ error: 'Browser command failed (details suppressed)' }));
       }
     }

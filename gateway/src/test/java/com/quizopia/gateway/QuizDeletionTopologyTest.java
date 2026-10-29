@@ -17,7 +17,10 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.testcontainers.containers.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 
-/** ADR-018 disposable Browser -> Gateway -> real services, with real Identity USER/SERVICE issuance. */
+/**
+ * ADR-018 disposable Browser -> Gateway -> real services, with real Identity USER/SERVICE issuance.
+ * An additional -Dfb015.ui=true round drives the production Next.js UI through the same topology.
+ */
 @EnabledIfSystemProperty(
         named = "fb015.browser",
         matches = "true",
@@ -26,10 +29,14 @@ class QuizDeletionTopologyTest {
     static final PostgreSQLContainer<?> PROCTORING_DB = new PostgreSQLContainer<>("postgres:17-alpine");
     static final List<org.testcontainers.containers.GenericContainer<?>> OWNED =
             List.of(IDENTITY_DB, CLASSROOM_DB, QUIZ_DB, ASSESSMENT_DB, REDIS, PROCTORING_DB);
+    static final boolean UI_ROUND = "true".equals(System.getProperty("fb015.ui"));
     static Process browser;
+    static Process next;
     static BufferedWriter browserInput;
     static BufferedReader browserOutput;
     static String proctoring;
+    static String frontend;
+    static int frontendPort;
     static Path evidence;
     static boolean completed;
     static final List<String> checks = new ArrayList<>();
@@ -110,6 +117,23 @@ class QuizDeletionTopologyTest {
         var edgeArgs = new ArrayList<>(gatewayArguments);
         edgeArgs.add("--PROCTORING_SERVICE_URL=" + proctoring);
         edgeArgs.add("--quizopia.proctoring.enabled=true");
+        if (UI_ROUND) {
+            frontendPort = port();
+            frontend = "http://127.0.0.1:" + frontendPort;
+            // The real UI shell authenticates against Identity itself: /api/auth/me decodes the
+            // issued JWT, and /api/auth/refresh demands a single explicitly trusted Origin.
+            // Production supplies these as env; the 8081/localhost:3000 YAML defaults point at
+            // no real origin in this disposable topology, so the round replays them as args.
+            restart(
+                    "identity",
+                    List.of(
+                            "--spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + identity + "/oauth2/jwks",
+                            "--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + identity,
+                            "--quizopia.identity.security.browser.trusted-origins=" + frontend));
+            // The UI edge proxy forwards the real browser Origin header; the Gateway only
+            // accepts it when the disposable UI origin is allowed before the context starts.
+            edgeArgs.add("--quizopia.gateway.browser.allowed-origins=" + frontend);
+        }
         gatewayContext = new SpringApplicationBuilder(GatewayApplication.class)
                 .profiles("test")
                 .run(edgeArgs.toArray(String[]::new));
@@ -130,7 +154,7 @@ class QuizDeletionTopologyTest {
     }
 
     @Test
-    @Timeout(value = 8, unit = TimeUnit.MINUTES)
+    @Timeout(value = 12, unit = TimeUnit.MINUTES)
     void browserDeletionWithHoldLegacyProviderOutageRecoveryAndIsolation() throws Exception {
         var victim = quiz("FB015 disposable victim");
         var survivor = quiz("FB015 unrelated survivor");
@@ -343,20 +367,20 @@ class QuizDeletionTopologyTest {
         assertEquals(1, count(IDENTITY_DB, "SELECT count(*) FROM user_account WHERE id=?", ACTOR.toString()));
         pass(
                 "Primary quiz/version/draft, publication/attempt/answer/result and legacy monitoring/media rows absent; ledger title/inventory scrubbed; unrelated quiz/attempt/session and Identity/Classroom preserved");
+        if (UI_ROUND) realUiDeletionRound(otherQuiz);
+        var limitations = new ArrayList<String>();
+        limitations.add(
+                UI_ROUND
+                        ? "Real-UI round covers the deletion UX journeys only (login, named/untitled dialog delete, reload recovery, terminal wording); role/negative and accessibility matrices remain frontend unit/e2e work"
+                        : "Backend HTTP browser acceptance; frontend #125 UI not exercised");
+        limitations.addAll(
+                List.of(
+                        "Provider receipt is a synthetic custodian fixture; no LiveKit/provider deletion performed",
+                        "No backup/CDN/export erasure claim; ALL_COPIES_ERASED is not reached",
+                        "Not an exhaustive race, lifecycle, closure/outbox or authorization matrix; retain service integration suites"));
         Files.writeString(
                 evidence.resolve("result.json"),
-                JSON.writeValueAsString(
-                        Map.of(
-                                "status",
-                                "PASS",
-                                "checks",
-                                checks,
-                                "limitations",
-                                List.of(
-                                        "Backend HTTP browser acceptance; frontend #125 UI not exercised",
-                                        "Provider receipt is a synthetic custodian fixture; no LiveKit/provider deletion performed",
-                                        "No backup/CDN/export erasure claim; ALL_COPIES_ERASED is not reached",
-                                        "Not an exhaustive race, lifecycle, closure/outbox or authorization matrix; retain service integration suites"))));
+                JSON.writeValueAsString(Map.of("status", "PASS", "checks", checks, "limitations", limitations)));
         completed = true;
     }
 
@@ -483,8 +507,8 @@ class QuizDeletionTopologyTest {
         browserInput.write(JSON.writeValueAsString(value));
         browserInput.newLine();
         browserInput.flush();
-        // Bound even a broken Node/Chromium startup; do not hang the Maven process.
-        long until = System.nanoTime() + Duration.ofSeconds(40).toNanos();
+        // Bound even a broken Node/Chromium startup or one slow UI round; do not hang the Maven process.
+        long until = System.nanoTime() + Duration.ofSeconds(90).toNanos();
         while (!browserOutput.ready() && browser.isAlive() && System.nanoTime() < until) Thread.sleep(25);
         assertTrue(browserOutput.ready(), "Browser driver did not reply; see fb015-acceptance/browser.log");
         var result = JSON.readTree(browserOutput.readLine());
@@ -543,6 +567,90 @@ class QuizDeletionTopologyTest {
         Files.writeString(evidence.resolve("checks.json"), JSON.writeValueAsString(checks));
     }
 
+    /**
+     * Opt-in (-Dfb015.ui=true) real-UI round. A production Next build with a RELATIVE public API
+     * base (the local frontend/.env.local pins an absolute base; a whitespace override wins at
+     * build time and trims back to relative inside publicApiTarget) is served by fb015-next.cjs,
+     * which proxies same-origin /api traffic to this disposable Gateway. The real Chromium then
+     * logs in and deletes one named and one untitled quiz through the actual dialog, rediscovers
+     * status after a storage-cleared reload, and must show PRIMARY_PURGED copies-pending wording.
+     */
+    static void realUiDeletionRound(String survivor) throws Exception {
+        String frontendOrigin = frontend;
+        List<String> pnpm =
+                System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")
+                        ? List.of("cmd.exe", "/d", "/s", "/c", "pnpm.cmd", "build")
+                        : List.of("pnpm", "build");
+        var buildCommand = new ProcessBuilder(pnpm)
+                .directory(root.resolve("frontend").toFile())
+                .redirectErrorStream(true)
+                .redirectOutput(evidence.resolve("frontend-build.log").toFile());
+        buildCommand.environment().put("NEXT_PUBLIC_API_URL", " ");
+        buildCommand.environment().put("NEXT_TELEMETRY_DISABLED", "1");
+        Process build = buildCommand.start();
+        assertTrue(build.waitFor(300, TimeUnit.SECONDS), "Frontend production build timed out");
+        assertEquals(0, build.exitValue(), "See fb015-acceptance/frontend-build.log");
+        var serverCommand = new ProcessBuilder(
+                        "node", root.resolve("scripts/local/fb015-next.cjs").toString())
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .redirectOutput(evidence.resolve("next.log").toFile());
+        serverCommand.environment().put("FB015_GATEWAY_URL", gateway);
+        serverCommand.environment().put("FB015_UI_PORT", Integer.toString(frontendPort));
+        next = serverCommand.start();
+        awaitHttp(frontendOrigin + "/login");
+        pass("Production Next server serves the real UI and proxies same-origin API traffic to the disposable Gateway");
+        assertEquals(
+                200,
+                ui("login", "frontend", frontendOrigin, "identifier", "topology-user", "password", PASSWORD)
+                        .path("status")
+                        .asInt(),
+                "Real UI login through the Gateway edge");
+        pass("Real UI login with the topology fixture account");
+        uiDeletionRound("FB015 UI disposable victim", survivor);
+        uiDeletionRound("", survivor);
+    }
+
+    static void uiDeletionRound(String title, String survivor) throws Exception {
+        String quizId = quiz(title).path("quizId").asString();
+        // Park the fresh operation with a genuine Proctoring outage, exactly like the backend
+        // round above, so the reload-recovery assertion cannot race the primary purge.
+        stopService("proctoring");
+        assertEquals(
+                202,
+                ui("delete", "quizId", quizId, "title", title).path("status").asInt(),
+                title.isEmpty()
+                        ? "Real dialog deletion of the untitled quiz"
+                        : "Real dialog deletion of the named quiz");
+        pass(
+                (title.isEmpty() ? "Untitled" : "Named")
+                        + " quiz deleted through the real dialog: exact confirmation gating, single 202 POST with Idempotency-Key, fenced card without a Delete entry");
+        assertEquals(
+                200,
+                ui("recover", "quizId", quizId, "text", "Deletion progress")
+                        .path("status")
+                        .asInt(),
+                "Reload recovery without any stored operation");
+        pass("Reload with cleared tab storage rediscovers the latest deletion status through the real UI");
+        restart("proctoring", List.of());
+        awaitStatus(quizId, "PRIMARY_PURGED", null); // synchronization only; the UI evidence is below
+        assertEquals(
+                200,
+                ui("terminal", "quizId", quizId, "survivor", survivor)
+                        .path("status")
+                        .asInt(),
+                "Terminal UI round");
+        pass(
+                "UI terminal wording shows PRIMARY_PURGED with copies-pending copy, never fully erased; survivor quiz preserved");
+    }
+
+    static JsonNode ui(String action, String... pairs) throws Exception {
+        var command = new LinkedHashMap<String, Object>();
+        command.put("ui", action);
+        for (int i = 0; i < pairs.length; i += 2) command.put(pairs[i], pairs[i + 1]);
+        return command(command);
+    }
+
     @AfterAll
     static void cleanup() throws Exception {
         try {
@@ -563,6 +671,14 @@ class QuizDeletionTopologyTest {
                 if (!browser.waitFor(10, TimeUnit.SECONDS)) {
                     browser.descendants().forEach(ProcessHandle::destroyForcibly);
                     browser.destroyForcibly();
+                }
+            }
+            if (next != null && next.isAlive()) {
+                next.destroy();
+                if (!next.waitFor(10, TimeUnit.SECONDS)) {
+                    next.descendants().forEach(ProcessHandle::destroyForcibly);
+                    next.destroyForcibly();
+                    next.waitFor(10, TimeUnit.SECONDS);
                 }
             }
         } finally {
