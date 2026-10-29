@@ -55,19 +55,23 @@ class DeletionSagaIntegrationTest {
     static final AtomicBoolean ASSESSMENT_ACK = new AtomicBoolean();
     static final AtomicBoolean PROCTORING_ACK = new AtomicBoolean();
     static final AtomicReference<String> ASSESSMENT_PURGE = new AtomicReference<>("PURGED");
+    static final AtomicReference<String> PROCTORING_PURGE_OUTCOME = new AtomicReference<>("PURGED");
     static final AtomicBoolean ASSESSMENT_HOLD = new AtomicBoolean();
     static final AtomicBoolean ASSESSMENT_PURGED = new AtomicBoolean();
     static final AtomicBoolean PROCTORING_PURGED = new AtomicBoolean();
     static final AtomicBoolean ASSESSMENT_OUTAGE = new AtomicBoolean();
+    static final AtomicBoolean ASSESSMENT_DEPENDENTS_OUTAGE = new AtomicBoolean();
+    static final AtomicReference<String> PROCTORING_RAW_RECEIPT = new AtomicReference<>();
+    static final AtomicBoolean OMIT_PROCTORING_HOLD = new AtomicBoolean();
+    static final java.util.concurrent.atomic.AtomicInteger ASSESSMENT_PURGE_CALLS =
+            new java.util.concurrent.atomic.AtomicInteger();
+    static final java.util.concurrent.atomic.AtomicInteger PROCTORING_PURGE_CALLS =
+            new java.util.concurrent.atomic.AtomicInteger();
 
     static final DisposableServer ASSESSMENT =
             dependencyServer(ASSESSMENT_ACK, ASSESSMENT_PURGE, ASSESSMENT_HOLD, ASSESSMENT_PURGED, ASSESSMENT_OUTAGE);
     static final DisposableServer PROCTORING = dependencyServer(
-            PROCTORING_ACK,
-            new AtomicReference<>("PURGED"),
-            new AtomicBoolean(),
-            PROCTORING_PURGED,
-            new AtomicBoolean());
+            PROCTORING_ACK, PROCTORING_PURGE_OUTCOME, new AtomicBoolean(), PROCTORING_PURGED, new AtomicBoolean());
 
     static DisposableServer dependencyServer(
             AtomicBoolean acknowledged,
@@ -94,8 +98,25 @@ class DeletionSagaIntegrationTest {
                                 .sendString(Mono.just("{\"accepted\":[],\"alreadyRevoked\":[]}"))
                                 .then());
                     }
+                    if (path.endsWith("/dependents")) {
+                        // FB-015 H5: assessment dependents inventory for the quiz.
+                        if (outage.get() || ASSESSMENT_DEPENDENTS_OUTAGE.get())
+                            return response.status(503).send();
+                        String quiz = path.split("/quiz-revocations/")[1].split("/")[0];
+                        return response.header("Content-Type", "application/json")
+                                .sendString(Mono.just(
+                                        "{\"quizId\":\"" + quiz + "\",\"publicationIds\":[],\"attemptIds\":[]}"))
+                                .then();
+                    }
                     if (path.endsWith("/quiz-purgings/batch")) {
+                        boolean isProctoring = purgeOutcome == PROCTORING_PURGE_OUTCOME;
+                        (isProctoring ? PROCTORING_PURGE_CALLS : ASSESSMENT_PURGE_CALLS).incrementAndGet();
                         if (outage.get()) return response.status(503).send();
+                        if (isProctoring && PROCTORING_RAW_RECEIPT.get() != null) {
+                            return response.header("Content-Type", "application/json")
+                                    .sendString(Mono.just(PROCTORING_RAW_RECEIPT.get()))
+                                    .then();
+                        }
                         return request.receive().aggregate().asString().flatMap(body -> {
                             String quiz = body.split("\"quizId\":\"")[1].split("\"")[0];
                             String operation =
@@ -120,7 +141,11 @@ class DeletionSagaIntegrationTest {
                     return response.header("Content-Type", "application/json")
                             .sendString(Mono.just("{\"quizId\":\"" + quiz + "\",\"revokedAt\":\"" + Instant.now()
                                     + "\",\"acknowledgedAt\":\"" + Instant.now() + "\",\"purged\":"
-                                    + purged.get() + ",\"retentionHoldActive\":" + hold.get() + ",\"steps\":{}}"))
+                                    + purged.get()
+                                    + (purgeOutcome == PROCTORING_PURGE_OUTCOME && OMIT_PROCTORING_HOLD.get()
+                                            ? ""
+                                            : ",\"retentionHoldActive\":" + hold.get())
+                                    + ",\"steps\":{}}"))
                             .then();
                 })
                 .bindNow();
@@ -184,10 +209,16 @@ class DeletionSagaIntegrationTest {
         ASSESSMENT_ACK.set(false);
         PROCTORING_ACK.set(false);
         ASSESSMENT_PURGE.set("PURGED");
+        PROCTORING_PURGE_OUTCOME.set("PURGED");
         ASSESSMENT_HOLD.set(false);
         ASSESSMENT_PURGED.set(false);
         PROCTORING_PURGED.set(false);
         ASSESSMENT_OUTAGE.set(false);
+        ASSESSMENT_DEPENDENTS_OUTAGE.set(false);
+        PROCTORING_RAW_RECEIPT.set(null);
+        OMIT_PROCTORING_HOLD.set(false);
+        ASSESSMENT_PURGE_CALLS.set(0);
+        PROCTORING_PURGE_CALLS.set(0);
         jdbc.update("delete from quiz_deletion_outbox");
         jdbc.update("delete from quiz_deletion_operations");
         jdbc.update("delete from quiz_versions");
@@ -213,7 +244,10 @@ class DeletionSagaIntegrationTest {
         jdbc.update(
                 "insert into quiz_deletion_operations(id, quiz_id, owner_user_id, idempotency_key, status,"
                         + " main_progress, created_at, updated_at, confirmed_title, version_inventory)"
-                        + " values(?,?,?,?, 'QUIZ_FENCED', 1, clock_timestamp(), clock_timestamp(), 'Saga fixture', '[]'::jsonb)",
+                        + " values(?,?,?,?, 'QUIZ_FENCED', 1, clock_timestamp(), clock_timestamp(), 'Saga fixture',"
+                        + " '[{\"id\":\""
+                        + UUID.randomUUID()
+                        + "\",\"versionNumber\":1}]'::jsonb)",
                 operationId,
                 quizId,
                 owner,
@@ -345,6 +379,146 @@ class DeletionSagaIntegrationTest {
         saga.reconcileDue();
         assertEquals("WAITING_DEPENDENCY", operationStatus());
         assertEquals(1, jdbc.queryForObject("select count(*) from quizzes where id = ?", Integer.class, quizId));
+    }
+
+    @Test
+    void inProgressPurgeRoundsParkPurgingAndNeverClaimPrimaryPurged() {
+        ASSESSMENT_ACK.set(true);
+        PROCTORING_ACK.set(true);
+        ASSESSMENT_PURGED.set(true);
+        PROCTORING_PURGED.set(true);
+        ASSESSMENT_PURGE.set("IN_PROGRESS");
+        saga.reconcileDue();
+        assertEquals("ACCESS_REVOKED", operationStatus());
+        saga.reconcileDue();
+        // Parked nonterminal state (main progress stays at PURGING) with the
+        // bounded-round reason; never a premature PRIMARY_PURGED claim.
+        assertEquals("WAITING_DEPENDENCY", operationStatus());
+        assertEquals(
+                "purge-in-progress",
+                jdbc.queryForObject(
+                        "select last_reason from quiz_deletion_operations where id = ?", String.class, operationId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from quizzes where id = ?", Integer.class, quizId));
+        // The bounded round completes on the next reconcile: only PURGED advances.
+        ASSESSMENT_PURGE.set("PURGED");
+        saga.reconcileDue();
+        assertEquals("PRIMARY_PURGED", operationStatus());
+    }
+
+    @Test
+    void legacyDependentsUnresolvedSurfacesWaitingDependencyReason() {
+        ASSESSMENT_ACK.set(true);
+        PROCTORING_ACK.set(true);
+        ASSESSMENT_PURGED.set(true);
+        PROCTORING_PURGED.set(false);
+        PROCTORING_PURGE_OUTCOME.set("RECONCILIATION_BLOCKED");
+        saga.reconcileDue();
+        assertEquals("ACCESS_REVOKED", operationStatus());
+        saga.reconcileDue();
+        assertEquals("WAITING_DEPENDENCY", operationStatus());
+        assertEquals(
+                "legacy_dependents_unresolved",
+                jdbc.queryForObject(
+                        "select last_reason from quiz_deletion_operations where id = ?", String.class, operationId));
+        assertEquals(1, jdbc.queryForObject("select count(*) from quizzes where id = ?", Integer.class, quizId));
+    }
+
+    @Test
+    void dependentsInventoryOutageParksAndNeverPurgesBlind() {
+        ASSESSMENT_ACK.set(true);
+        PROCTORING_ACK.set(true);
+        ASSESSMENT_PURGED.set(true);
+        PROCTORING_PURGED.set(false);
+        ASSESSMENT_DEPENDENTS_OUTAGE.set(true);
+        saga.reconcileDue();
+        assertEquals("ACCESS_REVOKED", operationStatus());
+        saga.reconcileDue();
+        // Parked nonterminal state (main progress stays at PURGING); no blind purge.
+        assertEquals("WAITING_DEPENDENCY", operationStatus());
+        assertEquals(
+                "dependency-unavailable",
+                jdbc.queryForObject(
+                        "select last_reason from quiz_deletion_operations where id = ?", String.class, operationId));
+        // Recovery completes the operation.
+        ASSESSMENT_DEPENDENTS_OUTAGE.set(false);
+        PROCTORING_PURGED.set(true);
+        saga.reconcileDue();
+        assertEquals("PRIMARY_PURGED", operationStatus());
+    }
+
+    @Test
+    void irreversibleBoundaryScrubsLedgerContentAndKeepsTheMinimalTombstone() {
+        ASSESSMENT_ACK.set(true);
+        PROCTORING_ACK.set(true);
+        ASSESSMENT_PURGED.set(true);
+        PROCTORING_PURGED.set(true);
+        saga.reconcileDue();
+        assertEquals("ACCESS_REVOKED", operationStatus());
+        saga.reconcileDue();
+        assertEquals("PRIMARY_PURGED", operationStatus());
+        // H4: the ledger keeps ids/status/owner but no quiz text and no per-version
+        // inventory after the irreversible boundary.
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "select count(*) from quiz_deletion_operations where confirmed_title is not null",
+                        Integer.class));
+        assertEquals(
+                "1",
+                jdbc.queryForObject(
+                        "select version_inventory->>'versionCount' from quiz_deletion_operations where id = ?",
+                        String.class,
+                        operationId));
+        // Raw storage scan: the fixture title string is absent from the whole quiz DB
+        // (quizzes/drafts/versions rows are gone; ledger rows carry no content).
+        for (String scan : List.of(
+                "select count(*) from quiz_deletion_operations where confirmed_title like '%Saga fixture%'",
+                "select count(*) from quiz_drafts where title like '%Saga fixture%'",
+                "select count(*) from quiz_versions where title_snapshot like '%Saga fixture%'"
+                        + " or source_snapshot like '%Saga fixture%'",
+                "select count(*) from quizzes q where exists (select 1 from quiz_deletion_outbox o"
+                        + " where o.payload::text like '%Saga fixture%')")) {
+            assertEquals(0, jdbc.queryForObject(scan, Integer.class), scan);
+        }
+        assertEquals(0, jdbc.queryForObject("select count(*) from quizzes where id = ?", Integer.class, quizId));
+        // Idempotent status rendering of the scrubbed ledger keeps working.
+        saga.reconcileDue();
+        assertEquals("PRIMARY_PURGED", operationStatus());
+    }
+
+    @Test
+    void missingProctoringHoldClassificationFailsClosedBeforeEitherPurge() {
+        ASSESSMENT_ACK.set(true);
+        PROCTORING_ACK.set(true);
+        OMIT_PROCTORING_HOLD.set(true);
+        saga.reconcileDue();
+        saga.reconcileDue();
+        assertEquals("WAITING_DEPENDENCY", operationStatus());
+        assertEquals(0, PROCTORING_PURGE_CALLS.get());
+        assertEquals(0, ASSESSMENT_PURGE_CALLS.get());
+    }
+
+    @Test
+    void malformedTransportReceiptsNeverAuthorizeAssessmentPurge() {
+        ASSESSMENT_ACK.set(true);
+        PROCTORING_ACK.set(true);
+        saga.reconcileDue();
+        String valid = "{\"operationId\":\"" + operationId + "\",\"quizId\":\"" + quizId
+                + "\",\"status\":\"PURGED\",\"steps\":{}}";
+        for (String receipt : List.of(
+                "[]",
+                "{}",
+                "[" + valid + "," + valid + "]",
+                "[" + valid.replace(operationId.toString(), UUID.randomUUID().toString()) + "]",
+                "[" + valid.replace(quizId.toString(), UUID.randomUUID().toString()) + "]",
+                "[" + valid.replace("\"steps\":{}", "\"steps\":{\"removed\":-1}") + "]",
+                "[" + valid.replace("\"steps\":{}", "\"steps\":[]") + "]")) {
+            PROCTORING_RAW_RECEIPT.set(receipt);
+            saga.reconcileDue();
+            assertEquals("WAITING_DEPENDENCY", operationStatus());
+            assertEquals(0, ASSESSMENT_PURGE_CALLS.get());
+            assertEquals(1, jdbc.queryForObject("select count(*) from quizzes where id=?", Integer.class, quizId));
+        }
     }
 
     private static Jwt jwt(UUID userId, List<String> roles) {

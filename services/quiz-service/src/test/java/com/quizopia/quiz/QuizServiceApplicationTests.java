@@ -131,13 +131,13 @@ class QuizServiceApplicationTests {
 
     @Test
     void contextLoadsAfterFlywayMigrationAndHibernateValidation() {
-        assertEquals("5", flyway.info().current().getVersion().getVersion());
+        assertEquals("7", flyway.info().current().getVersion().getVersion());
         assertEquals(0, flyway.info().pending().length);
         flyway.validate();
         assertEquals(
-                5,
+                7,
                 jdbc.queryForObject(
-                        "select count(*) from flyway_schema_history where version in ('1', '2', '3', '4', '5') and success",
+                        "select count(*) from flyway_schema_history where version in ('1', '2', '3', '4', '5', '6', '7') and success",
                         Integer.class));
         assertTrue(entityManagerFactory.isOpen());
         assertEquals(5, entityManagerFactory.getMetamodel().getEntities().size());

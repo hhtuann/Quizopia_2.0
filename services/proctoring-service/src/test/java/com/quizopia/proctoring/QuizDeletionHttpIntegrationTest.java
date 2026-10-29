@@ -46,6 +46,8 @@ class QuizDeletionHttpIntegrationTest {
         values.add("spring.datasource.url", DB::getJdbcUrl);
         values.add("spring.datasource.username", DB::getUsername);
         values.add("spring.datasource.password", DB::getPassword);
+        values.add("spring.flyway.user", DB::getUsername);
+        values.add("spring.flyway.password", DB::getPassword);
     }
 
     @Value("${local.server.port}")
@@ -297,6 +299,7 @@ class QuizDeletionHttpIntegrationTest {
                 .value(status -> {
                     assertEquals(quiz, status.quizId());
                     assertTrue(status.purged());
+                    assertFalse(status.retentionHoldActive());
                     // No media provider is configured in this fixture: no fabricated receipt.
                     assertEquals("NOT_CONFIGURED", status.providerErasure());
                 });
@@ -309,6 +312,55 @@ class QuizDeletionHttpIntegrationTest {
                 .expectBody()
                 .jsonPath("$.code")
                 .isEqualTo("PURGE_NOT_FOUND");
+    }
+
+    @Test
+    void statusExplicitlyReportsLocalHoldBeforeAnyPurge() {
+        UUID quiz = UUID.randomUUID(), operation = UUID.randomUUID();
+        db.update(
+                "INSERT INTO quiz_revocation_fences(quiz_id,operation_id,revoked_at,ack_at) VALUES(?,?,clock_timestamp(),NULL)",
+                quiz,
+                operation);
+        String path = "/internal/security/quiz-purgings/" + quiz + "/status";
+        http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + purgeCaller())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.retentionHoldActive")
+                .isEqualTo(false);
+        db.queryForObject(
+                "SELECT proctoring_set_hold(?,?,NULL,'institution','appeal','reviewer',clock_timestamp()+interval '1 day',clock_timestamp()+interval '1 hour')",
+                Object.class,
+                UUID.randomUUID(),
+                quiz);
+        http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + purgeCaller())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store")
+                .expectBody()
+                .jsonPath("$.retentionHoldActive")
+                .isEqualTo(true)
+                .jsonPath("$.purged")
+                .isEqualTo(false);
+        db.update(
+                "UPDATE proctoring_retention_holds SET review_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 hour' WHERE quiz_id=?",
+                quiz);
+        http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + purgeCaller())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.retentionHoldActive")
+                .isEqualTo(false);
     }
 
     @Test

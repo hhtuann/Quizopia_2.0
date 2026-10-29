@@ -35,6 +35,8 @@ public class JdbcMediaStore implements MediaStore {
         try {
             return tx.execute(s -> {
                 db.execute("SET LOCAL lock_timeout='1000ms'");
+                db.execute(
+                        "SELECT pg_advisory_xact_lock(18015) WHERE to_regclass('public.purge_inventory') IS NOT NULL");
                 db.execute("SET LOCAL statement_timeout='2000ms'");
                 return work.get();
             });

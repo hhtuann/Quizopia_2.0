@@ -444,6 +444,9 @@ class QuizApplicationServiceTest {
         public java.util.List<QuizDeletionOperation> findSagaCandidates(int limit) {
             return java.util.List.of();
         }
+
+        @Override
+        public void scrubLedgerContent(java.util.UUID operationId) {}
     }
 
     private static final class RecordingQuizDraftRepository implements QuizDraftRepository {

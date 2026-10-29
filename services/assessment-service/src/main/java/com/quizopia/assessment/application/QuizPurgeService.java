@@ -16,9 +16,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  * FB-015 PR C FK-safe quiz purge (ADR-018 Phase B steps 6-7). Runs only after the owning
  * revocation fence is acknowledged and no active retention hold remains; delegates all row
  * removal to the narrowly-scoped privileged assessment_purge_quiz procedure (FK-ordered,
- * bounded batches, idempotent, triggers stay enabled) and never trusts an in-memory
- * assumption: PURGED is reported only from the procedure's zero-remaining verification plus
- * an independent SQL COUNT re-check. Receipts carry counts only - no answers, no PII.
+ * idempotent, triggers stay enabled) and never trusts an in-memory assumption: PURGED is
+ * reported only from the procedure's zero-remaining verification plus an independent SQL
+ * existence re-check. Each invocation carries a work-unit budget (at most three
+ * content deletes per unit, including complete FK cycles); inventory writes consume
+ * units too. An exhausted budget durably persists progress and reports IN_PROGRESS - never
+ * a false PURGED. Receipts carry counts only - no answers, no PII.
  */
 @Service
 public class QuizPurgeService {
@@ -31,6 +34,7 @@ public class QuizPurgeService {
 
     public enum Outcome {
         PURGED,
+        IN_PROGRESS,
         BLOCKED_BY_RETENTION,
         WAITING_REVOCATION_ACK
     }
@@ -86,16 +90,16 @@ public class QuizPurgeService {
     }
 
     /** Idempotent: an already-purged quiz reports PURGED with unchanged cumulative receipts. */
-    public List<Result> purgeBatch(List<Operation> operations, int batchLimit) {
+    public List<Result> purgeBatch(List<Operation> operations, int budget) {
         var canonical = List.copyOf(operations);
         if (canonical.isEmpty() || canonical.size() > 50) throw new PublicationFailure(400, "INVALID_REQUEST");
-        if (batchLimit < 1 || batchLimit > 1000) throw new PublicationFailure(400, "INVALID_REQUEST");
+        if (budget < 1 || budget > 50000) throw new PublicationFailure(400, "INVALID_REQUEST");
         var results = new ArrayList<Result>(canonical.size());
-        for (Operation operation : canonical) results.add(purge(operation, batchLimit));
+        for (Operation operation : canonical) results.add(purge(operation, budget));
         return List.copyOf(results);
     }
 
-    private Result purge(Operation operation, int batchLimit) {
+    private Result purge(Operation operation, int budget) {
         return tx(() -> {
             Instant received = db.queryForObject(
                     "SELECT clock_timestamp()", (r, n) -> r.getTimestamp(1).toInstant());
@@ -125,13 +129,27 @@ public class QuizPurgeService {
                 return new Result(
                         operation.operationId(), operation.quizId(), Outcome.WAITING_REVOCATION_ACK, Map.of());
             }
-            db.queryForObject(
+            String outcome = db.queryForObject(
                     "SELECT assessment_purge_quiz(?,?,?)",
-                    Boolean.class,
+                    String.class,
                     operation.quizId(),
                     operation.operationId(),
-                    batchLimit);
-            // Independent COUNT re-check before any PURGED claim: no remaining row may
+                    budget);
+            if ("BLOCKED_BY_RETENTION".equals(outcome)) {
+                return new Result(operation.operationId(), operation.quizId(), Outcome.BLOCKED_BY_RETENTION, Map.of());
+            }
+            if (!"PURGED".equals(outcome)) {
+                // Budget exhausted before verified-zero: durable progress was committed
+                // by the procedure; the coordinator must invoke the next round. No
+                // PURGED receipt exists while any dependent row may remain.
+                if (!"IN_PROGRESS".equals(outcome)) throw new PublicationFailure(503, "PERSISTENCE_UNAVAILABLE");
+                return new Result(
+                        operation.operationId(),
+                        operation.quizId(),
+                        Outcome.IN_PROGRESS,
+                        receipts(operation.operationId()));
+            }
+            // Independent existence re-check before any PURGED claim: no remaining row may
             // reference the quiz anywhere in the Assessment schema.
             long remaining = remainingReferences(operation.quizId());
             if (remaining != 0) throw new PublicationFailure(503, "PERSISTENCE_UNAVAILABLE");
@@ -151,39 +169,26 @@ public class QuizPurgeService {
     private long remainingReferences(UUID quizId) {
         Long remaining = named.queryForObject(
                 """
-            SELECT (SELECT count(*) FROM publications p WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM attempts a JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM attempt_answers x JOIN attempts a ON a.id=x.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM submitted_answers s JOIN attempts a ON a.id=s.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM grading_results g JOIN attempts a ON a.id=g.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM grading_question_results q JOIN grading_results g ON g.id=q.result_id
-                JOIN attempts a ON a.id=g.attempt_id JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM attempt_operations o JOIN attempts a ON a.id=o.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM attempt_creation_operations c JOIN attempts a ON a.id=c.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM attempt_finalization_audit f JOIN attempts a ON a.id=f.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM closure_requests c JOIN publications p ON p.id=c.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM closure_request_members m JOIN attempts a ON a.id=m.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM assessment_notifications n JOIN attempts a ON a.id=n.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM publication_operations o JOIN publications p ON p.id=o.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM closure_work_audit w JOIN attempts a ON a.id=w.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM assessment_monitoring_outbox e JOIN attempts a ON a.id=e.attempt_id
-                JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM realtime_invalidation_outbox r WHERE r.resource_kind='PUBLICATION'
-                AND r.resource_id IN (SELECT p.id FROM publications p WHERE p.quiz_id=:quiz))
-             +(SELECT count(*) FROM publication_creations c JOIN publications p ON p.id=c.publication_id WHERE p.quiz_id=:quiz)
-             +(SELECT count(*) FROM deletion_command_inbox i WHERE i.quiz_id=:quiz)
+            SELECT CASE WHEN EXISTS(SELECT 1 FROM publications WHERE quiz_id=:quiz)
+              OR EXISTS(SELECT 1 FROM publication_snapshots s JOIN purged_publication_markers m
+                ON m.publication_id=s.publication_id JOIN quiz_revocation_fences f ON f.operation_id=m.operation_id
+                WHERE f.quiz_id=:quiz)
+              OR EXISTS(SELECT 1 FROM attempts a JOIN purged_attempt_markers m ON m.attempt_id=a.id
+                JOIN quiz_revocation_fences f ON f.operation_id=m.operation_id WHERE f.quiz_id=:quiz)
+              OR EXISTS(SELECT 1 FROM realtime_invalidation_outbox r WHERE
+                (r.resource_kind='PUBLICATION' AND r.resource_id IN
+                  (SELECT m.publication_id FROM purged_publication_markers m JOIN quiz_revocation_fences f
+                    ON f.operation_id=m.operation_id WHERE f.quiz_id=:quiz))
+                OR (r.resource_kind='ATTEMPT' AND r.resource_id IN
+                  (SELECT m.attempt_id FROM purged_attempt_markers m JOIN quiz_revocation_fences f
+                    ON f.operation_id=m.operation_id WHERE f.quiz_id=:quiz)))
+              OR EXISTS(SELECT 1 FROM deletion_command_inbox WHERE quiz_id=:quiz)
+            THEN 1 ELSE 0 END
             """,
                 java.util.Map.of("quiz", quizId),
                 Long.class);
+        // Validated forward FKs prove all other children absent when their roots are
+        // absent. Snapshots and realtime have no forward FK; check durable scope explicitly.
         return remaining == null ? 1 : remaining;
     }
 

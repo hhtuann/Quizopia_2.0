@@ -122,7 +122,7 @@ public class QuizPurgeController {
                             .getFirst()
                             .matches("(?i)application/json(?:\\s*;\\s*charset=(?:UTF-8|\"UTF-8\"))?")) throw invalid();
             var operations = parse(request);
-            var result = service.purgeBatch(operations, properties.purgeBatchSize());
+            var result = service.purgeBatch(operations, properties.purgeBudget());
             expired(caller, authentication);
             return result;
         } catch (PublicationFailure known) {

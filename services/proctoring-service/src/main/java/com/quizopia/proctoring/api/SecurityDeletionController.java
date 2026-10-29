@@ -34,6 +34,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class SecurityDeletionController {
     static final int MAX_BODY_BYTES = 16384;
     static final int MAX_OPERATIONS = 50;
+    static final int MAX_DEPENDENT_IDS = 2000;
     private static final String UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
     private final ProctoringDeletionProperties properties;
@@ -211,10 +212,8 @@ public class SecurityDeletionController {
         try {
             transport(request);
             contentType(request);
-            var operations = parse(request).stream()
-                    .map(operation -> new QuizPurgeService.PurgeOperation(operation.operationId(), operation.quizId()))
-                    .toList();
-            var result = purges.purgeBatch(operations, properties.purgeBatchSize());
+            var operations = parsePurge(request);
+            var result = purges.purgeBatch(operations, properties.purgeBudget());
             expired(caller, authentication, SecurityDeletionRoutes.SCOPE_PURGE);
             return result;
         } catch (MonitoringFailure known) {
@@ -226,6 +225,60 @@ public class SecurityDeletionController {
         } finally {
             capacity.release();
         }
+    }
+
+    /**
+     * Purge body: {"operations":[{"operationId","quizId"[,"publicationIds":[...]]
+     * ["attemptIds":[...]]}]}. The optional id arrays are the Assessment-owned
+     * dependents inventory used to resolve legacy (quiz_id NULL) sessions; omitted
+     * arrays mean the mapping is unavailable and the purge reports
+     * RECONCILIATION_BLOCKED while legacy rows exist.
+     */
+    private List<QuizPurgeService.PurgeOperation> parsePurge(HttpServletRequest request) throws IOException {
+        byte[] bytes = request.getInputStream().readNBytes(MAX_BODY_BYTES + 1);
+        if (bytes.length == 0 || bytes.length > MAX_BODY_BYTES) throw invalid();
+        JsonNode body;
+        try {
+            body = json.readTree(bytes);
+        } catch (JacksonException malformed) {
+            throw invalid();
+        }
+        if (body == null
+                || !body.isObject()
+                || body.size() != 1
+                || !body.path("operations").isArray()) throw invalid();
+        JsonNode operations = body.path("operations");
+        if (operations.size() < 1 || operations.size() > MAX_OPERATIONS) throw invalid();
+        var parsed = new ArrayList<QuizPurgeService.PurgeOperation>(operations.size());
+        Set<UUID> quizIds = new HashSet<>(operations.size());
+        Set<UUID> operationIds = new HashSet<>(operations.size());
+        for (JsonNode item : operations) {
+            if (item == null || !item.isObject() || item.size() < 2 || item.size() > 4) throw invalid();
+            String operationId = canonical(item, "operationId");
+            String quizId = canonical(item, "quizId");
+            if (!operationIds.add(UUID.fromString(operationId)) || !quizIds.add(UUID.fromString(quizId)))
+                throw invalid();
+            parsed.add(new QuizPurgeService.PurgeOperation(
+                    UUID.fromString(operationId),
+                    UUID.fromString(quizId),
+                    idArray(item, "publicationIds"),
+                    idArray(item, "attemptIds")));
+        }
+        return List.copyOf(parsed);
+    }
+
+    private List<UUID> idArray(JsonNode item, String field) {
+        JsonNode value = item.path(field);
+        if (value.isMissingNode()) return null;
+        if (!value.isArray() || value.size() > MAX_DEPENDENT_IDS) throw invalid();
+        var ids = new ArrayList<UUID>(value.size());
+        Set<UUID> unique = new HashSet<>(value.size());
+        for (JsonNode id : value) {
+            if (id == null || !id.isString() || !id.asString().matches(UUID_PATTERN)) throw invalid();
+            if (!unique.add(UUID.fromString(id.asString()))) throw invalid();
+        }
+        ids.addAll(unique);
+        return ids;
     }
 
     @GetMapping("/internal/security/quiz-purgings/{quizId}/status")

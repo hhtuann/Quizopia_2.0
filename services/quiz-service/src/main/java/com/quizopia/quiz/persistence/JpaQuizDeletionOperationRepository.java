@@ -127,4 +127,19 @@ public class JpaQuizDeletionOperationRepository implements QuizDeletionOperation
                         && !operation.status().equals(QuizDeletionState.RETRYABLE_FAILURE))
                 .toList();
     }
+
+    @Override
+    @Transactional
+    public void scrubLedgerContent(UUID operationId) {
+        entityManager
+                .createNativeQuery("update quiz_deletion_operations"
+                        + " set confirmed_title = null,"
+                        + " version_inventory = case when jsonb_typeof(version_inventory) = 'array'"
+                        + " then jsonb_build_object('versionCount', jsonb_array_length(version_inventory))"
+                        + " else version_inventory end"
+                        + " where id = :operationId")
+                .setParameter("operationId", operationId)
+                .executeUpdate();
+        entityManager.clear();
+    }
 }

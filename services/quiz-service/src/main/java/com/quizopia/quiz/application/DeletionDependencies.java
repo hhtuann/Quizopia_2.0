@@ -26,6 +26,17 @@ public interface DeletionDependencies {
 
     record PurgeStatus(Instant acknowledgedAt, boolean purged, boolean retentionHoldActive) {}
 
+    /**
+     * Assessment-owned dependents inventory (publication and attempt ids) for one quiz;
+     * a null instance means the inventory could not be fetched (dependency outage).
+     */
+    record Dependents(List<UUID> publicationIds, List<UUID> attemptIds) {
+        public Dependents {
+            publicationIds = List.copyOf(publicationIds == null ? List.of() : publicationIds);
+            attemptIds = List.copyOf(attemptIds == null ? List.of() : attemptIds);
+        }
+    }
+
     URI assessmentBaseUrl();
 
     URI proctoringBaseUrl();
@@ -37,6 +48,19 @@ public interface DeletionDependencies {
     RevocationStatus revocationStatus(URI base, UUID quizId);
 
     List<PurgeOutcome> purgeBatch(URI base, List<Operation> operations);
+
+    /**
+     * Purge with the Assessment-owned dependents inventory so Proctoring can resolve
+     * legacy (pre-V4, quiz_id NULL) sessions without any cross-service database join.
+     */
+    List<PurgeOutcome> purgeBatch(URI base, List<Operation> operations, Dependents dependents);
+
+    /**
+     * FB-015 correction H5: complete publication/attempt id inventory for the quiz
+     * from Assessment-owned tables. Returns null when the fence is not installed yet
+     * (404) or the dependency is unavailable.
+     */
+    Dependents assessmentDependents(URI base, UUID quizId);
 
     /** Returns null when no fence/purge state exists (404). */
     PurgeStatus purgeStatus(URI base, UUID quizId);

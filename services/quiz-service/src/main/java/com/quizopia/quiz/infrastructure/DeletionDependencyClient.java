@@ -114,23 +114,64 @@ public final class DeletionDependencyClient implements DeletionDependencies, Aut
     public RevocationStatus revocationStatus(URI base, UUID quizId) {
         JsonNode body = fetch(base.resolve("/internal/security/quiz-revocations/" + quizId + "/status"), SCOPE_REVOKE);
         if (body == null) return null;
+        if (!quizId.equals(uuid(body, "quizId"))) throw unavailable();
         return new RevocationStatus(instant(body, "revokedAt"), instant(body, "acknowledgedAt"));
     }
 
     public List<PurgeOutcome> purgeBatch(URI base, List<Operation> operations) {
-        JsonNode body = call(base.resolve("/internal/security/quiz-purgings/batch"), SCOPE_PURGE, operations);
+        return readOutcomes(call(base.resolve("/internal/security/quiz-purgings/batch"), SCOPE_PURGE, operations));
+    }
+
+    public List<PurgeOutcome> purgeBatch(URI base, List<Operation> operations, Dependents dependents) {
+        JsonNode body = call(
+                base.resolve("/internal/security/quiz-purgings/batch"),
+                SCOPE_PURGE,
+                operations,
+                dependents == null ? null : new Dependents(dependents.publicationIds(), dependents.attemptIds()));
+        return readOutcomes(body);
+    }
+
+    private List<PurgeOutcome> readOutcomes(JsonNode body) {
+        if (body == null || !body.isArray()) throw unavailable();
         var outcomes = new java.util.ArrayList<PurgeOutcome>(body.size());
         for (JsonNode item : body) {
             if (item == null || !item.isObject() || item.size() != 4) throw unavailable();
+            if (!item.path("steps").isObject()) throw unavailable();
+            for (JsonNode count : item.path("steps")) {
+                if (!count.isIntegralNumber() || !count.canConvertToLong() || count.asLong() < 0) throw unavailable();
+            }
             outcomes.add(new PurgeOutcome(uuid(item, "operationId"), uuid(item, "quizId"), text(item, "status")));
         }
         return List.copyOf(outcomes);
+    }
+
+    /** Returns null when the fence is not installed yet (404); never guesses. */
+    public Dependents assessmentDependents(URI base, UUID quizId) {
+        JsonNode body =
+                fetch(base.resolve("/internal/security/quiz-revocations/" + quizId + "/dependents"), SCOPE_PURGE);
+        if (body == null) return null;
+        if (!quizId.equals(uuid(body, "quizId"))) throw unavailable();
+        return new Dependents(uuidArray(body, "publicationIds"), uuidArray(body, "attemptIds"));
+    }
+
+    private static List<UUID> uuidArray(JsonNode body, String field) {
+        var value = body.path(field);
+        if (!value.isArray()) throw unavailable();
+        var ids = new java.util.ArrayList<UUID>(value.size());
+        for (JsonNode id : value) {
+            if (id == null || !id.isString()) throw unavailable();
+            ids.add(UUID.fromString(id.asString()));
+        }
+        return List.copyOf(ids);
     }
 
     /** Returns null when no fence/purge state exists (404). */
     public PurgeStatus purgeStatus(URI base, UUID quizId) {
         JsonNode body = fetch(base.resolve("/internal/security/quiz-purgings/" + quizId + "/status"), SCOPE_PURGE);
         if (body == null) return null;
+        if (!quizId.equals(uuid(body, "quizId"))
+                || !body.path("purged").isBoolean()
+                || !body.path("retentionHoldActive").isBoolean()) throw unavailable();
         return new PurgeStatus(
                 instant(body, "acknowledgedAt"),
                 body.path("purged").isBoolean() && body.path("purged").asBoolean(),
@@ -139,6 +180,10 @@ public final class DeletionDependencyClient implements DeletionDependencies, Aut
     }
 
     private JsonNode call(URI uri, String scope, List<Operation> operations) {
+        return call(uri, scope, operations, null);
+    }
+
+    private JsonNode call(URI uri, String scope, List<Operation> operations, Dependents dependents) {
         var payload = new StringBuilder("{\"operations\":[");
         for (int i = 0; i < operations.size(); i++) {
             if (i > 0) payload.append(',');
@@ -146,10 +191,25 @@ public final class DeletionDependencyClient implements DeletionDependencies, Aut
                     .append(operations.get(i).operationId())
                     .append("\",\"quizId\":\"")
                     .append(operations.get(i).quizId())
-                    .append("\"}");
+                    .append('\"');
+            if (dependents != null) {
+                payload.append(",\"publicationIds\":[");
+                appendIds(payload, dependents.publicationIds());
+                payload.append("],\"attemptIds\":[");
+                appendIds(payload, dependents.attemptIds());
+                payload.append(']');
+            }
+            payload.append('}');
         }
         payload.append("]}");
         return exchange(uri, scope, payload.toString());
+    }
+
+    private static void appendIds(StringBuilder payload, List<UUID> ids) {
+        for (int i = 0; i < ids.size(); i++) {
+            if (i > 0) payload.append(',');
+            payload.append('"').append(ids.get(i)).append('"');
+        }
     }
 
     private JsonNode fetch(URI uri, String scope) {

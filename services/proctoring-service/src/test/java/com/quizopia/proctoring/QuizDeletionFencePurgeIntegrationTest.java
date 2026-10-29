@@ -286,7 +286,11 @@ class QuizDeletionFencePurgeIntegrationTest {
         // The privileged procedure itself refuses an unacknowledged fence.
         assertThrows(
                 org.springframework.dao.DataAccessException.class,
-                () -> db.queryForObject("SELECT monitoring_purge_quiz(?,?,10)", Boolean.class, quiz, operation));
+                () -> db.queryForObject(
+                        "SELECT monitoring_purge_quiz(?,?,NULL::uuid[],NULL::uuid[],10)",
+                        String.class,
+                        quiz,
+                        operation));
     }
 
     @Test
@@ -322,9 +326,21 @@ class QuizDeletionFencePurgeIntegrationTest {
         fence(operation);
         assertTrue(revocations.acknowledgeDue(10) >= 1);
 
-        var first = purges.purgeBatch(List.of(new QuizPurgeService.PurgeOperation(operation, quiz)), 1)
-                .getFirst();
+        // Budget 1 proves bounded rounds: each call removes at most one row total and
+        db.update(
+                "INSERT INTO proctoring_provider_cleanup(operation_id,receipt_reference) VALUES(?,'synthetic-provider-receipt')",
+                operation);
+        // reports IN_PROGRESS until the final verified-zero round reports PURGED.
+        QuizPurgeService.Result first = null;
+        int rounds = 0;
+        while (first == null || first.status() == QuizPurgeService.Outcome.IN_PROGRESS) {
+            first = purges.purgeBatch(List.of(new QuizPurgeService.PurgeOperation(operation, quiz)), 1)
+                    .getFirst();
+            rounds++;
+            assertTrue(rounds < 100, "bounded purge must converge");
+        }
         assertEquals(QuizPurgeService.Outcome.PURGED, first.status());
+        assertTrue(rounds > 1, "fixture must be larger than one budget round");
         assertTrue(first.steps().containsKey("verified_zero"));
         assertEquals(1L, first.steps().get("monitoring_sessions"));
         assertEquals(0, count("monitoring_sessions WHERE quiz_id='" + quiz + "'"));
@@ -361,9 +377,10 @@ class QuizDeletionFencePurgeIntegrationTest {
                 .getFirst();
         assertEquals(QuizPurgeService.Outcome.PURGED, second.status());
         assertEquals(first.steps(), second.steps());
+        assertEquals(0, count("deletion_command_inbox WHERE operation_id='" + operation + "'"));
         var status = purges.status(quiz).orElseThrow();
         assertTrue(status.purged());
-        assertEquals("PENDING_PROVIDER", status.providerErasure());
+        assertEquals("ACKNOWLEDGED", status.providerErasure());
         assertEquals(
                 "PENDING_PROVIDER",
                 db.queryForObject("SELECT status FROM media_erasure_requests WHERE quiz_id=?", String.class, quiz));
@@ -399,6 +416,77 @@ class QuizDeletionFencePurgeIntegrationTest {
                         "SELECT count(*) FROM monitoring_evidence WHERE session_id=?",
                         String.class,
                         revoked.session().id()));
+    }
+
+    @Test
+    void concurrentDuplicatePurgeCallsKeepReceiptsExactlyOnce() throws Exception {
+        var revoked = monitored(quiz);
+        append(revoked);
+        append(revoked);
+        store.reconcile(
+                actor(student, "STUDENT"),
+                authority(revoked.bound(), student, "STUDENT", true),
+                revoked.session().id(),
+                true);
+        var grant = media.prepare(
+                actor(student, "STUDENT"),
+                authority(revoked.bound(), student, "STUDENT", true),
+                revoked.session().id(),
+                Duration.ofSeconds(10));
+        media.activate(actor(student, "STUDENT"), authority(revoked.bound(), student, "STUDENT", true), grant.id());
+        UUID operation = UUID.randomUUID();
+        fence(operation);
+        assertTrue(revocations.acknowledgeDue(10) >= 1);
+
+        // Duplicate concurrent coordinator calls for the SAME operation: each caller
+        db.update(
+                "INSERT INTO proctoring_provider_cleanup(operation_id,receipt_reference) VALUES(?,'synthetic-provider-receipt')",
+                operation);
+        // gets a truthful answer (PURGED or an honest serialization failure), and the
+        // durable receipts count every removed row exactly once.
+        var statuses = new java.util.concurrent.ConcurrentLinkedQueue<QuizPurgeService.Outcome>();
+        var failures = new java.util.concurrent.atomic.AtomicInteger();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(3);
+        for (int i = 0; i < 3; i++) {
+            pool.submit(() -> {
+                try {
+                    statuses.add(purges.purgeBatch(List.of(new QuizPurgeService.PurgeOperation(operation, quiz)), 100)
+                            .getFirst()
+                            .status());
+                } catch (RuntimeException serialization) {
+                    failures.incrementAndGet();
+                }
+            });
+        }
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(60, java.util.concurrent.TimeUnit.SECONDS));
+        assertTrue(statuses.contains(QuizPurgeService.Outcome.PURGED), "at least one duplicate call must finish");
+
+        // Sequential convergence round in case every concurrent duplicate failed.
+        QuizPurgeService.Result converged = null;
+        int guard = 0;
+        while (converged == null || converged.status() == QuizPurgeService.Outcome.IN_PROGRESS) {
+            converged = purges.purgeBatch(List.of(new QuizPurgeService.PurgeOperation(operation, quiz)), 100)
+                    .getFirst();
+            assertTrue(++guard < 50);
+        }
+        assertEquals(QuizPurgeService.Outcome.PURGED, converged.status());
+        assertEquals(0, count("monitoring_sessions WHERE quiz_id='" + quiz + "'"));
+        assertEquals(0, quizScoped("monitoring_evidence", quiz));
+        assertEquals(0, quizScoped("monitoring_access_audit", quiz));
+        assertEquals(0, quizScoped("monitoring_media_rooms", quiz));
+        assertEquals(0, quizScoped("monitoring_media_grants", quiz));
+        // Exactly-once cumulative receipts against the known fixture shape.
+        assertEquals(1L, converged.steps().get("monitoring_sessions"));
+        assertEquals(3L, converged.steps().get("monitoring_evidence"));
+        assertEquals(1L, converged.steps().get("monitoring_access_audit"));
+        assertEquals(1L, converged.steps().get("monitoring_media_rooms"));
+        assertEquals(1L, converged.steps().get("monitoring_media_grants"));
+        // A further duplicate replay changes nothing.
+        var replay = purges.purgeBatch(List.of(new QuizPurgeService.PurgeOperation(operation, quiz)), 100)
+                .getFirst();
+        assertEquals(QuizPurgeService.Outcome.PURGED, replay.status());
+        assertEquals(converged.steps(), replay.steps());
     }
 
     int count(String tableAndFilter) {

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Quiz deletion requests (FB-015 / ADR-018)
-  version: 1.0.0
+  version: 1.1.0
   description:
     Guarded owner-only deletion request API. Only active while
     quizopia.deletion.enabled is true (env QUIZ_DELETION_ENABLED, default
@@ -90,6 +90,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/quizzes/{quizId}/deletion-requests/latest:
+    get:
+      operationId: quiz_deletion_latest_status
+      summary: Discover the latest owner-only operation, even after primary purge.
+      security:
+        - quizopiaBearerAuth: []
+      parameters:
+        - name: quizId
+          in: path
+          required: true
+          schema: *uuid
+      responses:
+        "200":
+          description: Latest owned operation without PII.
+          headers:
+            Cache-Control: *noStore
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizDeletionStatus"
+        "401":
+          description: Authentication required.
+        "403":
+          description: Teacher authority denied.
+        "404":
+          description: No operation visible to this caller (anti-enumeration), or feature disabled.
   /api/quizzes/{quizId}/deletion-requests/{operationId}:
     get:
       operationId: quiz_deletion_status
@@ -161,9 +187,13 @@ components:
       properties:
         confirmTitle:
           type: string
-          minLength: 1
+          minLength: 0
           maxLength: 300
-          description: Exact current draft title, trimmed and case-sensitive.
+          description: >-
+            Exact current draft title, trimmed and case-sensitive. Explicit empty string
+            is required for historical null or empty titles; omitted/null is invalid.
+            Same key and canonical title replay after purge using a retained SHA-256
+            request digest. Changed title returns 409; unauthorized ledger replay returns 404.
     QuizDeletionRequestAccepted:
       type: object
       additionalProperties: false
@@ -197,6 +227,7 @@ components:
         - updatedAt
         - lastReason
         - stages
+        - note
       properties:
         operationId: *uuid
         status:
@@ -211,6 +242,9 @@ components:
           type:
             - string
             - "null"
+        note:
+          type: [string, "null"]
+          description: COPY_EXPIRY_PENDING after primary purge; no all-copy erasure claim.
         stages:
           type: array
           description: Forward-only main stage order for progress UI.

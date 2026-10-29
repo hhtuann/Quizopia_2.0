@@ -16,11 +16,14 @@ public final class SecurityPurgeRoutes {
     public static final String SCOPE = "quiz.deletion.purge";
     private static final String STATUS =
             "/internal/security/quiz-purgings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/status";
+    private static final String DEPENDENTS =
+            "/internal/security/quiz-revocations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dependents";
 
     private SecurityPurgeRoutes() {}
 
     public static boolean matches(String method, String path) {
-        return "POST".equals(method) && BATCH_PATH.equals(path) || "GET".equals(method) && path.matches(STATUS);
+        return "POST".equals(method) && BATCH_PATH.equals(path)
+                || "GET".equals(method) && (path.matches(STATUS) || path.matches(DEPENDENTS));
     }
 
     public static boolean permitted(Authentication auth, AssessmentDeletionProperties properties) {

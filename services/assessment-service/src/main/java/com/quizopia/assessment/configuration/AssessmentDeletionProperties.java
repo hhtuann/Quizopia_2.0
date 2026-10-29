@@ -16,7 +16,7 @@ public record AssessmentDeletionProperties(
         @DefaultValue("30") int requestsPerMinute,
         @DefaultValue("10") int ackPollDelaySeconds,
         @DefaultValue("20") int ackBatchSize,
-        @DefaultValue("500") int purgeBatchSize) {
+        @DefaultValue("5000") int purgeBudget) {
     public AssessmentDeletionProperties {
         if (quizServiceClientId == null || !quizServiceClientId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,254}"))
             throw new IllegalStateException("Exact Quiz deletion client identity is required");
@@ -26,6 +26,6 @@ public record AssessmentDeletionProperties(
             throw new IllegalStateException("Invalid revocation rate bound");
         if (ackPollDelaySeconds < 1 || ackPollDelaySeconds > 3600 || ackBatchSize < 1 || ackBatchSize > 100)
             throw new IllegalStateException("Invalid acknowledgment polling bounds");
-        if (purgeBatchSize < 1 || purgeBatchSize > 1000) throw new IllegalStateException("Invalid purge batch bound");
+        if (purgeBudget < 100 || purgeBudget > 50000) throw new IllegalStateException("Invalid purge budget bound");
     }
 }

@@ -54,6 +54,24 @@ public class QuizRevocationService {
         }
     }
 
+    /**
+     * FB-015 correction H5: assessment-owned dependent inventory (publication and attempt
+     * ids across DRAFT/OPEN/CLOSED plus locator rows) for one quiz, so the coordinator can
+     * resolve pre-V4 Proctoring sessions whose quiz_id is NULL without any cross-service
+     * database join. Ids only - never titles, content or PII.
+     */
+    public record Dependents(UUID quizId, List<UUID> publicationIds, List<UUID> attemptIds) {
+        public Dependents {
+            Objects.requireNonNull(quizId, "quizId");
+            publicationIds = List.copyOf(Objects.requireNonNull(publicationIds, "publicationIds"));
+            attemptIds = List.copyOf(Objects.requireNonNull(attemptIds, "attemptIds"));
+        }
+
+        public String toString() {
+            return "Dependents[redacted]";
+        }
+    }
+
     private final JdbcTemplate db;
     private final TransactionTemplate transaction;
     private final AssessmentTransactionProperties limits;
@@ -144,6 +162,35 @@ public class QuizRevocationService {
                             r.getLong(4)),
                     quizId);
             return rows.stream().findFirst();
+        } catch (RuntimeException failure) {
+            throw new PublicationFailure(503, "PERSISTENCE_UNAVAILABLE");
+        }
+    }
+
+    /**
+     * Complete dependent id inventory for the quiz from Assessment-owned tables: every
+     * publication (any state, including drafts and private-locator rows) and every
+     * attempt attached to them. Read-only; never finalizes any work.
+     */
+    public Optional<Dependents> dependents(UUID quizId) {
+        try {
+            var fenced = db.query(
+                    "SELECT quiz_id FROM quiz_revocation_fences WHERE quiz_id=?",
+                    (r, n) -> r.getObject(1, UUID.class),
+                    quizId);
+            if (fenced.isEmpty()) return Optional.empty();
+            var publications = db.query(
+                    "SELECT id FROM publications WHERE quiz_id=? ORDER BY id",
+                    (r, n) -> r.getObject(1, UUID.class),
+                    quizId);
+            var attempts = db.query(
+                    """
+                SELECT a.id FROM attempts a JOIN publications p ON p.id=a.publication_id
+                 WHERE p.quiz_id=? ORDER BY a.id
+                """,
+                    (r, n) -> r.getObject(1, UUID.class),
+                    quizId);
+            return Optional.of(new Dependents(quizId, publications, attempts));
         } catch (RuntimeException failure) {
             throw new PublicationFailure(503, "PERSISTENCE_UNAVAILABLE");
         }

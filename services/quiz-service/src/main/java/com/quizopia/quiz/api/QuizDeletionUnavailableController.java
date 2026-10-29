@@ -24,4 +24,9 @@ public final class QuizDeletionUnavailableController {
             @PathVariable("quizId") UUID quizId, @PathVariable("operationId") UUID operationId) {
         throw new QuizNotFoundException(quizId);
     }
+
+    @GetMapping("/api/quizzes/{quizId}/deletion-requests/latest")
+    public void latestDeletionStatusUnavailable(@PathVariable("quizId") UUID quizId) {
+        throw new QuizNotFoundException(quizId);
+    }
 }

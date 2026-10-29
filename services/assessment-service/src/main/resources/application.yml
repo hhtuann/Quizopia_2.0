@@ -26,6 +26,10 @@ spring:
     open-in-view: false
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
+    # FB-015 H1: migrations run as the owner-member migration role (never the
+    # runtime role) so V11 can transfer ownership and enforce least privilege.
+    user: ${FLYWAY_USERNAME:quizopia_assessment_flyway}
+    password: ${FLYWAY_PASSWORD:assessment_flyway_local_only}
   security:
     oauth2:
       resourceserver:
@@ -73,7 +77,7 @@ quizopia:
     requests-per-minute: ${ASSESSMENT_DELETION_REQUESTS_PER_MINUTE:30}
     ack-poll-delay-seconds: ${ASSESSMENT_DELETION_ACK_POLL_DELAY_SECONDS:10}
     ack-batch-size: ${ASSESSMENT_DELETION_ACK_BATCH_SIZE:20}
-    purge-batch-size: ${ASSESSMENT_DELETION_PURGE_BATCH_SIZE:500}
+    purge-budget: ${ASSESSMENT_DELETION_PURGE_BUDGET:5000}
   assessment:
     transactions:
       timeout-seconds: ${ATTEMPT_TRANSACTION_TIMEOUT_SECONDS:15}

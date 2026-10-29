@@ -240,7 +240,7 @@ class AttemptPersistenceIntegrationTest {
                             "SELECT count(*) FROM pg_indexes WHERE schemaname=? AND indexname IN ('publications_owner_created_idx','publications_owner_state_created_idx')",
                             schema));
             assertEquals(
-                    "10",
+                    "11",
                     scalar(c, "SELECT max(version::numeric) FROM flyway_schema_history WHERE version IS NOT NULL"));
             assertEquals(
                     "8",
@@ -290,7 +290,7 @@ class AttemptPersistenceIntegrationTest {
                     c,
                     "SELECT string_agg(checksum::text,',' ORDER BY version) FROM flyway_schema_history WHERE version IN('1','2')");
         }
-        assertEquals(9, flyway(null).migrate().migrationsExecuted);
+        assertEquals(10, flyway(null).migrate().migrationsExecuted);
         try (var c = connection()) {
             assertEquals(
                     checksums,

@@ -3,7 +3,6 @@ package com.quizopia.quiz.configuration;
 import com.quizopia.quiz.application.DeletionOperationService;
 import com.quizopia.quiz.application.DeletionSagaService;
 import com.quizopia.quiz.application.QuizDeletionOutboxRepository;
-import com.quizopia.quiz.application.QuizRepository;
 import com.quizopia.quiz.infrastructure.DeletionDependencyClient;
 import com.quizopia.quiz.outbox.DeletionOutboxDispatcher;
 import com.quizopia.quiz.outbox.DeletionOutboxPublisher;
@@ -60,13 +59,11 @@ public class DeletionConfiguration {
     @ConditionalOnProperty(name = "quizopia.deletion.enabled", havingValue = "true")
     DeletionSagaService deletionSagaService(
             com.quizopia.quiz.application.QuizDeletionOperationRepository deletionOperationRepository,
-            QuizRepository quizRepository,
             DeletionOperationService deletionOperationService,
             DeletionDependencyClient dependencies,
             DeletionProperties properties) {
         return new DeletionSagaService(
                 deletionOperationRepository,
-                quizRepository,
                 deletionOperationService,
                 dependencies,
                 Math.max(1, properties.getSagaBatchSize()));

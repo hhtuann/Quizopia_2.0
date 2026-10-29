@@ -80,6 +80,8 @@ public class QuizRevocationService {
             return transaction.execute(status -> {
                 db.execute("SET LOCAL lock_timeout='1000ms'");
                 db.execute("SET LOCAL statement_timeout='2000ms'");
+                db.execute(
+                        "SELECT pg_advisory_xact_lock(18015) WHERE to_regclass('public.purge_inventory') IS NOT NULL");
                 return work.get();
             });
         } catch (MonitoringFailure failure) {

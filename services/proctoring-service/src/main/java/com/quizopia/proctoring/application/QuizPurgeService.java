@@ -11,24 +11,47 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * FB-015 PR C quiz-scoped hard purge (ADR-018 Phase B step 7). Runs only after the owning
- * fence is acknowledged; delegates all row removal to the narrowly-scoped privileged
- * monitoring_purge_quiz procedure (FK-ordered, bounded, idempotent, triggers stay enabled)
- * and records media-provider erasure REQUESTS honestly: no provider erasure API exists
- * yet, so requests stay PENDING_PROVIDER and no fabricated receipt is ever returned.
+ * FB-015 PR C quiz-scoped hard purge (ADR-018 Phase B step 7), corrected per Leader
+ * review. Runs only after the owning fence is acknowledged; delegates all row removal
+ * to the narrowly-scoped privileged monitoring_purge_quiz procedure (FK-ordered,
+ * idempotent, triggers stay enabled). Each invocation carries a hard total
+ * deleted-row budget; an exhausted budget durably persists progress and reports
+ * IN_PROGRESS - never a false PURGED. Legacy (pre-V4, quiz_id NULL) rows are purged
+ * only through the Assessment-provided dependents inventory; when that mapping is
+ * unavailable and legacy rows exist the outcome is RECONCILIATION_BLOCKED. Media
+ * provider erasure blocks local deletion until independent custodian acknowledgment;
+ * the original room/participant bindings remain durable during PENDING_PROVIDER.
  * Receipts carry counts only - no PII, no evidence or media payloads.
  */
 @Service
 public class QuizPurgeService {
-    public record PurgeOperation(UUID operationId, UUID quizId) {
+    /**
+     * @param publicationIds assessment-owned dependents inventory for the quiz; null
+     *     means the mapping is unavailable (legacy rows cannot be resolved).
+     * @param attemptIds see {@link #publicationIds}.
+     */
+    public record PurgeOperation(UUID operationId, UUID quizId, List<UUID> publicationIds, List<UUID> attemptIds) {
         public PurgeOperation {
             Objects.requireNonNull(operationId, "operationId");
             Objects.requireNonNull(quizId, "quizId");
+            if (publicationIds != null)
+                publicationIds = publicationIds.stream().distinct().sorted().toList();
+            if (attemptIds != null)
+                attemptIds = attemptIds.stream().distinct().sorted().toList();
+        }
+
+        public PurgeOperation(UUID operationId, UUID quizId) {
+            this(operationId, quizId, null, null);
         }
     }
 
     public enum Outcome {
         PURGED,
+        IN_PROGRESS,
+        RECONCILIATION_BLOCKED,
+        INVENTORY_MISMATCH,
+        BLOCKED_BY_RETENTION,
+        PENDING_PROVIDER,
         WAITING_REVOCATION_ACK
     }
 
@@ -43,6 +66,7 @@ public class QuizPurgeService {
             Instant revokedAt,
             Instant acknowledgedAt,
             boolean purged,
+            boolean retentionHoldActive,
             Map<String, Long> steps,
             String providerErasure) {
         public String toString() {
@@ -52,15 +76,13 @@ public class QuizPurgeService {
 
     private final JdbcTemplate db;
     private final TransactionTemplate transaction;
-    private final String mediaProviderName;
 
     /**
-     * @param mediaProviderName identity of the configured media provider; empty means no
-     *     provider artifacts are tracked, and no erasure request is fabricated.
+     * @param mediaProviderName retained constructor compatibility; the privileged SQL
+     *     tracks actual persisted LiveKit bindings, independently of runtime flags.
      */
     public QuizPurgeService(@Lazy JdbcTemplate db, @Lazy PlatformTransactionManager manager, String mediaProviderName) {
         this.db = db;
-        this.mediaProviderName = mediaProviderName == null ? "" : mediaProviderName;
         transaction = new TransactionTemplate(manager);
         transaction.setTimeout(30);
     }
@@ -72,6 +94,7 @@ public class QuizPurgeService {
             return transaction.execute(status -> {
                 db.execute("SET LOCAL lock_timeout='1000ms'");
                 db.execute("SET LOCAL statement_timeout='10000ms'");
+                db.execute("SELECT pg_advisory_xact_lock(18015)");
                 return work.get();
             });
         } catch (MonitoringFailure failure) {
@@ -82,16 +105,16 @@ public class QuizPurgeService {
     }
 
     /** Idempotent: an already-purged quiz simply reports PURGED with unchanged receipts. */
-    public List<Result> purgeBatch(List<PurgeOperation> operations, int batchLimit) {
+    public List<Result> purgeBatch(List<PurgeOperation> operations, int budget) {
         var canonical = List.copyOf(operations);
         if (canonical.isEmpty() || canonical.size() > 50) throw new MonitoringFailure(400, "INVALID_REQUEST");
-        if (batchLimit < 1 || batchLimit > 1000) throw new MonitoringFailure(400, "INVALID_REQUEST");
+        if (budget < 1 || budget > 50000) throw new MonitoringFailure(400, "INVALID_REQUEST");
         var results = new ArrayList<Result>(canonical.size());
-        for (PurgeOperation operation : canonical) results.add(purge(operation, batchLimit));
+        for (PurgeOperation operation : canonical) results.add(purge(operation, budget));
         return List.copyOf(results);
     }
 
-    private Result purge(PurgeOperation operation, int batchLimit) {
+    private Result purge(PurgeOperation operation, int budget) {
         return tx(() -> {
             Instant received = db.queryForObject(
                     "SELECT clock_timestamp()", (r, n) -> r.getTimestamp(1).toInstant());
@@ -115,25 +138,54 @@ public class QuizPurgeService {
                 return new Result(
                         operation.operationId(), operation.quizId(), Outcome.WAITING_REVOCATION_ACK, Map.of());
             }
-            db.queryForObject(
-                    "SELECT monitoring_purge_quiz(?,?,?)",
-                    Boolean.class,
+            String outcome = db.queryForObject(
+                    "SELECT monitoring_purge_quiz(?,?,?::uuid[],?::uuid[],?)",
+                    String.class,
                     operation.quizId(),
                     operation.operationId(),
-                    batchLimit);
-            if (!mediaProviderName.isEmpty()) {
-                // Honest provider bookkeeping: request recorded, completion stays PENDING_PROVIDER.
+                    arrayLiteral(operation.publicationIds()),
+                    arrayLiteral(operation.attemptIds()),
+                    budget);
+            if ("RECONCILIATION_BLOCKED".equals(outcome)) {
                 db.update(
-                        "INSERT INTO media_erasure_requests(operation_id,quiz_id,provider,status,requested_at)"
-                                + " VALUES(?,?,?,'PENDING_PROVIDER',?) ON CONFLICT (operation_id) DO NOTHING",
+                        "UPDATE deletion_command_inbox SET last_error='RECONCILIATION_BLOCKED'"
+                                + " WHERE operation_id=?",
+                        operation.operationId());
+                return new Result(
+                        operation.operationId(), operation.quizId(), Outcome.RECONCILIATION_BLOCKED, Map.of());
+            }
+            if (Set.of("INVENTORY_MISMATCH", "BLOCKED_BY_RETENTION", "PENDING_PROVIDER")
+                    .contains(outcome)) {
+                return new Result(
                         operation.operationId(),
                         operation.quizId(),
-                        mediaProviderName,
-                        Timestamp.from(received));
+                        Outcome.valueOf(outcome),
+                        receipts(operation.operationId()));
+            }
+            if (!"PURGED".equals(outcome)) {
+                if (!"IN_PROGRESS".equals(outcome)) throw new MonitoringFailure(503, "PERSISTENCE_UNAVAILABLE");
+                db.update(
+                        "UPDATE deletion_command_inbox SET last_error='IN_PROGRESS' WHERE operation_id=?",
+                        operation.operationId());
+                return new Result(
+                        operation.operationId(),
+                        operation.quizId(),
+                        Outcome.IN_PROGRESS,
+                        receipts(operation.operationId()));
             }
             return new Result(
                     operation.operationId(), operation.quizId(), Outcome.PURGED, receipts(operation.operationId()));
         });
+    }
+
+    private String arrayLiteral(List<UUID> ids) {
+        if (ids == null) return null;
+        if (ids.isEmpty()) return "{}";
+        var literal = new StringBuilder("{");
+        for (UUID id : ids) literal.append(id).append(',');
+        literal.setLength(literal.length() - 1);
+        literal.append('}');
+        return literal.toString();
     }
 
     private Map<String, Long> receipts(UUID operationId) {
@@ -160,13 +212,25 @@ public class QuizPurgeService {
             var steps = receipts(operationId);
             var provider = db.query(
                     "SELECT status FROM media_erasure_requests WHERE quiz_id=?", (r, n) -> r.getString(1), quizId);
+            boolean providerAcknowledged = Boolean.TRUE.equals(db.queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM proctoring_provider_cleanup WHERE operation_id=?)",
+                    Boolean.class,
+                    operationId));
+            boolean retentionHoldActive = Boolean.TRUE.equals(
+                    db.queryForObject("SELECT proctoring_retention_hold_active(?)", Boolean.class, quizId));
+            boolean currentlyAbsent = steps.containsKey("verified_zero")
+                    && Boolean.TRUE.equals(db.queryForObject(
+                            "SELECT proctoring_purge_absent(?,?)", Boolean.class, quizId, operationId));
             return Optional.of(new PurgeStatus(
                     quizId,
                     revokedAt,
                     acknowledged == null ? null : acknowledged.toInstant(),
-                    steps.containsKey("verified_zero"),
+                    currentlyAbsent,
+                    retentionHoldActive,
                     steps,
-                    provider.isEmpty() ? "NOT_CONFIGURED" : provider.getFirst()));
+                    providerAcknowledged
+                            ? "ACKNOWLEDGED"
+                            : provider.isEmpty() ? "NOT_CONFIGURED" : provider.getFirst()));
         } catch (RuntimeException failure) {
             throw new MonitoringFailure(503, "PERSISTENCE_UNAVAILABLE");
         }

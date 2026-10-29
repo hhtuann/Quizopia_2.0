@@ -49,6 +49,9 @@ class DeletionOperationServiceTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.quizopia.quiz.application.QuizDeletionOperationRepository deletionRepository;
+
     private static final String SOURCE = "Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 1234\n";
 
     private DeletionOperationServiceAccess access() {
@@ -194,5 +197,63 @@ class DeletionOperationServiceTest {
                         new QuizDeletionOperation.VersionRef(firstVersionId, 1),
                         new QuizDeletionOperation.VersionRef(secondVersionId, 2)),
                 service.getOperation(ownerUserId, quizId, operationId).versionInventory());
+    }
+
+    @Test
+    void primaryPurgeLocksValidatesIdentityAndStageAndIsIdempotent() {
+        UUID owner = UUID.randomUUID();
+        UUID quiz = seedQuiz(owner, "Purge boundary");
+        UUID otherQuiz = seedQuiz(owner, "Unrelated");
+        UUID operation = service.requestDeletion(owner, quiz, "purge-boundary-key", "Purge boundary")
+                .operationId();
+        assertThrows(QuizDeletionNotFoundException.class, () -> service.completePrimaryPurge(operation, otherQuiz));
+        assertThrows(IllegalDeletionTransitionException.class, () -> service.completePrimaryPurge(operation, quiz));
+        assertEquals(1, jdbc.queryForObject("select count(*) from quizzes where id=?", Integer.class, quiz));
+        access().advanceState(operation, QuizDeletionState.PURGING, null);
+        access().advanceState(operation, QuizDeletionState.BLOCKED_BY_RETENTION, "hold");
+        assertThrows(IllegalDeletionTransitionException.class, () -> service.completePrimaryPurge(operation, quiz));
+        access().advanceState(operation, QuizDeletionState.PURGING, null);
+        service.completePrimaryPurge(operation, quiz);
+        service.completePrimaryPurge(operation, quiz);
+        // Direct repeated scrub also preserves the count-object representation.
+        jdbc.execute("update quiz_deletion_operations set version_inventory = '{\"versionCount\":3}'::jsonb where id='"
+                + operation + "'");
+        service.completePrimaryPurge(operation, quiz);
+        deletionRepository.scrubLedgerContent(operation);
+        deletionRepository.scrubLedgerContent(operation);
+        assertEquals(
+                "3",
+                jdbc.queryForObject(
+                        "select version_inventory->>'versionCount' from quiz_deletion_operations where id=?",
+                        String.class,
+                        operation));
+        assertEquals(1, jdbc.queryForObject("select count(*) from quizzes where id=?", Integer.class, otherQuiz));
+        assertEquals(
+                operation,
+                service.requestDeletion(owner, quiz, "purge-boundary-key", "Purge boundary")
+                        .operationId());
+        assertThrows(
+                com.quizopia.quiz.application.DeletionConflictException.class,
+                () -> service.requestDeletion(owner, quiz, "purge-boundary-key", "Different"));
+        assertThrows(
+                QuizDeletionNotFoundException.class,
+                () -> service.requestDeletion(UUID.randomUUID(), quiz, "purge-boundary-key", "Purge boundary"));
+        assertEquals(operation, service.getLatestOperation(owner, quiz).id());
+        assertThrows(QuizDeletionNotFoundException.class, () -> service.getLatestOperation(UUID.randomUUID(), quiz));
+    }
+
+    @Test
+    void explicitEmptyConfirmationSupportsNullEmptyAndWhitespaceHistoricalTitles() {
+        UUID owner = UUID.randomUUID();
+        for (String title : new String[] {null, "", "   "}) {
+            UUID quiz = seedQuiz(owner, title);
+            assertThrows(
+                    com.quizopia.quiz.application.DeletionTitleConfirmationRequiredException.class,
+                    () -> service.requestDeletion(owner, quiz, "historical-title-key", "Untitled quiz"));
+            assertEquals(
+                    QuizDeletionState.QUIZ_FENCED,
+                    service.requestDeletion(owner, quiz, "historical-title-key", "")
+                            .status());
+        }
     }
 }
