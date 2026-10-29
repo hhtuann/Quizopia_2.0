@@ -450,6 +450,74 @@ class QuizPurgeLeastPrivilegeIntegrationTest {
     }
 
     @Test
+    void staleRepeatableReadSnapshotCannotBypassHoldsOrFenceOrPurgeAdmission() throws Exception {
+        UUID quiz = UUID.randomUUID();
+        var open = openPublication(quiz);
+        UUID attempt = activeAttempt(open.id(), student);
+        UUID operation = fenceAndAcknowledge(quiz);
+        // (a) stale runtime snapshot, established BEFORE the custodian commits a
+        // hold, must not be able to purge past that hold.
+        try (var custodian = f.source.getConnection();
+                var insert = custodian.createStatement()) {
+            insert.execute("SET ROLE quizopia_assessment_custodian");
+            insert.execute("INSERT INTO retention_holds(id,quiz_id,authority,reason,reviewer,review_at) VALUES('"
+                    + UUID.randomUUID() + "','" + quiz
+                    + "','institution','appeal','reviewer',clock_timestamp()+interval '1 day')");
+        }
+        try (var stale = appConnection();
+                var sql = stale.createStatement()) {
+            stale.setAutoCommit(false);
+            sql.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+            sql.execute("SELECT count(*) FROM attempts"); // establishes the snapshot
+            var purgeRejected = assertThrows(
+                    SQLException.class,
+                    () -> sql.execute(
+                            "SELECT " + f.schema + ".assessment_purge_quiz('" + quiz + "','" + operation + "',1)"));
+            assertTrue(
+                    purgeRejected.getMessage().contains("READ COMMITTED"),
+                    "purge must reject a stale snapshot isolation, got: " + purgeRejected.getMessage());
+            stale.rollback();
+            // (b) fence admission refuses its own stale snapshot transaction.
+            sql.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+            sql.execute("SELECT count(*) FROM attempts");
+            var fenceRejected = assertThrows(
+                    SQLException.class,
+                    () -> sql.execute("INSERT INTO quiz_revocation_fences(quiz_id,revoked_at,operation_id,source)"
+                            + " VALUES('" + UUID.randomUUID() + "',clock_timestamp(),'" + UUID.randomUUID()
+                            + "','COMMAND')"));
+            assertTrue(
+                    fenceRejected.getMessage().contains("READ COMMITTED"),
+                    "fence admission must reject a stale snapshot isolation, got: " + fenceRejected.getMessage());
+            stale.rollback();
+        }
+        // (c) hold admission refuses a stale custodian snapshot transaction.
+        try (var custodian = f.source.getConnection();
+                var sql = custodian.createStatement()) {
+            custodian.setAutoCommit(false);
+            sql.execute("SET ROLE quizopia_assessment_custodian");
+            sql.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
+            sql.execute("SELECT count(*) FROM retention_holds");
+            var holdRejected = assertThrows(
+                    SQLException.class,
+                    () -> sql.execute("INSERT INTO retention_holds(id,quiz_id,authority,reason,reviewer,review_at)"
+                            + " VALUES('" + UUID.randomUUID() + "','" + quiz
+                            + "','institution','appeal','reviewer',clock_timestamp()+interval '1 day')"));
+            assertTrue(
+                    holdRejected.getMessage().contains("READ COMMITTED"),
+                    "hold admission must reject a stale snapshot isolation, got: " + holdRejected.getMessage());
+            custodian.rollback();
+        }
+        // The committed hold still protects every row, and a fresh READ COMMITTED
+        // caller observes it truthfully instead of destroying held evidence.
+        assertEquals(
+                "BLOCKED_BY_RETENTION",
+                app.queryForObject(
+                        "SELECT " + f.schema + ".assessment_purge_quiz(?,?,1)", String.class, quiz, operation));
+        assertEquals(1L, f.db.queryForObject("SELECT count(*) FROM attempts WHERE id=?", Long.class, attempt));
+        assertEquals(1L, f.db.queryForObject("SELECT count(*) FROM retention_holds WHERE quiz_id=?", Long.class, quiz));
+    }
+
+    @Test
     void holdAndPurgeAdmissionSerializeInBothOrders() throws Exception {
         UUID quiz = UUID.randomUUID();
         openPublication(quiz);
