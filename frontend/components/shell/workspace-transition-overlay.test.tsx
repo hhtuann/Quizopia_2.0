@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../lib/i18n/provider";
-import { LanguageSwitcher } from "../ui/language-switcher";
+import { LanguageMenu } from "../ui/language-menu";
 import {
   WorkspaceTransitionProvider,
   useWorkspaceTransition,
@@ -71,7 +71,7 @@ describe("WorkspaceTransitionProvider", () => {
   it("localizes both transition lines and preserves the 2500 ms window across a language change", () => {
     render(
       <I18nProvider>
-        <LanguageSwitcher />
+        <LanguageMenu />
         <WorkspaceTransitionProvider>
           <Probe />
         </WorkspaceTransitionProvider>
@@ -86,7 +86,10 @@ describe("WorkspaceTransitionProvider", () => {
     act(() => {
       vi.advanceTimersByTime(1500);
     });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "en" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Ngôn ngữ: |Language: / }),
+    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "English" }));
     expect(screen.getByText("Switching to Teaching workspace")).toBeVisible();
     act(() => {
       vi.advanceTimersByTime(999);

@@ -17,6 +17,18 @@ interface AttemptEphemeralContextValue {
     publicationId: string,
     locator: string,
   ) => void;
+  /**
+   * In-memory publication-title memory, keyed by publicationId and bound to
+   * the same session identity as locator memory. The title is captured from
+   * the student's own authorized entry preview (the smallest existing-source
+   * integration; AttemptView carries no title) and never persists to browser
+   * storage, so a hard reload of a deep-linked attempt falls back honestly.
+   */
+  readonly getPublicationTitle: (publicationId: string) => string | null;
+  readonly rememberPublicationTitle: (
+    publicationId: string,
+    title: string,
+  ) => void;
 }
 
 const AttemptEphemeralContext =
@@ -50,9 +62,38 @@ export function AttemptEphemeralProvider({
     },
     [identity],
   );
+  const titles = useRef(
+    new Map<string, { readonly identity: string; readonly title: string }>(),
+  );
+  useEffect(() => {
+    titles.current.clear();
+  }, [identity]);
+  const getPublicationTitle = useCallback(
+    (publicationId: string) => {
+      const entry = titles.current.get(publicationId);
+      return entry?.identity === identity ? entry.title : null;
+    },
+    [identity],
+  );
+  const rememberPublicationTitle = useCallback(
+    (publicationId: string, title: string) => {
+      titles.current.set(publicationId, { identity, title });
+    },
+    [identity],
+  );
   const value = useMemo(
-    () => ({ getPublicLocator, rememberPublicLocator }),
-    [getPublicLocator, rememberPublicLocator],
+    () => ({
+      getPublicLocator,
+      rememberPublicLocator,
+      getPublicationTitle,
+      rememberPublicationTitle,
+    }),
+    [
+      getPublicLocator,
+      rememberPublicLocator,
+      getPublicationTitle,
+      rememberPublicationTitle,
+    ],
   );
 
   return (

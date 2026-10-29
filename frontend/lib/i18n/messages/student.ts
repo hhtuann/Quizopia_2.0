@@ -12,6 +12,8 @@ export const studentMessages = {
   "Switch workspace to organize your learning.":
     "Chuyển không gian làm việc để sắp xếp việc học của bạn.",
   "Assessment access unavailable": "Không thể truy cập bài kiểm tra",
+  "The authenticated request service is unavailable. Sign in again before continuing.":
+    "Dịch vụ yêu cầu đã đăng nhập hiện không khả dụng. Hãy đăng nhập lại trước khi tiếp tục.",
   // Authorized publication preview ("Audience", "Attempt duration",
   // "{minutes} minutes", "Monitoring" and "Finalized" live in the assessment
   // catalog; "Revision {revision}" and "Publication ID" also live there.)
@@ -83,6 +85,9 @@ export const studentMessages = {
   "Student assessment": "Bài kiểm tra của học sinh",
   "{answered} of {total} answered": "Đã trả lời {answered} trên {total}",
   "Deadline {deadline}": "Hạn chót {deadline}",
+  // Focused attempt workspace chrome
+  "Back to app": "Quay lại ứng dụng",
+  Answered: "Đã trả lời",
   // Closure cutoff
   "Teacher closure cutoff is active": "Đang trong thời hạn chốt của giáo viên",
   "The cutoff is {cutoff}. Only saved answers count if the attempt is finalized.":
@@ -131,6 +136,8 @@ export const studentMessages = {
     "Bài làm vẫn đang diễn ra. Hãy thử lại thao tác đang chờ.",
   "This action may not have finished. Leave anyway?":
     "Thao tác này có thể chưa xong. Vẫn rời trang?",
+  "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?":
+    "Kết quả của thao tác này chưa được xác định và khóa khôi phục chính xác chỉ còn trong bộ nhớ. Vẫn rời trang?",
   // Terminal attempt panel
   "Attempt submitted": "Đã nộp bài",
   "Attempt abandoned": "Đã bỏ bài",
@@ -151,6 +158,7 @@ export const studentMessages = {
   // Question panel and per-question save actions
   "Question {number} · {type}": "Câu hỏi {number} · {type}",
   "Retry exact save": "Thử lại đúng lần lưu",
+  "Check server": "Kiểm tra máy chủ",
   "Check status": "Kiểm tra trạng thái",
   "Save this draft": "Lưu bản nháp này",
   // Submission bar and confirmation dialogs
@@ -302,4 +310,11 @@ export const studentMessages = {
   off: "tắt",
   "Live update hints are best-effort; refresh for the exact state.":
     "Cập nhật trực tiếp chỉ mang tính gợi ý; hãy làm mới để xem trạng thái chính xác.",
+  "Candidate: {name}": "Thí sinh: {name}",
+  "Remaining time": "Thời gian còn lại",
+  Flagged: "Đã gắn cờ",
+  "Flag question {number}": "Gắn cờ câu hỏi {number}",
+  "Unflag question {number}": "Bỏ gắn cờ câu hỏi {number}",
+  Flag: "Gắn cờ",
+  Unflag: "Bỏ cờ",
 } as const;

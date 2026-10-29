@@ -4,7 +4,7 @@ import { EmailVerificationForm } from "./email-verification-form";
 import { LoginForm } from "./login-form";
 import { RegistrationForm } from "./registration-form";
 import { I18nProvider } from "../../../lib/i18n/provider";
-import { LanguageSwitcher } from "../../../components/ui/language-switcher";
+import { LanguageMenu } from "../../../components/ui/language-menu";
 
 const navigation = vi.hoisted(() => ({
   push: vi.fn(),
@@ -69,6 +69,13 @@ function deferred<T>() {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+function switchLocale(option: "English" | "Tiếng Việt") {
+  fireEvent.click(
+    screen.getByRole("button", { name: /Ngôn ngữ: |Language: / }),
+  );
+  fireEvent.click(screen.getByRole("menuitemradio", { name: option }));
 }
 
 beforeEach(() => {
@@ -155,7 +162,7 @@ describe("login form", () => {
     auth.login.mockResolvedValueOnce(apiError("AUTH_INVALID_CREDENTIALS", 401));
     render(
       <I18nProvider>
-        <LanguageSwitcher />
+        <LanguageMenu />
         <LoginForm />
       </I18nProvider>,
     );
@@ -163,7 +170,7 @@ describe("login form", () => {
     expect(
       await screen.findByText("Nhập tên đăng nhập hoặc email đã xác minh."),
     ).toBeVisible();
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "en" } });
+    switchLocale("English");
     expect(
       screen.getByText("Enter your username or verified email."),
     ).toBeVisible();
@@ -177,7 +184,7 @@ describe("login form", () => {
     expect(
       await screen.findByText("The username/email or password is incorrect."),
     ).toBeVisible();
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "vi" } });
+    switchLocale("Tiếng Việt");
     expect(
       screen.getByText("Tên đăng nhập/email hoặc mật khẩu không chính xác."),
     ).toBeVisible();

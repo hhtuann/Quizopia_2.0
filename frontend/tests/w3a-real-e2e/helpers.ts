@@ -434,17 +434,20 @@ async function pinEnglishUi(page: Page) {
       .addCookies([{ name: "quizopia-locale", value: "en", url: origin }]);
   }
   if ((await page.evaluate(() => document.documentElement.lang)) !== "en") {
-    // These helpers always run on authenticated pages, where the language
-    // options live in the user menu (menuitemradio), not a header combobox.
-    // The trigger label is localized, so match it in either UI language.
-    await page
-      .getByRole("button", {
-        name: /Open user menu for|Mở menu người dùng cho/,
-      })
-      .click();
-    await page.getByRole("menuitemradio", { name: "English" }).click();
-    // Close the still-open menu so it cannot cover later interactions.
-    await page.keyboard.press("Escape");
+    // On application-shell pages the language options live in the user menu
+    // (menuitemradio); focused workspaces (editor/attempt) carry no language
+    // control, so there drive the live switch only when the menu exists.
+    const userMenu = page.getByRole("button", {
+      name: /Open user menu for|Mở menu người dùng cho/,
+    });
+    if (await userMenu.isVisible().catch(() => false)) {
+      await userMenu.click();
+      await page.getByRole("menuitemradio", { name: "English" }).click();
+      // Close the still-open menu so it cannot cover later interactions.
+      await page.keyboard.press("Escape");
+    }
+    // The cookie applies to the next document load; on focused pages without
+    // the menu the suite relies on that (helpers reload or navigate next).
   }
 }
 
@@ -455,6 +458,14 @@ export async function ensureTeachingWorkspace(page: Page) {
     exact: true,
   });
   if (await authoringLink.isVisible().catch(() => false)) {
+    return;
+  }
+  // A Teaching gate may render instead (no ApplicationShell on focused pages
+  // after a reload under the persisted workspace preference).
+  const gate = page.getByRole("button", { name: "Switch to Teaching" });
+  if (await gate.isVisible().catch(() => false)) {
+    await gate.click();
+    await authoringLink.waitFor({ state: "visible", timeout: 10_000 });
     return;
   }
   await page.getByRole("button", { name: /Open user menu for/ }).click();

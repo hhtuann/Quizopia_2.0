@@ -215,7 +215,8 @@ describe("AttemptScreen realtime integration", () => {
       `{"protocolVersion":1,"type":"SUBSCRIBED","requestId":"${subscribe.requestId}","subscriptionId":"s1","resource":{"kind":"ATTEMPT_OWNER","id":"${attemptId}"}}`,
     );
 
-    const field = screen.getByRole("textbox");
+    // Both questions render their answer inputs continuously; edit question 1.
+    const field = screen.getAllByRole("textbox")[0]!;
     fireEvent.change(field, { target: { value: "42" } });
     expect((field as HTMLInputElement).value).toContain("42");
 
@@ -226,7 +227,7 @@ describe("AttemptScreen realtime integration", () => {
       await vi.advanceTimersByTimeAsync(1_500);
     });
     expect(fetchCount).toBeGreaterThanOrEqual(1);
-    const refreshed = screen.getByRole("textbox");
+    const refreshed = screen.getAllByRole("textbox")[0]!;
     expect((refreshed as HTMLInputElement).value).toContain("42");
   });
 

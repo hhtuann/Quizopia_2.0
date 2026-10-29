@@ -11,7 +11,7 @@ import type {
   HttpRequest,
   HttpTransportResult,
 } from "../../../lib/api/http-transport";
-import { LanguageSwitcher } from "../../../components/ui/language-switcher";
+import { LanguageMenu } from "../../../components/ui/language-menu";
 import { I18nProvider } from "../../../lib/i18n/provider";
 import { AuthProvider } from "../auth-provider";
 import { createAuthSessionService } from "../session/auth-session-service";
@@ -53,7 +53,7 @@ function setup(
   render(
     <I18nProvider initialLocale="en">
       <AuthProvider service={service}>
-        <LanguageSwitcher />
+        <LanguageMenu />
         <ProfileSettingsPage />
       </AuthProvider>
     </I18nProvider>,
@@ -100,7 +100,8 @@ describe("self-service profile settings", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "1–100 characters",
     );
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "vi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Language: English" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Tiếng Việt" }));
     expect(screen.getByLabelText("Tên hiển thị (không bắt buộc)")).toHaveValue(
       "a".repeat(101),
     );
