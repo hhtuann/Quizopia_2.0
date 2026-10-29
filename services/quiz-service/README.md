@@ -20,4 +20,50 @@ Behind `quizopia.deletion.enabled` (env `QUIZ_DELETION_ENABLED`, default `false`
 
 With the flag off, the deletion routes are absent and answer with the standard quiz 404 envelope so the route is not disclosed. Contract: `contracts/quiz-deletion.openapi.yaml`.
 
+## FB-015 PR C corrections: saga purge + ledger scrub (Leader review)
+
+While `quizopia.deletion.enabled` is on, `DeletionSagaService` drives each
+operation through dependency fencing, revocation acknowledgment, dependent
+purge and the irreversible quiz-owned purge:
+
+- **Dependent purge (H3/H5).** The saga fetches the Assessment-owned
+  dependents inventory (`GET /internal/security/quiz-revocations/{quizId}/dependents`,
+  dedicated `quiz.deletion.purge` scope) BEFORE purging Assessment, and passes
+  the ids to the Proctoring purge so legacy `quiz_id NULL` sessions resolve
+  without any cross-service database join. Bounded purge rounds answering
+  `IN_PROGRESS` park the operation in `PURGING` (`purge-in-progress`) and retry;
+  `RECONCILIATION_BLOCKED` from Proctoring surfaces `WAITING_DEPENDENCY` with
+  reason `legacy_dependents_unresolved` - never `PRIMARY_PURGED` while a known
+  dependent may remain.
+  Both owners' status must first expose acknowledged fences and an explicit
+  `retentionHoldActive: false`; absent classification fails closed. Proctoring
+  must finish and attest purge before any Assessment purge call. Later retries
+  skip an authoritatively purged Proctoring owner, preserving its original
+  inventory even after Assessment has partially deleted its live mapping.
+  Empty, duplicate, or wrong-operation/quiz batch receipts cannot authorize
+  progression. `PENDING_PROVIDER` and `INVENTORY_MISMATCH` remain pending with
+  distinct public reason codes.
+- **Irreversible boundary scrub (H4).** `PRIMARY_PURGED` advances in one
+  transaction that also hard-deletes quiz versions/drafts/quiz rows AND scrubs
+  the ledger: `confirmed_title` becomes NULL and `version_inventory` is reduced
+  to the bare count `{"versionCount":n}` (V6). Ids, owner reference (needed for
+  authorization), statuses, timestamps, reason codes and step receipts remain as
+  the minimal anti-resurrection tombstone; raw-storage tests prove the title
+  string is absent from the quiz database afterwards. Post-scrub replays of the
+  original request return the durable operation state instead of `409`.
+  V7 retains a SHA-256 canonical-request digest so changed-title replays still
+  conflict after scrub. Already-scrubbed pre-V7 receipts cannot reconstruct a
+  digest and reject replay; owner status discovery remains available.
+- `GET /api/quizzes/{quizId}/deletion-requests/latest` discovers the operation
+  using ledger ownership, including after the Quiz has gone. It requires the
+  same current Teacher/LD-05 admission as other deletion routes.
+- Historical null/empty draft titles accept explicit `confirmTitle: ""`.
+  Frontend integration must use the underlying title (null maps to empty),
+  rather than the localized untitled display label, and require an explicit
+  confirmation interaction even when the confirmation text is empty.
+- `ALL_COPIES_ERASED` remains deliberately unreachable: no backup or
+  media-provider erasure evidence exists yet, so `PRIMARY_PURGED` is the honest
+  terminal state and the public status carries the `COPY_EXPIRY_PENDING` note.
+
+
 Default local port: 8082. See `.env.example` and the root development documentation for configuration.

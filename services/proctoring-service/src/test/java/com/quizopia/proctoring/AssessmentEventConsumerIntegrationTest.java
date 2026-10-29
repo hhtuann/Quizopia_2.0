@@ -463,17 +463,17 @@ class AssessmentEventConsumerIntegrationTest {
                     .dataSource(upgradeSource)
                     .schemas(schema)
                     .defaultSchema(schema)
+                    .target("3")
                     .load();
-            // V3 (answer metadata inbox) and V4 (FB-015 fence/purge surface) both apply now.
-            assertEquals(2, upgrade.migrate().migrationsExecuted);
+            // This historical checksum test is specifically V2 -> V3. FB-015 V4 -> V5
+            // is tested against its real public-schema role boundary in QuizPurgeLegacyDependentsIntegrationTest.
+            assertEquals(1, upgrade.migrate().migrationsExecuted);
             upgrade.validate();
             assertEquals(
                     checksums,
                     upgradeDb.queryForList(
                             "SELECT version,checksum FROM flyway_schema_history WHERE version IN ('1','2') ORDER BY installed_rank"));
-            // V4 adds the nullable quiz_id binding column; existing rows keep NULL.
             var afterSessions = upgradeDb.queryForList("SELECT * FROM monitoring_sessions");
-            for (var row : afterSessions) row.remove("quiz_id");
             assertEquals(sessions, afterSessions);
             var after = upgradeDb.queryForList("SELECT * FROM monitoring_evidence ORDER BY ordinal");
             assertEquals(evidence.size(), after.size());
@@ -488,7 +488,7 @@ class AssessmentEventConsumerIntegrationTest {
                             .items()
                             .size());
             assertEquals(
-                    List.of("1", "2", "3", "4"),
+                    List.of("1", "2", "3"),
                     upgradeDb.queryForList(
                             "SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
                             String.class));

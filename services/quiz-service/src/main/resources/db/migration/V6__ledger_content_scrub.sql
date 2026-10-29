@@ -1,0 +1,11 @@
+-- FB-015 correction H4 (ADR-018 Phase B step 8): the deletion ledger is a minimal
+-- non-content tombstone. The request-time title confirmation and the full version
+-- inventory are legitimate while the operation is reversible, but they must not
+-- outlive the irreversible boundary: at PRIMARY_PURGED the saga scrubs
+-- confirmed_title to NULL and replaces version_inventory with the bare count
+-- {"versionCount":n} in the SAME transaction that deletes the quiz rows. This
+-- migration only relaxes nullability so the scrubbed state is representable; every
+-- surviving column (operation id, quiz id, owner id for authorization, idempotency
+-- key, status, main progress, timestamps, reason codes, step receipts) stays intact
+-- for anti-resurrection and idempotent replay.
+ALTER TABLE quiz_deletion_operations ALTER COLUMN confirmed_title DROP NOT NULL;

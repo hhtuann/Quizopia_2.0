@@ -182,5 +182,8 @@ class QuizLibraryServiceTest {
         public List<QuizDeletionOperation> findSagaCandidates(int limit) {
             return List.of();
         }
+
+        @Override
+        public void scrubLedgerContent(UUID operationId) {}
     }
 }

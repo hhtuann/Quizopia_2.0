@@ -63,9 +63,11 @@ test("login controls remain reachable in logical keyboard order", async ({
   ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Quizopia home" })).toBeFocused();
-  // The language switcher is a real, reachable control in the header.
+  // The language menu trigger is a real, reachable control in the header.
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("combobox")).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Language: English" }),
+  ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Username or email")).toBeFocused();
   await page.keyboard.press("Tab");

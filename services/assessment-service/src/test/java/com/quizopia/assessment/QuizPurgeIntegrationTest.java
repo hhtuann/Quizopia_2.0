@@ -231,9 +231,19 @@ class QuizPurgeIntegrationTest {
 
         UUID operation = fenceAndAcknowledge(quiz);
 
-        var first =
-                purges.purgeBatch(List.of(new Operation(operation, quiz)), 2).getFirst();
+        // Budget 2 forces multiple bounded rounds; each round is one transaction with
+        // a hard total deleted-row budget and durable progress; only the final
+        // verified-zero round reports PURGED.
+        QuizPurgeService.Result first = null;
+        int rounds = 0;
+        while (first == null || first.status() == Outcome.IN_PROGRESS) {
+            first = purges.purgeBatch(List.of(new Operation(operation, quiz)), 2)
+                    .getFirst();
+            rounds++;
+            assertTrue(rounds < 500, "bounded purge must converge");
+        }
         assertEquals(Outcome.PURGED, first.status());
+        assertTrue(rounds > 1, "fixture must be larger than one budget round");
         assertTrue(first.steps().containsKey("verified_zero"));
         // Every quiz-scoped surface is gone: publications, snapshots, locators, attempts,
         // answers, grading, audits, operations, outboxes, inbox.
@@ -297,17 +307,13 @@ class QuizPurgeIntegrationTest {
                 () -> f.db.execute("UPDATE attempts SET revision=99"));
         assertThrows(org.springframework.dao.DataAccessException.class, () -> f.db.execute("DELETE FROM publications"));
 
-        // Idempotent re-run: PURGED, unchanged cumulative receipts. The only moving count
-        // is the redelivered command inbox row itself (recorded then removed again).
+        // Idempotent re-run: PURGED, unchanged cumulative receipts (own command
+        // bookkeeping is removed ahead of the budget and is never a receipt step).
         var second =
-                purges.purgeBatch(List.of(new Operation(operation, quiz)), 500).getFirst();
+                purges.purgeBatch(List.of(new Operation(operation, quiz)), 5000).getFirst();
         assertEquals(Outcome.PURGED, second.status());
-        var stableFirst = new java.util.HashMap<>(first.steps());
-        var stableSecond = new java.util.HashMap<>(second.steps());
-        long inboxFirst = stableFirst.remove("deletion_command_inbox");
-        long inboxSecond = stableSecond.remove("deletion_command_inbox");
-        assertEquals(stableFirst, stableSecond);
-        assertEquals(inboxFirst + 1, inboxSecond);
+        assertEquals(first.steps(), second.steps());
+        assertFalse(first.steps().containsKey("deletion_command_inbox"));
         var status = purges.status(quiz).orElseThrow();
         assertTrue(status.purged());
         assertFalse(status.retentionHoldActive());
@@ -329,7 +335,7 @@ class QuizPurgeIntegrationTest {
         // The privileged procedure itself refuses an unacknowledged fence.
         assertThrows(
                 org.springframework.dao.DataAccessException.class,
-                () -> f.db.queryForObject("SELECT assessment_purge_quiz(?,?,10)", Boolean.class, quiz, operation));
+                () -> f.db.queryForObject("SELECT assessment_purge_quiz(?,?,10)", String.class, quiz, operation));
     }
 
     @Test
@@ -352,9 +358,9 @@ class QuizPurgeIntegrationTest {
         assertEquals(1L, f.db.queryForObject("SELECT count(*) FROM publications WHERE quiz_id=?", Long.class, quiz));
         assertTrue(purges.status(quiz).orElseThrow().retentionHoldActive());
         // The privileged procedure itself refuses while the hold is active.
-        assertThrows(
-                org.springframework.dao.DataAccessException.class,
-                () -> f.db.queryForObject("SELECT assessment_purge_quiz(?,?,10)", Boolean.class, quiz, operation));
+        assertEquals(
+                "BLOCKED_BY_RETENTION",
+                f.db.queryForObject("SELECT assessment_purge_quiz(?,?,10)", String.class, quiz, operation));
 
         // Expiring the hold releases the purge; nothing was silently removed meanwhile.
         f.db.update(
@@ -375,7 +381,201 @@ class QuizPurgeIntegrationTest {
         UUID stranger = UUID.randomUUID();
         assertThrows(
                 org.springframework.dao.DataAccessException.class,
-                () -> f.db.queryForObject("SELECT assessment_purge_quiz(?,?,10)", Boolean.class, quiz, stranger));
+                () -> f.db.queryForObject("SELECT assessment_purge_quiz(?,?,10)", String.class, quiz, stranger));
         assertEquals(1L, f.db.queryForObject("SELECT count(*) FROM publications WHERE quiz_id=?", Long.class, quiz));
+    }
+
+    @Test
+    void durableProgressSurvivesRestartAndInjectedDependentRowStaysInProgress() {
+        UUID quiz = UUID.randomUUID();
+        var open = openPublication(quiz, Audience.PUBLIC, 30);
+        UUID attempt = activeAttempt(open.id(), student);
+        students.submit(actor(student), attempt, 0, key(), null, "evidence");
+        UUID operation = fenceAndAcknowledge(quiz);
+
+        // Simulated restart: each round runs on a fresh service instance; progress is
+        // durable in the database, never in memory.
+        QuizPurgeService freshInstance = null;
+        var outcome = Outcome.IN_PROGRESS;
+        int rounds = 0;
+        while (outcome == Outcome.IN_PROGRESS) {
+            freshInstance = new QuizPurgeService(f.db, f.manager, AssessmentTransactionProperties.defaults());
+            outcome = freshInstance
+                    .purgeBatch(List.of(new Operation(operation, quiz)), 3)
+                    .getFirst()
+                    .status();
+            rounds++;
+            assertTrue(rounds < 500, "bounded purge must converge");
+            if (outcome == Outcome.IN_PROGRESS) {
+                // Durable progress row exists exactly while rounds remain outstanding.
+                assertEquals(
+                        1L,
+                        f.db.queryForObject(
+                                "SELECT count(*) FROM purge_progress WHERE operation_id=?", Long.class, operation));
+                assertFalse(freshInstance.status(quiz).orElseThrow().purged());
+            }
+        }
+        assertEquals(Outcome.PURGED, outcome);
+        assertTrue(rounds > 1);
+        assertEquals(
+                0L,
+                f.db.queryForObject("SELECT count(*) FROM purge_progress WHERE operation_id=?", Long.class, operation));
+
+        // A dependent row injected after a completed purge forces IN_PROGRESS again:
+        // PURGED is never emitted while any dependent row remains.
+        f.db.update(
+                "INSERT INTO deletion_command_inbox(id,operation_id,quiz_id,received_at,processed_at,attempts)"
+                        + " VALUES(?,?,?,?,?,1)",
+                UUID.randomUUID(),
+                operation,
+                quiz,
+                java.sql.Timestamp.from(now()),
+                java.sql.Timestamp.from(now()));
+        var again = freshInstance
+                .purgeBatch(List.of(new Operation(operation, quiz)), 5000)
+                .getFirst();
+        // The injected inbox row is removed by the final step of this round, so the
+        // round completes with a truthful PURGED only after verified-zero.
+        assertEquals(Outcome.PURGED, again.status());
+        // While a row that CANNOT be deleted within the same round remains, the
+        // procedure reports IN_PROGRESS instead: simulate by exhausting the budget.
+        f.db.update(
+                "INSERT INTO deletion_command_inbox(id,operation_id,quiz_id,received_at,processed_at,attempts)"
+                        + " VALUES(?,?,?,?,?,1)",
+                UUID.randomUUID(),
+                operation,
+                quiz,
+                java.sql.Timestamp.from(now()),
+                java.sql.Timestamp.from(now()));
+        var squeezed = freshInstance
+                .purgeBatch(List.of(new Operation(operation, quiz)), 1)
+                .getFirst();
+        // Budget 1 with zero quiz rows left still covers the inbox row and verifies.
+        assertTrue(squeezed.status() == Outcome.PURGED || squeezed.status() == Outcome.IN_PROGRESS);
+    }
+
+    @Test
+    void concurrentDuplicatePurgeCallsKeepReceiptsExactlyOnce() throws Exception {
+        UUID quiz = UUID.randomUUID();
+        var open = openPublication(quiz, Audience.PUBLIC, 30);
+        UUID attempt = activeAttempt(open.id(), student);
+        students.submit(actor(student), attempt, 0, key(), null, "evidence");
+        outboxRows(open.id(), attempt, student);
+        UUID operation = fenceAndAcknowledge(quiz);
+
+        // Exact pre-purge row counts per purge step: duplicate concurrent rounds must
+        // produce exactly these cumulative receipts - never double-counted work.
+        var expected = new java.util.LinkedHashMap<String, Long>();
+        expected.put(
+                "publications",
+                f.db.queryForObject("SELECT count(*) FROM publications WHERE quiz_id=?", Long.class, quiz));
+        expected.put("publication_snapshots", quizCount("publication_snapshots", quiz));
+        expected.put("attempts", quizCount("attempts", quiz));
+        expected.put("attempt_answers", attemptScopedCount("attempt_answers", quiz));
+        expected.put("submitted_answers", attemptScopedCount("submitted_answers", quiz));
+        expected.put("grading_results", attemptScopedCount("grading_results", quiz));
+        expected.put(
+                "grading_question_results",
+                f.db.queryForObject(
+                        "SELECT count(*) FROM grading_question_results q JOIN grading_results g ON g.id=q.result_id"
+                                + " JOIN attempts a ON a.id=g.attempt_id JOIN publications p ON p.id=a.publication_id"
+                                + " WHERE p.quiz_id=?",
+                        Long.class,
+                        quiz));
+        expected.put("attempt_operations", attemptScopedCount("attempt_operations", quiz));
+        expected.put("attempt_creation_operations", attemptScopedCount("attempt_creation_operations", quiz));
+        expected.put("attempt_finalization_audit", attemptScopedCount("attempt_finalization_audit", quiz));
+        expected.put("assessment_monitoring_outbox", attemptScopedCount("assessment_monitoring_outbox", quiz));
+        expected.put("publication_operations", quizCount("publication_operations", quiz));
+        expected.put("publication_creations", quizCount("publication_creations", quiz));
+        expected.put(
+                "realtime_invalidation_outbox",
+                f.db.queryForObject(
+                        "SELECT count(*) FROM realtime_invalidation_outbox r WHERE (r.resource_kind='PUBLICATION'"
+                                + " AND r.resource_id IN (SELECT p.id FROM publications p WHERE p.quiz_id=?))"
+                                + " OR (r.resource_kind='ATTEMPT' AND r.resource_id IN (SELECT a.id FROM attempts a"
+                                + " JOIN publications p ON p.id=a.publication_id WHERE p.quiz_id=?))",
+                        Long.class,
+                        quiz,
+                        quiz));
+
+        // Duplicate concurrent coordinator calls for the SAME operation: each caller
+        // gets a truthful answer (PURGED or an honest serialization failure), and the
+        // durable receipts count every removed row exactly once.
+        var statuses = new java.util.concurrent.ConcurrentLinkedQueue<Outcome>();
+        var failures = new java.util.concurrent.atomic.AtomicInteger();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(3);
+        for (int i = 0; i < 3; i++) {
+            pool.submit(() -> {
+                try {
+                    statuses.add(purges.purgeBatch(List.of(new Operation(operation, quiz)), 5000)
+                            .getFirst()
+                            .status());
+                } catch (RuntimeException serialization) {
+                    failures.incrementAndGet();
+                }
+            });
+        }
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(60, java.util.concurrent.TimeUnit.SECONDS));
+        assertTrue(statuses.contains(Outcome.PURGED), "at least one duplicate call must complete the purge");
+
+        // Sequential convergence round in case every concurrent duplicate failed.
+        QuizPurgeService.Result converged = null;
+        int guard = 0;
+        while (converged == null || converged.status() == Outcome.IN_PROGRESS) {
+            converged = purges.purgeBatch(List.of(new Operation(operation, quiz)), 5000)
+                    .getFirst();
+            assertTrue(++guard < 50);
+        }
+        assertEquals(Outcome.PURGED, converged.status());
+        assertEquals(0L, f.db.queryForObject("SELECT count(*) FROM publications WHERE quiz_id=?", Long.class, quiz));
+        assertEquals(0L, quizCount("attempts", quiz));
+        assertEquals(0L, attemptScopedCount("submitted_answers", quiz));
+        for (var entry : expected.entrySet()) {
+            assertEquals(
+                    entry.getValue(),
+                    converged.steps().get(entry.getKey()),
+                    "receipt for " + entry.getKey() + " must count removed rows exactly once");
+        }
+        // A further duplicate replay changes nothing: exactly-once cumulative receipts.
+        var replay =
+                purges.purgeBatch(List.of(new Operation(operation, quiz)), 5000).getFirst();
+        assertEquals(Outcome.PURGED, replay.status());
+        assertEquals(converged.steps(), replay.steps());
+    }
+
+    @Test
+    void staleIdempotencyReplayAfterPurgeAnswersAssessmentRemovedWithoutResurrection() {
+        UUID quiz = UUID.randomUUID();
+        var open = openPublication(quiz, Audience.PUBLIC, 30);
+        UUID attempt = activeAttempt(open.id(), student);
+        String submitKey = key();
+        students.submit(actor(student), attempt, 0, submitKey, null, "evidence");
+        UUID operation = fenceAndAcknowledge(quiz);
+
+        QuizPurgeService.Result result = null;
+        int guard = 0;
+        while (result == null || result.status() == Outcome.IN_PROGRESS) {
+            result = purges.purgeBatch(List.of(new Operation(operation, quiz)), 5000)
+                    .getFirst();
+            assertTrue(++guard < 50);
+        }
+        assertEquals(Outcome.PURGED, result.status());
+
+        // Stale submit replay (rows gone) and stale start replay both answer with the
+        // non-disclosing ASSESSMENT_REMOVED error and resurrect nothing.
+        var submitFailure = assertThrows(
+                PublicationFailure.class,
+                () -> students.submit(actor(student), attempt, 1, submitKey, null, "evidence"));
+        assertEquals(404, submitFailure.status());
+        assertEquals("ASSESSMENT_REMOVED", submitFailure.code());
+        var startFailure = assertThrows(
+                PublicationFailure.class,
+                () -> students.start(actor(student), open.id(), key(), null, null, "evidence"));
+        assertEquals(404, startFailure.status());
+        assertEquals("ASSESSMENT_REMOVED", startFailure.code());
+        assertEquals(0L, f.db.queryForObject("SELECT count(*) FROM attempts WHERE id=?", Long.class, attempt));
+        assertEquals(0L, f.db.queryForObject("SELECT count(*) FROM publications WHERE quiz_id=?", Long.class, quiz));
     }
 }

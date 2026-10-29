@@ -35,6 +35,8 @@ class QuizRevocationRateLimitIntegrationTest {
         values.add("spring.datasource.url", DB::getJdbcUrl);
         values.add("spring.datasource.username", DB::getUsername);
         values.add("spring.datasource.password", DB::getPassword);
+        values.add("spring.flyway.user", DB::getUsername);
+        values.add("spring.flyway.password", DB::getPassword);
     }
 
     @Value("${local.server.port}")

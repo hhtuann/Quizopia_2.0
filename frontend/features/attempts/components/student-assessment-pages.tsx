@@ -19,7 +19,6 @@ import {
   PRIMARY_LINK_CLASSES,
 } from "../../../components/ui/button";
 import { LoadingIndicator } from "../../../components/ui/loading-indicator";
-import { StateBadge } from "../../../components/ui/state-badge";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
 import {
@@ -61,10 +60,8 @@ import {
 import { RealtimeStatusInline } from "../../realtime/components/realtime-status";
 import type { RealtimeResource } from "../../realtime/model/realtime-frame";
 import {
-  ATTEMPT_QUESTION_PAGE_SIZE,
-  boundedQuestionPage,
-  canonicalUuid,
   effectiveAttemptDeadline,
+  canonicalUuid,
   isUnanswered,
   isValidNumericToken,
   newIdempotencyKey,
@@ -75,12 +72,16 @@ import {
   NO_ATTEMPT_MONITORING,
   type AttemptMonitoringObserver,
 } from "../model/monitoring-boundary";
+import { AnswerSummary } from "./answer-fields";
 import {
-  AnswerField,
-  AnswerSummary,
-  SaveStatus,
-  savePhaseLabel,
-} from "./answer-fields";
+  aggregateSavePhase,
+  AttemptWorkspaceHeader,
+} from "./attempt-workspace-header";
+import {
+  AttemptQuestionNavigator,
+  scrollQuestionIntoView,
+} from "./attempt-question-navigator";
+import { AttemptQuestionList } from "./attempt-question-list";
 
 type EntryMode = "PUBLIC" | "CLASS";
 
@@ -96,15 +97,33 @@ function useLocalizeRef() {
   return ref;
 }
 
-/** Semantic StateBadge variants for server-returned Attempt states. */
-const attemptStateVariants: Record<
-  "ACTIVE" | "SUBMITTED" | "ABANDONED",
-  "info" | "success" | "warning" | "neutral"
-> = {
-  ACTIVE: "info",
-  SUBMITTED: "success",
-  ABANDONED: "neutral",
-};
+/** Blocking UI for students lacking STUDENT authority or the LEARNING
+ * workspace, shared by the shell pages and the focused attempt workspace. */
+function useStudentAccessBlock() {
+  const { activeWorkspace, switchWorkspace, user } = useAuth();
+  const { t } = useI18n();
+  if (!user?.roles.includes("STUDENT"))
+    return (
+      <Alert title={t("Student access required")} variant="warning">
+        {t("Please sign in with a Student account to continue.")}
+      </Alert>
+    );
+  if (activeWorkspace !== "LEARNING")
+    return (
+      <Surface className="mx-auto max-w-2xl p-6 sm:p-8">
+        <h1 className="font-heading text-2xl font-bold">
+          {t("Open the Learning workspace")}
+        </h1>
+        <p className="mt-3 leading-7 text-foreground-secondary">
+          {t("Switch workspace to organize your learning.")}
+        </p>
+        <Button className="mt-5" onClick={() => switchWorkspace("LEARNING")}>
+          {t("Switch to Learning")}
+        </Button>
+      </Surface>
+    );
+  return null;
+}
 
 function StudentPageBoundary({
   children,
@@ -113,7 +132,9 @@ function StudentPageBoundary({
 }) {
   return (
     <AuthenticatedBoundary>
-      <StudentWorkspace>{children}</StudentWorkspace>
+      <ApplicationShell currentSection="assessments">
+        <StudentWorkspace>{children}</StudentWorkspace>
+      </ApplicationShell>
     </AuthenticatedBoundary>
   );
 }
@@ -123,30 +144,53 @@ function StudentWorkspace({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const { activeWorkspace, switchWorkspace, user } = useAuth();
+  const blocked = useStudentAccessBlock();
+  return blocked ?? children;
+}
+
+/**
+ * Focused workspace for the ACTIVE attempt route: no standard application
+ * navbar. Authenticated/session gates still apply; the workspace header
+ * supplies the only chrome (brand, back-to-app, language, attempt status).
+ */
+function StudentFocusedWorkspace({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
+  const router = useRouter();
   const { t } = useI18n();
+  const blocked = useStudentAccessBlock();
   return (
-    <ApplicationShell currentSection="assessments">
-      {!user?.roles.includes("STUDENT") ? (
-        <Alert title={t("Student access required")} variant="warning">
-          {t("Please sign in with a Student account to continue.")}
-        </Alert>
-      ) : activeWorkspace !== "LEARNING" ? (
-        <Surface className="mx-auto max-w-2xl p-6 sm:p-8">
-          <h1 className="font-heading text-2xl font-bold">
-            {t("Open the Learning workspace")}
-          </h1>
-          <p className="mt-3 leading-7 text-foreground-secondary">
-            {t("Switch workspace to organize your learning.")}
-          </p>
-          <Button className="mt-5" onClick={() => switchWorkspace("LEARNING")}>
-            {t("Switch to Learning")}
-          </Button>
-        </Surface>
-      ) : (
-        children
-      )}
-    </ApplicationShell>
+    <AuthenticatedBoundary>
+      <main
+        className="flex min-h-dvh min-w-0 flex-col bg-background"
+        id="main-content"
+        tabIndex={-1}
+      >
+        {blocked === null ? (
+          children
+        ) : (
+          <>
+            <AttemptWorkspaceHeader
+              actionsDisabled
+              answeredCount={null}
+              onAbandon={undefined}
+              onBack={() => router.push("/app")}
+              onSubmit={undefined}
+              realtime={null}
+              remainingLabel={null}
+              savePhase={null}
+              showActions={false}
+              studentName={null}
+              title={t("Assessment")}
+              totalCount={null}
+            />
+            <div className="w-full px-4 py-10 sm:px-6 lg:px-8">{blocked}</div>
+          </>
+        )}
+      </main>
+    </AuthenticatedBoundary>
   );
 }
 
@@ -255,7 +299,8 @@ export function StudentAssessmentJoinScreen({
   const router = useRouter();
   const { t } = useI18n();
   const localizeRef = useLocalizeRef();
-  const { rememberPublicLocator } = useAttemptEphemeralContext();
+  const { rememberPublicLocator, rememberPublicationTitle } =
+    useAttemptEphemeralContext();
   const [mode, setMode] = useState<EntryMode>("PUBLIC");
   const [locator, setLocator] = useState("");
   const [publicationId, setPublicationId] = useState("");
@@ -305,6 +350,9 @@ export function StudentAssessmentJoinScreen({
       return;
     }
     setPreview(result.value);
+    // Thread the authorized preview title into session memory so the focused
+    // attempt workspace can show the real exam title (AttemptView has none).
+    rememberPublicationTitle(result.value.publicationId, result.value.title);
     setUncertain(null);
   };
 
@@ -482,10 +530,39 @@ export function StudentAssessmentJoinPage() {
   );
 }
 
+/** Minimal workspace chrome for load/error states before the attempt loads. */
+function FocusedWorkspaceFrame({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const { t } = useI18n();
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <AttemptWorkspaceHeader
+        actionsDisabled
+        answeredCount={null}
+        onAbandon={undefined}
+        onBack={() => router.push("/app")}
+        onSubmit={undefined}
+        realtime={null}
+        remainingLabel={null}
+        savePhase={null}
+        showActions={false}
+        studentName={null}
+        title={t("Assessment")}
+        totalCount={null}
+      />
+      <div className="w-full flex-1 px-4 py-10 sm:px-6 lg:px-8">{children}</div>
+    </div>
+  );
+}
+
 function AttemptLoading() {
   const { t } = useI18n();
   return (
-    <Surface className="mx-auto max-w-3xl p-8">
+    <Surface className="p-8">
       <LoadingIndicator label={t("Loading your attempt")} />
     </Surface>
   );
@@ -502,9 +579,9 @@ export function StudentAttemptPage({
   const { getSessionGeneration, user } = useAuth();
   const scope = `${user?.id ?? "none"}:${getSessionGeneration() ?? "none"}:${attemptId}`;
   return (
-    <StudentPageBoundary>
+    <StudentFocusedWorkspace>
       {client === null ? (
-        <ClientUnavailable />
+        <ClientUnavailableFocused />
       ) : (
         <AttemptLoader
           attemptId={attemptId}
@@ -513,7 +590,21 @@ export function StudentAttemptPage({
           monitoring={monitoring}
         />
       )}
-    </StudentPageBoundary>
+    </StudentFocusedWorkspace>
+  );
+}
+
+/** ClientUnavailable padded for the focused workspace (no shell container). */
+function ClientUnavailableFocused() {
+  const { t } = useI18n();
+  return (
+    <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
+      <Alert title={t("Assessment access unavailable")} variant="warning">
+        {t(
+          "The authenticated request service is unavailable. Sign in again before continuing.",
+        )}
+      </Alert>
+    </div>
   );
 }
 
@@ -586,13 +677,20 @@ function AttemptLoader({
   }, [attemptId, client, getPublicLocator, invalidAttemptId, localizeRef]);
   if (invalidAttemptId || error)
     return (
-      <Alert title={t("Attempt unavailable")} variant="danger">
-        {invalidAttemptId
-          ? t("The Attempt ID is invalid.")
-          : (error ?? undefined)}
-      </Alert>
+      <FocusedWorkspaceFrame>
+        <Alert title={t("Attempt unavailable")} variant="danger">
+          {invalidAttemptId
+            ? t("The Attempt ID is invalid.")
+            : (error ?? undefined)}
+        </Alert>
+      </FocusedWorkspaceFrame>
     );
-  if (attempt === null) return <AttemptLoading />;
+  if (attempt === null)
+    return (
+      <FocusedWorkspaceFrame>
+        <AttemptLoading />
+      </FocusedWorkspaceFrame>
+    );
   return monitoring === NO_ATTEMPT_MONITORING ? (
     <IntegratedAttemptScreen
       attempt={attempt}
@@ -936,6 +1034,7 @@ export function AttemptScreen({
 }) {
   const router = useRouter();
   const { t, localize, locale } = useI18n();
+  const { user } = useAuth();
   const localizeRef = useLocalizeRef();
   const locatorContext = useAttemptEphemeralContext();
   const coordinator = useAttemptCoordinator({
@@ -943,8 +1042,25 @@ export function AttemptScreen({
     client,
   });
   const { attempt } = coordinator;
-  const [selected, setSelected] = useState(attempt.questions[0]?.number ?? 1);
-  const [questionPage, setQuestionPage] = useState(0);
+  // Per-attempt review flags are client-side session state only: question
+  // numbers in React state, never sent to the backend, never persisted to
+  // browser storage, never touching answers, autosave or grading. Flags do
+  // not survive a hard reload; that limitation is documented.
+  const [flags, setFlags] = useState<ReadonlySet<number>>(() => new Set());
+  const toggleFlag = useCallback((questionNumber: number) => {
+    setFlags((current) => {
+      const next = new Set(current);
+      if (next.has(questionNumber)) next.delete(questionNumber);
+      else next.add(questionNumber);
+      return next;
+    });
+  }, []);
+  // Current question tracks the navigator's current indicator; it is the
+  // canonical question number, never an array index, so answer identity is
+  // stable while scrolling and across locale changes.
+  const [currentQuestion, setCurrentQuestion] = useState(
+    attempt.questions[0]?.number ?? 1,
+  );
   const [confirmation, setConfirmation] = useState<"submit" | "abandon" | null>(
     null,
   );
@@ -957,24 +1073,23 @@ export function AttemptScreen({
     uncertain !== null || terminalBusy,
     t("This action may not have finished. Leave anyway?"),
   );
+  /** Leaving the focused workspace confirms first while a terminal mutation
+   * outcome is unresolved; plain link navigation is guarded by the same hook. */
+  function backFromAttempt() {
+    if (
+      (uncertain !== null || terminalBusy) &&
+      !window.confirm(
+        t(
+          "This mutation outcome is unresolved and its exact recovery key exists only in memory. Leave anyway?",
+        ),
+      )
+    )
+      return;
+    router.push("/app");
+  }
   const { remaining, expired } = useInformativeCountdown(
     attempt,
     coordinator.refresh,
-  );
-  const question =
-    attempt.questions.find((item) => item.number === selected) ??
-    attempt.questions[0];
-  const questionBounds = boundedQuestionPage(
-    attempt.questions.length,
-    questionPage,
-  );
-  const visibleQuestions = attempt.questions.slice(
-    questionBounds.start,
-    questionBounds.end,
-  );
-  const questionPageCount = Math.max(
-    1,
-    Math.ceil(attempt.questions.length / ATTEMPT_QUESTION_PAGE_SIZE),
   );
   const answered = Object.values(coordinator.answers).filter(
     (answer) => !isUnanswered(answer),
@@ -1067,7 +1182,7 @@ export function AttemptScreen({
         !authorityPaused &&
         !terminalBusy &&
         uncertain === null,
-      selectedQuestionNumber: selected,
+      selectedQuestionNumber: currentQuestion,
     });
   }, [
     attempt.attemptId,
@@ -1075,13 +1190,16 @@ export function AttemptScreen({
     authorityPaused,
     expired,
     monitoring,
-    selected,
+    currentQuestion,
     terminalBusy,
     uncertain,
   ]);
 
+  /** Deliberate question selection (navigator jump): updates the current
+   * indicator and reports the selection to the monitoring observer, exactly
+   * like the previous per-question navigation clicks. */
   const selectQuestion = (questionNumber: number) => {
-    setSelected(questionNumber);
+    setCurrentQuestion(questionNumber);
     if (monitoring.enabled)
       monitoring.onQuestionSelection?.({
         attemptId: attempt.attemptId,
@@ -1089,12 +1207,35 @@ export function AttemptScreen({
       });
   };
 
-  const selectQuestionPage = (page: number) => {
-    const next = boundedQuestionPage(attempt.questions.length, page);
-    setQuestionPage(next.page);
-    const first = attempt.questions[next.start];
-    if (first !== undefined) selectQuestion(first.number);
+  /** Scroll-position indicator update only: passive scrolling must not emit
+   * monitoring selection events or shift layout. */
+  const handleVisibleQuestionChange = useCallback((questionNumber: number) => {
+    setCurrentQuestion((previous) =>
+      previous === questionNumber ? previous : questionNumber,
+    );
+  }, []);
+
+  const jumpToQuestion = (questionNumber: number) => {
+    selectQuestion(questionNumber);
+    scrollQuestionIntoView(questionNumber);
   };
+
+  const handleAnswerChange = (questionNumber: number, answer: Answer) => {
+    const previous = coordinator.answers[questionNumber];
+    if (previous === undefined) return;
+    coordinator.changeAnswer(questionNumber, answer);
+    if (!monitoring.enabled) return;
+    monitoring.onAnswerInteraction?.({
+      attemptId: attempt.attemptId,
+      questionNumber,
+      type: isUnanswered(answer)
+        ? "cleared"
+        : isUnanswered(previous)
+          ? "selected"
+          : "changed",
+    });
+  };
+
   const mutationsBlocked = authorityPaused || expired;
 
   const runTerminal = useCallback(
@@ -1298,413 +1439,251 @@ export function AttemptScreen({
       );
   };
 
-  if (question === undefined) return null;
+  if (attempt.questions.length === 0) return null;
 
   return (
-    <div className="space-y-5">
-      <header className="rounded-2xl border border-primary/10 bg-surface p-5 shadow-card sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
-              {t("Attempt {ordinal}", { ordinal: attempt.ordinal })}
-            </p>
-            <h1 className="mt-2 font-heading text-2xl font-bold sm:text-3xl">
-              {t("Student assessment")}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <StateBadge variant={attemptStateVariants[attempt.state]}>
-                {attempt.state}
-              </StateBadge>
-            </div>
-          </div>
-          <div className="rounded-xl border border-border bg-background px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide text-foreground-muted">
-              {t("Informative countdown")}
-            </p>
-            <p
-              className="mt-1 font-mono text-xl font-bold text-foreground"
-              role="timer"
-            >
-              {countdownLabel(remaining, localize)}
-            </p>
-            <p className="mt-1 text-xs text-foreground-muted">
-              {t("Deadlines follow Quizopia's clock, not your device.")}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-3 text-sm text-foreground-secondary">
-          <span>
-            {t("{answered} of {total} answered", {
-              answered: formatNumber(locale, answered),
-              total: formatNumber(locale, attempt.questions.length),
-            })}
-          </span>
-          {attempt.deadlineAt ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>
-                {t("Deadline {deadline}", {
-                  deadline: formatInstant(locale, attempt.deadlineAt, {
-                    withTimeZone: true,
-                  }),
-                })}
-              </span>
-            </>
-          ) : null}
-          <span aria-hidden="true">·</span>
-          <RealtimeStatusInline status={realtimeStatus} />
-        </div>
-      </header>
+    <div className="flex min-h-dvh min-w-0 flex-col">
+      <AttemptWorkspaceHeader
+        actionsDisabled={mutationsBlocked || uncertain !== null || terminalBusy}
+        answeredCount={answered}
+        onAbandon={() => setConfirmation("abandon")}
+        onBack={backFromAttempt}
+        onSubmit={() => setConfirmation("submit")}
+        realtime={<RealtimeStatusInline status={realtimeStatus} />}
+        remainingLabel={
+          remaining === null ? null : countdownLabel(remaining, localize)
+        }
+        savePhase={aggregateSavePhase(coordinator.statuses)}
+        showActions={attempt.state === "ACTIVE"}
+        studentName={user?.username ?? null}
+        title={
+          locatorContext.getPublicationTitle(attempt.publicationId) ??
+          t("Assessment")
+        }
+        totalCount={attempt.questions.length}
+      />
+      <div className="w-full flex-1 space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        {attempt.deadlineAt ? (
+          <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-foreground-muted">
+            <span>
+              {t("Deadline {deadline}", {
+                deadline: formatInstant(locale, attempt.deadlineAt, {
+                  withTimeZone: true,
+                }),
+              })}
+            </span>
+          </p>
+        ) : null}
 
-      {attempt.closure?.closureCutoffAt ? (
-        <Alert title={t("Teacher closure cutoff is active")} variant="warning">
-          {t(
-            "The cutoff is {cutoff}. Only saved answers count if the attempt is finalized.",
-            {
-              cutoff: formatInstant(locale, attempt.closure.closureCutoffAt, {
-                withTimeZone: true,
-              }),
-            },
-          )}
-        </Alert>
-      ) : null}
-      {monitoringContent}
-      {expired && attempt.state === "ACTIVE" ? (
-        <Alert title={t("Checking status")} variant="warning">
-          {t(
-            "Time is up. Editing is paused while the final state is confirmed.",
-          )}
-          <div className="mt-3">
-            <Button
-              onClick={() => void reconcileAuthority()}
-              size="compact"
-              variant="secondary"
-            >
-              {t("Retry status check")}
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
-      {terminalError ? (
-        <Alert title={t("Action could not be confirmed")} variant="danger">
-          {terminalError}
-        </Alert>
-      ) : null}
-      {authorityPaused ? (
-        <Alert title={t("Status check required")} variant="warning">
-          {t(
-            "Answers and final actions stay paused until the current state is confirmed.",
-          )}
-          <div className="mt-3">
-            <Button
-              onClick={() => void reconcileAuthority()}
-              size="compact"
-              variant="secondary"
-            >
-              {t("Retry status check")}
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
-      {uncertain ? (
-        <Alert
-          title={t("{action} outcome is uncertain", {
-            action: uncertain.action,
-          })}
-          variant="warning"
-        >
-          {t("Your original request is kept in memory.")}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              disabled={mutationsBlocked}
-              isLoading={terminalBusy}
-              onClick={() => void runTerminal(uncertain)}
-              size="compact"
-              variant="secondary"
-            >
-              {t("Retry exact operation")}
-            </Button>
-            {uncertain.action !== "retake" ? (
+        {attempt.closure?.closureCutoffAt ? (
+          <Alert
+            title={t("Teacher closure cutoff is active")}
+            variant="warning"
+          >
+            {t(
+              "The cutoff is {cutoff}. Only saved answers count if the attempt is finalized.",
+              {
+                cutoff: formatInstant(locale, attempt.closure.closureCutoffAt, {
+                  withTimeZone: true,
+                }),
+              },
+            )}
+          </Alert>
+        ) : null}
+        {monitoringContent}
+        {expired && attempt.state === "ACTIVE" ? (
+          <Alert title={t("Checking status")} variant="warning">
+            {t(
+              "Time is up. Editing is paused while the final state is confirmed.",
+            )}
+            <div className="mt-3">
+              <Button
+                onClick={() => void reconcileAuthority()}
+                size="compact"
+                variant="secondary"
+              >
+                {t("Retry status check")}
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+        {terminalError ? (
+          <Alert title={t("Action could not be confirmed")} variant="danger">
+            {terminalError}
+          </Alert>
+        ) : null}
+        {authorityPaused ? (
+          <Alert title={t("Status check required")} variant="warning">
+            {t(
+              "Answers and final actions stay paused until the current state is confirmed.",
+            )}
+            <div className="mt-3">
+              <Button
+                onClick={() => void reconcileAuthority()}
+                size="compact"
+                variant="secondary"
+              >
+                {t("Retry status check")}
+              </Button>
+            </div>
+          </Alert>
+        ) : null}
+        {uncertain ? (
+          <Alert
+            title={t("{action} outcome is uncertain", {
+              action: uncertain.action,
+            })}
+            variant="warning"
+          >
+            {t("Your original request is kept in memory.")}
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 disabled={mutationsBlocked}
-                onClick={() => void reconcileTerminal()}
+                isLoading={terminalBusy}
+                onClick={() => void runTerminal(uncertain)}
                 size="compact"
-                variant="ghost"
+                variant="secondary"
               >
-                {t("Check current state")}
+                {t("Retry exact operation")}
               </Button>
-            ) : null}
-          </div>
-        </Alert>
-      ) : null}
-
-      {attempt.state !== "ACTIVE" ? (
-        <Surface className="p-6 sm:p-8">
-          <h2 className="text-2xl font-bold">
-            {attempt.state === "SUBMITTED"
-              ? t("Attempt submitted")
-              : t("Attempt abandoned")}
-          </h2>
-          <p className="mt-3 leading-7 text-foreground-secondary">
-            {t("This attempt has ended. Answers can no longer be changed.")}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            {attempt.state === "SUBMITTED" ? (
-              <Link
-                className={PRIMARY_LINK_CLASSES}
-                href={`/app/attempts/${attempt.attemptId}/result`}
-              >
-                {t("View result")}
-              </Link>
-            ) : null}
-            <Button
-              disabled={mutationsBlocked}
-              isLoading={terminalBusy}
-              onClick={retake}
-              variant="secondary"
-            >
-              {t("Start explicit retake")}
-            </Button>
-            <Link className={OUTLINE_LINK_CLASSES} href="/app/assessments/join">
-              {t("Enter another assessment")}
-            </Link>
-          </div>
-          {locatorContext.getPublicLocator(attempt.publicationId) === null ? (
-            <p className="mt-4 text-xs text-foreground-muted">
-              {t(
-                "For a PUBLIC assessment after a reload, enter its private locator again before retaking. The locator is never saved.",
-              )}
-            </p>
-          ) : null}
-        </Surface>
-      ) : (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-          <nav
-            aria-label={t("Attempt questions")}
-            className="lg:sticky lg:top-4 lg:self-start"
-          >
-            <Surface className="p-4">
-              <p className="px-2 text-sm font-bold text-foreground">
-                {t("Questions")}
-              </p>
-              <p
-                aria-live="polite"
-                className="mt-1 px-2 text-xs text-foreground-muted"
-              >
-                {t("{start}–{end} of {total}", {
-                  start: formatNumber(locale, questionBounds.start + 1),
-                  end: formatNumber(locale, questionBounds.end),
-                  total: formatNumber(locale, attempt.questions.length),
-                })}
-              </p>
-              <ol className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8 lg:grid-cols-4">
-                {visibleQuestions.map((item) => {
-                  const status =
-                    coordinator.statuses[item.number]?.phase ?? "draft";
-                  return (
-                    <li key={item.number}>
-                      <button
-                        aria-current={
-                          selected === item.number ? "step" : undefined
-                        }
-                        aria-label={t("Question {number}, {status}", {
-                          number: item.number,
-                          status: savePhaseLabel(status, t),
-                        })}
-                        className={`flex min-h-11 w-full items-center justify-center rounded-lg border font-mono text-sm font-bold focus-visible:ring-2 focus-visible:ring-focus ${
-                          selected === item.number
-                            ? "border-primary bg-primary text-white"
-                            : status === "saved"
-                              ? "border-success/40 bg-success/5 text-foreground"
-                              : "border-warning/50 bg-warning/5 text-foreground"
-                        }`}
-                        onClick={() => selectQuestion(item.number)}
-                        type="button"
-                      >
-                        {item.number}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-              {questionPageCount > 1 ? (
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Button
-                    disabled={questionBounds.page === 0}
-                    onClick={() => selectQuestionPage(questionBounds.page - 1)}
-                    size="compact"
-                    variant="ghost"
-                  >
-                    {t("Previous questions")}
-                  </Button>
-                  <Button
-                    disabled={questionBounds.page === questionPageCount - 1}
-                    onClick={() => selectQuestionPage(questionBounds.page + 1)}
-                    size="compact"
-                    variant="ghost"
-                  >
-                    {t("Next questions")}
-                  </Button>
-                </div>
-              ) : null}
-            </Surface>
-          </nav>
-
-          <Surface
-            className="min-w-0 p-5 sm:p-8"
-            role="region"
-            aria-labelledby={`question-${question.number}`}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-primary">
-                  {t("Question {number} · {type}", {
-                    number: question.number,
-                    type: question.type.replaceAll("_", " "),
-                  })}
-                </p>
-                <h2
-                  className="mt-3 whitespace-pre-wrap text-lg font-bold leading-8"
-                  id={`question-${question.number}`}
+              {uncertain.action !== "retake" ? (
+                <Button
+                  disabled={mutationsBlocked}
+                  onClick={() => void reconcileTerminal()}
+                  size="compact"
+                  variant="ghost"
                 >
-                  {question.stemMarkdown}
-                </h2>
-              </div>
-              <SaveStatus
-                status={
-                  coordinator.statuses[question.number] ?? { phase: "draft" }
-                }
-              />
+                  {t("Check current state")}
+                </Button>
+              ) : null}
             </div>
-            <div className="mt-6">
-              <AnswerField
-                answer={coordinator.answers[question.number]!}
-                disabled={
-                  mutationsBlocked || terminalBusy || uncertain !== null
-                }
-                onChange={(answer) => {
-                  const previous = coordinator.answers[question.number]!;
-                  coordinator.changeAnswer(question.number, answer);
-                  if (!monitoring.enabled) return;
-                  monitoring.onAnswerInteraction?.({
-                    attemptId: attempt.attemptId,
-                    questionNumber: question.number,
-                    type: isUnanswered(answer)
-                      ? "cleared"
-                      : isUnanswered(previous)
-                        ? "selected"
-                        : "changed",
-                  });
-                }}
-                question={question}
-              />
+          </Alert>
+        ) : null}
+
+        {attempt.state !== "ACTIVE" ? (
+          <Surface className="p-6 sm:p-8">
+            <h2 className="text-2xl font-bold">
+              {attempt.state === "SUBMITTED"
+                ? t("Attempt submitted")
+                : t("Attempt abandoned")}
+            </h2>
+            <p className="mt-3 leading-7 text-foreground-secondary">
+              {t("This attempt has ended. Answers can no longer be changed.")}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              {attempt.state === "SUBMITTED" ? (
+                <Link
+                  className={PRIMARY_LINK_CLASSES}
+                  href={`/app/attempts/${attempt.attemptId}/result`}
+                >
+                  {t("View result")}
+                </Link>
+              ) : null}
+              <Button
+                disabled={mutationsBlocked}
+                isLoading={terminalBusy}
+                onClick={retake}
+                variant="secondary"
+              >
+                {t("Start explicit retake")}
+              </Button>
+              <Link
+                className={OUTLINE_LINK_CLASSES}
+                href="/app/assessments/join"
+              >
+                {t("Enter another assessment")}
+              </Link>
             </div>
-            {(["draft", "failed", "conflict", "uncertain"] as const).includes(
-              coordinator.statuses[question.number]?.phase as
-                "draft" | "failed" | "conflict" | "uncertain",
-            ) ? (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {coordinator.statuses[question.number]?.phase ===
-                "uncertain" ? (
-                  <>
-                    <Button
-                      disabled={mutationsBlocked}
-                      onClick={() =>
-                        void coordinator.retryUncertain(question.number)
-                      }
-                      size="compact"
-                      variant="secondary"
-                    >
-                      {t("Retry exact save")}
-                    </Button>
-                    <Button
-                      disabled={mutationsBlocked}
-                      onClick={() =>
-                        void coordinator.checkAuthoritativeState(
-                          question.number,
-                        )
-                      }
-                      size="compact"
-                      variant="ghost"
-                    >
-                      {t("Check status")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    disabled={mutationsBlocked}
-                    onClick={() =>
-                      void (coordinator.statuses[question.number]?.phase ===
-                      "conflict"
-                        ? coordinator.saveConflict(question.number)
-                        : coordinator.retryFailed(question.number))
-                    }
-                    size="compact"
-                    variant="secondary"
-                  >
-                    {t("Save this draft")}
-                  </Button>
+            {locatorContext.getPublicLocator(attempt.publicationId) === null ? (
+              <p className="mt-4 text-xs text-foreground-muted">
+                {t(
+                  "For a PUBLIC assessment after a reload, enter its private locator again before retaking. The locator is never saved.",
                 )}
-              </div>
+              </p>
             ) : null}
           </Surface>
-        </div>
-      )}
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+            {/* DOM order keeps the navigator reachable first on narrow
+              screens; the desktop grid places it beside the list. */}
+            <div className="min-w-0 lg:col-start-2 lg:row-start-1">
+              <AttemptQuestionNavigator
+                answers={coordinator.answers}
+                currentNumber={currentQuestion}
+                flags={flags}
+                onJump={jumpToQuestion}
+                questions={attempt.questions}
+                statuses={coordinator.statuses}
+              />
+            </div>
+            <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+              <AttemptQuestionList
+                actionsDisabled={mutationsBlocked}
+                answers={coordinator.answers}
+                answersDisabled={
+                  mutationsBlocked || terminalBusy || uncertain !== null
+                }
+                flags={flags}
+                onAnswerChange={handleAnswerChange}
+                onCheckAuthoritative={(questionNumber) =>
+                  void coordinator.checkAuthoritativeState(questionNumber)
+                }
+                onRetryFailed={(questionNumber) =>
+                  void (coordinator.statuses[questionNumber]?.phase ===
+                  "conflict"
+                    ? coordinator.saveConflict(questionNumber)
+                    : coordinator.retryFailed(questionNumber))
+                }
+                onRetryUncertain={(questionNumber) =>
+                  void coordinator.retryUncertain(questionNumber)
+                }
+                onToggleFlag={toggleFlag}
+                onVisibleQuestionChange={handleVisibleQuestionChange}
+                questions={attempt.questions}
+                statuses={coordinator.statuses}
+              />
+            </div>
+          </div>
+        )}
 
-      {attempt.state === "ACTIVE" ? (
-        <Surface className="flex flex-wrap items-center justify-between gap-4 p-5">
-          <p className="max-w-xl text-sm leading-6 text-foreground-secondary">
+        {attempt.state === "ACTIVE" ? (
+          <p className="max-w-3xl text-xs leading-5 text-foreground-muted">
             {t(
               "Submitting sends all your answers. Abandoning is irreversible and leaves no result.",
             )}
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={mutationsBlocked || uncertain !== null || terminalBusy}
-              onClick={() => setConfirmation("submit")}
-            >
-              {t("Submit attempt")}
-            </Button>
-            <Button
-              disabled={mutationsBlocked || uncertain !== null || terminalBusy}
-              onClick={() => setConfirmation("abandon")}
-              variant="danger"
-            >
-              {t("Abandon attempt")}
-            </Button>
-          </div>
-        </Surface>
-      ) : null}
+        ) : null}
 
-      {confirmation === "submit" ? (
-        <PublicationConfirmation
-          confirmLabel={t("Submit complete answers")}
-          onCancel={() => setConfirmation(null)}
-          onConfirm={() => void submit()}
-          title={t("Submit this Attempt?")}
-        >
-          <p>
-            {t(
-              "Quizopia will save pending drafts, then submit one answer per question. Your grade is calculated right after.",
-            )}
-          </p>
-        </PublicationConfirmation>
-      ) : null}
-      {confirmation === "abandon" ? (
-        <PublicationConfirmation
-          confirmLabel={t("Abandon Attempt")}
-          destructive
-          onCancel={() => setConfirmation(null)}
-          onConfirm={() => void abandon()}
-          title={t("Abandon this Attempt?")}
-        >
-          <p>
-            {t(
-              "Abandoning is irreversible, uses up this attempt, and creates no result. Closing the browser never abandons for you.",
-            )}
-          </p>
-        </PublicationConfirmation>
-      ) : null}
+        {confirmation === "submit" ? (
+          <PublicationConfirmation
+            confirmLabel={t("Submit complete answers")}
+            onCancel={() => setConfirmation(null)}
+            onConfirm={() => void submit()}
+            title={t("Submit this Attempt?")}
+          >
+            <p>
+              {t(
+                "Quizopia will save pending drafts, then submit one answer per question. Your grade is calculated right after.",
+              )}
+            </p>
+          </PublicationConfirmation>
+        ) : null}
+        {confirmation === "abandon" ? (
+          <PublicationConfirmation
+            confirmLabel={t("Abandon Attempt")}
+            destructive
+            onCancel={() => setConfirmation(null)}
+            onConfirm={() => void abandon()}
+            title={t("Abandon this Attempt?")}
+          >
+            <p>
+              {t(
+                "Abandoning is irreversible, uses up this attempt, and creates no result. Closing the browser never abandons for you.",
+              )}
+            </p>
+          </PublicationConfirmation>
+        ) : null}
+      </div>
     </div>
   );
 }

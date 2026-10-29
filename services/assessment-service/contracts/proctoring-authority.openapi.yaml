@@ -102,6 +102,7 @@ components:
           active,
           deadlineAt,
           checkedAt,
+          quizId,
         ]
       properties:
         actorId:
@@ -133,6 +134,10 @@ components:
         checkedAt:
           type: string
           format: date-time
+        quizId:
+          type: string
+          format: uuid
+          description: Owning Quiz binding used by Proctoring to enforce its quiz-scoped revocation fence and purge.
     Error:
       type: object
       additionalProperties: false

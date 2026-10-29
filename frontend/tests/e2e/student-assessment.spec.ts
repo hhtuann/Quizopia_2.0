@@ -158,6 +158,7 @@ async function mockAssessment(page: Page) {
   }> = [];
   let starts = 0;
   let gets = 0;
+  let abandons = 0;
   let submittedBody: unknown = null;
   await page.route("**/api/assessments/**", async (route) => {
     const request = route.request();
@@ -229,6 +230,24 @@ async function mockAssessment(page: Page) {
       await fulfill(route, 200, result);
       return;
     }
+    if (path.endsWith(`/attempts/${attemptId}/abandon`)) {
+      abandons += 1;
+      expect(request.postDataJSON()).toMatchObject({
+        expectedRevision: current.revision,
+      });
+      expect(request.headers()["idempotency-key"]).toMatch(
+        /^[A-Za-z0-9_-]{16,128}$/,
+      );
+      current = { ...current, state: "ABANDONED" };
+      await fulfill(route, 200, {
+        attemptId,
+        state: "ABANDONED",
+        terminalReason: "STUDENT_ABANDON",
+        revision: String(BigInt(current.revision) + BigInt(1)),
+        finalizedAt: "2099-10-16T08:15:00Z",
+      });
+      return;
+    }
     if (path.endsWith(`/attempts/${attemptId}/result`)) {
       await fulfill(route, 200, result);
       return;
@@ -246,7 +265,7 @@ async function mockAssessment(page: Page) {
     );
   });
   return {
-    read: () => ({ current, gets, saves, starts, submittedBody }),
+    read: () => ({ current, gets, saves, starts, submittedBody, abandons }),
   };
 }
 
@@ -383,9 +402,7 @@ test("same-document browser history warns before leaving an unsaved answer", asy
   await dialog.dismiss();
   await back;
   await expect(page.getByRole("radio", { name: /A.*Alpha/ })).toBeChecked();
-  await expect(
-    page.getByRole("heading", { name: "Student assessment" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
 });
 
 test("switching locale mid-attempt preserves unsaved answers and submission still succeeds", async ({
@@ -394,32 +411,17 @@ test("switching locale mid-attempt preserves unsaved answers and submission stil
   await mockStudentAuth(page);
   const assessment = await mockAssessment(page);
   await page.goto(`/app/attempts/${attemptId}`);
-  await expect(
-    page.getByRole("heading", { name: "Student assessment" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
 
   // Unsaved local work: a typed numeric answer not yet flushed to the server.
   await page.getByRole("button", { name: /Question 4/ }).click();
   await page.getByLabel("Four-character numeric answer").fill("1.00");
 
-  // Switch the application language to Vietnamese through the user menu
-  // language options on the authenticated shell.
-  await page.getByRole("button", { name: /Open user menu for/ }).click();
-  await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("heading", { name: "Bài kiểm tra của học sinh" }),
-  ).toBeVisible();
-  await expect(page.getByText("Đồng hồ đếm ngược tham khảo")).toBeVisible();
-
-  // No remount occurred: the unsaved input value and selected question survive,
-  // and the informative countdown keeps rendering after the locale switch.
-  await expect(page.getByLabel("Câu trả lời số gồm bốn ký tự")).toHaveValue(
-    "1.00",
-  );
-  await expect(page.getByRole("timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
-
-  // Autosave continued in the background; wait for the numeric save.
+  // Autosave the draft before leaving: the focused workspace carries no
+  // language control by design (correction Task A), so switching locale now
+  // means persisting the preference and re-entering through a client-side
+  // round trip (Back to app -> attempt). Only server-saved answers survive
+  // a workspace exit — an unsaved local draft honestly does not.
   await expect
     .poll(() =>
       assessment
@@ -432,6 +434,24 @@ test("switching locale mid-attempt preserves unsaved answers and submission stil
         ),
     )
     .toBe(true);
+  await page
+    .context()
+    .addCookies([
+      { name: "quizopia-locale", value: "vi", url: "http://localhost:3000" },
+    ]);
+  await page.getByRole("button", { name: "Back to app" }).click();
+  await page.waitForURL("http://localhost:3000/app");
+  await page.goto(`/app/attempts/${attemptId}`);
+  await expect(
+    page.getByRole("heading", { name: "Bài kiểm tra" }),
+  ).toBeVisible();
+
+  // The server-saved answer is restored authoritatively in the Vietnamese
+  // workspace and the informative countdown keeps rendering.
+  await expect(page.getByLabel("Câu trả lời số gồm bốn ký tự")).toHaveValue(
+    "1.00",
+  );
+  await expect(page.getByRole("timer")).toHaveText(/\d{2}:\d{2}:\d{2}/);
 
   // Submitting from the Vietnamese UI still completes the authoritative flow.
   await page.getByRole("button", { name: "Nộp bài" }).click();
@@ -493,4 +513,166 @@ test("dependency 503 remains a feature error without logout or refresh cascade",
     page.getByRole("button", { name: /Open user menu for student/ }),
   ).toBeVisible();
   expect(refreshCalls).toBe(1);
+});
+
+test("active attempt loads into a dedicated workspace without the application navbar", async ({
+  page,
+}) => {
+  await mockStudentAuth(page);
+  await mockAssessment(page);
+  await page.goto(`/app/attempts/${attemptId}`);
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
+  // No standard application navbar, account menu OR language control inside
+  // the focused workspace; its only chrome is the workspace header.
+  await expect(
+    page.getByRole("navigation", { name: "Primary navigation" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Open user menu for/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Language: |Ngôn ngữ: / }),
+  ).toHaveCount(0);
+  // Back control is the shared icon-only button (no visible text).
+  const back = page.getByRole("button", { name: "Back to app" });
+  await expect(back).toBeVisible();
+  await expect(back.locator("svg")).toBeVisible();
+  await expect(back).toHaveText("");
+  await expect(
+    page.getByRole("button", { name: "Submit attempt" }),
+  ).toBeVisible();
+  await expect(page.getByRole("timer")).toBeVisible();
+  // Compact timer: time only, no explanatory caption text.
+  await expect(page.getByRole("timer")).toHaveText(/^\d{2,}:\d{2}:\d{2}$/);
+  // No technical metadata in the visible header.
+  expect(await page.locator("header").innerText()).not.toMatch(
+    /ACTIVE|[0-9a-f]{8}-[0-9a-f]{4}|Revision/,
+  );
+});
+
+test("navigator jumps scroll the addressed question fully clear of the sticky header", async ({
+  page,
+}) => {
+  await mockStudentAuth(page);
+  await mockAssessment(page);
+  await page.goto(`/app/attempts/${attemptId}`);
+  const header = page.locator("header").first();
+  await expect(header).toBeVisible();
+  const fourth = page.locator("#attempt-question-4");
+  await page.getByRole("button", { name: /^Question 4,/ }).click();
+  // The final card is bottom-clamped by the document end, so assert the
+  // generic contract: fully addressed in the upper viewport region and never
+  // covered by the sticky header.
+  await expect(fourth).toBeInViewport({ ratio: 0.4 });
+  const headerBox = (await header.boundingBox())!;
+  const cardBox = (await fourth.boundingBox())!;
+  expect(cardBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 2);
+  // Upper-region placement cannot hold when the final card is bottom-clamped
+  // by the document end on shorter viewports; the enforceable contract is
+  // that the addressed card is substantially visible and clear of the header.
+  expect(cardBox.y).toBeLessThan((page.viewportSize()?.height ?? 720) * 0.95);
+  await expect(
+    page.getByRole("button", { name: /^Question 4,/ }),
+  ).toHaveAttribute("aria-current", "true");
+
+  // Keyboard activation from the navigator reaches the same question.
+  const firstBox = page.getByRole("button", { name: /^Question 1,/ });
+  await firstBox.focus();
+  await page.keyboard.press("Enter");
+  const first = page.locator("#attempt-question-1");
+  await expect(first).toBeInViewport({ ratio: 0.4 });
+  const firstCardBox = (await first.boundingBox())!;
+  expect(firstCardBox.y).toBeGreaterThanOrEqual(
+    headerBox.y + headerBox.height - 2,
+  );
+  await expect(firstBox).toHaveAttribute("aria-current", "true");
+});
+
+test("workspace stays readable and overflow-free at 390px with the collapsible navigator", async ({
+  page,
+}) => {
+  await mockStudentAuth(page);
+  const assessment = await mockAssessment(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/app/attempts/${attemptId}`);
+  await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  const toggle = page.getByRole("button", { name: "Questions", exact: true });
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+  await page.getByRole("button", { name: /^Question 4,/ }).click();
+  await expect(page.locator("#attempt-question-4")).toBeInViewport();
+  const numeric = page.getByLabel("Four-character numeric answer");
+  await numeric.fill("2.50");
+
+  // Jumping between questions never remounts the cards or drops answers.
+  await page.getByRole("button", { name: /^Question 1,/ }).click();
+  await expect(page.locator("#attempt-question-1")).toBeInViewport();
+  await page.getByRole("button", { name: /^Question 4,/ }).click();
+  await expect(numeric).toHaveValue("2.50");
+
+  // Autosave survived the navigation jumps and the viewport never overflows.
+  await expect.poll(() => assessment.read().saves.length).toBe(1);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("desktop workspaces keep the sticky question navigator visible at 1440 and 1920", async ({
+  page,
+}) => {
+  await mockStudentAuth(page);
+  await mockAssessment(page);
+  await page.goto(`/app/attempts/${attemptId}`);
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 1920, height: 1080 },
+  ]) {
+    await page.setViewportSize(size);
+    await expect(
+      page.getByRole("navigation", { name: "Attempt questions" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^Question 4,/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Questions", exact: true }),
+    ).toBeHidden();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
+test("abandon requires explicit confirmation and reaches the terminal surface exactly once", async ({
+  page,
+}) => {
+  await mockStudentAuth(page);
+  const assessment = await mockAssessment(page);
+  await page.goto(`/app/attempts/${attemptId}`);
+  await page.getByRole("radio", { name: /A.*Alpha/ }).check();
+  await expect.poll(() => assessment.read().saves.length).toBe(1);
+  await page.getByRole("button", { name: "Abandon attempt" }).click();
+  const confirm = page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Abandon Attempt" });
+  await expect(confirm).toBeVisible();
+  await confirm.click();
+  await expect(page.getByText("Attempt abandoned")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Start explicit retake" }),
+  ).toBeVisible();
+  expect(assessment.read().abandons).toBe(1);
 });

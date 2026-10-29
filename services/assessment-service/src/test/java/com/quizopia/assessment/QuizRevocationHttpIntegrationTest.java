@@ -6,6 +6,9 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.TEXT_PLAIN;
 
 import com.quizopia.assessment.application.QuizRevocationService;
+import com.quizopia.assessment.domain.PublicationConfiguration;
+import com.quizopia.assessment.persistence.JdbcPublicationStore;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import org.junit.jupiter.api.*;
@@ -43,6 +46,8 @@ class QuizRevocationHttpIntegrationTest {
         values.add("spring.datasource.url", DB::getJdbcUrl);
         values.add("spring.datasource.username", DB::getUsername);
         values.add("spring.datasource.password", DB::getPassword);
+        values.add("spring.flyway.user", DB::getUsername);
+        values.add("spring.flyway.password", DB::getPassword);
     }
 
     @Value("${local.server.port}")
@@ -50,6 +55,9 @@ class QuizRevocationHttpIntegrationTest {
 
     @Autowired
     JdbcTemplate db;
+
+    @Autowired
+    JdbcPublicationStore publications;
 
     WebTestClient http;
 
@@ -75,6 +83,173 @@ class QuizRevocationHttpIntegrationTest {
 
     String body(String quizId, String operationId) {
         return "{\"operations\":[{\"quizId\":\"" + quizId + "\",\"operationId\":\"" + operationId + "\"}]}";
+    }
+
+    @Test
+    void purgeCallerReadsOnlyOwnedDependentIdsAndOnlyAfterFence() {
+        UUID quiz = UUID.randomUUID(), owner = UUID.randomUUID();
+        var opened = dependentPublication(quiz, owner, true);
+        var draft = dependentPublication(quiz, owner, false);
+        var unrelated = dependentPublication(UUID.randomUUID(), owner, false);
+        UUID attempt = UUID.randomUUID();
+        Instant started = Instant.now().minusSeconds(1).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        db.update(
+                "INSERT INTO attempts(id,publication_id,student_id,ordinal,snapshot_id,grading_policy_version,answer_schema_version,state,duration_minutes,started_at,deadline_at) VALUES(?,?,?,1,?,1,1,'ACTIVE',30,?,?)",
+                attempt,
+                opened,
+                UUID.randomUUID(),
+                opened,
+                java.sql.Timestamp.from(started),
+                java.sql.Timestamp.from(started.plusSeconds(1800)));
+        String path = "/internal/security/quiz-revocations/" + quiz + "/dependents";
+        String purge = service("quiz-service", "quiz.deletion.purge");
+        http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + purge)
+                .exchange()
+                .expectStatus()
+                .isNotFound()
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store")
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo("REVOCATION_NOT_FOUND");
+        http.post()
+                .uri("/internal/security/quiz-revocations/batch")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + caller())
+                .contentType(APPLICATION_JSON)
+                .bodyValue(body(quiz.toString(), UUID.randomUUID().toString()))
+                .exchange()
+                .expectStatus()
+                .isOk();
+        var result = http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + purge)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store")
+                .expectBody(QuizRevocationService.Dependents.class)
+                .returnResult()
+                .getResponseBody();
+        assertNotNull(result);
+        assertEquals(quiz, result.quizId());
+        assertEquals(Set.of(opened, draft), Set.copyOf(result.publicationIds()));
+        assertEquals(List.of(attempt), result.attemptIds());
+        assertFalse(result.publicationIds().contains(unrelated));
+        http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + purge)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .consumeWith(response -> {
+                    var json = tools.jackson.databind.json.JsonMapper.builder()
+                            .build()
+                            .readTree(response.getResponseBody());
+                    assertEquals(3, json.size(), "Inventory must contain only quizId/publicationIds/attemptIds");
+                    assertTrue(json.has("quizId") && json.has("publicationIds") && json.has("attemptIds"));
+                    assertFalse(new String(response.getResponseBody(), StandardCharsets.UTF_8).contains("private"));
+                });
+    }
+
+    UUID dependentPublication(UUID quiz, UUID owner, boolean open) {
+        Instant now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        var configuration = new PublicationConfiguration(
+                "private title",
+                "private description",
+                quiz,
+                UUID.randomUUID(),
+                1,
+                PublicationConfiguration.Audience.PUBLIC,
+                null,
+                now.minusSeconds(60),
+                now.plusSeconds(3600),
+                30,
+                PublicationConfiguration.MonitoringChoice.DISABLED,
+                0);
+        var publication = publications.create(owner, UUID.randomUUID().toString(), configuration);
+        if (open)
+            publications.open(
+                    owner,
+                    publication.id(),
+                    0,
+                    new String(SnapshotFixtures.snapshot(configuration, "private source"), StandardCharsets.UTF_8));
+        return publication.id();
+    }
+
+    @Test
+    void dependentsRequiresPurgeScopeExactClientAndServicePrincipal() {
+        String path = "/internal/security/quiz-revocations/" + UUID.randomUUID() + "/dependents";
+        http.get()
+                .uri(path)
+                .exchange()
+                .expectStatus()
+                .isUnauthorized()
+                .expectHeader()
+                .valueEquals("Cache-Control", "no-store");
+        for (String token : List.of(caller(), service("assessment-service", "quiz.deletion.purge"), user())) {
+            http.get()
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .exchange()
+                    .expectStatus()
+                    .isForbidden()
+                    .expectHeader()
+                    .valueEquals("Cache-Control", "no-store")
+                    .expectBody()
+                    .jsonPath("$.code")
+                    .isEqualTo("SERVICE_CALLER_FORBIDDEN");
+        }
+    }
+
+    @Test
+    void dependentsRejectsNoncanonicalPathsMethodsAndMalformedTransport() {
+        String path = "/internal/security/quiz-revocations/" + UUID.randomUUID() + "/dependents";
+        String token = service("quiz-service", "quiz.deletion.purge");
+        for (HttpMethod method :
+                List.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE, HttpMethod.HEAD))
+            http.method(method)
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .exchange()
+                    .expectStatus()
+                    .isForbidden();
+        for (String invalid : List.of(
+                path + "/extra",
+                path + "/",
+                path.replace("/dependents", "/dependents-extra"),
+                "/internal/security/quiz-revocations/ABCDEFAB-1234-1234-1234-123456789ABC/dependents",
+                "/internal/security/quiz-revocations/not-a-uuid/dependents"))
+            http.get()
+                    .uri(invalid)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .exchange()
+                    .expectStatus()
+                    .isForbidden();
+        http.get()
+                .uri(path + "?unexpected=1")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .exchange()
+                .expectStatus()
+                .isBadRequest();
+        http.get()
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.COOKIE, "session=1")
+                .exchange()
+                .expectStatus()
+                .isBadRequest();
+        http.method(HttpMethod.GET)
+                .uri(path)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus()
+                .isBadRequest();
     }
 
     @Test

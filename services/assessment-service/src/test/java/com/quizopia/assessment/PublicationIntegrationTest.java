@@ -41,6 +41,8 @@ class PublicationIntegrationTest {
         p.add("spring.datasource.url", DB::getJdbcUrl);
         p.add("spring.datasource.username", DB::getUsername);
         p.add("spring.datasource.password", DB::getPassword);
+        p.add("spring.flyway.user", DB::getUsername);
+        p.add("spring.flyway.password", DB::getPassword);
     }
 
     @Autowired

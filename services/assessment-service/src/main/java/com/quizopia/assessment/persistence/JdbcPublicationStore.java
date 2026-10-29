@@ -249,7 +249,9 @@ public class JdbcPublicationStore implements PublicationStore {
                     digest(encode(c)),
                     id);
             if (inserted == 0) {
-                db.update("DELETE FROM publications WHERE id=?", id);
+                // Row- and state-bound SECURITY DEFINER removal (H1 least privilege:
+                // the runtime role holds no direct DELETE on publications).
+                db.queryForObject("SELECT assessment_delete_draft(?)", Integer.class, id);
                 return replay(actor, key, c);
             }
             return owned(actor, id);

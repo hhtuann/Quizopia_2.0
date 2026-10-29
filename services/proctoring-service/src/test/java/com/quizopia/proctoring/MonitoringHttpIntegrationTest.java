@@ -93,6 +93,8 @@ class MonitoringHttpIntegrationTest {
         registry.add("spring.datasource.url", DATABASE::getJdbcUrl);
         registry.add("spring.datasource.username", DATABASE::getUsername);
         registry.add("spring.datasource.password", DATABASE::getPassword);
+        registry.add("spring.flyway.user", DATABASE::getUsername);
+        registry.add("spring.flyway.password", DATABASE::getPassword);
         registry.add("quizopia.admission.identity-base-url", () -> "http://127.0.0.1:" + IDENTITY.port());
         registry.add("quizopia.proctoring.monitoring.assessment-base-url", () -> "http://127.0.0.1:" + IDENTITY.port());
     }

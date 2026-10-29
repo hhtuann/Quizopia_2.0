@@ -17,7 +17,35 @@ public record QuizDeletionOperation(
         Instant updatedAt,
         String confirmedTitle,
         List<VersionRef> versionInventory,
-        String lastReason) {
+        String lastReason,
+        String requestDigest) {
+    public QuizDeletionOperation(
+            UUID id,
+            UUID quizId,
+            UUID ownerUserId,
+            String idempotencyKey,
+            QuizDeletionState status,
+            int mainProgress,
+            Instant createdAt,
+            Instant updatedAt,
+            String confirmedTitle,
+            List<VersionRef> versionInventory,
+            String lastReason) {
+        this(
+                id,
+                quizId,
+                ownerUserId,
+                idempotencyKey,
+                status,
+                mainProgress,
+                createdAt,
+                updatedAt,
+                confirmedTitle,
+                versionInventory,
+                lastReason,
+                null);
+    }
+
     public QuizDeletionOperation {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(quizId, "quizId");
@@ -26,8 +54,14 @@ public record QuizDeletionOperation(
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(updatedAt, "updatedAt");
-        Objects.requireNonNull(confirmedTitle, "confirmedTitle");
+        // confirmedTitle is NULL after the irreversible-boundary scrub (H4): the
+        // ledger intentionally no longer retains quiz text once PRIMARY_PURGED.
         versionInventory = List.copyOf(Objects.requireNonNull(versionInventory, "versionInventory"));
+    }
+
+    /** Minimal ledger view after the H4 scrub: the inventory reads back as empty. */
+    public boolean contentScrubbed() {
+        return confirmedTitle == null;
     }
 
     public QuizDeletionOperation withState(QuizDeletionState newState, String reason, Instant changedAt) {
@@ -43,7 +77,8 @@ public record QuizDeletionOperation(
                 changedAt,
                 confirmedTitle,
                 versionInventory,
-                reason != null ? reason : lastReason);
+                reason != null ? reason : lastReason,
+                requestDigest);
     }
 
     public record VersionRef(UUID id, int versionNumber) {

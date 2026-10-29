@@ -21,6 +21,10 @@ spring:
     open-in-view: false
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
+    # FB-015 H1: migrations run as the owner-member migration role (never the
+    # runtime role) so V5 can transfer ownership and enforce least privilege.
+    user: ${FLYWAY_USERNAME:quizopia_proctoring_flyway}
+    password: ${FLYWAY_PASSWORD:proctoring_flyway_local_only}
   security:
     oauth2:
       resourceserver:
@@ -67,7 +71,7 @@ quizopia:
     requests-per-minute: ${PROCTORING_DELETION_REQUESTS_PER_MINUTE:30}
     ack-poll-delay-seconds: ${PROCTORING_DELETION_ACK_POLL_DELAY_SECONDS:10}
     ack-batch-size: ${PROCTORING_DELETION_ACK_POLL_BATCH_SIZE:20}
-    purge-batch-size: ${PROCTORING_DELETION_PURGE_BATCH_SIZE:500}
+    purge-budget: ${PROCTORING_DELETION_PURGE_BUDGET:5000}
   admission:
     enabled: ${USER_ADMISSION_ENABLED:false}
     identity-base-url: ${USER_ADMISSION_IDENTITY_BASE_URL:}

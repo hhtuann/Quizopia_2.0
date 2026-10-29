@@ -4,6 +4,7 @@ import com.quizopia.assessment.application.PublicationFailure;
 import com.quizopia.assessment.application.QuizRevocationService;
 import com.quizopia.assessment.configuration.AssessmentDeletionProperties;
 import com.quizopia.assessment.security.deletion.QuizRevocationRequestBudget;
+import com.quizopia.assessment.security.deletion.SecurityPurgeRoutes;
 import com.quizopia.assessment.security.deletion.SecurityRevocationRoutes;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.*;
@@ -199,5 +200,60 @@ public class QuizRevocationController {
         } finally {
             capacity.release();
         }
+    }
+
+    /**
+     * FB-015 correction H5: dependent publication/attempt id inventory for one quiz, so
+     * the coordinator can resolve legacy (pre-V4, quiz_id NULL) Proctoring sessions
+     * without any cross-service database join. Purge-support read: the exact Quiz
+     * Service caller must additionally hold the dedicated quiz.deletion.purge scope -
+     * never the plain revocation scope, and never any other client. Ids only, no PII.
+     */
+    @GetMapping("/internal/security/quiz-revocations/{quizId}/dependents")
+    public QuizRevocationService.Dependents dependents(
+            @PathVariable("quizId") String quizId,
+            @AuthenticationPrincipal Jwt caller,
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response)
+            throws IOException {
+        response.setHeader("Cache-Control", "no-store");
+        admitPurge(authentication, caller, request);
+        if (!capacity.tryAcquire()) throw failure(503, "AUTHORITY_UNAVAILABLE");
+        try {
+            transport(request);
+            try {
+                if (request.getInputStream().read() != -1) throw invalid();
+            } catch (IOException malformed) {
+                throw invalid();
+            }
+            if (quizId == null || !quizId.matches(UUID_PATTERN)) throw invalid();
+            var dependents = service.dependents(UUID.fromString(quizId));
+            expiredPurge(caller, authentication);
+            return dependents.orElseThrow(() -> failure(404, "REVOCATION_NOT_FOUND"));
+        } catch (PublicationFailure known) {
+            throw known;
+        } catch (RuntimeException untrusted) {
+            throw failure(503, "AUTHORITY_UNAVAILABLE");
+        } finally {
+            capacity.release();
+        }
+    }
+
+    private void admitPurge(Authentication authentication, Jwt caller, HttpServletRequest request) {
+        if (!SecurityPurgeRoutes.permitted(authentication, properties)) throw failure(403, "SERVICE_CALLER_FORBIDDEN");
+        if (!properties.enabled()) throw failure(503, "AUTHORITY_UNAVAILABLE");
+        if (!request.isSecure()
+                && !(properties.allowInsecureLoopback()
+                        && Set.of("127.0.0.1", "::1", "0:0:0:0:0:0:0:1").contains(request.getRemoteAddr())))
+            throw failure(403, "SERVICE_CALLER_FORBIDDEN");
+        budget.acquire(caller.getSubject());
+    }
+
+    private void expiredPurge(Jwt caller, Authentication authentication) {
+        if (caller.getExpiresAt() == null || !Instant.now().isBefore(caller.getExpiresAt()))
+            throw failure(401, "SERVICE_AUTHENTICATION_INVALID");
+        if (!SecurityPurgeRoutes.permitted(authentication, properties))
+            throw failure(401, "SERVICE_AUTHENTICATION_INVALID");
     }
 }

@@ -23,20 +23,17 @@ public class DeletionSagaService {
     public static final String COPIES_PENDING_NOTE = "COPY_EXPIRY_PENDING";
 
     private final QuizDeletionOperationRepository deletionOperationRepository;
-    private final QuizRepository quizRepository;
     private final DeletionOperationService deletionOperationService;
     private final DeletionDependencies dependencies;
     private final int batchLimit;
 
     public DeletionSagaService(
             QuizDeletionOperationRepository deletionOperationRepository,
-            QuizRepository quizRepository,
             DeletionOperationService deletionOperationService,
             DeletionDependencies dependencies,
             int batchLimit) {
         this.deletionOperationRepository =
                 Objects.requireNonNull(deletionOperationRepository, "deletionOperationRepository");
-        this.quizRepository = Objects.requireNonNull(quizRepository, "quizRepository");
         this.deletionOperationService = Objects.requireNonNull(deletionOperationService, "deletionOperationService");
         this.dependencies = Objects.requireNonNull(dependencies, "dependencies");
         this.batchLimit = batchLimit;
@@ -105,53 +102,103 @@ public class DeletionSagaService {
     private void purgeDependentsAndPrimary(QuizDeletionOperation operation) {
         UUID operationId = operation.id();
         UUID quizId = operation.quizId();
-        if (operation.mainProgress() == QuizDeletionState.ACCESS_REVOKED.mainOrder()) {
+        if (operation.mainProgress() < QuizDeletionState.PURGE_PENDING.mainOrder()) {
             deletionOperationService.advanceState(operationId, QuizDeletionState.PURGE_PENDING, null);
+        }
+        if (operation.mainProgress() < QuizDeletionState.PURGING.mainOrder()
+                || operation.status() != QuizDeletionState.PURGING) {
             deletionOperationService.advanceState(operationId, QuizDeletionState.PURGING, null);
         }
         var command = List.of(new DeletionDependencies.Operation(operationId, quizId));
         try {
-            var proctoringOutcome = dependencies.purgeBatch(dependencies.proctoringBaseUrl(), command);
-            var assessmentOutcome = dependencies.purgeBatch(dependencies.assessmentBaseUrl(), command);
-            for (var outcome : assessmentOutcome) {
-                if ("BLOCKED_BY_RETENTION".equals(outcome.status())) {
-                    park(operation, QuizDeletionState.PURGING, "blocked-by-retention");
+            // Both custodians must provide an affirmative, current hold classification
+            // before either owner destroys content. Missing/malformed status fails closed.
+            var assessment = dependencies.purgeStatus(dependencies.assessmentBaseUrl(), quizId);
+            var proctoring = dependencies.purgeStatus(dependencies.proctoringBaseUrl(), quizId);
+            if (assessment == null
+                    || proctoring == null
+                    || assessment.acknowledgedAt() == null
+                    || proctoring.acknowledgedAt() == null) {
+                park(operation, QuizDeletionState.PURGING, "waiting-revocation-ack");
+                return;
+            }
+            if (assessment.retentionHoldActive() || proctoring.retentionHoldActive()) {
+                park(operation, QuizDeletionState.PURGING, "blocked-by-retention");
+                return;
+            }
+            if (!proctoring.purged()) {
+                // Assessment remains untouched until Proctoring finishes, preserving the
+                // immutable live inventory across bounded Proctoring rounds. After that,
+                // never replay a now-shrunken Assessment inventory to Proctoring.
+                var dependents = dependencies.assessmentDependents(dependencies.assessmentBaseUrl(), quizId);
+                if (dependents == null) {
+                    park(operation, QuizDeletionState.PURGING, "waiting-dependency-inventory");
                     return;
                 }
-                if (!"PURGED".equals(outcome.status())) {
+                if (!acceptOutcome(
+                        operation, dependencies.purgeBatch(dependencies.proctoringBaseUrl(), command, dependents)))
+                    return;
+                proctoring = dependencies.purgeStatus(dependencies.proctoringBaseUrl(), quizId);
+                if (proctoring == null
+                        || !proctoring.purged()
+                        || proctoring.acknowledgedAt() == null
+                        || proctoring.retentionHoldActive()) {
                     park(operation, QuizDeletionState.PURGING, "waiting-dependency-purge");
                     return;
                 }
             }
-            for (var outcome : proctoringOutcome) {
-                if (!"PURGED".equals(outcome.status())) {
-                    park(operation, QuizDeletionState.PURGING, "waiting-dependency-purge");
-                    return;
-                }
+            if (!acceptOutcome(operation, dependencies.purgeBatch(dependencies.assessmentBaseUrl(), command))) return;
+            assessment = dependencies.purgeStatus(dependencies.assessmentBaseUrl(), quizId);
+            proctoring = dependencies.purgeStatus(dependencies.proctoringBaseUrl(), quizId);
+            if (assessment == null
+                    || !assessment.purged()
+                    || assessment.retentionHoldActive()
+                    || assessment.acknowledgedAt() == null
+                    || proctoring == null
+                    || !proctoring.purged()
+                    || proctoring.retentionHoldActive()
+                    || proctoring.acknowledgedAt() == null) {
+                park(operation, QuizDeletionState.PURGING, "waiting-dependency-purge");
+                return;
             }
         } catch (RuntimeException unavailable) {
             park(operation, QuizDeletionState.PURGING, "dependency-unavailable");
             return;
         }
-        // Truthful status pull instead of trusting a single batch answer.
-        var assessmentStatus = dependencies.purgeStatus(dependencies.assessmentBaseUrl(), quizId);
-        var proctoringStatus = dependencies.purgeStatus(dependencies.proctoringBaseUrl(), quizId);
-        if (assessmentStatus == null
-                || !assessmentStatus.purged()
-                || assessmentStatus.retentionHoldActive()
-                || proctoringStatus == null
-                || !proctoringStatus.purged()) {
-            park(operation, QuizDeletionState.PURGING, "waiting-dependency-purge");
-            return;
-        }
         primaryPurge(operation);
+    }
+
+    private boolean acceptOutcome(QuizDeletionOperation operation, List<DeletionDependencies.PurgeOutcome> outcomes) {
+        if (outcomes == null
+                || outcomes.size() != 1
+                || outcomes.getFirst() == null
+                || !operation.id().equals(outcomes.getFirst().operationId())
+                || !operation.quizId().equals(outcomes.getFirst().quizId())) {
+            park(operation, QuizDeletionState.PURGING, "invalid-purge-receipt");
+            return false;
+        }
+        String status = outcomes.getFirst().status();
+        if ("PURGED".equals(status)) return true;
+        String reason =
+                switch (status == null ? "" : status) {
+                    case "BLOCKED_BY_RETENTION" -> "blocked-by-retention";
+                    case "IN_PROGRESS" -> "purge-in-progress";
+                    case "RECONCILIATION_BLOCKED" -> "legacy_dependents_unresolved";
+                    case "PENDING_PROVIDER" -> "pending-provider";
+                    case "INVENTORY_MISMATCH" -> "inventory-mismatch";
+                    case "WAITING_REVOCATION_ACK" -> "waiting-revocation-ack";
+                    default -> "invalid-purge-receipt";
+                };
+        park(operation, QuizDeletionState.PURGING, reason);
+        return false;
     }
 
     private void primaryPurge(QuizDeletionOperation operation) {
         // Hard-delete quiz-owned content in dependency-safe order (versions, drafts, quiz);
-        // the minimal operation ledger stays as the anti-resurrection tombstone.
-        quizRepository.purgeQuizContent(operation.quizId());
-        deletionOperationService.advanceState(operation.id(), QuizDeletionState.PRIMARY_PURGED, null);
+        // the minimal operation ledger stays as the anti-resurrection tombstone. The scrub
+        // and the PRIMARY_PURGED advance share the row-deletion transaction (H4) inside
+        // DeletionOperationService.completePrimaryPurge.
+        deletionOperationService.completePrimaryPurge(operation.id(), operation.quizId());
     }
     /**
      * Moves the operation to the given nonterminal state when it is not already there. The
@@ -170,7 +217,8 @@ public class DeletionSagaService {
             QuizDeletionState parking = "blocked-by-retention".equals(reason)
                     ? QuizDeletionState.BLOCKED_BY_RETENTION
                     : QuizDeletionState.WAITING_DEPENDENCY;
-            if (!operation.status().equals(parking)) {
+            if (operation.mainProgress() >= QuizDeletionState.PRIMARY_PURGED.mainOrder()) return;
+            if (!operation.status().equals(parking) || !Objects.equals(operation.lastReason(), reason)) {
                 deletionOperationService.advanceState(operation.id(), parking, reason);
             }
         } catch (IllegalDeletionTransitionException ignored) {

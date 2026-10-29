@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useI18n } from "../lib/i18n/provider";
-import { LanguageSwitcher } from "../components/ui/language-switcher";
+import { LanguageMenu } from "../components/ui/language-menu";
 import { QuizopiaLogo } from "../components/brand/quizopia-logo";
 import { LandingSessionLinks } from "../components/shell/landing-session-links";
 import { PageContainer } from "../components/ui/page-container";
@@ -39,7 +39,7 @@ export default function HomePage() {
               className="flex flex-wrap items-center gap-2 sm:gap-3"
             >
               <LandingSessionLinks placement="header" />
-              <LanguageSwitcher />
+              <LanguageMenu />
             </nav>
           </PageContainer>
         </header>

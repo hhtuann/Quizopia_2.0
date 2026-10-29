@@ -47,8 +47,11 @@ class QuizDeletionOperationEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    @Column(name = "confirmed_title", nullable = false, updatable = false, columnDefinition = "text")
+    @Column(name = "confirmed_title", updatable = false, columnDefinition = "text")
     private String confirmedTitle;
+
+    @Column(name = "request_digest", updatable = false, length = 64)
+    private String requestDigest;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "version_inventory", nullable = false, columnDefinition = "jsonb", updatable = false)
@@ -69,6 +72,7 @@ class QuizDeletionOperationEntity {
         this.createdAt = operation.createdAt();
         this.updatedAt = operation.updatedAt();
         this.confirmedTitle = operation.confirmedTitle();
+        this.requestDigest = operation.requestDigest();
         this.versionInventory = versionInventory;
         this.lastReason = operation.lastReason();
     }
@@ -92,6 +96,7 @@ class QuizDeletionOperationEntity {
                 updatedAt,
                 confirmedTitle,
                 deletionJson.readInventory(versionInventory),
-                lastReason);
+                lastReason,
+                requestDigest);
     }
 }

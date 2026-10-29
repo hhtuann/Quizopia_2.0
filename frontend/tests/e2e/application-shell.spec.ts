@@ -260,10 +260,19 @@ test("student enables teacher only after refresh and authoritative current-user 
     await page.evaluate(async () => ({
       indexedDb:
         "databases" in indexedDB ? (await indexedDB.databases()).length : 0,
-      localStorage: localStorage.length,
+      // No credentials may reach storage. The per-account workspace persona
+      // (quizopia-workspace:{userId}) is a UI preference exactly like the
+      // locale cookie and is the single allowed localStorage key.
+      nonPreferenceLocalStorageKeys: Object.keys(localStorage).filter(
+        (key) => !key.startsWith("quizopia-workspace:"),
+      ),
       sessionStorage: sessionStorage.length,
     })),
-  ).toEqual({ indexedDb: 0, localStorage: 0, sessionStorage: 0 });
+  ).toEqual({
+    indexedDb: 0,
+    nonPreferenceLocalStorageKeys: [],
+    sessionStorage: 0,
+  });
 });
 
 // Workspace-switch journeys chain several SPA navigations. They run serially

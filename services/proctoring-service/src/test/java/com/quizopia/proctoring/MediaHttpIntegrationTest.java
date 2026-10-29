@@ -104,6 +104,8 @@ class MediaHttpIntegrationTest {
         p.add("spring.datasource.url", DATABASE::getJdbcUrl);
         p.add("spring.datasource.username", DATABASE::getUsername);
         p.add("spring.datasource.password", DATABASE::getPassword);
+        p.add("spring.flyway.user", DATABASE::getUsername);
+        p.add("spring.flyway.password", DATABASE::getPassword);
         p.add("quizopia.admission.identity-base-url", () -> "http://127.0.0.1:" + IDENTITY.port());
         p.add("quizopia.proctoring.monitoring.assessment-base-url", () -> "http://127.0.0.1:" + IDENTITY.port());
         p.add("quizopia.proctoring.media.api-url", () -> "http://127.0.0.1:" + IDENTITY.port());

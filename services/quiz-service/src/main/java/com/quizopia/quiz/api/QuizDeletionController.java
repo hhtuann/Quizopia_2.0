@@ -104,8 +104,9 @@ public final class QuizDeletionController {
         UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
         requireIdempotencyKey(idempotencyKey);
         String confirmTitle = request.confirmTitle();
-        if (confirmTitle == null || confirmTitle.isBlank() || confirmTitle.length() > 300) {
-            throw new InvalidDeletionRequestException("Confirm title must be 1 to 300 characters");
+        if (confirmTitle == null || confirmTitle.length() > 300) {
+            throw new InvalidDeletionRequestException(
+                    "Confirm title must be explicitly supplied, at most 300 characters");
         }
         DeletionRequestResult result =
                 deletionOperationService.requestDeletion(callerUserId, quizId, idempotencyKey, confirmTitle);
@@ -113,6 +114,17 @@ public final class QuizDeletionController {
                 .cacheControl(CacheControl.noStore())
                 .body(new QuizDeletionRequestAcceptedResponse(
                         result.operationId(), result.status().name()));
+    }
+
+    @GetMapping("/api/quizzes/{quizId}/deletion-requests/latest")
+    @Operation(description = "Discovers the latest owner-visible deletion operation, including after primary purge.")
+    public ResponseEntity<QuizDeletionStatusResponse> getLatestStatus(
+            Authentication authentication, @PathVariable("quizId") UUID quizId) {
+        UUID callerUserId = teacherAuthoringPrincipalResolver.resolve(authentication);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(QuizDeletionStatusResponse.from(
+                        deletionOperationService.getLatestOperation(callerUserId, quizId)));
     }
 
     @GetMapping("/api/quizzes/{quizId}/deletion-requests/{operationId}")

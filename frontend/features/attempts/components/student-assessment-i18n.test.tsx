@@ -18,7 +18,7 @@ import type { AuthSessionService } from "../../auth/session/auth-session-service
 import { createAccessTokenVault } from "../../auth/session/access-token-vault";
 import { createSessionRuntime } from "../../auth/session/session-runtime";
 import { I18nProvider } from "../../../lib/i18n/provider";
-import { LanguageSwitcher } from "../../../components/ui/language-switcher";
+import { LanguageMenu } from "../../../components/ui/language-menu";
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
@@ -47,6 +47,9 @@ const authStub: AuthSessionService = {
   runtime: createSessionRuntime(createAccessTokenVault()),
 };
 
+// The attempt workspace carries no language control by design (the account
+// menu owns switching); the harness mounts a LanguageMenu beside the screen
+// to drive the no-remount regression for locale changes mid-attempt.
 function withProviders(
   element: React.ReactElement,
   initialLocale: "vi" | "en" = "vi",
@@ -56,11 +59,18 @@ function withProviders(
       <AuthProvider service={authStub}>
         <AttemptEphemeralProvider>
           {element}
-          <LanguageSwitcher />
+          <LanguageMenu />
         </AttemptEphemeralProvider>
       </AuthProvider>
     </I18nProvider>
   );
+}
+
+function switchLocale(option: "English" | "Tiếng Việt") {
+  fireEvent.click(
+    screen.getByRole("button", { name: /Ngôn ngữ: |Language: / }),
+  );
+  fireEvent.click(screen.getByRole("menuitemradio", { name: option }));
 }
 
 const publicationId = "8ad4c564-3c27-4e6d-91aa-a004334aa8f8";
@@ -157,16 +167,15 @@ describe("Student attempt bilingual presentation", () => {
         />,
       ),
     );
-    expect(
-      screen.getByRole("heading", { name: "Bài kiểm tra của học sinh" }),
-    ).toBeVisible();
-    expect(screen.getByText("Đồng hồ đếm ngược tham khảo")).toBeVisible();
-    expect(screen.getByText("Đã trả lời 0 trên 2")).toBeVisible();
-    // Attempt state enum tokens remain canonical.
-    expect(screen.getByText("ACTIVE")).toBeVisible();
+    // Compact header: generic localized title (no authorized preview title
+    // in this harness), countdown time only, no state/UUID/ordinal chrome.
+    expect(screen.getByRole("heading", { name: "Bài kiểm tra" })).toBeVisible();
+    expect(screen.queryByText("Đồng hồ đếm ngược tham khảo")).toBeNull();
+    expect(screen.queryByText("ACTIVE")).toBeNull();
     expect(screen.getByRole("timer").textContent).toMatch(
       /^\d{2,}:\d{2}:\d{2}$/,
     );
+    expect(screen.getByText("Đã trả lời 0 trên 2")).toBeVisible();
     attemptView.unmount();
     vi.mocked(api.getResult).mockResolvedValue({ ok: true, value: result });
     vi.mocked(api.getAggregate).mockResolvedValue({
@@ -211,14 +220,10 @@ describe("Student attempt bilingual presentation", () => {
     const timer = screen.getByRole("timer");
     const timerTextBefore = timer.textContent;
 
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "en" },
-    });
+    switchLocale("English");
 
     // Same DOM nodes: no locale-keyed remount of the attempt screen.
-    expect(
-      screen.getByRole("heading", { name: "Student assessment" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Assessment" })).toBeVisible();
     expect(screen.getByLabelText("Four-character numeric answer")).toHaveValue(
       "2.50",
     );
@@ -263,9 +268,7 @@ describe("Student attempt bilingual presentation", () => {
     expect(api.save).not.toHaveBeenCalled();
 
     // Switch to English; the same invalid draft reports the English copy.
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "en" },
-    });
+    switchLocale("English");
     const numericEn = screen.getByLabelText("Four-character numeric answer");
     fireEvent.change(numericEn, { target: { value: "123456" } });
     expect(
@@ -285,12 +288,12 @@ describe("Student attempt bilingual presentation", () => {
         { timeout: 4000 },
       ),
     ).toBeVisible();
-    expect(screen.getByText("Save failed")).toBeVisible();
+    // The failed save is surfaced honestly by both the per-question card and
+    // the workspace header's aggregate autosave status.
+    expect(screen.getAllByText("Save failed").length).toBeGreaterThan(0);
 
     // Vietnamese renders the same failure path from the catalog.
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "vi" },
-    });
+    switchLocale("Tiếng Việt");
     const numericViAgain = screen.getByLabelText(
       "Câu trả lời số gồm bốn ký tự",
     );
@@ -302,7 +305,7 @@ describe("Student attempt bilingual presentation", () => {
         { timeout: 4000 },
       ),
     ).toBeVisible();
-    expect(screen.getByText("Lưu thất bại")).toBeVisible();
+    expect(screen.getAllByText("Lưu thất bại").length).toBeGreaterThan(0);
   });
 
   it("localizes the authorized review accessibility labels", async () => {

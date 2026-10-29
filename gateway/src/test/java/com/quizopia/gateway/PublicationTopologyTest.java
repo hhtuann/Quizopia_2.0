@@ -225,6 +225,9 @@ class PublicationTopologyTest {
                 "--spring.datasource.url=" + database.getJdbcUrl(),
                 "--spring.datasource.username=" + database.getUsername(),
                 "--spring.datasource.password=" + database.getPassword(),
+                // Migrate the disposable fixture with its own credentials, not deployment defaults.
+                "--spring.flyway.user=" + database.getUsername(),
+                "--spring.flyway.password=" + database.getPassword(),
                 "--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + identity,
                 "--spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + identity + "/oauth2/jwks"));
         args.addAll(admissionArgs(name + "-service"));

@@ -40,6 +40,11 @@ public final class QuizRevocationGate {
     /** Session-scoped probe used inside store transactions after the session row is held. */
     public void requireSessionOpen(UUID sessionId) {
         if (sessionId == null) return;
+        if (Boolean.TRUE.equals(db.queryForObject(
+                "SELECT to_regprocedure('proctoring_session_fenced(uuid)') IS NOT NULL", Boolean.class))) {
+            requireNoFence("SELECT proctoring_session_fenced(?)", sessionId);
+            return;
+        }
         requireNoFence(
                 "SELECT EXISTS(SELECT 1 FROM quiz_revocation_fences f"
                         + " JOIN monitoring_sessions s ON s.quiz_id=f.quiz_id WHERE s.id=?)",
