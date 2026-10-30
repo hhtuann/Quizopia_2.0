@@ -9,6 +9,13 @@
 > scope cut, declare MVP production release, close inherited W3 operational
 > gates, or authorize Wave 5 coding; production remains **NO-GO**.
 >
+> **Wave 5 scope scheduling update (2026-10-30):** AI Proctoring **W5-P** joins
+> Community, Practice, AI Authoring and AI Tutor as the fifth Wave 5 **planning**
+> area. W5-P1 design/privacy/contract freeze is approved within W5-A; W5-P2
+> inference implementation is NOT approved without further privacy/security and
+> Leader decisions. See [W5-P scope/handoff](w5-ai-proctoring-scope-handoff.md).
+> This does not modify the MVP MUST/SHOULD/POST-MVP cut or production NO-GO.
+>
 > **Accepted for planning:** 2026-09-30
 >
 > **Wave 3 policy reconciliation:** 2026-10-09; Wave 2 CLOSED at PR #71 per
@@ -705,7 +712,7 @@ Status vocabulary:
 | Teacher result                        | BACKEND MERGED | Owned-Publication authorized results; frontend acceptance separate                                  |
 | Activity Evidence (W3-M1)             | IN PROGRESS    | Draft #89 core; current integration adds Teacher lookup/answer adapter, verification/review pending |
 | LiveKit camera monitoring (W3-M2)     | IN PROGRESS    | Draft #90 SDK/grant/recovery mechanics; strict provider/privacy/browser acceptance pending          |
-| AI behavior monitoring                | POST-MVP       | accepted future design; not a Wave 3 DoD dependency                                                 |
+| AI behavior monitoring                | POST-MVP       | W5-P1 design now included in Wave 5 planning; W5-P2 still requires separate privacy/security and Leader approval; not a Wave 3 DoD dependency                                                 |
 | Classroom assignment integration      | NOT STARTED    | Assessment publication                                                                              |
 | Full MVP E2E                          | NOT STARTED    | all MUST capabilities                                                                               |
 | MVP hardening/release                 | IN PROGRESS    | Assessment acceptance/governance merged; eleven external gates open, PRODUCTION NO-GO               |
