@@ -1,11 +1,13 @@
 package com.quizopia.quiz.configuration;
 
 import com.quizopia.quiz.application.DeletionOperationService;
+import com.quizopia.quiz.application.DeletionSagaObserver;
 import com.quizopia.quiz.application.DeletionSagaService;
 import com.quizopia.quiz.application.QuizDeletionOutboxRepository;
 import com.quizopia.quiz.infrastructure.DeletionDependencyClient;
 import com.quizopia.quiz.outbox.DeletionOutboxDispatcher;
 import com.quizopia.quiz.outbox.DeletionOutboxPublisher;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.util.Objects;
 import org.slf4j.Logger;
@@ -57,15 +59,33 @@ public class DeletionConfiguration {
 
     @Bean
     @ConditionalOnProperty(name = "quizopia.deletion.enabled", havingValue = "true")
+    MicrometerDeletionSagaObserver micrometerDeletionSagaObserver(MeterRegistry meterRegistry) {
+        return new MicrometerDeletionSagaObserver(meterRegistry);
+    }
+
+    /**
+     * Default-OFF safety: with deletion disabled no saga exists, so the inert no-op keeps
+     * DeletionOperationService wiring satisfiable without ever touching a meter registry.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "quizopia.deletion.enabled", havingValue = "false", matchIfMissing = true)
+    DeletionSagaObserver noopDeletionSagaObserver() {
+        return DeletionSagaObserver.NOOP;
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "quizopia.deletion.enabled", havingValue = "true")
     DeletionSagaService deletionSagaService(
             com.quizopia.quiz.application.QuizDeletionOperationRepository deletionOperationRepository,
             DeletionOperationService deletionOperationService,
             DeletionDependencyClient dependencies,
+            DeletionSagaObserver observer,
             DeletionProperties properties) {
         return new DeletionSagaService(
                 deletionOperationRepository,
                 deletionOperationService,
                 dependencies,
+                observer,
                 Math.max(1, properties.getSagaBatchSize()));
     }
 

@@ -22,6 +22,7 @@ public class DeletionOperationService {
     private final QuizVersionRepository quizVersionRepository;
     private final QuizDeletionOperationRepository deletionOperationRepository;
     private final QuizDeletionOutboxRepository deletionOutboxRepository;
+    private final DeletionSagaObserver observer;
     private final Clock clock;
 
     public DeletionOperationService(
@@ -30,6 +31,7 @@ public class DeletionOperationService {
             QuizVersionRepository quizVersionRepository,
             QuizDeletionOperationRepository deletionOperationRepository,
             QuizDeletionOutboxRepository deletionOutboxRepository,
+            DeletionSagaObserver observer,
             Clock clock) {
         this.quizRepository = Objects.requireNonNull(quizRepository, "quizRepository");
         this.quizDraftRepository = Objects.requireNonNull(quizDraftRepository, "quizDraftRepository");
@@ -37,6 +39,7 @@ public class DeletionOperationService {
         this.deletionOperationRepository =
                 Objects.requireNonNull(deletionOperationRepository, "deletionOperationRepository");
         this.deletionOutboxRepository = Objects.requireNonNull(deletionOutboxRepository, "deletionOutboxRepository");
+        this.observer = Objects.requireNonNull(observer, "observer");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -126,6 +129,7 @@ public class DeletionOperationService {
         }
         QuizDeletionOperation updated = operation.withState(newState, reason, clock.instant());
         deletionOperationRepository.update(updated);
+        observer.onTransition(newState, reason);
         return updated;
     }
 

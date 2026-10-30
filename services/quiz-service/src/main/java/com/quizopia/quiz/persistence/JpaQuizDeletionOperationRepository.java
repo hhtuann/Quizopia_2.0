@@ -129,6 +129,21 @@ public class JpaQuizDeletionOperationRepository implements QuizDeletionOperation
     }
 
     @Override
+    public Map<QuizDeletionState, Long> countNonterminalByStatus() {
+        Map<QuizDeletionState, Long> counts = new LinkedHashMap<>();
+        for (Object[] row : entityManager
+                .createQuery(
+                        "select o.status, count(o) from QuizDeletionOperationEntity o"
+                                + " where o.mainProgress < :terminalProgress group by o.status",
+                        Object[].class)
+                .setParameter("terminalProgress", QuizDeletionState.PRIMARY_PURGED.mainOrder())
+                .getResultList()) {
+            counts.put((QuizDeletionState) row[0], (Long) row[1]);
+        }
+        return counts;
+    }
+
+    @Override
     @Transactional
     public void scrubLedgerContent(UUID operationId) {
         entityManager
