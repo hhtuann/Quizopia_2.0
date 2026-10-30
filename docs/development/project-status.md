@@ -2,7 +2,9 @@
 
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
-> **Last updated:** 2026-10-26 (UI/UX Round 2 + amendment branch; Round-1 checkpoint below; T4/T3 checkpoints retained)
+> **Last updated:** 2026-10-30 — W4 engineering closure, FB-015 final integration,
+> BR-01 policy resolved. Earlier branch/PR status sections below are chronological
+> evidence, **not** today's active-state register.
 >
 > **BR-01 status correction (2026-10-30):** BR-01 is **RESOLVED as of 2026-10-29 — a
 > policy-only decision with no owner-exclusion or Teacher-Preview implementation**
@@ -12,7 +14,20 @@
 > issue #126. Any older "BR-01 PENDING" statement below is a historical checkpoint,
 > superseded by this note. Production NO-GO is unchanged by this resolution.
 
-## UI/UX Round 2 + amendment — awaiting review, not merged
+## Current verified project checkpoint — 2026-10-30
+
+- **Integration branch:** `develop`, verified at `cac7002e597643fd62239f5504df43a49570db54` (merge [PR #125](https://github.com/hhtuann/Quizopia_2.0/pull/125)). Do `git fetch` again before any new implementation; this SHA is a dated checkpoint.
+- **Wave 1:** CLOSED; **Wave 2:** CLOSED; **Wave 3:** engineering/integration delivered, inherited production release gates remain open in [#97](https://github.com/hhtuann/Quizopia_2.0/issues/97).
+- **Wave 4:** **CLOSED FOR ENGINEERING DELIVERY** — W4 realtime B1–B4/E + subsequent UX, BR-01, FB-012 and FB-015 completion PRs merged. [W4 final closure and evidence](w4-final-engineering-closure.md). A code merge is not production authorization.
+- **FB-015:** ADR-018 + implementation PRs #121–#125 merged. Feature flags remain default OFF. `PRIMARY_PURGED + COPY_EXPIRY_PENDING` is not verified destruction of all copies. Real-provider erasure and backup/legal/operations gates are tracked in [#129](https://github.com/hhtuann/Quizopia_2.0/issues/129).
+- **BR-01:** RESOLVED as policy-only (PRs #127/#128); current STUDENT can take their own eligible PUBLIC Publication with existing locator/admission checks, CLASS requires actual Student membership; no owner-exclusion or mandatory Teacher Preview.
+- **Post-merge develop push CI:** [Frontend](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40997003301) **SUCCESS**; [Backend](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40997003210) **SUCCESS (8/8 jobs)** at exact `cac7002e...` SHA; [Repository full validation](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40997003143) **IN PROGRESS** at this checkpoint. Do not infer its result until complete.
+- **Production:** **NO-GO**, no flag activation or non-disposable data erasure authorized. [W4 release/operations gates #129](https://github.com/hhtuann/Quizopia_2.0/issues/129) and [W3 release gate register](w3-production-release-gates.md) remain independent.
+- **Wave 5:** W5-A Design & Contract Freeze may begin in the separate Leader session. Community, Practice, AI Authoring and AI Tutor are approved as planning areas only; **coding still requires contract/product approval**. Recording/screen sharing and AI Proctoring remain separately deferred.
+
+The historical checkpoints below are retained for audit/provenance, not a new claim that merged PRs are still open. The next Wave 5 session should prioritize this current checkpoint and then verify actual GitHub state.
+
+## Historical UI/UX Round 2 + amendment checkpoint — superseded by current closure
 
 `feature/frontend-attempt-workspace-polish` (baseline merged PR #113
 `0a64a12`) delivers UX-07 (focused Student Attempt workspace: dedicated
@@ -34,7 +49,7 @@ entry/start/autosave/locale-switch/submit/100.00% grading). Production
 top-of-file status correction). Full record:
 [ux-round2-verification.md](ux-round2-verification.md). PR **#114** open.
 
-## UX feedback round 1 — awaiting review, not merged
+## Historical UX feedback round 1 checkpoint — superseded by current closure
 
 `feature/frontend-ux-feedback-round1` (baseline: merged T4 PR #112,
 `9d5ce4d`) implements five approved user-feedback corrections:
@@ -216,8 +231,11 @@ Wave 2 remaining: **none for milestone closure**.
 
 ### Wave 4 — Realtime Implementation and Acceptance
 
-**Status: IMPLEMENTATION COMPLETE / LOCAL-TEST ACCEPTANCE PASS.
-PRODUCTION ROLLOUT: HOLD / NOT AUTHORIZED.**
+**Status: CLOSED — ENGINEERING DELIVERY / PR INTEGRATION.** Realtime W4-B1–B4/E
+and the later UX/FB-012/FB-015 completion workstreams are merged. Disposable
+local-browser acceptance is documented; production is **NO-GO / NOT AUTHORIZED**.
+See the authoritative [W4 engineering-closure record](w4-final-engineering-closure.md)
+and separate [release-gate issue #129](https://github.com/hhtuann/Quizopia_2.0/issues/129).
 
 All five Wave 4 milestones are merged:
 
@@ -753,7 +771,7 @@ cut defined in `docs/development/mvp-plan.md`.
 - **Wave 3 — Assessment + eligible CLASS monitoring:** IMPLEMENTATION HANDED OFF; bounded real-runtime Assessment/B3 evidence delivered in PR #101, while production acceptance remains tracked as BLOCKED/NOT VERIFIED in issue #97
 - **Broader minimal Classroom product integration:** MVP-C creation/invites/discovery/gradebook; W3-A/B mandatory eligibility is earlier
 - **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
-- **Wave 4 — Realtime:** IMPLEMENTATION COMPLETE / LOCAL-TEST ACCEPTANCE PASS (PRs #103–#107); production rollout HOLD / NOT AUTHORIZED
+- **Wave 4 — Realtime and completion workstreams:** **CLOSED — ENGINEERING DELIVERY** (W4 PRs #103–#107; UX/FB-012/FB-015 follow-up PRs through #125). Production gates **OPEN / NO-GO** in [W4 release readiness #129](https://github.com/hhtuann/Quizopia_2.0/issues/129).
 - **Wave 5 — Community + Practice + AI:** PLANNING / CODING NOT AUTHORIZED
 - **Wave 6 — broader product hardening / release evolution**
 

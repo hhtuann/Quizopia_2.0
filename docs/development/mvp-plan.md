@@ -2,6 +2,13 @@
 
 > **Status:** MVP delivery baseline v0.1
 >
+> **Engineering status annotation (2026-10-30):** Wave 4 and FB-015 implementation
+> PRs are integrated through `develop` `cac7002e597643fd62239f5504df43a49570db54`.
+> See [W4 engineering closure](w4-final-engineering-closure.md) and the current
+> [project status](project-status.md). This update does **not** change the MVP
+> scope cut, declare MVP production release, close inherited W3 operational
+> gates, or authorize Wave 5 coding; production remains **NO-GO**.
+>
 > **Accepted for planning:** 2026-09-30
 >
 > **Wave 3 policy reconciliation:** 2026-10-09; Wave 2 CLOSED at PR #71 per

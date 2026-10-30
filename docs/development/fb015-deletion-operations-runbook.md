@@ -84,7 +84,7 @@ Evidence locations (counts/aggregates; responses are sanitized and `no-store`):
 - Assessment/Proctoring: `deletion_purge_receipts`, `purge_progress`, `deletion_command_inbox`, `quiz_revocation_fences`, Proctoring `purge_inventory`, `proctoring_retention_holds`, `proctoring_provider_cleanup`.
 - Sanitized access logs (method/path/status only — never headers or bodies) and per-run evidence dirs such as `gateway/target/fb015-acceptance/<run-id>/` (`checks.json`, `result.json`), `gateway/target/publication-topology/` logs, `gateway/target/surefire-reports/`.
 
-Never log or paste into tickets: quiz titles, questions/answers, attempt payloads, student names/PII, tokens. Metrics (being added in this PR; not observable on deployments built from earlier SHAs): saga transition counters per state plus parked-reason class, a nonterminal-operations gauge, and revocation acknowledgment counters. Contention/capacity qualification remains open. Current state: **production NO-GO; BR-01 PENDING** — any incident response must not be read as activation authority.
+Never log or paste into tickets: quiz titles, questions/answers, attempt payloads, student names/PII, tokens. Metrics (being added in this PR; not observable on deployments built from earlier SHAs): saga transition counters per state plus parked-reason class, a nonterminal-operations gauge, and revocation acknowledgment counters. Contention/capacity qualification remains open. Current state: **production NO-GO; BR-01 resolved as policy-only (2026-10-29)** — any incident response must not be read as activation authority.
 
 ## 8. Required human approvals checklist
 
@@ -95,7 +95,7 @@ Never log or paste into tickets: quiz titles, questions/answers, attempt payload
 | Provider (LiveKit) erasure procedure + real receipts | Required for `ALL_COPIES_ERASED`; **not implemented** |
 | Deletion receipt/ledger TTL approval (privacy + operations) | Required; **unknown — not approved** |
 | Leader production authorization (ADR-018 gate 3) plus legal/privacy + ops signoff, recovery/replay, observability, emergency stop evidence | **NO-GO** |
-| BR-01 requested implementation acceptance | **PENDING** |
+| BR-01 product-policy decision | **RESOLVED without new enforcement; no owner-exclusion or Teacher Preview requirement** |
 
 ## 9. Appendix: gateway topology test stability
 

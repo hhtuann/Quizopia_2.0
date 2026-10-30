@@ -1,5 +1,12 @@
 # FB-015 Morning Handoff — Correction Completion & Review Package
 
+> **Superseded status (2026-10-30):** The PR table and OPEN labels below describe
+> the agent's pre-merge morning checkpoint, **not current GitHub state**.
+> PR #124 merged at `bd7c5b8a308d8e4b7fef6c9f57c48da6a106ecee`; PR #125
+> merged at `cac7002e597643fd62239f5504df43a49570db54`. The definitive
+> project checkpoint is [Wave 4 Final Engineering Closure](w4-final-engineering-closure.md).
+> Production flags remain default OFF; real backup/provider erasure is not certified.
+
 Date: 2026-10-30 (overnight correction + review session; supersedes the 2026-10-29 handoff below in this file's history)
 Author: primary correction/engineering agent (session-continuous)
 Baseline verified `origin/develop`: `276a4a8214d71e06925308658c1c8b0e8e9b4d10` (PR #121 ADR-018, #122 PR A, #123 PR B merged)
