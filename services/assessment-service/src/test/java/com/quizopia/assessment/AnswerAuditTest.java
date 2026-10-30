@@ -146,6 +146,49 @@ class AnswerAuditTest {
     }
 
     @Test
+    void serverAuthorityCanonicalIsStrictAndCannotBecomeAClientObservation() {
+        var fact = new ServerAuditFact(
+                UUID.fromString("00000000-0000-4000-8000-000000000001"),
+                "ATTEMPT_STARTED",
+                java.time.Instant.parse("2026-01-01T00:00:00Z"),
+                null,
+                null);
+        assertEquals(fact, ServerAuditFact.parse(fact.canonical()));
+        assertFalse(new String(fact.canonical(), StandardCharsets.UTF_8).contains("CLIENT_OBSERVATION"));
+        assertThrows(
+                PublicationFailure.class,
+                () -> ServerAuditFact.parse(new String(fact.canonical(), StandardCharsets.UTF_8)
+                        .replace("SERVER_AUTHORITY", "CLIENT_OBSERVATION")
+                        .getBytes(StandardCharsets.UTF_8)));
+        assertThrows(
+                PublicationFailure.class,
+                () -> ServerAuditFact.parse(new String(fact.canonical(), StandardCharsets.UTF_8)
+                        .replace("ATTEMPT_STARTED", "ANSWER_SELECTED")
+                        .getBytes(StandardCharsets.UTF_8)));
+        assertThrows(
+                PublicationFailure.class,
+                () -> ServerAuditFact.parse(new String(fact.canonical(), StandardCharsets.UTF_8)
+                        .replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"extra\":true")
+                        .getBytes(StandardCharsets.UTF_8)));
+        assertThrows(
+                PublicationFailure.class,
+                () -> new ServerAuditFact(UUID.randomUUID(), "ATTEMPT_STARTED", null, null, null));
+        assertThrows(
+                PublicationFailure.class,
+                () -> new ServerAuditFact(UUID.randomUUID(), "ATTEMPT_STARTED", java.time.Instant.now(), 0, null));
+        assertThrows(
+                PublicationFailure.class,
+                () -> new ServerAuditFact(UUID.randomUUID(), "ATTEMPT_STARTED", java.time.Instant.now(), null, "01"));
+        assertThrows(
+                PublicationFailure.class,
+                () -> new ServerAuditFact(UUID.randomUUID(), "ATTEMPT_STARTED", java.time.Instant.now(), null, "0"));
+        assertThrows(
+                PublicationFailure.class,
+                () -> new ServerAuditFact(
+                        UUID.randomUUID(), "ATTEMPT_STARTED", java.time.Instant.now(), null, "9223372036854775808"));
+    }
+
+    @Test
     void upperInclusiveBoundaryFormulaIsExactForAllEdgesAndNearBoundaryRounding() {
         for (int i = 0; i <= 20; i++)
             assertEquals(

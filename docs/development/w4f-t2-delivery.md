@@ -226,6 +226,38 @@ PR after commit; this file does not invent a self-referential commit SHA or clai
 an unexecuted check. Independent Leader/security review remains required. No
 Task3/4, deployment, production flag change or merge is authorized here.
 
+### PR #138 Independent Leader correction (M1)
+
+The Independent Leader review of `50e84a7b5198b97c619fee8fb6fc33c055b658df`
+requested changes because the V12 `SERVER_AUTHORITY` schema permits
+`stream_id`, `sequence`, `question_number`, `observed_at` and
+`assessment_revision` to be nullable, while the timeline reader cast
+`sequence`/`question_number` to non-null numbers and built a client-only
+`AnswerObservation`. A valid server fact therefore failed closed as
+`AUDIT_UNAVAILABLE`, and the OpenAPI `AuditItem` wrongly declared only
+`CLIENT_OBSERVATION` and browser event types.
+
+The correction is read-side only. It adds a strict `ServerAuditFact` canonical
+envelope (`schemaVersion`, `eventId`, `source=SERVER_AUTHORITY`, canonical type,
+`occurredAt`, nullable `questionNumber`, nullable `assessmentRevision`) with a
+distinct AEAD context prefix. `AnswerAuditStore.timeline` now branches by
+`source`: client rows still require a non-null stream/sequence/question and keep
+transition detail; server rows require null stream/sequence/observedAt, a
+non-null occurredAt, and a decrypted canonical that matches the stored event,
+type, question, revision and occurredAt. Unknown sources, tampered ciphertext,
+foreign AEAD contexts and canonical mismatches fail closed before any sensitive
+read receipt. Server facts report `transitionDetailStatus=NOT_APPLICABLE` and no
+transition; they are never reclassified as client observations.
+
+`AuditItem` and the generated TypeScript now expose the unified T1 provenance:
+both sources, all six server and five client event types, nullable
+question/observed/occurred/revision fields and the existing transition status.
+Synthetic integration tests cover nullable server fields across authorized
+pagination, provenance typing, per-page committed `ANSWER_AUDIT` receipts and a
+foreign-context tamper with zero receipts. No automatic real-learner
+SERVER_AUTHORITY capture, retention cleanup, production key binding, Task 3 or
+Task 4 is implemented or activated.
+
 ## 8. Independent Leader checklist
 
 - [ ] Verify exact PR HEAD, complete diff, migration checksums and actual CI results.

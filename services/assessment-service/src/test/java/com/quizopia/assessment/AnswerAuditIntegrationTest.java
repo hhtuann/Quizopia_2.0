@@ -62,6 +62,39 @@ class AnswerAuditIntegrationTest {
                 f.student, f.now().plusSeconds(3600), "fixture", publication.publication(), attempt, body);
     }
 
+    void insertServerFact(ServerAuditFact fact, long ordinal) {
+        insertServerFact(fact, ordinal, attempt);
+    }
+
+    void insertServerFact(ServerAuditFact fact, long ordinal, UUID contextAttempt) {
+        var sealed = new AuditEncryption.AesGcm("synthetic", key)
+                .encrypt(
+                        ServerAuditFact.context(
+                                publication.publication(),
+                                contextAttempt,
+                                f.student,
+                                fact.eventId(),
+                                fact.type(),
+                                fact.questionNumber()),
+                        fact.canonical());
+        Instant received = f.now();
+        f.db.update(
+                "INSERT INTO assessment_answer_audit(attempt_id,publication_id,event_id,ordinal,actor_id,source,event_type,stream_id,sequence,question_number,assessment_revision,observed_at,occurred_at,received_at,expires_at,key_id,protected_input) VALUES(?,?,?,?,?,'SERVER_AUTHORITY',?,NULL,NULL,?,?,NULL,?,?,?,?,?)",
+                attempt,
+                publication.publication(),
+                fact.eventId(),
+                ordinal,
+                f.student,
+                fact.type(),
+                fact.questionNumber(),
+                fact.assessmentRevision() == null ? null : Long.parseLong(fact.assessmentRevision()),
+                Timestamp.from(fact.occurredAt()),
+                Timestamp.from(received),
+                Timestamp.from(received.plusSeconds(3600)),
+                sealed.keyId(),
+                sealed.bytes());
+    }
+
     void failure(String code, Runnable work) {
         f.failure(code, work);
     }
@@ -247,6 +280,65 @@ class AnswerAuditIntegrationTest {
         f.core.submit(f.manual(attempt, 0, GradingDocumentsTest.replacement()));
         f.db.execute(
                 "CREATE TRIGGER synthetic_receipt_failure BEFORE INSERT ON assessment_sensitive_read_receipts FOR EACH ROW EXECUTE FUNCTION synthetic_audit_failure()");
+        failure("AUDIT_UNAVAILABLE", () -> service.timeline(teacher, publication.publication(), attempt, 0, 50));
+        assertEquals("0", f.scalar("SELECT count(*) FROM assessment_sensitive_read_receipts"));
+    }
+
+    @Test
+    void serverAuthorityFactsKeepNullableFieldsAndProvenanceAcrossAuthorizedPages() {
+        var started = new ServerAuditFact(
+                UUID.randomUUID(), "ATTEMPT_STARTED", f.now().minusSeconds(30), null, null);
+        var graded =
+                new ServerAuditFact(UUID.randomUUID(), "RESULT_GRADED", f.now().minusSeconds(20), null, "1");
+        insertServerFact(started, 1);
+        insertServerFact(graded, 2);
+        append(observation(UUID.randomUUID(), UUID.randomUUID(), 1, "ANSWER_SELECTED", "[]", "[\"A\"]"));
+        f.core.submit(f.manual(attempt, 0, GradingDocumentsTest.replacement()));
+
+        var first = service.timeline(teacher, publication.publication(), attempt, 0, 1);
+        assertEquals("1", first.nextAfter());
+        var startedItem = first.items().getFirst();
+        assertEquals("SERVER_AUTHORITY", startedItem.source());
+        assertEquals("ATTEMPT_STARTED", startedItem.type());
+        assertNull(startedItem.questionNumber());
+        assertNull(startedItem.observedAt());
+        assertNotNull(startedItem.occurredAt());
+        assertNull(startedItem.assessmentRevision());
+        assertEquals("NOT_APPLICABLE", startedItem.transitionDetailStatus());
+        assertNull(startedItem.transition());
+
+        var second = service.timeline(teacher, publication.publication(), attempt, 1, 1);
+        assertEquals("2", second.nextAfter());
+        var gradedItem = second.items().getFirst();
+        assertEquals("SERVER_AUTHORITY", gradedItem.source());
+        assertEquals("RESULT_GRADED", gradedItem.type());
+        assertNull(gradedItem.questionNumber());
+        assertEquals("1", gradedItem.assessmentRevision());
+        assertEquals("NOT_APPLICABLE", gradedItem.transitionDetailStatus());
+        assertNull(gradedItem.transition());
+
+        var third = service.timeline(teacher, publication.publication(), attempt, 2, 50);
+        assertNull(third.nextAfter());
+        var clientItem = third.items().getFirst();
+        assertEquals("CLIENT_OBSERVATION", clientItem.source());
+        assertEquals("ANSWER_SELECTED", clientItem.type());
+        assertEquals(Integer.valueOf(1), clientItem.questionNumber());
+        assertNull(clientItem.occurredAt());
+        assertEquals("AVAILABLE", clientItem.transitionDetailStatus());
+
+        assertEquals(
+                "3",
+                f.scalar(
+                        "SELECT count(*) FROM assessment_sensitive_read_receipts WHERE attempt_id=? AND actor_id=? AND purpose='ANSWER_AUDIT'",
+                        attempt,
+                        teacher.id()));
+    }
+
+    @Test
+    void serverCanonicalBoundToForeignAttemptFailsClosedWithoutReceipt() {
+        var fact = new ServerAuditFact(UUID.randomUUID(), "ATTEMPT_STARTED", f.now(), null, null);
+        insertServerFact(fact, 1, UUID.randomUUID());
+        f.core.submit(f.manual(attempt, 0, GradingDocumentsTest.replacement()));
         failure("AUDIT_UNAVAILABLE", () -> service.timeline(teacher, publication.publication(), attempt, 0, 50));
         assertEquals("0", f.scalar("SELECT count(*) FROM assessment_sensitive_read_receipts"));
     }

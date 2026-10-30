@@ -53,8 +53,10 @@ public class AnswerAuditStore {
             String ordinal,
             String type,
             String source,
-            int questionNumber,
+            Integer questionNumber,
             Instant observedAt,
+            Instant occurredAt,
+            String assessmentRevision,
             Instant receivedAt,
             String transitionDetailStatus,
             Object transition) {
@@ -255,6 +257,73 @@ public class AnswerAuditStore {
             throw new PublicationFailure(503, "AUTHORITY_UNAVAILABLE");
     }
 
+    private Item item(Map<String, Object> row, UUID publication, UUID attempt) {
+        UUID event = (UUID) row.get("event_id");
+        String type = row.get("event_type").toString();
+        String source = row.get("source").toString();
+        Integer number = row.get("question_number") == null ? null : ((Number) row.get("question_number")).intValue();
+        Instant observed = row.get("observed_at") == null ? null : ((Timestamp) row.get("observed_at")).toInstant();
+        Instant occurred = row.get("occurred_at") == null ? null : ((Timestamp) row.get("occurred_at")).toInstant();
+        String revision = row.get("assessment_revision") == null
+                ? null
+                : row.get("assessment_revision").toString();
+        UUID actor = (UUID) row.get("actor_id");
+        String keyId = row.get("key_id").toString();
+        byte[] protectedInput = (byte[]) row.get("protected_input");
+        Object transition = null;
+        String status;
+        if (source.equals("CLIENT_OBSERVATION")) {
+            if (row.get("stream_id") == null || row.get("sequence") == null || number == null) throw unavailable();
+            var o = new AnswerObservation(
+                    event,
+                    (UUID) row.get("stream_id"),
+                    ((Number) row.get("sequence")).longValue(),
+                    type,
+                    number,
+                    observed,
+                    null,
+                    null);
+            var canonical =
+                    json.readTree(encryption.decrypt(keyId, o.context(publication, attempt, actor), protectedInput));
+            transition = canonical.has("transition") ? canonical.path("transition") : null;
+            status = transition != null
+                    ? "AVAILABLE"
+                    : type.startsWith("ANSWER_") ? "UNSUPPORTED_TYPE" : "NOT_APPLICABLE";
+        } else if (source.equals("SERVER_AUTHORITY")) {
+            if (row.get("stream_id") != null || row.get("sequence") != null || observed != null || occurred == null)
+                throw unavailable();
+            ServerAuditFact fact;
+            try {
+                fact = ServerAuditFact.parse(encryption.decrypt(
+                        keyId,
+                        ServerAuditFact.context(publication, attempt, actor, event, type, number),
+                        protectedInput));
+            } catch (RuntimeException e) {
+                throw unavailable();
+            }
+            if (!fact.eventId().equals(event)
+                    || !fact.type().equals(type)
+                    || !Objects.equals(fact.questionNumber(), number)
+                    || !Objects.equals(fact.assessmentRevision(), revision)
+                    || !fact.occurredAt().equals(occurred)) throw unavailable();
+            status = "NOT_APPLICABLE";
+        } else {
+            throw unavailable();
+        }
+        return new Item(
+                event,
+                row.get("ordinal").toString(),
+                type,
+                source,
+                number,
+                observed,
+                occurred,
+                revision,
+                ((Timestamp) row.get("received_at")).toInstant(),
+                status,
+                transition);
+    }
+
     public Timeline timeline(
             ClosureStore.Teacher actor,
             UUID publication,
@@ -283,38 +352,7 @@ public class AnswerAuditStore {
                     limit + 1);
             boolean more = rows.size() > limit;
             var items = new ArrayList<Item>();
-            for (var row : rows.subList(0, Math.min(limit, rows.size()))) {
-                UUID event = (UUID) row.get("event_id");
-                String type = row.get("event_type").toString();
-                int number = ((Number) row.get("question_number")).intValue();
-                var o = new AnswerObservation(
-                        event,
-                        (UUID) row.get("stream_id"),
-                        ((Number) row.get("sequence")).longValue(),
-                        type,
-                        number,
-                        row.get("observed_at") == null ? null : ((Timestamp) row.get("observed_at")).toInstant(),
-                        null,
-                        null);
-                var canonical = json.readTree(encryption.decrypt(
-                        row.get("key_id").toString(),
-                        o.context(publication, attempt, (UUID) row.get("actor_id")),
-                        (byte[]) row.get("protected_input")));
-                Object transition = canonical.has("transition") ? canonical.path("transition") : null;
-                String status = transition != null
-                        ? "AVAILABLE"
-                        : type.startsWith("ANSWER_") ? "UNSUPPORTED_TYPE" : "NOT_APPLICABLE";
-                items.add(new Item(
-                        event,
-                        row.get("ordinal").toString(),
-                        type,
-                        row.get("source").toString(),
-                        number,
-                        o.observedAt(),
-                        ((Timestamp) row.get("received_at")).toInstant(),
-                        status,
-                        transition));
-            }
+            for (var row : rows.subList(0, Math.min(limit, rows.size()))) items.add(item(row, publication, attempt));
             boolean any = Boolean.TRUE.equals(db.queryForObject(
                     "SELECT EXISTS(SELECT FROM assessment_answer_audit WHERE attempt_id=?)", Boolean.class, attempt));
             var reasons = new ArrayList<String>();

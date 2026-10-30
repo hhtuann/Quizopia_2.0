@@ -146,9 +146,14 @@ paths:
       description: >-
         Same owning-Teacher/current CLASS/graded-SUBMITTED/policy/receipt/fence gates as
         Teacher Review, including every page/decryption. No ACTIVE/ABANDONED progress
-        fallback. Browser history is always partial/untrusted; pre-feature data is not
-        reconstructed. Currently policy-gated. Expired observations are omitted, never
-        resurrected or decrypted; an unavailable key/receipt fails the request closed.
+        fallback. Unified T1 provenance: SERVER_AUTHORITY lifecycle/persistence facts
+        (nullable stream/sequence/questionNumber/observedAt, producer occurredAt) and
+        CLIENT_OBSERVATION browser claims are typed separately; server facts are never
+        misclassified as client observations or given transition detail. Browser history
+        is always partial/untrusted; pre-feature data is not reconstructed. No automatic
+        server-fact producer is wired while collection approvals are pending. Currently
+        policy-gated. Expired observations are omitted, never resurrected or decrypted;
+        an unavailable key/receipt fails the request closed.
       parameters:
         - name: after
           in: query
@@ -352,14 +357,18 @@ components:
     AuditItem:
       type: object
       additionalProperties: false
-      required: [eventId, ordinal, type, source, questionNumber, observedAt, receivedAt, transitionDetailStatus, transition]
+      required: [eventId, ordinal, type, source, questionNumber, observedAt, occurredAt, assessmentRevision, receivedAt, transitionDetailStatus, transition]
       properties:
         eventId: {$ref: '#/components/schemas/Uuid'}
         ordinal: {$ref: '#/components/schemas/Count'}
-        type: {type: string, enum: [QUESTION_VIEWED, QUESTION_LEFT, ANSWER_SELECTED, ANSWER_CHANGED, ANSWER_CLEARED]}
-        source: {type: string, const: CLIENT_OBSERVATION}
-        questionNumber: {type: integer, minimum: 1}
+        type:
+          type: string
+          enum: [QUESTION_VIEWED, QUESTION_LEFT, ANSWER_SELECTED, ANSWER_CHANGED, ANSWER_CLEARED, ATTEMPT_STARTED, ANSWER_PERSISTED, ATTEMPT_SUBMITTED, ATTEMPT_ABANDONED, CLOSURE_NOTICE_CONFIRMED, RESULT_GRADED]
+        source: {type: string, enum: [CLIENT_OBSERVATION, SERVER_AUTHORITY]}
+        questionNumber: {anyOf: [{type: integer, minimum: 1}, {type: 'null'}]}
         observedAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        occurredAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        assessmentRevision: {anyOf: [{$ref: '#/components/schemas/Count'}, {type: 'null'}]}
         receivedAt: {$ref: '#/components/schemas/Instant'}
         transitionDetailStatus: {type: string, enum: [AVAILABLE, UNSUPPORTED_TYPE, MISSING, EXPIRED, NOT_APPLICABLE]}
         transition: {anyOf: [{$ref: '#/components/schemas/AuditTransition'}, {type: 'null'}]}
