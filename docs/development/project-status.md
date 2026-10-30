@@ -3,6 +3,14 @@
 > **Purpose:** living project checkpoint for humans and AI agents.
 >
 > **Last updated:** 2026-10-26 (UI/UX Round 2 + amendment branch; Round-1 checkpoint below; T4/T3 checkpoints retained)
+>
+> **BR-01 status correction (2026-10-30):** BR-01 is **RESOLVED as of 2026-10-29 — a
+> policy-only decision with no owner-exclusion or Teacher-Preview implementation**
+> (any currently authorized STUDENT may take an eligible PUBLIC Assessment including
+> their own; CLASS requires actual Student membership). See the
+> [BR-01 decision memo](../decisions/teacher-self-attempt-br01-decision-memo.md) and
+> issue #126. Any older "BR-01 PENDING" statement below is a historical checkpoint,
+> superseded by this note. Production NO-GO is unchanged by this resolution.
 
 ## UI/UX Round 2 + amendment — awaiting review, not merged
 
@@ -22,7 +30,8 @@ regression) and UX-11 (**BLOCKED FOR LEADER CONTRACT APPROVAL**; package at
 isolation) / typecheck / lint / format / build green, and **18/18 real-runtime
 assertions** through the new attempt workspace (fresh OPEN publication, real
 entry/start/autosave/locale-switch/submit/100.00% grading). Production
-**NO-GO** and **BR-01 PENDING** unchanged. Full record:
+**NO-GO** unchanged; BR-01 resolved 2026-10-29 as policy-only (see the
+top-of-file status correction). Full record:
 [ux-round2-verification.md](ux-round2-verification.md). PR **#114** open.
 
 ## UX feedback round 1 — awaiting review, not merged
@@ -40,7 +49,8 @@ least-privilege Identity internal batch-profile contract — proposed in the
 record below; Teacher Results continue showing authoritative identifiers and
 no names are fabricated. Verification: 829 Vitest / 133 Playwright /
 typecheck / lint / format / build green, plus 14/14 real-runtime spot
-assertions. Production **NO-GO** and **BR-01 PENDING** unchanged.
+assertions. Production **NO-GO** unchanged; BR-01 resolved 2026-10-29 as
+policy-only (see the top-of-file status correction).
 Full record: [ux-feedback-round1.md](ux-feedback-round1.md).
 
 > **Checkpoint baseline:** merged `develop` `2d837e5f853cc2c929d8433e62b2da3f07a60cd2`
@@ -81,7 +91,8 @@ teacher-route parallel-load flake documented since T2/T3 passes in isolation
 and CI). Real-stack evidence totals **82 assertions**: the 64 J1–J9
 assertions (byte-identical authored Markdown across locale switches,
 mid-form retention, mobile no-overflow) plus the 18/18 full journey.
-Production **NO-GO unchanged**; **BR-01 still PENDING** — T4 makes no
+Production **NO-GO unchanged**; BR-01 was **PENDING at T4 time** and was
+resolved 2026-10-29 as policy-only — T4 makes no
 self-attempt policy change. Untracked `scripts/local/windows_*`
 local-runtime files are not T4.
 
@@ -108,9 +119,9 @@ evidence: 63 successful assertions and eight screenshots; initial direct
 Teacher-results timeout retained, normal menu/directory Results recheck passed.
 Positive CLOSED live rows and >20-row UI paging were not exercised live.
 
-[BR-01 memo](../decisions/teacher-self-attempt-br01-decision-memo.md): **PENDING
-LEADER PRODUCT APPROVAL**; recommendation only, no self-attempt policy enforcement
-or Preview/Test implementation. Inherited release **NO-GO / production activation
+[BR-01 memo](../decisions/teacher-self-attempt-br01-decision-memo.md): resolved
+2026-10-29 as policy-only (no self-attempt enforcement change, no
+Preview/Test implementation). Inherited release **NO-GO / production activation
 NOT AUTHORIZED** remains. Implementation SHA:
 `8d39379b8b2091c01879a8981195ce980c407cf9`, [PR #111](https://github.com/hhtuann/Quizopia_2.0/pull/111).
 Frontend, all eight backend matrix jobs and compose-config passed on that SHA;

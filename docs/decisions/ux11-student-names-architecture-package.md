@@ -2,7 +2,8 @@
 
 > **Status: BLOCKED FOR LEADER CONTRACT APPROVAL** — a new cross-service
 > authorization contract is required; none exists today. No implementation is
-> merged. Production rollout remains NO-GO; BR-01 remains PENDING.
+> merged. Production rollout remains NO-GO. BR-01 was resolved 2026-10-29 as
+> policy-only (see the BR-01 decision memo) and does not gate this package.
 >
 > **Origin:** Round 1 UX-05 investigation (paused) elevated by the Round 2
 > scope amendment to a mandatory product requirement with an explicit

@@ -58,7 +58,11 @@ non-enumerable locator; no directory, guests, passwords or anonymous-session
 identity is required. Teacher management remains owner-authorized and Student
 APIs expose safe projections. Link possession bypasses no eligibility rule;
 exact locator/route/error contracts remain engineering work. No new owner
-self-participation permission or prohibition is introduced.
+self-participation permission or prohibition is introduced. (BR-01, resolved
+2026-10-29 as policy-only: any currently authorized STUDENT may take an
+eligible PUBLIC Assessment including their own; CLASS requires actual Student
+membership; no Teacher Preview is required. See the
+[BR-01 decision memo](../decisions/teacher-self-attempt-br01-decision-memo.md).)
 
 ## Current W3-B/C amendment
 

@@ -1,6 +1,6 @@
 # T3 — Teacher Assessment Management & Classroom Experience
 
-> **Status:** FE-01/FE-02 implemented on branch; local verification recorded below. Pending independent implementation/CI review and Leader merge approval; not merged. BR-01 remains pending product approval.
+> **Status:** FE-01/FE-02 implemented on branch; local verification recorded below. Pending independent implementation/CI review and Leader merge approval; not merged. BR-01 was pending product approval at T3 time; it was resolved 2026-10-29 as policy-only (see the BR-01 section below).
 > **Baseline:** `develop` `9d16d0ed20fffb0eca6ef4a05b9b3cd820866519`, merge PR #110.
 > **Branch:** `feature/teacher-assessment-classroom-management`
 > **Design source:** `DESIGN.md`; repo instructions: `AGENTS.md`.
@@ -36,15 +36,23 @@
 - Preserve all local Windows runtime helpers and ignored secrets; no destructive Git operations. No production feature flag enablement.
 - One implementation branch and one PR for T3; independently review before merge.
 
-## Product decision gate — BR-01 (NOT IMPLEMENTATION-APPROVED)
+## Product decision gate — BR-01 (RESOLVED 2026-10-29, policy-only)
+
+**Resolution:** the product owner selected option 1 semantics — any currently
+authorized STUDENT may take an eligible PUBLIC Assessment, including their own
+Publication, under the existing locator/OPEN/window/attempt-limit gates; CLASS
+requires actual Student membership. **No owner-exclusion code and no Teacher
+Preview/Test flow is to be implemented.** See the
+[BR-01 decision memo](../decisions/teacher-self-attempt-br01-decision-memo.md)
+and issue #126. The historical gate text below is retained for the record.
 
 The existing product specification explicitly says that the Wave 3 contract **neither grants nor denies an owner's permission to attempt their own Publication**. The currently accepted dual-role USER may have both STUDENT and TEACHER.
 
 **Do not introduce a blanket self-owned official attempt prohibition, an alternate Teacher Preview/Test attempt execution flow, or a new result/grading/persistence mode in this T3 implementation without a separate written Leader product decision.**
 
-Permitted now: inspect and document existing semantics, threat model, alternative Preview/Test designs, response/error implications, and affected Student START/RETAKE/resume/CLASS/PUBLIC paths. The [BR-01 decision memo](../decisions/teacher-self-attempt-br01-decision-memo.md) is **PENDING LEADER PRODUCT APPROVAL**. Keep FE-01/FE-02 independent. Do not silently alter policy in backend or frontend.
+Historical status (superseded): at T3 time the [BR-01 decision memo](../decisions/teacher-self-attempt-br01-decision-memo.md) was **PENDING LEADER PRODUCT APPROVAL**. Keep FE-01/FE-02 independent. Do not silently alter policy in backend or frontend.
 
-Proposed decision options for Leader (not chosen):
+Decision options as presented at the time (option 1 semantics were accepted; no Preview required):
 1. Preserve current STUDENT eligibility even on owned Publication; add a distinct read-only preview later.
 2. Block owner on official START/RETAKE for owned Publication and implement an isolated, non-scored, non-persisting Teacher preview with explicit authorization and audit/privacy details.
 
@@ -245,8 +253,8 @@ remain for inspection; no existing business records were changed.
 ### Review, handoff and release disposition
 
 - FE-01/FE-02 implementation and local evidence are ready for **independent review**;
-  branch is not merged. BR-01 is documentation only and **PENDING LEADER PRODUCT
-  APPROVAL**, with no self-attempt enforcement or Preview/Test implementation.
+  branch is not merged. BR-01 is documentation only; it was resolved 2026-10-29 as
+  policy-only, with no self-attempt enforcement or Preview/Test implementation.
 - Inherited [release gates](w3-production-release-gates.md) and
   [release decision pack](w3-production-release-decision-pack.md) remain **NO-GO**;
   local green suites and smoke evidence do not authorize production activation.
