@@ -4,8 +4,8 @@
 > **Baseline:** `0a64a1286ab5d2a04c75e9f4f02b6b4f976bb7f2` (merged PR #113);
 > amendment UX-10/UX-11 landed first at `1815df9`, Round 2 tasks UX-07…09 on
 > top, then the seven Leader-correction items (Tasks A–G) on top of those.
-> PR: **#114** (open, **not merged**). Production **NO-GO** and
-> **BR-01 PENDING** unchanged.
+> PR: **#114** (open, **not merged**). Production **NO-GO** unchanged; BR-01
+> was resolved 2026-10-29 as policy-only (see the BR-01 decision memo).
 
 ## Leader correction round (Tasks A–G) — all seven DONE
 

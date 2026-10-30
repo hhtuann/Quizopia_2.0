@@ -1,8 +1,20 @@
 # BR-01 — Teacher self-attempt and isolated Preview/Test decision memo
 
-> **Status: PENDING LEADER PRODUCT APPROVAL**
+> **Status: RESOLVED — PRODUCT POLICY ACCEPTED (2026-10-29); NO NEW ENFORCEMENT REQUIRED**
 > Recorded: 2026-10-26. Branch: `feature/teacher-assessment-classroom-management`.
 > Scope: decision support only. No enforcement, endpoint, schema or permission change is approved by this memo.
+
+## Final Leader product decision (2026-10-29)
+
+The product owner explicitly approved **ordinary official Student participation for the Publication owner**. The proposed owner-exclusion rule and isolated Teacher Preview requirement in the *historical, unapproved options below* are **not selected**, and must not be implemented as BR-01 work.
+
+- **PUBLIC:** any currently-authorized authenticated `STUDENT`, including a dual-role Teacher who owns the Publication, may enter an eligible OPEN PUBLIC Assessment by satisfying the existing **private locator**, timing, attempt-entitlement, deadline, LD-05 and ordinary Student checks. PUBLIC does not grant anonymous or locator-free access.
+- **CLASS:** only an authenticated `STUDENT` who is a **current Student member of the assigned Classroom** may make an official Attempt. Merely being that Classroom's Teacher, a Quiz author or a Publication owner is *not* Student membership. A dual-role user qualifies only when actually in the class Student roster; the owner is neither specially included nor excluded.
+- Users lacking current `STUDENT` authority cannot take an official Attempt merely because they have `TEACHER` authority. Teaching/Learning workspace selection is UI context, never authorization.
+- Existing creation/resume/replay/grading/results rules continue. No backend or frontend role restriction is authorized by this BR-01 decision. Preserve all existing historical Attempts and grading records.
+- An optional Teacher Preview could be separately requested in future, but is **not** required to resolve BR-01 and must not be implemented from this memo.
+
+**Resolution:** BR-01's policy ambiguity is **CLOSED**, no new behavior change is requested. See [Issue #126](https://github.com/hhtuann/Quizopia_2.0/issues/126). The sections below are retained solely as source-tracing and historical alternatives; their recommendations are superseded by this final decision.
 
 ## Authority and question
 
@@ -55,7 +67,7 @@ This is not evidence that Teacher role alone bypasses CLASS membership, that key
 are currently leaked by learner projections, or that a final gradebook event is
 already implemented. Changing only a button or workspace cannot secure the paths.
 
-## Recommendation — not enforcement
+## Historical recommendation — SUPERSEDED, do not implement
 
 Recommend a future, separately approved **owner exclusion for new official
 START/RETAKE creation**, paired with isolated Preview/Test. Keep Teachers eligible
@@ -68,7 +80,7 @@ Alternative: explicitly accept eligible owner participation and its scored-histo
 consequences, with a clearly separate read-only preview later. Either choice needs
 written approval; FE-01/FE-02 do not choose it.
 
-## Isolated Preview/Test — conceptual design only
+## Historical Preview/Test concept — NOT APPROVED OR REQUIRED
 
 - Assessment owns Publication preview orchestration and its finalized delivery
   snapshot; Quiz owns immutable source QuizVersion. OPEN/CLOSED preview should use
@@ -100,7 +112,7 @@ written approval; FE-01/FE-02 do not choose it.
   requires separate non-official storage, TTL/deletion and audit approval; no reuse
   of official tables or triggers. Stateless preview is the recommended baseline.
 
-## Implementation implications if approved
+## Historical implementation implications (not approved by BR-01)
 
 | Area | Required follow-up |
 | --- | --- |
@@ -110,7 +122,7 @@ written approval; FE-01/FE-02 do not choose it.
 | Storage/events | A stateless projection needs no new business table. If session/audit persistence is chosen, define separate ownership, retention and additive Flyway work. Prove zero official rows, receipts, grades, results, outbox rows and monitoring side effects; do not migrate/delete existing attempts by inference. |
 | Frontend | Distinct “Preview/Test — not an official submission” entry and banner, no official timer/submit/result/realtime/monitoring hooks, no auto-start on navigation. Exit discards local answers. Guards are UX only; generated API contracts and backend authority remain mandatory. |
 
-## Explicit Leader decisions required
+## Former open questions — all resolved by final policy above
 
 1. Accept owner scored participation, or exclude **Publication owner** from new
    official attempts? Confirm both PUBLIC/CLASS and dual-role users, without a
@@ -128,5 +140,4 @@ written approval; FE-01/FE-02 do not choose it.
 5. Approve implementation scope, default-off rollout and independent contract,
    security, isolation and regression acceptance before activation.
 
-**Decision record:** pending. Approver/date/rationale: pending Leader product
-decision. This memo changes no accepted policy or inherited release **NO-GO**.
+**Decision record:** resolved by product owner on 2026-10-29: ordinary STUDENT eligibility applies regardless of Publication ownership, with existing PUBLIC locator and CLASS Student-membership gates. No new restriction or Preview task is approved. Release remains **NO-GO**.
