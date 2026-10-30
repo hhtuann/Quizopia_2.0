@@ -3,7 +3,8 @@
 > **Branch:** `feature/frontend-ux-feedback-round1` (baseline: merged PR #112,
 > `9d5ce4d803717bd7c874d384b74ac18156eb1806`)
 > **Status:** implementation complete on the branch; awaiting independent
-> review. Production **NO-GO** and **BR-01 PENDING** unchanged.
+> review. Production **NO-GO** unchanged. BR-01 was resolved 2026-10-29 as
+> policy-only (see the BR-01 decision memo).
 
 Approved user-feedback corrections UX-01…UX-06. All changes are
 frontend-presentation only unless explicitly noted; no business rule, scoring,

@@ -3,8 +3,9 @@
 > **Branch:** `feature/ux-round3-assessment-workspace` (baseline: merged
 > develop `0a64a12`, PR #113). FB-014 lives on its own branch
 > `feature/ux-round3-quiz-create-on-save` (same baseline; no dependency on
-> unmerged PR #114). Tracking issue: **#115**. Production **NO-GO** and
-> **BR-01 PENDING** unchanged; PR #114 remains open and untouched.
+> unmerged PR #114). Tracking issue: **#115**. Production **NO-GO** unchanged;
+> BR-01 was resolved 2026-10-29 as policy-only (see the BR-01 decision memo).
+> PR #114 remains open and untouched.
 
 ## Status summary
 
