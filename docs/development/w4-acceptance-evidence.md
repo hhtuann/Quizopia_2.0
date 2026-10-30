@@ -3,6 +3,12 @@
 Status: **PASS — all local/test W4 acceptance journeys demonstrated, including the
 real-Chromium browser journey.**
 
+> **Later engineering closure (2026-10-30):** W4-B1–B4/E and subsequent product
+> completion workstreams are merged. See [W4 Final Engineering Closure](w4-final-engineering-closure.md)
+> for the current develop SHA, FB-015 integration and precise post-merge CI
+> status. This 2026-10-21 evidence is preserved as a historical disposable-test
+> record; it is not production sign-off.
+
 Recorded: 2026-10-21. Verifying agent: W4-E integration & acceptance.
 Scope: W4-B1/B2/B3/B4 realtime implementation against the frozen W4-A1 R3 contracts
 (`shared/api-contracts/realtime-ticket.openapi.yaml`, `realtime-ws-v1.schema.json`,
