@@ -30,7 +30,10 @@ public class AdmissionIngressFilter implements WebFilter {
             return exchange.getResponse().setComplete();
         }
         if ((StudentAttemptRoutes.matches(exchange.getRequest().getMethod().name(), path)
-                        || ClosureRoutes.role(exchange.getRequest().getMethod().name(), path) != null)
+                        || ClosureRoutes.role(exchange.getRequest().getMethod().name(), path) != null
+                        || TeacherAssessmentRoutes.role(
+                                        exchange.getRequest().getMethod().name(), path)
+                                != null)
                 && exchange.getRequest().getHeaders().headerNames().stream().anyMatch(name -> {
                     String lower = name.toLowerCase(Locale.ROOT);
                     return lower.startsWith("x-quizopia-")

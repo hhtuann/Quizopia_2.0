@@ -21,6 +21,9 @@ final class StudentAttemptBodyFilter {
 
     static Mono<Void> forward(ServerWebExchange exchange, WebFilterChain chain) {
         var request = exchange.getRequest();
+        if (TeacherAssessmentRoutes.role(
+                        request.getMethod().name(), request.getURI().getRawPath())
+                != null) return teacherForward(exchange, chain);
         if (!StudentAttemptRoutes.matches(
                         request.getMethod().name(), request.getURI().getRawPath())
                 && ClosureRoutes.role(
@@ -65,6 +68,48 @@ final class StudentAttemptBodyFilter {
                         }
                     };
                     return chain.filter(exchange.mutate().request(cached).build());
+                })
+                .onErrorResume(DataBufferLimitException.class, e -> invalid(exchange));
+    }
+
+    private static Mono<Void> teacherForward(ServerWebExchange exchange, WebFilterChain chain) {
+        var request = exchange.getRequest();
+        if (!TeacherAssessmentRoutes.paged(request.getURI().getRawPath())
+                        && request.getURI().getRawQuery() != null
+                || request.getHeaders().getContentLength() > 4096) return invalid(exchange);
+        var encodings = request.getHeaders().get("Content-Encoding");
+        if (encodings != null && (encodings.size() != 1 || !encodings.getFirst().equalsIgnoreCase("identity")))
+            return invalid(exchange);
+        if (request.getMethod() == HttpMethod.POST) {
+            var types = request.getHeaders().get("Content-Type");
+            if (types == null
+                    || types.size() != 1
+                    || !types.getFirst().matches("(?i)application/json(?:\\s*;\\s*charset=(?:UTF-8|\"UTF-8\"))?"))
+                return invalid(exchange);
+        }
+        return DataBufferUtils.join(request.getBody(), 4096)
+                .map(buffer -> {
+                    try {
+                        var bytes = new byte[buffer.readableByteCount()];
+                        buffer.read(bytes);
+                        return bytes;
+                    } finally {
+                        DataBufferUtils.release(buffer);
+                    }
+                })
+                .defaultIfEmpty(new byte[0])
+                .flatMap(bytes -> {
+                    if (request.getMethod() == HttpMethod.GET && bytes.length != 0
+                            || request.getMethod() == HttpMethod.POST && bytes.length == 0) return invalid(exchange);
+                    return chain.filter(exchange.mutate()
+                            .request(new ServerHttpRequestDecorator(request) {
+                                public Flux<DataBuffer> getBody() {
+                                    return Flux.defer(() -> Flux.just(exchange.getResponse()
+                                            .bufferFactory()
+                                            .wrap(bytes)));
+                                }
+                            })
+                            .build());
                 })
                 .onErrorResume(DataBufferLimitException.class, e -> invalid(exchange));
     }

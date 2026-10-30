@@ -73,16 +73,16 @@ class QuizPurgeMigrationFailClosedIntegrationTest {
     }
 
     @Test
-    void superuserFlywayWithProvisionedRolesMigratesCleanlyThroughV11() {
+    void superuserFlywayWithProvisionedRolesMigratesCleanlyThroughV12() {
         var flyway = Flyway.configure()
                 .dataSource(PROVISIONED.getJdbcUrl(), PROVISIONED.getUsername(), PROVISIONED.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(12, flyway.migrate().migrationsExecuted);
+        assertEquals(13, flyway.migrate().migrationsExecuted);
         flyway.validate();
         var db = new JdbcTemplate(new DriverManagerDataSource(
                 PROVISIONED.getJdbcUrl(), PROVISIONED.getUsername(), PROVISIONED.getPassword()));
-        assertEquals(12L, db.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Long.class));
+        assertEquals(13L, db.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success", Long.class));
         assertEquals(0L, db.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE NOT success", Long.class));
     }
 }

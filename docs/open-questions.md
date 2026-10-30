@@ -8,6 +8,13 @@ Agents MUST NOT silently resolve these items.
 
 ## W4 final completion — active approval gates (2026-10-30)
 
+**Task2 checkpoint:** [Leader authorization](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6519641252)
+accepts the corrected T1 implementation design after PR #137 merge. The historical
+design-review PENDING entries below now refer to **Task2 implementation/security
+re-review**, not a newly missing T1 architecture decision. Retention/privacy/key/
+provider/backup and activation approvals remain missing; real ingestion and sensitive
+reads stay fail-closed. [Task2 implementation limits](development/w4f-t2-delivery.md).
+
 [#133](https://github.com/hhtuann/Quizopia_2.0/issues/133) reopens final product
 acceptance. The [T1 contract freeze candidate](specifications/w4f-assessment-completion-contract.md)
 records W4F-DEC-01 ALLOW (owner Teacher OPEN keys through a separate endpoint),
@@ -29,8 +36,9 @@ security/privacy/activation approvals. Student ASSESS-04 stays CLOSED-only.
   candidate uses upper-inclusive bins and strictly bounded, encrypted,
   snapshot-bound pre-SAVE choice transitions; unsupported matrix/numeric detail
   and partial/expired history are explicit. These designs do not approve collection.
-- **W4F-EXEC:** only T1 is authorized. T2–T4 require sequential review/merge and
-  explicit Leader handoff. Collection remains OFF, production NO-GO; do not use
+- **W4F-EXEC:** the Task2 safe increment is authorized after merged/reviewed T1.
+  Task2 implementation review/merge and explicit handoff are required before T3;
+  T4 remains sequentially gated. Collection remains OFF, production NO-GO; do not use
   local fixtures, PO intent or a merged UI PR as activation permission.
 
 The [approved W3-A Leader decision](specifications/w3-a-publication-scheduling-monitoring-policy.md)

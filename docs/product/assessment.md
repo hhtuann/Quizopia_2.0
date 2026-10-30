@@ -7,6 +7,13 @@ tracks the 11 inherited open gates; merge does not establish production acceptan
 
 ## W4 final-completion PO decisions — 2026-10-30
 
+Task2 implements the [authorized backend safe increment](../development/w4f-t2-delivery.md)
+against the accepted corrected T1 design: authoritative statistics/history and
+graded-SUBMITTED-only Teacher Review/audit mechanics. Sensitive application policy
+remains unconditionally closed pending retention/privacy approvals; positive paths
+use disposable synthetic permits. This does not activate learner collection or
+authorize Task3/4, production rollout or final acceptance.
+
 Final product acceptance is reopened under [#133](https://github.com/hhtuann/Quizopia_2.0/issues/133).
 PO intent allows the current Publication-owning Teacher to view correct answers
 while OPEN **only through a separately security-reviewed Teacher endpoint**.
