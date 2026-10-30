@@ -184,6 +184,11 @@ class QuizLibraryServiceTest {
         }
 
         @Override
+        public Map<QuizDeletionState, Long> countNonterminalByStatus() {
+            return Map.of();
+        }
+
+        @Override
         public void scrubLedgerContent(UUID operationId) {}
     }
 }

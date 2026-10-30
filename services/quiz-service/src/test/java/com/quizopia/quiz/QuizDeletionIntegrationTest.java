@@ -600,6 +600,7 @@ class QuizDeletionIntegrationTest {
                 quizVersionRepository,
                 deletionOperationRepository,
                 deletionOutboxRepository,
+                com.quizopia.quiz.application.DeletionSagaObserver.NOOP,
                 clock);
         QuizDeletionOperation durableOperation =
                 restartedService.getOperation(ownerUserId, quizId, accepted.operationId());

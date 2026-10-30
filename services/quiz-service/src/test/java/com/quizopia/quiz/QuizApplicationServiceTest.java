@@ -413,6 +413,11 @@ class QuizApplicationServiceTest {
         public void insert(QuizDeletionOperation operation) {}
 
         @Override
+        public java.util.Map<QuizDeletionState, Long> countNonterminalByStatus() {
+            return java.util.Map.of();
+        }
+
+        @Override
         public void update(QuizDeletionOperation operation) {}
 
         @Override

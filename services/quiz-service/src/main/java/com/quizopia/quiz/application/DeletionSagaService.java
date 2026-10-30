@@ -25,22 +25,30 @@ public class DeletionSagaService {
     private final QuizDeletionOperationRepository deletionOperationRepository;
     private final DeletionOperationService deletionOperationService;
     private final DeletionDependencies dependencies;
+    private final DeletionSagaObserver observer;
     private final int batchLimit;
 
     public DeletionSagaService(
             QuizDeletionOperationRepository deletionOperationRepository,
             DeletionOperationService deletionOperationService,
             DeletionDependencies dependencies,
+            DeletionSagaObserver observer,
             int batchLimit) {
         this.deletionOperationRepository =
                 Objects.requireNonNull(deletionOperationRepository, "deletionOperationRepository");
         this.deletionOperationService = Objects.requireNonNull(deletionOperationService, "deletionOperationService");
         this.dependencies = Objects.requireNonNull(dependencies, "dependencies");
+        this.observer = Objects.requireNonNull(observer, "observer");
         this.batchLimit = batchLimit;
     }
 
     /** One bounded reconciliation round over every nonterminal operation. */
     public void reconcileDue() {
+        try {
+            observer.onStatusCounts(deletionOperationRepository.countNonterminalByStatus());
+        } catch (RuntimeException failure) {
+            // Best-effort gauge refresh only; the reconcile round below still runs.
+        }
         List<QuizDeletionOperation> due;
         try {
             due = deletionOperationRepository.findSagaCandidates(batchLimit);
@@ -51,15 +59,26 @@ public class DeletionSagaService {
             try {
                 reconcile(operation);
             } catch (RuntimeException failure) {
+                observer.onReconcileFailure(
+                        operation.id(), operation.status(), failure.getClass().getName());
             }
         }
     }
 
     /** Outbox handoff for quiz.deletion.requested.v1: idempotent revocation dispatch. */
     public void onDeletionCommand(UUID operationId) {
+        QuizDeletionOperation operation = null;
         try {
-            deletionOperationRepository.findById(operationId).ifPresent(this::reconcile);
+            operation = deletionOperationRepository.findById(operationId).orElse(null);
+            if (operation == null) {
+                return;
+            }
+            reconcile(operation);
         } catch (RuntimeException failure) {
+            observer.onReconcileFailure(
+                    operationId,
+                    operation == null ? null : operation.status(),
+                    failure.getClass().getName());
             throw new DeletionDependencies.DependencyUnavailable();
         }
     }

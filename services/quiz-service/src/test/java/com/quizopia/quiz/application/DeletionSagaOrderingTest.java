@@ -35,7 +35,8 @@ class DeletionSagaOrderingTest {
             "title",
             List.of(),
             null);
-    final DeletionSagaService saga = new DeletionSagaService(repository, operations, dependencies, 10);
+    final DeletionSagaService saga =
+            new DeletionSagaService(repository, operations, dependencies, DeletionSagaObserver.NOOP, 10);
 
     DeletionDependencies.PurgeStatus status(boolean purged, boolean hold) {
         return new DeletionDependencies.PurgeStatus(Instant.now(), purged, hold);

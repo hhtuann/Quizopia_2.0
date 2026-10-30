@@ -76,6 +76,13 @@ paths:
         "400": { $ref: "#/components/responses/Invalid" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_RATE_LIMITED }
         "503":
           description: Capability disabled or persistence unavailable; never a success claim.
           content:
@@ -112,6 +119,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PurgeStatus"
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_RATE_LIMITED }
         "404":
           description: No fence/purge state exists for this quiz.
           content:
