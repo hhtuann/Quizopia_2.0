@@ -47,10 +47,7 @@ import { PublicationResultsSection } from "../../teacher-results/components/teac
 import { PrivatePublicationLocator } from "./private-publication-locator";
 import { PublicationConfigurationForm } from "./publication-configuration-form";
 import { PublicationConfirmation } from "./publication-confirmation";
-import {
-  PublicationSummary,
-  PublicationSummaryChips,
-} from "./publication-summary";
+import { PublicationSummary } from "./publication-summary";
 import { ScheduleExtension } from "./publication-schedule-extension";
 
 type Command =
@@ -103,7 +100,7 @@ function desktopQuerySnapshot(): boolean {
 
 /**
  * Collapsible authoritative configuration card for the unified results-first
- * OPEN/CLOSED detail layout. The compact chip row is always visible; the full
+ * OPEN/CLOSED detail layout. The full
  * PublicationSummary (and the PUBLIC private locator) sits behind a native
  * <details>/<summary> disclosure that defaults to expanded on lg+ desktops
  * and collapsed on smaller viewports. The responsive default is read through
@@ -127,9 +124,7 @@ function ConfigurationSummaryCard({
   const expanded = userOverride ?? desktopDefault;
   return (
     <Surface className="p-5 sm:p-6">
-      <PublicationSummaryChips configuration={publication.configuration} />
       <details
-        className="mt-4"
         onToggle={(event) => setUserOverride(event.currentTarget.open)}
         open={expanded}
       >
@@ -408,7 +403,7 @@ export function PublicationDetailScreen({
     (editBase.revision !== publication.revision ||
       publication.state !== "DRAFT");
 
-  // Shared header: compact title/status + refresh (all states).
+  // Shared header: compact title/status. Results owns its explicit refresh.
   const header = (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
@@ -430,16 +425,6 @@ export function PublicationDetailScreen({
           <RealtimeStatusInline status={realtimeStatus} />
         </div>
       </div>
-      <Button
-        aria-label={loading ? t("Refreshing…") : undefined}
-        disabled={busy}
-        isLoading={loading}
-        loadingLabel={t("Refreshing…")}
-        onClick={() => void reconcile()}
-        variant="secondary"
-      >
-        {t("Refresh")}
-      </Button>
     </header>
   );
   const statusArea = (
@@ -455,6 +440,14 @@ export function PublicationDetailScreen({
         <Alert title={t("Could not refresh")} variant="warning">
           {localize(publicationFailureMessage(readFailure))}{" "}
           {t("The details below may be outdated.")}
+          <Button
+            className="mt-3"
+            disabled={busy || loading}
+            onClick={() => void reconcile()}
+            variant="secondary"
+          >
+            {t("Retry Publication details")}
+          </Button>
         </Alert>
       ) : null}
       {mutationFailure ? (

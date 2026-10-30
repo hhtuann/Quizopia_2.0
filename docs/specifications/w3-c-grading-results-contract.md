@@ -155,6 +155,11 @@ no public Student directory, global leaderboard or Student cross-owner list.
 
 ## Review boundary
 
+Later W4F-DEC-01 (2026-10-30) approves PO intent for **separate owning-Teacher
+OPEN review**, subject to independent security freeze approval. See the
+[T1 candidate and approval matrix](w4f-assessment-completion-contract.md).
+No Teacher Review is implemented in T1; the Student boundary below remains intact.
+
 GET owner review requires current STUDENT admission, Attempt ownership and current
 CLASS membership where applicable, **durably CLOSED** Publication and SUBMITTED
 Attempt with a complete result. OPEN gives 409 REVIEW_NOT_AVAILABLE regardless

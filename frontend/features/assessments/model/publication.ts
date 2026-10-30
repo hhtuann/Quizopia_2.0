@@ -42,7 +42,21 @@ export const configurationSchema = z
     endAt: instantSchema,
     durationMinutes: durationSchema,
     monitoringChoice: z.enum(["UNCONFIGURED", "ENABLED", "DISABLED"]),
-    maxAttempts: z.number().int().min(0).max(10).optional(),
+    maxAttempts: z
+      .number({
+        error:
+          "Enter 0 for unlimited attempts, or a whole number from 1 to 10.",
+      })
+      .int({
+        error:
+          "Enter 0 for unlimited attempts, or a whole number from 1 to 10.",
+      })
+      .min(0, "Enter 0 for unlimited attempts, or a whole number from 1 to 10.")
+      .max(
+        10,
+        "Enter 0 for unlimited attempts, or a whole number from 1 to 10.",
+      )
+      .optional(),
   })
   .strict()
   .superRefine((value, context) => {

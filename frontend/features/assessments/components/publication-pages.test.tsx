@@ -433,6 +433,85 @@ describe("Teacher Publication creation", () => {
 });
 
 describe("Publication configuration form", () => {
+  it.each([0, 1, 10])(
+    "reviews and saves editable maximum %s in DRAFT",
+    (maximum) => {
+      const submit = vi.fn();
+      render(
+        <PublicationConfigurationForm
+          initial={configuration}
+          mode="edit"
+          onSubmit={submit}
+        />,
+      );
+      fireEvent.change(screen.getByLabelText("Maximum Attempts"), {
+        target: { value: String(maximum) },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Review DRAFT changes" }),
+      );
+      const row = within(screen.getByRole("dialog")).getByText(
+        "Maximum Attempts",
+      ).parentElement!;
+      expect(row).toHaveTextContent(
+        maximum === 0 ? "Unlimited" : String(maximum),
+      );
+      expect(submit).not.toHaveBeenCalled();
+      confirm("Save DRAFT");
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({ maxAttempts: maximum }),
+      );
+    },
+  );
+
+  it.each(["", "-1", "11", "1.5"])(
+    "rejects invalid maximum %s without sending or discarding input",
+    (maximum) => {
+      const submit = vi.fn();
+      render(
+        <PublicationConfigurationForm
+          initial={configuration}
+          mode="edit"
+          onSubmit={submit}
+        />,
+      );
+      fireEvent.change(screen.getByLabelText("Maximum Attempts"), {
+        target: { value: maximum },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Review DRAFT changes" }),
+      );
+      expect(
+        screen.getByText(
+          "Enter 0 for unlimited attempts, or a whole number from 1 to 10.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Maximum Attempts")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(submit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("uses the legacy maximum of one and protects maximum-only edits from navigation", () => {
+    const { maxAttempts: _maximum, ...legacy } = configuration;
+    render(
+      <PublicationConfigurationForm
+        initial={legacy}
+        mode="edit"
+        onSubmit={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText("Maximum Attempts")).toHaveValue(1);
+    fireEvent.change(screen.getByLabelText("Maximum Attempts"), {
+      target: { value: "0" },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(confirmUnsavedWorkLeaving()).toBe(false);
+    confirmSpy.mockRestore();
+  });
   it("keeps CLASS monitoring explicitly unconfigured and clears forbidden fields when choosing PUBLIC", () => {
     const submit = vi.fn();
     render(
@@ -505,7 +584,7 @@ describe("Publication configuration form", () => {
     expect(submit).not.toHaveBeenCalled();
   });
 
-  it("preserves an existing unlimited contract and maxAttempts without inventing editable policy", () => {
+  it("preserves an existing unlimited duration and maximum", () => {
     const submit = vi.fn();
     render(
       <PublicationConfigurationForm
@@ -1204,7 +1283,7 @@ describe("Authoritative Publication lifecycle", () => {
 });
 
 describe("Publication detail results-first layout (UX-04)", () => {
-  it("shows compact chips, a keyboard-toggleable configuration summary and an embedded Results section for OPEN", async () => {
+  it("keeps details behind the configuration summary, removes redundant chips/global refresh and retains Results refresh for OPEN", async () => {
     const api = client();
     api.get.mockResolvedValue({ ok: true, value: opened });
     renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
@@ -1212,12 +1291,14 @@ describe("Publication detail results-first layout (UX-04)", () => {
     expect(
       await screen.findByRole("button", { name: "Review and CLOSE" }),
     ).toBeInTheDocument();
-    // Compact configuration chips are visible outside the disclosure; their
-    // "label:" form (with colon) only occurs in the chip row.
-    expect(screen.getByText("Attempt duration:")).toBeInTheDocument();
-    expect(screen.getByText("Maximum Attempts:")).toBeInTheDocument();
-    expect(screen.getByText("Audience:")).toBeInTheDocument();
-    expect(screen.getByText("Monitoring:")).toBeInTheDocument();
+    expect(screen.queryByText("Attempt duration:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Maximum Attempts:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Audience:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Monitoring:")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Maximum Attempts")).not.toBeInTheDocument();
     // Collapsed by default (jsdom exposes no matchMedia): the disclosure
     // keeps the full authoritative summary closed until it is toggled.
     const disclosure = screen
@@ -1227,6 +1308,9 @@ describe("Publication detail results-first layout (UX-04)", () => {
     expect(disclosure).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("Configuration summary"));
     expect(disclosure).toHaveAttribute("open");
+    expect(
+      within(disclosure!).getByText("Maximum Attempts").parentElement,
+    ).toHaveTextContent("2");
     fireEvent.click(screen.getByText("Configuration summary"));
     expect(disclosure).not.toHaveAttribute("open");
     // Results section is embedded and fetches its own rows.
@@ -1239,6 +1323,8 @@ describe("Publication detail results-first layout (UX-04)", () => {
       undefined,
       expect.any(AbortSignal),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh results" }));
+    await waitFor(() => expect(resultsClient.results).toHaveBeenCalledTimes(2));
     // Results-first ordering: the embedded Results section (main column)
     // precedes the sidebar configuration summary and lifecycle actions.
     const summaryToggle = screen.getByText("Configuration summary");

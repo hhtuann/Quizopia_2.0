@@ -1065,6 +1065,7 @@ export function AttemptScreen({
     null,
   );
   const [terminalBusy, setTerminalBusy] = useState(false);
+  const [attemptsExhausted, setAttemptsExhausted] = useState(false);
   const [terminalError, setTerminalError] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState<TerminalMutation | null>(null);
   const [authorityPaused, setAuthorityPaused] = useState(false);
@@ -1271,6 +1272,12 @@ export function AttemptScreen({
         );
       setTerminalBusy(false);
       if (!result.ok) {
+        if (
+          intent.action === "retake" &&
+          result.error.kind === "api" &&
+          result.error.code === "ATTEMPTS_EXHAUSTED"
+        )
+          setAttemptsExhausted(true);
         if (isUncertainAttemptMutation(result.error)) setUncertain(intent);
         else setUncertain(null);
         setTerminalError(
@@ -1398,6 +1405,7 @@ export function AttemptScreen({
   };
 
   const retake = () => {
+    if (terminalBusy || uncertain !== null || attemptsExhausted) return;
     if (mutationsBlocked) {
       setTerminalError(
         localizeRef.current(
@@ -1580,7 +1588,9 @@ export function AttemptScreen({
                 </Link>
               ) : null}
               <Button
-                disabled={mutationsBlocked}
+                disabled={
+                  mutationsBlocked || uncertain !== null || attemptsExhausted
+                }
                 isLoading={terminalBusy}
                 onClick={retake}
                 variant="secondary"
@@ -1594,6 +1604,14 @@ export function AttemptScreen({
                 {t("Enter another assessment")}
               </Link>
             </div>
+            {attemptsExhausted ? (
+              <p
+                className="mt-4 text-sm text-foreground-secondary"
+                role="status"
+              >
+                {t("No more attempts are available for this assessment.")}
+              </p>
+            ) : null}
             {locatorContext.getPublicLocator(attempt.publicationId) === null ? (
               <p className="mt-4 text-xs text-foreground-muted">
                 {t(

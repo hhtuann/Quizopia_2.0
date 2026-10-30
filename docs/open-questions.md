@@ -6,6 +6,33 @@ The infrastructure/architecture questions required to scaffold are now largely a
 
 Agents MUST NOT silently resolve these items.
 
+## W4 final completion — active approval gates (2026-10-30)
+
+[#133](https://github.com/hhtuann/Quizopia_2.0/issues/133) reopens final product
+acceptance. The [T1 contract freeze candidate](specifications/w4f-assessment-completion-contract.md)
+records W4F-DEC-01 ALLOW (owner Teacher OPEN keys through a separate endpoint),
+DEC-02 MINIMAL audit intent and DEC-04 required notice. These are **not** independent
+security/privacy/activation approvals. Student ASSESS-04 stays CLOSED-only.
+
+- **W4F-SEC-01 PENDING:** independent Leader/security approval of owner/resource-
+  scoped graded SUBMITTED-only Teacher Review, protected audit reads, endpoint
+  separation, fail-closed access receipts and dual-role negative tests. The
+  [H1/M1/M2 correction directive](https://github.com/hhtuann/Quizopia_2.0/pull/137#issuecomment-6518714960)
+  does not approve ACTIVE/ABANDONED answer disclosure or live answer-progress
+  viewing; any such extension needs a separate explicit PO/security/privacy decision.
+- **W4F-PRIV-01 PENDING (DEC-03):** evidence/access-audit TTL, expiry anchor,
+  hold authority/expiry, cleanup, backups/providers and verified erasure policy.
+- **W4F-PRIV-02 PENDING (DEC-04):** final notice wording, viewers, lawful basis,
+  minors/accommodations, qualified privacy/legal sign-off.
+- **W4F-ENG-01 PENDING:** independent review of candidate summary/bin/pagination/
+  audit DTOs and category reconciliation before dependent T2 work. Corrected
+  candidate uses upper-inclusive bins and strictly bounded, encrypted,
+  snapshot-bound pre-SAVE choice transitions; unsupported matrix/numeric detail
+  and partial/expired history are explicit. These designs do not approve collection.
+- **W4F-EXEC:** only T1 is authorized. T2–T4 require sequential review/merge and
+  explicit Leader handoff. Collection remains OFF, production NO-GO; do not use
+  local fixtures, PO intent or a merged UI PR as activation permission.
+
 The [approved W3-A Leader decision](specifications/w3-a-publication-scheduling-monitoring-policy.md)
 accepts CLASS/PUBLIC, bounded participation windows, positive Attempt duration
 and optional eligible CLASS Activity Evidence plus LiveKit monitoring. It

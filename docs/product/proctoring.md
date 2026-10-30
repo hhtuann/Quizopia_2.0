@@ -32,6 +32,14 @@ Wave 3 closure.
 
 ## Purpose
 
+W4 final-completion answer-audit intent (2026-10-30) is documented separately in
+the [Assessment contract candidate](../specifications/w4f-assessment-completion-contract.md).
+It does not enable collection or PUBLIC proctoring. Assessment owns authoritative
+answers/lifecycle and the proposed minimal Assessment audit; existing Proctoring
+evidence/source contracts remain unchanged. Audit TTL and final privacy/legal
+approval remain PENDING; no real learners, recording or additional surveillance
+are authorized by Task 1.
+
 Proctoring provides live monitoring and suspicious-event evidence for certain classroom assessments.
 
 It is not a guarantee that cheating is impossible.
