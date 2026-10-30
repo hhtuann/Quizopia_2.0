@@ -79,7 +79,7 @@ Before merge: ownership/TEACHER/LD-05 denial, idempotent replay/mismatch, transa
 **Three distinct gates**:
 1. **Code implementation**: permitted on isolated branch, flags OFF, destructive tests only on disposable isolated fixtures; CI and independent review required.
 2. **Non-disposable staging data**: requires explicit owner/operations approval after retention classification, schema backups and a reversible rehearsal; do not run destructive tests against real Student records.
-3. **Production**: requires separate Leader authorization, independent legal/privacy + operations signoff, documented actual retention/backup/provider policy, tested replay and disaster recovery, observability, emergency stop and feature flags. **Production NO-GO; BR-01 PENDING.**
+3. **Production**: requires separate Leader authorization, independent legal/privacy + operations signoff, documented actual retention/backup/provider policy, tested replay and disaster recovery, observability, emergency stop and feature flags. **Production NO-GO; BR-01 resolved 2026-10-29 as policy-only (see the BR-01 decision memo) and no longer blocks FB-015.**
 
 ## 7. Correction of the earlier FB-015 proposal
 
