@@ -1,4 +1,5 @@
 export interface HttpRequest {
+  readonly cache?: RequestCache;
   readonly body?: BodyInit | null;
   readonly credentials?: RequestCredentials;
   readonly headers?: HeadersInit;
@@ -93,6 +94,7 @@ export function createFetchHttpTransport(
       let response: Response;
       try {
         response = await fetchImplementation(request.target, {
+          ...(request.cache === undefined ? {} : { cache: request.cache }),
           body: request.body,
           credentials: request.credentials,
           headers:

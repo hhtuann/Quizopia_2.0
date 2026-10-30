@@ -103,6 +103,7 @@ async function mockDraft(page: Page) {
       body: JSON.stringify({
         quizId,
         title: "Geometry parity quiz",
+        deletionStatus: null,
         description: "",
         authoringSource: "Câu 1 [SINGLE_CHOICE]: One?\n*A. Yes\nB. No",
         createdAt: "2026-10-01T07:00:00Z",
@@ -322,7 +323,9 @@ test.describe("UX correction: focused workspace parity", () => {
         await mockAuth(page, student);
         await mockAttempt(page);
         await page.goto(`/app/attempts/${attemptId}`);
-        await page.getByRole("heading", { name: /.+/ }).waitFor();
+        // Wait for the single locale-independent main heading; question stems
+        // are h2 elements and must not affect this readiness check.
+        await page.getByRole("heading", { level: 1 }).waitFor();
         expect(
           await page.evaluate(
             () =>

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -61,6 +62,7 @@ function draft(authoringSource: string) {
     authoringSource,
     createdAt: "2026-09-30T12:00:00Z",
     updatedAt: "2026-09-30T12:00:01Z",
+    deletionStatus: null,
   };
 }
 
@@ -76,6 +78,7 @@ function libraryItem(
     createdAt: "2026-09-30T12:00:00Z",
     updatedAt: "2026-10-01T03:00:00Z",
     latestVersionNumber,
+    deletionStatus: null,
   };
 }
 
@@ -1335,4 +1338,419 @@ describe("QuizEditorPage real-contract behavior", () => {
       ).not.toBeInTheDocument();
     },
   );
+});
+
+const deletionOperationId = "1c9d0d7e-5c8a-4b8f-9a55-1d3a6d3a2a11";
+
+/** Route-aware executor: answers by (method, target) for deletion flows. */
+function deletionFlowExecutor(options: {
+  readonly draftHttpStatus?: number;
+  readonly latestStatus?: string;
+  readonly draftDeletionStatus?: string | null;
+  readonly libraryDeletionStatus?: string | null;
+  readonly acceptedStatus?: string;
+  readonly statusSequence?: readonly string[];
+}) {
+  const requests: Array<{
+    readonly method?: string;
+    readonly target: string;
+    readonly headers: Headers;
+    readonly body?: string;
+  }> = [];
+  const executor: AuthenticatedRequestExecutor = {
+    execute: vi.fn(async (request) => {
+      const built = request.createRequest();
+      const headers = new Headers(built.headers);
+      const target = String(built.target);
+      requests.push({
+        method: built.method,
+        target,
+        headers,
+        body: typeof built.body === "string" ? built.body : undefined,
+      });
+      if (
+        target.endsWith("/deletion-requests/latest") &&
+        options.latestStatus !== undefined
+      ) {
+        return {
+          kind: "response" as const,
+          response: response(200, {
+            operationId: deletionOperationId,
+            status: options.latestStatus,
+            createdAt: "2026-10-20T08:00:00Z",
+            updatedAt: "2026-10-20T08:01:00Z",
+            lastReason: null,
+            stages: ["REQUESTED"],
+            note:
+              options.latestStatus === "PRIMARY_PURGED"
+                ? "COPY_EXPIRY_PENDING"
+                : null,
+          }),
+        };
+      }
+      if (
+        built.method === "POST" &&
+        target === `/api/quizzes/${quizId}/deletion-requests`
+      ) {
+        return {
+          kind: "response" as const,
+          response: response(202, {
+            operationId: deletionOperationId,
+            status: options.acceptedStatus ?? "QUIZ_FENCED",
+          }),
+        };
+      }
+      if (
+        built.method === "GET" &&
+        target ===
+          `/api/quizzes/${quizId}/deletion-requests/${deletionOperationId}`
+      ) {
+        const polls = requests.filter(
+          (seen) => seen.method === "GET" && seen.target === target,
+        ).length;
+        const sequence = options.statusSequence ?? [
+          options.acceptedStatus ?? "QUIZ_FENCED",
+        ];
+        const state =
+          sequence[Math.min(polls - 1, sequence.length - 1)] ?? "QUIZ_FENCED";
+        const terminal = state === "PRIMARY_PURGED";
+        return {
+          kind: "response" as const,
+          response: response(200, {
+            operationId: deletionOperationId,
+            status: state,
+            createdAt: "2026-10-20T08:00:00Z",
+            updatedAt: "2026-10-20T08:01:00Z",
+            lastReason: null,
+            stages: ["REQUESTED"],
+            note: terminal ? "COPY_EXPIRY_PENDING" : null,
+          }),
+        };
+      }
+      if (built.method === "GET" && target === "/api/quizzes") {
+        return {
+          kind: "response" as const,
+          response: response(200, {
+            items: [
+              {
+                ...libraryItem(quizId, "Network quiz", 2),
+                deletionStatus: options.libraryDeletionStatus ?? null,
+              },
+            ],
+            nextCursor: null,
+          }),
+        };
+      }
+      // Draft reads/writes.
+      if (target === `/api/quizzes/${quizId}/draft`) {
+        if (options.draftHttpStatus !== undefined) {
+          return {
+            kind: "response" as const,
+            response: response(options.draftHttpStatus, {
+              code: "QUIZ_NOT_FOUND",
+              message: "Not found",
+              status: options.draftHttpStatus,
+              path: target,
+            }),
+          };
+        }
+        return {
+          kind: "response" as const,
+          response: response(200, {
+            ...draft("Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50"),
+            deletionStatus: options.draftDeletionStatus ?? null,
+          }),
+        };
+      }
+      return {
+        kind: "response" as const,
+        response: response(404, {
+          code: "NOT_MOCKED",
+          message: `No fixture for ${built.method} ${target}`,
+          status: 404,
+          path: target,
+        }),
+      };
+    }),
+    executeOnce: vi.fn(),
+    executeOnceWithAccessToken: vi.fn(),
+  };
+  return { executor, requests };
+}
+
+/**
+ * Uses only synchronous queries: under faked setTimeout, RTL's async
+ * findBy* helpers never resolve (their wrapper awaits setTimeout(0)).
+ */
+function openDeletionDialogAndConfirm(title = "Network quiz") {
+  fireEvent.click(screen.getByRole("button", { name: "Delete quiz" }));
+  const input = screen.getByLabelText("Type the exact title to confirm");
+  fireEvent.change(input, { target: { value: title } });
+  fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
+}
+
+describe("Quiz deletion UX (FB-015)", () => {
+  it.each([404, 410])(
+    "recovers an owner receipt after a %s draft read without an in-session operation",
+    async (draftHttpStatus) => {
+      const { executor, requests } = deletionFlowExecutor({
+        draftHttpStatus,
+        latestStatus: "PRIMARY_PURGED",
+      });
+      renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+      expect(
+        await screen.findByText(
+          "Primary data deleted · Waiting for backup copies to be erased",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        requests.some((request) =>
+          request.target.endsWith("/deletion-requests/latest"),
+        ),
+      ).toBe(true);
+      expect(screen.queryByText("Fully deleted")).not.toBeInTheDocument();
+      expect(requests.some((request) => request.method === "POST")).toBe(false);
+    },
+  );
+
+  it("rediscovers progress on a fenced library card without a session receipt", async () => {
+    const { executor } = deletionFlowExecutor({
+      libraryDeletionStatus: "QUIZ_FENCED",
+      latestStatus: "BLOCKED_BY_RETENTION",
+    });
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+    expect(
+      await screen.findByText("Waiting for the mandatory retention period"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete quiz" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("rediscovers progress in a fenced editor without a session receipt", async () => {
+    const { executor } = deletionFlowExecutor({
+      draftDeletionStatus: "QUIZ_FENCED",
+      latestStatus: "WAITING_DEPENDENCY",
+    });
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+    expect(
+      await screen.findByText(
+        "Quizopia is retrying automatically; nothing needs your attention right now.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Quiz title")).toBeDisabled();
+  });
+  it("offers a destructive owner-only delete action per library card", async () => {
+    const { executor } = deletionFlowExecutor({});
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(
+      await screen.findByRole("button", { name: "Delete quiz" }),
+    ).toBeInTheDocument();
+  });
+
+  it("replaces the library delete action with a Being deleted state while fenced", async () => {
+    const { executor } = deletionFlowExecutor({
+      libraryDeletionStatus: "QUIZ_FENCED",
+    });
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(await screen.findByText("Being deleted")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete quiz" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("runs the full honest library flow: confirm, follow progress, terminal notice, reload", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { executor, requests } = deletionFlowExecutor({
+        acceptedStatus: "QUIZ_FENCED",
+        statusSequence: ["ACCESS_REVOKED", "PRIMARY_PURGED"],
+      });
+      renderAuthenticated(<QuizLibraryPage />, { executor });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      openDeletionDialogAndConfirm();
+
+      // The immediate first poll reports ACCESS_REVOKED.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(
+        screen.getByText("Access blocked · Deleting data"),
+      ).toBeInTheDocument();
+
+      // The request carried a canonical Idempotency-Key header.
+      const post = requests.find(
+        (seen) =>
+          seen.method === "POST" && seen.target.endsWith("/deletion-requests"),
+      );
+      expect(post?.headers.get("Idempotency-Key") ?? "").toMatch(
+        /^[A-Za-z0-9_-]{16,128}$/,
+      );
+
+      // Next bounded poll reaches the terminal state: the card's panel is
+      // replaced by the success notice and the library reloads.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(screen.queryByText("Fully deleted")).not.toBeInTheDocument();
+      expect(screen.getByText("Quiz deleted")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "“Network quiz” was deleted. Students can no longer access it.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        requests.filter(
+          (seen) => seen.method === "GET" && seen.target === "/api/quizzes",
+        ).length,
+      ).toBeGreaterThanOrEqual(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the delete entry out of a fenced editor and disables edit affordances with a banner", async () => {
+    const { executor } = deletionFlowExecutor({
+      draftDeletionStatus: "QUIZ_FENCED",
+    });
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+
+    const title = await screen.findByLabelText("Quiz title");
+    await screen.findByRole("textbox", { name: "Quiz Markdown source" });
+
+    expect(title).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Published versions" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Delete quiz" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("This quiz is being deleted")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Editing and publishing are disabled while the deletion is in progress.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("answers a concurrent QUIZ_DELETION_PENDING save with honest fenced copy", async () => {
+    const executor: AuthenticatedRequestExecutor = {
+      execute: vi.fn(async (request) => {
+        const built = request.createRequest();
+        if (built.method === "GET") {
+          return {
+            kind: "response" as const,
+            response: response(
+              200,
+              draft("Câu 1 [NUMERIC_FILL]: value?\nĐáp án: 2.50"),
+            ),
+          };
+        }
+        return {
+          kind: "response" as const,
+          response: response(409, {
+            code: "QUIZ_DELETION_PENDING",
+            message: "Deletion pending",
+            status: 409,
+            path: String(built.target),
+          }),
+        };
+      }),
+      executeOnce: vi.fn(),
+      executeOnceWithAccessToken: vi.fn(),
+    };
+    renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+    await screen.findByRole("textbox", { name: "Quiz Markdown source" });
+
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Quiz Markdown source",
+    });
+    fireEvent.change(editor, {
+      target: { value: "Câu 1 [NUMERIC_FILL]: x?\nĐáp án: 1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText(
+        "This quiz is being deleted, so it can no longer be saved or published.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("This quiz is being deleted")).toBeInTheDocument();
+    // The local fence now also disables further edit attempts.
+    expect(screen.getByRole("button", { name: "Retry save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+  });
+
+  it("deletes from the editor, follows progress, and lands on the library with a notice", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      sessionStorage.clear();
+      const { executor } = deletionFlowExecutor({
+        acceptedStatus: "REQUESTED",
+        statusSequence: ["ACCESS_REVOKED", "PRIMARY_PURGED"],
+      });
+      renderAuthenticated(<QuizEditorPage quizId={quizId} />, { executor });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(
+        screen.getByRole("textbox", { name: "Quiz Markdown source" }),
+      ).toBeInTheDocument();
+
+      openDeletionDialogAndConfirm();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(
+        screen.getByText("Access blocked · Deleting data"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("This quiz is being deleted"),
+      ).toBeInTheDocument();
+
+      // Terminal on the first bounded poll, honestly including the copies note.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(
+        screen.getByText(
+          "Primary data deleted · Waiting for backup copies to be erased",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Fully deleted")).not.toBeInTheDocument();
+      expect(navigation.push).toHaveBeenCalledWith("/app/quizzes");
+      expect(sessionStorage.getItem("quizopia.quiz-deletion.notice")).toContain(
+        "Network quiz",
+      );
+    } finally {
+      vi.useRealTimers();
+      sessionStorage.clear();
+    }
+  });
+
+  it("shows the cross-navigation deletion notice once on the library", async () => {
+    sessionStorage.clear();
+    sessionStorage.setItem(
+      "quizopia.quiz-deletion.notice",
+      JSON.stringify({ title: "Network quiz" }),
+    );
+    const { executor } = deletionFlowExecutor({});
+    renderAuthenticated(<QuizLibraryPage />, { executor });
+
+    expect(
+      await screen.findByText(
+        "“Network quiz” was deleted. Students can no longer access it.",
+      ),
+    ).toBeInTheDocument();
+    // Read once: the storage entry is consumed.
+    expect(sessionStorage.getItem("quizopia.quiz-deletion.notice")).toBeNull();
+  });
 });

@@ -9,6 +9,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { QuizopiaLogo } from "../../../components/brand/quizopia-logo";
 import { APPLICATION_HEADER_GEOMETRY } from "../../../components/ui/application-header-geometry";
@@ -21,6 +22,7 @@ import {
   PlusIcon,
   RetryIcon,
   SaveIcon,
+  TrashIcon,
 } from "../../../components/ui/icons";
 import { Surface } from "../../../components/ui/surface";
 import { HeroOrb } from "../../../components/ui/hero-orb";
@@ -33,10 +35,17 @@ import {
   createQuizApiClient,
   type QuizApiClient,
   type QuizApiFailure,
+  type QuizDeletionStatus,
   type QuizDraftInput,
   type QuizLibraryItem,
   type QuizMarkdownServerError,
 } from "../api/quiz-api-client";
+import {
+  createQuizDeletionApiClient,
+  type QuizDeletionAccepted,
+  type QuizDeletionApiClient,
+} from "../api/quiz-deletion-client";
+import { isDeletionFenced } from "../model/quiz-deletion";
 import {
   analyzeQuizMarkdown,
   toggleQuizOptionCorrectness,
@@ -44,6 +53,8 @@ import {
   type QuizPreviewQuestion,
 } from "../model/quiz-markdown";
 import { sourceLocationToOffset } from "../model/quiz-markdown-coordinates";
+import { QuizDeletionDialog } from "./quiz-deletion-dialog";
+import { QuizDeletionProgress } from "./quiz-deletion-progress";
 import {
   QuizMarkdownCodeEditor,
   type QuizMarkdownCodeEditorHandle,
@@ -80,6 +91,71 @@ function useQuizApiClient(): QuizApiClient | null {
         ? null
         : createQuizApiClient({ authenticatedRequests }),
     [authenticatedRequests],
+  );
+}
+
+function useQuizDeletionApiClient(): QuizDeletionApiClient | null {
+  const { authenticatedRequests, getSessionGeneration } = useAuth();
+  const generation = getSessionGeneration();
+  return useMemo(
+    () =>
+      authenticatedRequests === null || generation === null
+        ? null
+        : createQuizDeletionApiClient({
+            authenticatedRequests,
+            getSessionGeneration,
+          }),
+    [authenticatedRequests, getSessionGeneration, generation],
+  );
+}
+
+/**
+ * Cross-navigation deletion notice: the editor sets it when a deletion
+ * reaches its terminal state and navigates here; the library reads it once.
+ * Preference-style storage only — never credentials or account data.
+ */
+const DELETION_NOTICE_STORAGE_KEY = "quizopia.quiz-deletion.notice";
+
+function readPendingDeletionNotice(): { title: string; status: string } | null {
+  try {
+    const raw = window.sessionStorage.getItem(DELETION_NOTICE_STORAGE_KEY);
+    if (raw === null) {
+      return null;
+    }
+    window.sessionStorage.removeItem(DELETION_NOTICE_STORAGE_KEY);
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as { title?: unknown }).title === "string"
+    ) {
+      return {
+        title: (parsed as { title: string }).title,
+        status: (parsed as { status?: string }).status ?? "PRIMARY_PURGED",
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingDeletionNotice(title: string, status: string): void {
+  try {
+    window.sessionStorage.setItem(
+      DELETION_NOTICE_STORAGE_KEY,
+      JSON.stringify({ title, status }),
+    );
+  } catch {
+    // Storage can be unavailable (private mode); the navigation still works.
+  }
+}
+
+function isDeletionPendingFailure(failure: QuizApiFailure): boolean {
+  return (
+    failure.kind === "api-error" &&
+    (failure.error.code === "QUIZ_DELETION_PENDING" ||
+      failure.error.code === "DELETION_CONFLICT")
   );
 }
 
@@ -177,15 +253,21 @@ function appendUniqueLibraryItems(
 }
 
 function LibraryQuizCard({
-  item,
   formatLibraryDate,
+  item,
+  onDelete,
+  progress,
 }: {
   readonly formatLibraryDate: (value: string) => string;
   readonly item: QuizLibraryItem;
+  /** Owner-only destructive entry; absent while a deletion already runs. */
+  readonly onDelete: (item: QuizLibraryItem) => void;
+  readonly progress: ReactNode;
 }) {
   const { localize, t } = useI18n();
   const title = item.title?.trim() || t("Untitled quiz");
   const description = item.description?.trim();
+  const deletionRunning = isDeletionFenced(item.deletionStatus);
   return (
     <li className="rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -205,13 +287,33 @@ function LibraryQuizCard({
             {localize("Quiz ID: {quizId}", { quizId: item.quizId })}
           </p>
         </div>
-        <span className="shrink-0 self-start rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
-          {item.latestVersionNumber === null
-            ? t("Draft only")
-            : localize("Latest version {number}", {
-                number: item.latestVersionNumber,
-              })}
-        </span>
+        <div className="flex shrink-0 flex-col items-start gap-2 self-start sm:items-end">
+          <span className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary">
+            {item.latestVersionNumber === null
+              ? t("Draft only")
+              : localize("Latest version {number}", {
+                  number: item.latestVersionNumber,
+                })}
+          </span>
+          {deletionRunning ? (
+            <span className="rounded-full border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs font-semibold text-danger">
+              {t("Being deleted")}
+            </span>
+          ) : (
+            <Button
+              aria-label={localize("Delete quiz")}
+              className="px-3"
+              onClick={() => onDelete(item)}
+              size="compact"
+              variant="danger-outline"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <TrashIcon className="size-4" />
+                {t("Delete quiz")}
+              </span>
+            </Button>
+          )}
+        </div>
       </div>
       <dl className="mt-5 grid gap-3 border-t border-border pt-4 text-xs text-foreground-muted sm:grid-cols-2">
         <div>
@@ -235,6 +337,7 @@ function LibraryQuizCard({
           </dd>
         </div>
       </dl>
+      {progress}
     </li>
   );
 }
@@ -242,7 +345,9 @@ function LibraryQuizCard({
 export function QuizLibraryPage() {
   const { localize, t } = useI18n();
   const client = useQuizApiClient();
+  const deletionClient = useQuizDeletionApiClient();
   const formatLibraryDate = useLibraryDateFormatter();
+  const deleteTriggerRef = useRef<HTMLElement | null>(null);
   const [libraryState, setLibraryState] = useState<{
     readonly client: QuizApiClient | null;
     readonly failure: QuizApiFailure | null;
@@ -254,6 +359,22 @@ export function QuizLibraryPage() {
     readonly failure: QuizApiFailure | null;
     readonly isLoading: boolean;
   }>({ client: null, failure: null, isLoading: false });
+  // FB-015 deletion state: dialog intent, followed operation, terminal notice.
+  const [deletionDialog, setDeletionDialog] = useState<{
+    readonly quizId: string;
+    readonly title: string | null;
+  } | null>(null);
+  const [deletionProgress, setDeletionProgress] = useState<{
+    readonly quizId: string;
+    readonly operationId: string;
+    readonly status: string;
+    readonly title: string;
+  } | null>(null);
+  const [deletionNotice, setDeletionNotice] = useState<{
+    readonly title: string;
+    readonly status: string;
+  } | null>(() => readPendingDeletionNotice());
+  const [libraryRefreshVersion, setLibraryRefreshVersion] = useState(0);
 
   const stateMatchesClient = client !== null && libraryState.client === client;
   const items = stateMatchesClient ? libraryState.items : [];
@@ -295,7 +416,36 @@ export function QuizLibraryPage() {
     });
 
     return () => controller.abort();
-  }, [client]);
+  }, [client, libraryRefreshVersion]);
+
+  function handleDeletionAccepted(accepted: QuizDeletionAccepted) {
+    if (deletionDialog === null) {
+      return;
+    }
+    setDeletionDialog(null);
+    setLibraryState((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.quizId === deletionDialog.quizId
+          ? { ...item, deletionStatus: accepted.status }
+          : item,
+      ),
+    }));
+    setDeletionProgress({
+      quizId: deletionDialog.quizId,
+      operationId: accepted.operationId,
+      status: accepted.status,
+      title: deletionDialog.title?.trim() || t("Untitled quiz"),
+    });
+  }
+
+  function handleDeletionTerminal(status: string) {
+    const finished = deletionProgress;
+    setDeletionProgress(null);
+    setDeletionNotice({ title: finished?.title ?? t("Untitled quiz"), status });
+    // The purge removes the row; reload so the library stays truthful.
+    setLibraryRefreshVersion((current) => current + 1);
+  }
 
   async function loadMore() {
     if (client === null || nextCursor === null || isLoadingMore) {
@@ -355,6 +505,24 @@ export function QuizLibraryPage() {
           {t("Manage your quizzes.")}
         </p>
 
+        {deletionNotice !== null ? (
+          <Alert className="mt-5" title={t("Quiz deleted")} variant="success">
+            {localize(
+              "“{title}” was deleted. Students can no longer access it.",
+              {
+                title: deletionNotice.title,
+              },
+            )}
+            <p>
+              {deletionNotice.status === "ALL_COPIES_ERASED"
+                ? t("Fully deleted")
+                : t(
+                    "Primary data deleted · Waiting for backup copies to be erased",
+                  )}
+            </p>
+          </Alert>
+        ) : null}
+
         {client === null || isLoading ? (
           <Surface className="mt-5 flex min-h-40 items-center justify-center gap-3 p-6">
             <LoadingIndicator label={t("Loading quiz library")} />
@@ -404,6 +572,48 @@ export function QuizLibraryPage() {
                   formatLibraryDate={formatLibraryDate}
                   item={item}
                   key={item.quizId}
+                  onDelete={(target) => {
+                    deleteTriggerRef.current =
+                      document.activeElement instanceof HTMLElement
+                        ? document.activeElement
+                        : null;
+                    setDeletionDialog({
+                      quizId: target.quizId,
+                      title: target.title,
+                    });
+                  }}
+                  progress={
+                    deletionProgress !== null &&
+                    deletionProgress.quizId === item.quizId &&
+                    deletionClient !== null ? (
+                      <div className="mt-4">
+                        <QuizDeletionProgress
+                          getDeletionStatus={(signal) =>
+                            deletionClient.getDeletionStatus(
+                              item.quizId,
+                              deletionProgress.operationId,
+                              signal,
+                            )
+                          }
+                          initialStatus={deletionProgress.status}
+                          onClose={() => setDeletionProgress(null)}
+                          onTerminal={handleDeletionTerminal}
+                        />
+                      </div>
+                    ) : item.deletionStatus !== null &&
+                      deletionClient !== null ? (
+                      <div className="mt-4">
+                        <QuizDeletionProgress
+                          getDeletionStatus={(signal) =>
+                            deletionClient.getLatestDeletionStatus(
+                              item.quizId,
+                              signal,
+                            )
+                          }
+                        />
+                      </div>
+                    ) : null
+                  }
                 />
               ))}
             </ul>
@@ -436,6 +646,17 @@ export function QuizLibraryPage() {
           </div>
         )}
       </section>
+
+      {deletionClient !== null && deletionDialog !== null ? (
+        <QuizDeletionDialog
+          authoritativeTitle={deletionDialog.title}
+          client={deletionClient}
+          onAccepted={handleDeletionAccepted}
+          onClose={() => setDeletionDialog(null)}
+          quizId={deletionDialog.quizId}
+          triggerRef={deleteTriggerRef}
+        />
+      ) : null}
     </div>
   );
 }
@@ -484,8 +705,10 @@ function QuizAuthoringWorkspace({
   const localizeRef = useLocalizeRef();
   const router = useRouter();
   const client = useQuizApiClient();
+  const deletionClient = useQuizDeletionApiClient();
   const editorRef = useRef<QuizMarkdownCodeEditorHandle>(null);
   const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
   const pendingEditorFocusRef = useRef<PendingEditorFocus | null>(null);
   const [focusRequestVersion, requestEditorFocus] = useReducer(
     (version: number) => version + 1,
@@ -516,6 +739,26 @@ function QuizAuthoringWorkspace({
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRefreshVersion, setHistoryRefreshVersion] = useState(0);
+  // FB-015 deletion state: the server-reported fence, the local fence for
+  // operations started or observed in this session, and the followed
+  // operation once the 202 arrives. `authoritativeTitle` is the last
+  // server-persisted title (exact-title confirmation must never trust
+  // unsaved editor input).
+  const [serverDeletionStatus, setServerDeletionStatus] =
+    useState<QuizDeletionStatus | null>(null);
+  const [deletionPendingLocal, setDeletionPendingLocal] = useState(false);
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [deletionOperation, setDeletionOperation] = useState<{
+    readonly operationId: string;
+    readonly status: string;
+  } | null>(null);
+  const [authoritativeTitle, setAuthoritativeTitle] = useState<string | null>(
+    null,
+  );
+  const deletionFenced =
+    isDeletionFenced(serverDeletionStatus) ||
+    deletionPendingLocal ||
+    deletionOperation !== null;
 
   const currentInput = useMemo<QuizDraftInput>(
     () => ({ authoringSource: source, description, title }),
@@ -582,7 +825,8 @@ function QuizAuthoringWorkspace({
         }
         if (
           result.error.kind === "api-error" &&
-          result.error.error.status === 404
+          (result.error.error.status === 404 ||
+            result.error.error.status === 410)
         ) {
           setLoadState("not-found");
           return;
@@ -601,6 +845,8 @@ function QuizAuthoringWorkspace({
       setDescription(nextInput.description);
       setSource(nextInput.authoringSource);
       setSavedSnapshot(inputSnapshot(nextInput));
+      setAuthoritativeTitle(result.value.title);
+      setServerDeletionStatus(result.value.deletionStatus);
       setLoadState("ready");
     });
 
@@ -688,10 +934,20 @@ function QuizAuthoringWorkspace({
     try {
       const result = await client.updateDraft(quizId, input);
       if (!result.ok) {
+        if (isDeletionPendingFailure(result.error)) {
+          setDeletionPendingLocal(true);
+          setSaveError(
+            localize(
+              "This quiz is being deleted, so it can no longer be saved or published.",
+            ),
+          );
+          return false;
+        }
         setSaveError(failureMessage(result.error, localize));
         return false;
       }
       setSavedSnapshot(inputSnapshot(input));
+      setAuthoritativeTitle(result.value.title);
       return true;
     } catch {
       setSaveError(
@@ -751,6 +1007,15 @@ function QuizAuthoringWorkspace({
         );
         return;
       }
+      if (isDeletionPendingFailure(result.error)) {
+        setDeletionPendingLocal(true);
+        setPublishError(
+          localize(
+            "This quiz is being deleted, so it can no longer be saved or published.",
+          ),
+        );
+        return;
+      }
       setPublishError(failureMessage(result.error, localize));
       return;
     }
@@ -773,6 +1038,28 @@ function QuizAuthoringWorkspace({
     setPublishError(null);
     setPublishMessage(null);
     setFirstSaveBlocked(null);
+  }
+
+  function handleDeletionAccepted(accepted: QuizDeletionAccepted) {
+    setDeletionDialogOpen(false);
+    setDeletionOperation({
+      operationId: accepted.operationId,
+      status: accepted.status,
+    });
+    setSaveError(null);
+    setPublishError(null);
+    setPublishMessage(null);
+    setFirstSaveBlocked(null);
+  }
+
+  function handleDeletionTerminal(status: string) {
+    // The operation reached its terminal state; the editor's data is gone or
+    // unrecoverable, so leave it for the library with an honest notice.
+    writePendingDeletionNotice(
+      title.trim() || localize("Untitled quiz"),
+      status,
+    );
+    router.push("/app/quizzes");
   }
 
   function handleOptionToggle(
@@ -835,6 +1122,13 @@ function QuizAuthoringWorkspace({
         <p className="mt-3 text-base leading-7 text-foreground-secondary">
           {t("No draft was found for this Quiz ID.")}
         </p>
+        {deletionClient !== null && quizId !== null ? (
+          <QuizDeletionProgress
+            getDeletionStatus={(signal) =>
+              deletionClient.getLatestDeletionStatus(quizId, signal)
+            }
+          />
+        ) : null}
         <Link className={`${linkButtonClasses} mt-6`} href="/app/quizzes">
           {t("Back to quiz authoring")}
         </Link>
@@ -889,8 +1183,8 @@ function QuizAuthoringWorkspace({
             {t("Quiz title")}
           </label>
           <input
-            className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus"
-            disabled={isSaving || isPublishing}
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-surface px-3 py-2 text-base font-semibold text-foreground shadow-sm outline-none transition-colors hover:border-primary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-foreground-muted"
+            disabled={isSaving || isPublishing || deletionFenced}
             id="editor-title"
             onChange={(event) => {
               setTitle(event.target.value);
@@ -916,7 +1210,12 @@ function QuizAuthoringWorkspace({
           ) : null}
           <Button
             className="px-3 sm:px-4"
-            disabled={(!dirty && !saveError) || isSaving || isPublishing}
+            disabled={
+              (!dirty && !saveError) ||
+              isSaving ||
+              isPublishing ||
+              deletionFenced
+            }
             isLoading={isSaving}
             loadingLabel={t("Saving draft")}
             onClick={() => void saveDraft()}
@@ -942,10 +1241,24 @@ function QuizAuthoringWorkspace({
                     : t("Saved")}
             </span>
           </Button>
+          {quizId !== null && !deletionFenced ? (
+            <Button
+              className="shrink-0 whitespace-nowrap px-3 sm:px-4"
+              disabled={isSaving || isPublishing}
+              onClick={() => setDeletionDialogOpen(true)}
+              ref={deleteTriggerRef}
+              variant="danger-outline"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <TrashIcon className="size-4" />
+                {t("Delete quiz")}
+              </span>
+            </Button>
+          ) : null}
           {quizId !== null ? (
             <Button
               className="px-3 sm:px-5"
-              disabled={isSaving}
+              disabled={isSaving || deletionFenced}
               onClick={() => setPublishDialogOpen(true)}
             >
               {t("Publish")}
@@ -959,8 +1272,38 @@ function QuizAuthoringWorkspace({
         className="flex min-h-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3"
         inert={historyOpen ? true : undefined}
       >
-        {firstSaveBlocked || saveError || publishError || publishMessage ? (
-          <div className="shrink-0">
+        {firstSaveBlocked ||
+        saveError ||
+        publishError ||
+        publishMessage ||
+        deletionFenced ? (
+          <div className="shrink-0 space-y-2">
+            {deletionFenced ? (
+              <Alert title={t("This quiz is being deleted")} variant="warning">
+                {t(
+                  "Editing and publishing are disabled while the deletion is in progress.",
+                )}
+              </Alert>
+            ) : null}
+            {deletionOperation !== null && deletionClient !== null ? (
+              <QuizDeletionProgress
+                getDeletionStatus={(signal) =>
+                  deletionClient.getDeletionStatus(
+                    quizId as string,
+                    deletionOperation.operationId,
+                    signal,
+                  )
+                }
+                initialStatus={deletionOperation.status}
+                onTerminal={handleDeletionTerminal}
+              />
+            ) : deletionFenced && deletionClient !== null && quizId !== null ? (
+              <QuizDeletionProgress
+                getDeletionStatus={(signal) =>
+                  deletionClient.getLatestDeletionStatus(quizId, signal)
+                }
+              />
+            ) : null}
             {firstSaveBlocked ? (
               <Alert title={t("First save needs a question")} variant="warning">
                 {firstSaveBlocked}
@@ -1019,7 +1362,7 @@ function QuizAuthoringWorkspace({
             className={`${mobilePane === "source" ? "block" : "hidden"} min-h-0 min-w-0 overflow-hidden rounded-xl border border-primary/10 bg-surface p-3 shadow-card sm:p-4 lg:block`}
           >
             <QuizMarkdownCodeEditor
-              disabled={isSaving || isPublishing}
+              disabled={isSaving || isPublishing || deletionFenced}
               onChange={updateSource}
               ref={editorRef}
               value={source}
@@ -1138,6 +1481,17 @@ function QuizAuthoringWorkspace({
             </div>
           </Surface>
         </div>
+      ) : null}
+
+      {quizId !== null && deletionClient !== null && deletionDialogOpen ? (
+        <QuizDeletionDialog
+          authoritativeTitle={authoritativeTitle}
+          client={deletionClient}
+          onAccepted={handleDeletionAccepted}
+          onClose={() => setDeletionDialogOpen(false)}
+          quizId={quizId}
+          triggerRef={deleteTriggerRef}
+        />
       ) : null}
     </div>
   );

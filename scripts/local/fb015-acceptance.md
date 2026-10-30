@@ -116,3 +116,59 @@ retaining the disposable topology and SQL assertions. Backup/CDN/export expiry,
 actual LiveKit provider erasure, production TLS, race saturation, every lifecycle,
 closure/outbox permutation and exhaustive role/ownership denials remain separate
 acceptance/service-suite work. `ALL_COPIES_ERASED` is never claimed.
+
+## Real UI verification (2026-10-30)
+
+An additional opt-in round drives the corrected frontend deletion UX against the
+same disposable topology. From `gateway/`, PowerShell:
+
+```powershell
+.\mvnw.cmd -B "-Dtest=QuizDeletionTopologyTest" "-Dfb015.browser=true" "-Dfb015.ui=true" test
+```
+
+Same requirements as above plus `pnpm` on PATH. The round rebuilds the production
+frontend (`.env.local` pins an absolute `NEXT_PUBLIC_API_URL`; the build overrides
+it with a whitespace value that `publicApiTarget` trims back to relative, and
+`fb015-next.cjs` verifies the compiled chunks), then `fb015-next.cjs` serves the
+production Next server on a free loopback port and streams same-origin `/api`
+traffic to the actual Gateway — no route interception or response doubles. The
+real Chromium (`fb015-ui.cjs` via `fb015-browser.cjs`) logs in through the real
+login page and per victim quiz: opens the library, deletes through the real dialog
+(exact typed title for the named quiz, keyboard-checked checkbox for the untitled
+`title:""` quiz), asserts the 202 POST body/Idempotency-Key and a fenced card,
+clears **all** tab storage and reloads to prove the latest-status surface is
+rediscovered through the UI, and after the purge (a genuine Proctoring outage
+parks each new operation so the reload cannot race the purge) verifies the
+"Primary data deleted · Waiting for backup copies to be erased" wording and the
+absence of "Fully deleted", the purged editor's 404-to-receipt discovery, the
+victim card's disappearance and the survivor card's presence.
+
+The Maven command above completed in **5:12**, **1 test, 0 failures, 0 errors,
+0 skipped** — sixteen checkpoints (eight backend + server/login + two full
+victim rounds). Run evidence:
+`gateway/target/fb015-acceptance/4abc7e06-f69e-4584-ba08-7e7298b95656/`
+(`result.json` PASS, `checks.json`, sanitized `next.log` API edge log,
+`frontend-build.log`, `browser.log`). The default non-opted-in invocation still
+skips (1 skipped, BUILD SUCCESS); `-Dfb015.browser=true` without `-Dfb015.ui=true`
+keeps the prior fetch-driver behavior. Separate checks passed:
+`node --check` on all three `fb015-*.cjs` scripts, scoped
+`.\mvnw.cmd -B "-DspotlessFiles=.*QuizDeletionTopologyTest.java" spotless:check`,
+and `git diff --check`.
+
+Two topology gaps surfaced and were closed inside the test only (production
+supplies these as environment): the Gateway/Identity browser-origin allow-lists
+must include the disposable UI origin (the forwarded real `Origin` header gates
+CORS and the cookie-authenticated refresh), and Identity's resource server needs
+the topology's real JWKS/issuer instead of the `localhost:8081` YAML defaults
+(the UI shell is the first caller of authenticated `/api/auth/me` in this
+topology).
+
+### UI-round limitations
+
+The UI round covers the deletion UX journeys only: login, named and untitled
+dialog deletion, storage-cleared reload recovery, terminal wording and survivor
+visibility. Negative-path UX (mismatch copy, conflict/recovery alerts), roles,
+accessibility audit, locale switching, pagination and non-Chromium engines
+remain the frontend unit/e2e suites' scope. Each UI victim deletion parks behind
+a stopped Proctoring process for a deterministic recovery window; the terminal
+wording is asserted only for `PRIMARY_PURGED` + `COPY_EXPIRY_PENDING`.

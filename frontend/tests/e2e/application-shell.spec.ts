@@ -378,6 +378,7 @@ test.describe("workspace switching", () => {
               createdAt: "2026-10-16T07:00:00Z",
               updatedAt: "2026-10-16T07:00:00Z",
               latestVersionNumber: null,
+              deletionStatus: null,
             },
           ],
           nextCursor: null,
@@ -395,6 +396,7 @@ test.describe("workspace switching", () => {
           authoringSource: "Câu 1 [NUMERIC_FILL]: Source?\nĐáp án: 42",
           createdAt: "2026-10-16T07:00:00Z",
           updatedAt: "2026-10-16T07:00:00Z",
+          deletionStatus: null,
         }),
       }),
     );
