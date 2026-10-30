@@ -10,6 +10,18 @@ Status: **Baseline v0.2**
 - AI proctoring produces suspicious-event signals, not automatic guilt decisions.
 - Uploaded source documents require access control and retention rules.
 
+## Wave 5 AI Proctoring scheduling decision (2026-10-30)
+
+The Product Owner has added **AI Proctoring as the fifth Wave 5 planning area**,
+tracked as **W5-P**: [W5-P scope amendment and Leader handoff](../development/w5-ai-proctoring-scope-handoff.md),
+[issue #131](https://github.com/hhtuann/Quizopia_2.0/issues/131).
+Only **W5-P1 design/privacy/security/contract freeze** is approved as part of W5-A.
+Detector/model inference, video/frame processing, risk scoring, AI alerts,
+retained snapshots and any real-learner activation are **not implementation-approved**.
+W5-P2 is a conditional future workstream. No AI grading/automatic misconduct
+judgment, new monitoring mode, recording, screen sharing or facial identification
+is approved. Existing W3-M eligibility, privacy and human-review rules remain in force.
+
 ## AI behavior monitoring — accepted future design
 
 The [W3-A Leader decision](../specifications/w3-a-publication-scheduling-monitoring-policy.md#9-w3-a08--ai-behavior-monitoring)

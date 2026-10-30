@@ -75,3 +75,10 @@ Wave closure is not a production release declaration. Legacy W3 production gate 
 Wave 5 **W5-A Design & Contract Freeze** may start in a separate Leader session on current `origin/develop`. Product areas: Community, Practice, AI Authoring and AI Tutor, **planning/architecture only until explicit contract approval**. Required design dependencies include immutable QuizVersions, Assessment-vs-Practice separation, FB-015 deletion propagation and AI privacy/abuse controls. Recording, screen sharing and AI Proctoring remain deferred under their separate approvals.
 
 Wave 5 engineering does not authorize production rollout. The Wave 4 release-gate track may continue in parallel under issue #129, with no cross-session concurrent pushes to the same implementation branches.
+
+> **Post-closure scope amendment, 2026-10-30:** Product Owner subsequently placed
+> **AI Proctoring W5-P1 design/privacy/contract freeze within Wave 5 planning**.
+> The preceding historical deferral statement refers to the status at W4 closure,
+> not the latest Wave 5 scope. W5-P2 implementation and all recording/screen
+> sharing remain separately gated. See [W5-P scope/Leader handoff](w5-ai-proctoring-scope-handoff.md)
+> and [issue #131](https://github.com/hhtuann/Quizopia_2.0/issues/131).

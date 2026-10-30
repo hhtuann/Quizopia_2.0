@@ -16,6 +16,11 @@ reject-CLOSE policy and Wave 3 revocation outage/recovery policy. Only those
 policy portions are closed; engineering, W3-B/C/M1/M2 and release gates below
 remain open.
 AI behavior monitoring remains future design, deferred after Wave 3.
+**2026-10-30 scheduling amendment:** W5-P1 AI Proctoring design/privacy/contract freeze
+is now within Wave 5 planning; detector/inference coding and real-learner
+activation remain **NOT AUTHORIZED**. See [W5-P scope handoff](development/w5-ai-proctoring-scope-handoff.md)
+and [W5-P tracking issue #131](https://github.com/hhtuann/Quizopia_2.0/issues/131).
+This does not resolve PROCTOR-01/02/03/06/07/11/12.
 
 The later [ADR-015](decisions/ADR-015-w3b-w3c-leader-policy.md) explicitly
 resolves W3-B/C count/retake, unlimited individual duration, ABANDON, autosave,
@@ -314,6 +319,31 @@ compatibility contract, not silent numeric rounding.
 
 ## Proctoring
 
+**Wave 5 scope addition (2026-10-30):** AI Proctoring is officially included
+as **W5-P planning/design**, with W5-P1 as part of W5-A. W5-P2 inference,
+new evidence collection or stored snapshots remain **BLOCKED** until exact
+product, privacy/security and contract approval. No Wave 3 approval of
+additional monitoring modes, no new PUBLIC/Practice monitoring, no recording,
+facial identification, auto-sanctions or production activation follows. See
+[W5-P Leader handoff](development/w5-ai-proctoring-scope-handoff.md) and
+[issue #131](https://github.com/hhtuann/Quizopia_2.0/issues/131).
+
+W5-P1 must explicitly disposition these **unresolved design questions** (proposals,
+not accepted decisions):
+
+- **W5P-01:** Which eligible, disclosed CLASS Attempt signals and optional ephemeral
+  camera frame processing, if any, are permitted, and what are the separate AI opt-in semantics?
+- **W5P-02:** Which candidate detector set, human-review risk label semantics,
+  calibration/evaluation data, false-positive thresholds and fairness/accommodation tests?
+- **W5P-03:** Which service owns model inference, typed evidence events, signed provenance,
+  reviewer correction/dispute UX, and failure/kill-switch behavior?
+- **W5P-04:** What lawful basis/notice/consent for students/minors, provider/data residency,
+  retention TTL, cost budget and FB-015 provider/backup erasure mechanics are approved?
+- **W5P-05:** Which synthetic-only verification and qualified independent Privacy/Security
+  evidence permit implementation or later real-learner processing?
+- **W5P-06:** Does W5-P2 join W5-F integration after independent approval, or remain
+  deferred without blocking other Wave 5 workstreams?
+
 W3-M1 Activity Evidence and W3-M2 LiveKit camera monitoring are required Wave 3
 outcomes, optional together per eligible CLASS Publication. PUBLIC proctoring is
 prohibited. AI behavior monitoring remains accepted future design, deferred after
@@ -332,13 +362,13 @@ real-learner enablement. No indefinite retention or unapproved default.
 
 **PROCTOR-02.** Suspicious snapshot trigger/frequency policy?
 
-Status: **OPEN — deferred future scope**. Automatic AI snapshot extraction is
-not required for Wave 3; approval does not establish snapshot collection policy.
+Status: **OPEN — W5-P1 design question, no snapshot collection approved**. Automatic AI snapshot extraction is
+not required for Wave 3; W5-P scheduling does not establish snapshot collection policy.
 
 **PROCTOR-03.** Which AI detectors are MVP vs later?
 
-Status: **OPEN — future detector selection; deferred after Wave 3**. AI inference,
-thresholds, risk scores and alerts are not Wave 3 implementation/closure gates.
+Status: **OPEN — W5-P1 detector selection, no detector implementation approved**. AI inference,
+thresholds, risk scores and alerts are not Wave 3 implementation/closure gates or automatically authorized by Wave 5 scheduling.
 
 **PROCTOR-04.** Is microphone ever required?
 

@@ -18,6 +18,13 @@ runtime capture still requires eligible active Attempts and W3-M1/M2
 authorization, privacy and failure contracts.
 
 AI behavior monitoring remains accepted future design, deferred beyond Wave 3.
+**Wave 5 scheduling update (2026-10-30):** the Product Owner has placed
+AI Proctoring within **W5-P1 design/privacy/contract planning**, with W5-P2
+implementation separately gated. See [W5-P scope and handoff](../development/w5-ai-proctoring-scope-handoff.md).
+This does not introduce an approved AI monitoring mode or detector, authorize
+frame/video processing, change the existing CLASS-only eligibility, or relax
+PROCTOR-01..12 and real-learner release gates. Recording, strict screen sharing,
+facial identification and automatic sanctions remain unapproved.
 Media/audio recording, mandatory/strict screen sharing, remote device control and
 automatic facial identification are outside Wave 3. Preserve future AI extension
 points without requiring detectors, AI snapshots, risk scoring or AI alerts for

@@ -23,7 +23,7 @@
 - **BR-01:** RESOLVED as policy-only (PRs #127/#128); current STUDENT can take their own eligible PUBLIC Publication with existing locator/admission checks, CLASS requires actual Student membership; no owner-exclusion or mandatory Teacher Preview.
 - **Post-merge develop push CI:** [Frontend](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40997003301) **SUCCESS**; [Backend](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40997003210) **SUCCESS (8/8 jobs)** at exact `cac7002e...` SHA; [Repository full validation](https://github.com/hhtuann/Quizopia_2.0/actions/runs/40997003143) **IN PROGRESS** at this checkpoint. Do not infer its result until complete.
 - **Production:** **NO-GO**, no flag activation or non-disposable data erasure authorized. [W4 release/operations gates #129](https://github.com/hhtuann/Quizopia_2.0/issues/129) and [W3 release gate register](w3-production-release-gates.md) remain independent.
-- **Wave 5:** W5-A Design & Contract Freeze may begin in the separate Leader session. Community, Practice, AI Authoring and AI Tutor are approved as planning areas only; **coding still requires contract/product approval**. Recording/screen sharing and AI Proctoring remain separately deferred.
+- **Wave 5:** W5-A Design & Contract Freeze may begin in the separate Leader session. **Five** areas are now approved for **planning only**: Community, Practice, AI Authoring, AI Tutor and **W5-P AI Proctoring**. W5-P1 (design/privacy/contract freeze) is IN; W5-P2 detector/inference implementation is NOT authorized before explicit Product Owner, qualified Privacy/Security and contract approvals. Recording and screen sharing remain separately deferred. See the [2026-10-30 W5-P scope amendment and handoff](w5-ai-proctoring-scope-handoff.md) and [issue #131](https://github.com/hhtuann/Quizopia_2.0/issues/131).
 
 The historical checkpoints below are retained for audit/provenance, not a new claim that merged PRs are still open. The next Wave 5 session should prioritize this current checkpoint and then verify actual GitHub state.
 
@@ -289,9 +289,11 @@ authorized.**
 
 All production feature flags remain OFF unless separately approved.
 
-### Wave 5 — Community, Practice & AI
+### Wave 5 — Community, Practice, AI & AI Proctoring
 
-**Status: PLANNING / CODING NOT AUTHORIZED.**
+**Status: PLANNING / DESIGN & CONTRACT FREEZE; CODING NOT AUTHORIZED.**
+
+**Product Owner W5 scope amendment (2026-10-30):** AI Proctoring is the fifth Wave 5 planning area, tracked as **W5-P**. Its W5-P1 privacy/security/contract design is part of W5-A; implementation W5-P2 requires separate approval. See [W5-P Leader handoff](w5-ai-proctoring-scope-handoff.md) and [#131](https://github.com/hhtuann/Quizopia_2.0/issues/131). This does not expand the Wave 3 monitored CLASS eligibility, permit a new Assessment AI monitoring choice, or authorize real-learner inference.
 
 Approved broad scope (see product documents and `docs/open-questions.md`):
 
@@ -301,15 +303,16 @@ Approved broad scope (see product documents and `docs/open-questions.md`):
 - **AI Authoring:** document-grounded assistance, structured generation,
   editable canonical Quiz Markdown.
 - **AI Tutor:** policy-controlled learning assistance.
+- **AI Proctoring (W5-P):** proposed AI-generated suspicious-event signals for human teacher review, subject to a separate privacy/security/contract freeze; no automated cheating verdicts, scoring or sanctions.
 
 Proposed sequence (for planning only, not yet approved engineering contracts):
 
-W5-A Product Decisions & Contract Freeze → W5-B Community → W5-C Practice →
+W5-A Product Decisions & Contract Freeze **including W5-P1 AI Proctoring design** → W5-B Community → W5-C Practice →
 W5-D AI Authoring → W5-E AI Tutor → W5-F Integration & Acceptance.
+**W5-P2 AI Proctoring implementation** is a separately gated parallel workstream and joins W5-F only if approved and ready; it must not silently block independent W5-B/C/D/E work.
 
 Unresolved decisions are recorded in `docs/open-questions.md` under
-Community (COMM-01..07), Practice (PRACTICE-01..04) and AI sections; none
-has been decided by this status update.
+Community (COMM-01..07), Practice (PRACTICE-01..04) and AI/Proctoring sections, including W5-P1 design gates; none of the detector/retention/privacy contracts is decided by this scope amendment.
 
 ### Wave 3 — Assessment Core + optional eligible CLASS monitoring
 
@@ -748,17 +751,15 @@ errors are described in the current Assessment service OpenAPI. Guest identity/a
 
 Later product areas:
 
-Community, Practice, AI Authoring and AI Tutor are **Wave 5 planning scope**
-(see the Wave 5 section above); they are not authorized for implementation.
+Community, Practice, AI Authoring, AI Tutor and **AI Proctoring W5-P** are **Wave 5 planning scope**
+(see the W5-P scope amendment above); none is authorized for implementation merely by being scheduled.
 
 The following remain **separately gated or deferred** and are **not authorized
 Wave 5 implementation work**:
 
 - Recording and Screen Sharing: **DEFERRED**
-- AI Proctoring: **future design/implementation subject to separate privacy,
-  policy and security gates; not implemented or accepted**
-- AI behavior monitoring/inference, media/audio recording and mandatory/strict
-  screen sharing; preserve future Proctoring design and extension points
+- AI Proctoring **implementation W5-P2** remains **BLOCKED pending W5-P1 design, policy, Privacy/Security and Leader contract approval**; **W5-P1 planning is now included in Wave 5**.
+- Media/audio recording, automatic snapshot storage, mandatory/strict screen sharing, facial identification and remote device control remain **DEFERRED / NOT AUTHORIZED**; preserve future Proctoring extension points.
 
 ## 10. Macro roadmap
 
@@ -772,7 +773,7 @@ cut defined in `docs/development/mvp-plan.md`.
 - **Broader minimal Classroom product integration:** MVP-C creation/invites/discovery/gradebook; W3-A/B mandatory eligibility is earlier
 - **MVP hardening / release gate:** after the required Wave 3.x MVP journeys pass
 - **Wave 4 — Realtime and completion workstreams:** **CLOSED — ENGINEERING DELIVERY** (W4 PRs #103–#107; UX/FB-012/FB-015 follow-up PRs through #125). Production gates **OPEN / NO-GO** in [W4 release readiness #129](https://github.com/hhtuann/Quizopia_2.0/issues/129).
-- **Wave 5 — Community + Practice + AI:** PLANNING / CODING NOT AUTHORIZED
+- **Wave 5 — Community + Practice + AI Authoring + AI Tutor + AI Proctoring W5-P:** DESIGN & CONTRACT FREEZE (W5-P1 included); CODING NOT AUTHORIZED without subsequent approvals. [W5-P handoff](w5-ai-proctoring-scope-handoff.md).
 - **Wave 6 — broader product hardening / release evolution**
 
 The first MVP does **not** require completion of Waves 4–5. The authoritative
