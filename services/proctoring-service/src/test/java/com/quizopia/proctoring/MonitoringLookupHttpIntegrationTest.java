@@ -55,7 +55,8 @@ class MonitoringLookupHttpIntegrationTest {
     static final JsonMapper JSON = JsonMapper.builder().build();
 
     @Container
-    static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DATABASE =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     static final DisposableServer IDENTITY = HttpServer.create()
             .host("127.0.0.1")

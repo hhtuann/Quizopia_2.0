@@ -9,11 +9,15 @@
 --     authenticates with). It receives USAGE on the schema, DML without DELETE or
 --     TRUNCATE anywhere, and EXECUTE only on monitoring_purge_quiz. The operator-only
 --     monitoring_purge_expired retention procedure stays ungranted to the runtime role.
+--   * quizopia_proctoring_custodian - NOLOGIN custodian of retention holds and
+--     provider-erasure acknowledgments.
 -- Flyway must run as a member of quizopia_proctoring_owner (locally:
 -- quizopia_proctoring_flyway from infrastructure/postgres/01-init-databases.sh).
--- Superuser (disposable Testcontainers) execution creates missing roles with
--- local-only credentials so adversarial tests can connect as the runtime role;
--- otherwise a missing role FAILS LOUDLY.
+-- All three roles must exist BEFORE migrating: this migration never creates or
+-- passwords roles, and missing/unsafe roles fail the migration closed under any
+-- principal, including superusers. Disposable tests provision the roles through
+-- test-only container init scripts (src/test/resources/fb015_proctoring_roles.sql)
+-- that no deployment path can reach.
 
 -- ---------------------------------------------------------------------------
 -- H3: durable per-round purge progress (counts only, no content, no PII).
@@ -50,27 +54,26 @@ CREATE TABLE proctoring_provider_cleanup (
 
 -- ---------------------------------------------------------------------------
 -- H1: owner/app role separation.
+--
+-- PROVISIONING CONTRACT (security-critical): deployments MUST pre-provision
+-- quizopia_proctoring_owner and quizopia_proctoring_custodian (NOLOGIN group
+-- roles) and the runtime LOGIN role 'proctoring' with a deployment-managed secret
+-- (see the service README and infrastructure/postgres/01-init-databases.sh). This
+-- migration NEVER creates, alters or passwords any role - not even under a
+-- superuser Flyway connection. Missing or unsafe roles fail the migration closed.
+-- Only disposable tests provision these roles, through test-only container init
+-- scripts that deployment paths cannot reach
+-- (src/test/resources/fb015_proctoring_roles.sql).
 -- ---------------------------------------------------------------------------
-DO $migration$ DECLARE owner_missing boolean; app_missing boolean; BEGIN
-  owner_missing := NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='quizopia_proctoring_owner');
-  app_missing := NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='proctoring');
-  IF (owner_missing OR app_missing) AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) THEN
-    RAISE EXCEPTION 'quizopia_proctoring_owner/proctoring roles missing: provision owner+runtime roles before migrating (see V5 header and service README)';
+DO $migration$ BEGIN
+  IF (SELECT count(*) FROM pg_roles WHERE rolname IN ('quizopia_proctoring_owner','quizopia_proctoring_custodian','proctoring'))<>3 THEN
+    RAISE EXCEPTION 'provision owner, runtime and custodian roles before migrating: this migration never creates credentials (see V5 header and service README)';
   END IF;
-  IF owner_missing THEN
-    EXECUTE 'CREATE ROLE quizopia_proctoring_owner NOLOGIN NOINHERIT';
+  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname IN ('quizopia_proctoring_owner','quizopia_proctoring_custodian')
+    AND (rolsuper OR rolcanlogin OR rolcreaterole OR rolcreatedb OR rolbypassrls)) THEN
+    RAISE EXCEPTION 'unsafe proctoring owner/custodian role attributes';
   END IF;
-  IF app_missing THEN
-    EXECUTE format('CREATE ROLE proctoring LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT','proctoring_local_only');
-  END IF;
-  IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='quizopia_proctoring_custodian') THEN
-    IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) THEN
-      RAISE EXCEPTION 'provision NOLOGIN quizopia_proctoring_custodian before migrating';
-    END IF;
-    CREATE ROLE quizopia_proctoring_custodian NOLOGIN;
-  END IF;
-  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='quizopia_proctoring_owner' AND (rolsuper OR rolcanlogin))
-    OR EXISTS(SELECT 1 FROM pg_roles WHERE rolname='proctoring' AND (rolsuper OR rolcreaterole OR rolcreatedb))
+  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='proctoring' AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolbypassrls))
     OR pg_has_role('proctoring','quizopia_proctoring_owner','MEMBER')
     OR pg_has_role('proctoring','quizopia_proctoring_custodian','MEMBER')
     OR EXISTS(SELECT 1 FROM pg_database WHERE datname=current_database() AND datdba='proctoring'::regrole) THEN

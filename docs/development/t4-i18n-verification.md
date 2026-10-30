@@ -254,7 +254,8 @@ links) were improved rather than regressed.
 - This is **local acceptance on the persistent development runtime, not
   production acceptance**; the inherited release **NO-GO / production
   activation NOT AUTHORIZED** is unchanged.
-- **BR-01 remains PENDING** ([Leader decision
+- **BR-01 status at T4 time: PENDING**; it was resolved 2026-10-29 as policy-only
+  ([Leader decision
   memo](../decisions/teacher-self-attempt-br01-decision-memo.md)): T4 makes
   **no** teacher self-attempt policy change and adds no Preview/Test attempt
   path. (The full-journey student is a distinct fixture account, not the

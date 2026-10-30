@@ -29,7 +29,8 @@ import org.testcontainers.junit.jupiter.*;
 @Testcontainers
 class QuizDeletionFencePurgeIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DATABASE =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     static DriverManagerDataSource source;
     static JdbcTemplate db;

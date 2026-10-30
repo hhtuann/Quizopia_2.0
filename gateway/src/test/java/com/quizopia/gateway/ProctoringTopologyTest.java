@@ -89,10 +89,12 @@ class ProctoringTopologyTest {
     static final PostgreSQLContainer<?> CLASSROOM = new PostgreSQLContainer<>("postgres:17-alpine");
 
     @Container
-    static final PostgreSQLContainer<?> ASSESSMENT = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> ASSESSMENT =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     @Container
-    static final PostgreSQLContainer<?> PROCTORING = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> PROCTORING =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     @Container
     static final GenericContainer<?> CACHE = new GenericContainer<>("redis:8.2-alpine").withExposedPorts(6379);

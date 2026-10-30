@@ -33,7 +33,8 @@ class AssessmentEventConsumerIntegrationTest {
     static final String PASSWORD = UUID.randomUUID().toString(), VHOST = "fixture-monitoring";
 
     @Container
-    static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DATABASE =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     @Container
     static final GenericContainer<?> BROKER = new GenericContainer<>("rabbitmq:4.1-management")
