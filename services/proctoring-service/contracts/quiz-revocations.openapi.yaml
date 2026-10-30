@@ -1,0 +1,244 @@
+openapi: 3.1.0
+info:
+  title: Proctoring private quiz revocation fence
+  version: 1.0.0
+  description: >-
+    FB-015 (ADR-018 Phase A step 4) narrow private capability, default disabled via
+    quizopia.deletion.enabled. Never routed through the Gateway. Independent RS256 SERVICE
+    authentication requires the exact configured Quiz deletion client identity and the
+    dedicated quiz.deletion.revoke scope. Transport is strictly bounded: no query string,
+    no Cookie, no Transfer-Encoding/Content-Encoding, no forged identity headers, exactly
+    one application/json Content-Type, body capped at 16384 bytes, strict duplicate-key and
+    trailing-token JSON rejection, 1..50 unique canonical operation/quiz UUIDs. Every
+    response is Cache-Control: no-store and sanitized: no quiz content, media payloads,
+    evidence, PII or per-row data. Row presence in quiz_revocation_fences is the
+    revocation fence: installation serializes against every in-flight Proctoring writer by
+    taking the affected monitoring_sessions row locks in id order before inserting fence
+    rows and sampling revoked_at, and live media grants for the quiz are immediately
+    fenced REVOKE_PENDING so the existing recovery worker tears provider rooms down. One
+    ADR-009 deletion_command_inbox row per operation records dedup and processing receipt
+    in the same transaction.
+paths:
+  /internal/security/quiz-revocations/batch:
+    post:
+      operationId: revokeMonitoringForQuizzes
+      x-required-service-scope: quiz.deletion.revoke
+      x-required-service-client: exact configured Quiz deletion client identity
+      description: >-
+        Installs durable quiz-ID revocation fences idempotently. Installation first takes
+        the affected monitoring_sessions row locks in deterministic id order, so every
+        in-flight evidence/audit/media writer either commits before the fence (rows remain
+        for later purge) or is denied after it; revoked_at is sampled from the database
+        clock only after those locks are held. Redelivery of the same operation id, or a
+        successor operation for an already revoked quiz, is classified as alreadyRevoked
+        and never creates duplicate fences. Live media grants for the quiz are fenced
+        REVOKE_PENDING so the existing recovery worker revokes identities and deletes
+        provider rooms. One ADR-009 deletion_command_inbox row per operation records
+        dedup and processing receipt in the same transaction. Responses carry no counts
+        or content.
+      security:
+        - serviceBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operations]
+              properties:
+                operations:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [operationId, quizId]
+                    properties:
+                      operationId:
+                        type: string
+                        format: uuid
+                        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      quizId:
+                        type: string
+                        format: uuid
+                        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Sanitized classification; never content or PII.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [accepted, alreadyRevoked]
+                properties:
+                  accepted:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Revocation"
+                  alreadyRevoked:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Revocation"
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: DELETION_RATE_LIMITED }
+        "503":
+          description: Capability disabled or persistence unavailable; never a success claim.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: AUTHORITY_UNAVAILABLE }
+  /internal/security/quiz-revocations/{quizId}/status:
+    get:
+      operationId: readMonitoringRevocationStatus
+      x-required-service-scope: quiz.deletion.revoke
+      x-required-service-client: exact configured Quiz deletion client identity
+      description: >-
+        Truthful per-quiz acknowledgment state for the Quiz deletion coordinator. No
+        request body, no query string, same strict transport. acknowledgedAt is set only
+        by the bounded background verifier after it holds the affected session row locks
+        and confirms no committed evidence/audit mutation timestamp postdates revoked_at
+        and no still-issued media grant remains; an unacknowledged fence is never reported
+        as acknowledged capture cessation. liveGrantCount is the number of still-issued
+        (PREPARED or ACTIVE) media grants for the quiz. Counts only, never content or PII.
+      security:
+        - serviceBearer: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Aggregate fence state; no content or PII.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: No revocation fence exists for this quiz.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_NOT_FOUND }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: DELETION_RATE_LIMITED }
+        "503":
+          description: Capability disabled or persistence unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: AUTHORITY_UNAVAILABLE }
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+    Revocation:
+      type: object
+      additionalProperties: false
+      required: [quizId, operationId, revokedAt]
+      properties:
+        quizId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+          format: uuid
+        revokedAt:
+          type: string
+          format: date-time
+    Status:
+      type: object
+      additionalProperties: false
+      required: [quizId, revokedAt, sessionCount, evidenceCount, auditCount, liveGrantCount]
+      properties:
+        quizId:
+          type: string
+          format: uuid
+        revokedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type:
+            - "null"
+            - string
+          format: date-time
+        sessionCount:
+          type: integer
+          format: int64
+          minimum: 0
+        evidenceCount:
+          type: integer
+          format: int64
+          minimum: 0
+        auditCount:
+          type: integer
+          format: int64
+          minimum: 0
+        liveGrantCount:
+          type: integer
+          format: int64
+          minimum: 0
+  responses:
+    Invalid:
+      description: Malformed transport or body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example: { code: INVALID_INTERNAL_REQUEST }
+    Unauthenticated:
+      description: SERVICE credential missing, invalid or expired.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example: { code: SERVICE_AUTHENTICATION_INVALID }
+    Forbidden:
+      description: Authenticated caller is not the exact configured Quiz deletion client.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example: { code: SERVICE_CALLER_FORBIDDEN }
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

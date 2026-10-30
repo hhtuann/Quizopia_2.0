@@ -140,6 +140,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               example: { code: REVOCATION_NOT_FOUND }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_RATE_LIMITED }
         "503":
           description: Capability disabled or persistence unavailable.
           content:
@@ -191,6 +198,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               example: { code: REVOCATION_NOT_FOUND }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_RATE_LIMITED }
         "503":
           description: Capability disabled or persistence unavailable.
           content:
