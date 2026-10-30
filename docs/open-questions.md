@@ -207,7 +207,7 @@ CLASS requires current evidence-derived membership; PUBLIC current USER+STUDENT
 and direct non-enumerable locator, no membership. No new owner self-participation
 rule. (BR-01 was resolved 2026-10-29 as policy-only — ordinary STUDENT
 eligibility applies regardless of Publication ownership; see the
-[BR-01 decision memo](../decisions/teacher-self-attempt-br01-decision-memo.md)
+[BR-01 decision memo](decisions/teacher-self-attempt-br01-decision-memo.md)
 and issue #126.) W3-A exact entry/source authorization is in ASSESS-15. Future Attempt
 owner/current-member checks and PUBLIC locator-bound new creation are in the
 pack. Independent review, LD-05 topology/provisioning and release gates remain;
