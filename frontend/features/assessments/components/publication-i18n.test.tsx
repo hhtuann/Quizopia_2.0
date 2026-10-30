@@ -216,6 +216,9 @@ describe("assessment i18n (mid-form locale switch)", () => {
     fireEvent.change(screen.getByLabelText("Attempt duration (minutes)"), {
       target: { value: "0" },
     });
+    fireEvent.change(screen.getByLabelText("Maximum Attempts"), {
+      target: { value: "11" },
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "Review and create DRAFT" }),
     );
@@ -229,6 +232,12 @@ describe("assessment i18n (mid-form locale switch)", () => {
     );
     expect(screen.getByRole("radio", { name: /Networks 12A/ })).toBeChecked();
     expect(screen.getByLabelText("Thời lượng Attempt (phút)")).toHaveValue(0);
+    expect(screen.getByLabelText("Số lượt làm tối đa")).toHaveValue(11);
+    expect(
+      screen.getByText(
+        "Nhập 0 để không giới hạn, hoặc một số nguyên từ 1 đến 10.",
+      ),
+    ).toBeInTheDocument();
     // The stored English error re-localizes on the next render.
     expect(
       screen.getByText("Nhập một số nguyên từ 5 đến 240 phút."),

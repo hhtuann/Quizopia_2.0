@@ -2,6 +2,12 @@
 
 > **Status:** MVP delivery baseline v0.1
 >
+> **Later W4 final-completion program (2026-10-30):** PO reopened final acceptance
+> in [#133](https://github.com/hhtuann/Quizopia_2.0/issues/133). Only T1 foundation/
+> configuration is authorized; T2–T4 follow sequential independent review/merge and
+> explicit Leader authorization. See [T1 contract candidate](../specifications/w4f-assessment-completion-contract.md).
+> This does not alter the MVP scope cut or authorize audit collection/production.
+>
 > **Engineering status annotation (2026-10-30):** Wave 4 and FB-015 implementation
 > PRs are integrated through `develop` `cac7002e597643fd62239f5504df43a49570db54`.
 > See [W4 engineering closure](w4-final-engineering-closure.md) and the current

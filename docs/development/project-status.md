@@ -16,6 +16,16 @@
 
 ## Current verified project checkpoint — 2026-10-30
 
+**Later PO reopening:** Wave 4 final product acceptance is reopened by issues
+[#133](https://github.com/hhtuann/Quizopia_2.0/issues/133)–#136. Only T1 foundation/
+configuration and documentation-only contract freeze is authorized, on baseline
+`bdf5d116bb7258ced8471a3e4c24b1a3de21f4a2`. Historical engineering closure below
+is preserved; it is not final product acceptance. See [T1 delivery/evidence](w4f-t1-delivery.md)
+and [contract/approval matrix](../specifications/w4f-assessment-completion-contract.md).
+T2 → T3 → T4 remain sequentially gated by independent Leader review/merge and
+explicit authorization. Audit retention and final privacy/legal sign-off are
+PENDING; real collection/production activation remain NOT AUTHORIZED.
+
 - **Integration branch:** `develop`, verified at `cac7002e597643fd62239f5504df43a49570db54` (merge [PR #125](https://github.com/hhtuann/Quizopia_2.0/pull/125)). Do `git fetch` again before any new implementation; this SHA is a dated checkpoint.
 - **Wave 1:** CLOSED; **Wave 2:** CLOSED; **Wave 3:** engineering/integration delivered, inherited production release gates remain open in [#97](https://github.com/hhtuann/Quizopia_2.0/issues/97).
 - **Wave 4:** **CLOSED FOR ENGINEERING DELIVERY** — W4 realtime B1–B4/E + subsequent UX, BR-01, FB-012 and FB-015 completion PRs merged. [W4 final closure and evidence](w4-final-engineering-closure.md). A code merge is not production authorization.

@@ -4,6 +4,12 @@
 // OPEN, CLOSED, CLASS, PUBLIC, PENDING, ...), canonical UUIDs, server error
 // codes and authoritative UTC timestamp strings never pass through here.
 export const assessmentMessages = {
+  "Use 0 for unlimited attempts, or 1 to 10. This cannot change after opening.":
+    "Nhập 0 để không giới hạn, hoặc từ 1 đến 10 lượt. Không thể đổi sau khi mở bài.",
+  "Enter 0 for unlimited attempts, or a whole number from 1 to 10.":
+    "Nhập 0 để không giới hạn, hoặc một số nguyên từ 1 đến 10.",
+  "This assessment has unlimited duration, which stays unchanged; monitoring cannot be enabled.":
+    "Bài kiểm tra này giữ thời lượng không giới hạn; không thể bật giám sát.",
   // Compact private locator (FB-010)
   "Private locator revealed": "Đã hiện locator",
   "Private locator hidden": "Locator đang ẩn",
@@ -353,7 +359,7 @@ export const assessmentMessages = {
   "Classroom ID": "Mã lớp học",
   Monitoring: "Giám sát",
   "Attempt duration": "Thời lượng Attempt",
-  "Maximum Attempts": "Số Attempts tối đa",
+  "Maximum Attempts": "Số lượt làm tối đa",
   "No description": "Không có mô tả",
   "Not applicable (PUBLIC)": "Không áp dụng (PUBLIC)",
   "Enabled: Activity Evidence + LiveKit Camera":

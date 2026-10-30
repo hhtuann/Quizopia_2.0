@@ -307,8 +307,13 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
     .getByLabel("Participation end", { exact: true })
     .fill(endParts.date);
   await page.getByLabel("Participation end time").fill(endParts.time);
+  await expect(page.getByLabel("Maximum Attempts")).toHaveValue("1");
+  await page.getByLabel("Maximum Attempts").fill("0");
   await page.getByRole("button", { name: "Review and create DRAFT" }).click();
   await expect(page.getByRole("dialog").getByText(quizVersionId)).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByText("Unlimited", { exact: true }),
+  ).toBeVisible();
   await confirm(page, "Create DRAFT");
   await expect(page).toHaveURL(`/app/assessments/${publicationId}`);
   await page.getByRole("button", { name: "Edit DRAFT" }).click();
@@ -325,6 +330,15 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
     endParts.time,
   );
   await page.getByLabel("Publication title").fill("Reviewed edited assessment");
+  await page.getByLabel("Maximum Attempts").fill("11");
+  await page.getByRole("button", { name: "Review DRAFT changes" }).click();
+  await expect(
+    page.getByText(
+      "Enter 0 for unlimited attempts, or a whole number from 1 to 10.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("Maximum Attempts").fill("10");
   await page.getByRole("button", { name: "Review DRAFT changes" }).click();
   await confirm(page, "Save DRAFT");
   await expect(
@@ -334,6 +348,7 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
     .getByRole("button", { name: "Review and OPEN", exact: true })
     .click();
   await confirm(page, "OPEN Publication");
+  await expect(page.getByLabel("Maximum Attempts")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Extend participation schedule" })
     .click();
@@ -373,6 +388,7 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
     classroomId: null,
     startAt: "2026-10-16T08:00:00.000Z",
     endAt: "2026-10-16T09:00:00.000Z",
+    maxAttempts: 0,
   });
   expect(commands[1]?.body).toMatchObject({
     expectedRevision: 0,
@@ -381,6 +397,7 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
       versionNumber: 3,
       startAt: "2026-10-16T08:00:00.000Z",
       endAt: "2026-10-16T09:00:00.000Z",
+      maxAttempts: 10,
     },
   });
   expect(commands[2]?.body).toEqual({ expectedRevision: 1 });
@@ -403,6 +420,135 @@ test("intercepted history selection completes reviewed create/edit/OPEN/extend/C
       ),
   ).toBe(false);
 });
+
+for (const locale of ["en", "vi"] as const) {
+  for (const width of [375, 768, 1280, 1920]) {
+    test(`T1 configuration and private locator keyboard/layout ${locale} at ${width}px`, async ({
+      page,
+      context,
+    }) => {
+      await context.addCookies([
+        {
+          name: "quizopia-locale",
+          value: locale,
+          url: "http://localhost:3000",
+        },
+      ]);
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      await page.setViewportSize({ width, height: 1080 });
+      await mockAuth(page);
+      await mockPublication(page, {
+        initial: {
+          ...draft,
+          state: "OPEN",
+          revision: 1,
+          openedAt: "2026-10-16T07:30:00Z",
+        },
+      });
+      await mockResults(page);
+      await page.goto(`/app/assessments/${publicationId}`);
+      const toggle = page.locator("summary").filter({
+        hasText: locale === "en" ? "Configuration summary" : "Tóm tắt cấu hình",
+      });
+      await expect(toggle).toBeVisible();
+      const details = toggle.locator("..");
+      if ((await details.getAttribute("open")) === null) {
+        await toggle.focus();
+        await page.keyboard.press("Enter");
+      }
+      await expect(details).toHaveAttribute("open", "");
+      await expect(
+        page.getByRole("button", {
+          name: locale === "en" ? "Refresh" : "Làm mới",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", {
+          name: locale === "en" ? "Refresh results" : "Làm mới kết quả",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(page.getByText(locator, { exact: true })).toHaveCount(0);
+      const copy = page.getByRole("button", {
+        name: locale === "en" ? "Copy locator" : "Sao chép locator",
+      });
+      await copy.focus();
+      await page.keyboard.press("Enter");
+      await expect(
+        page.getByText(locale === "en" ? "Copied." : "Đã sao chép.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+        locator,
+      );
+      const show = page.getByRole("button", {
+        name: locale === "en" ? "Show locator" : "Hiện locator",
+      });
+      await show.focus();
+      await page.keyboard.press("Space");
+      const output = details.locator("output");
+      await expect(output).toContainText(locator);
+      const geometry = await output.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        whiteSpace: getComputedStyle(el).whiteSpace,
+        overflow: getComputedStyle(el).textOverflow,
+      }));
+      expect(geometry.whiteSpace).toBe("nowrap");
+      expect(geometry.overflow).toBe("ellipsis");
+      expect(geometry.height).toBeLessThan(44);
+      for (const button of [
+        copy,
+        page.getByRole("button", {
+          name: locale === "en" ? "Hide locator" : "Ẩn locator",
+        }),
+      ]) {
+        const box = await button.boundingBox();
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+      const positions = await details.locator("dl > div").evaluateAll((rows) =>
+        rows.map((row) => ({
+          x: row.getBoundingClientRect().x,
+          y: row.getBoundingClientRect().y,
+        })),
+      );
+      expect(new Set(positions.map((row) => row.x)).size).toBe(1);
+      expect(
+        positions.every(
+          (row, index) => index === 0 || row.y > positions[index - 1].y,
+        ),
+      ).toBe(true);
+      const overflow = await page.evaluate(() => ({
+        pixels: document.documentElement.scrollWidth - innerWidth,
+        elements: Array.from(document.querySelectorAll("main *"))
+          .filter((el) => el.getBoundingClientRect().right > innerWidth)
+          .map((el) => ({
+            tag: el.tagName,
+            className: el.className,
+            right: el.getBoundingClientRect().right,
+            width: el.getBoundingClientRect().width,
+          })),
+      }));
+      expect(
+        overflow.pixels,
+        JSON.stringify(overflow.elements),
+      ).toBeLessThanOrEqual(0);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({
+        path: `test-results/w4f-t1-${locale}-${width}.png`,
+        fullPage: true,
+      });
+      await page
+        .getByRole("button", {
+          name: locale === "en" ? "Hide locator" : "Ẩn locator",
+        })
+        .click();
+      await expect(page.getByText(locator, { exact: true })).toHaveCount(0);
+    });
+  }
+}
 
 test("hiding a dirty schedule extension requires confirmation and cancel keeps values", async ({
   page,

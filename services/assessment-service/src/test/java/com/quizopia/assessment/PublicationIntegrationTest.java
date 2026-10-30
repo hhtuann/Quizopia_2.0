@@ -775,6 +775,62 @@ class PublicationIntegrationTest {
                         .status());
     }
 
+    @Test
+    void draftMaximumWireEditsValidateAndFreezeWithoutChangingMonitoring() {
+        var p = create();
+        var body = (tools.jackson.databind.node.ObjectNode) json.valueToTree(configuration);
+        int revision = 0;
+        for (int maximum : List.of(0, 1, 10)) {
+            body.put("maxAttempts", maximum);
+            var response = call(
+                    "PUT",
+                    "/" + p.id(),
+                    json.writeValueAsString(Map.of("expectedRevision", revision, "configuration", body)),
+                    user());
+            assertEquals(200, response.status);
+            var saved = json.readTree(response.body);
+            assertEquals(
+                    maximum, saved.path("configuration").path("maxAttempts").asInt());
+            assertEquals(
+                    "DISABLED",
+                    saved.path("configuration").path("monitoringChoice").asString());
+            revision++;
+        }
+        for (String invalid : List.of("null", "-1", "11", "1.5", "\"1\"", "true")) {
+            body.set("maxAttempts", json.readTree(invalid));
+            assertEquals(
+                    400,
+                    call(
+                                    "PUT",
+                                    "/" + p.id(),
+                                    json.writeValueAsString(
+                                            Map.of("expectedRevision", revision, "configuration", body)),
+                                    user())
+                            .status);
+            assertEquals(revision, store.owned(actor, p.id()).revision());
+            assertEquals(10, store.owned(actor, p.id()).configuration().maxAttempts());
+        }
+        assertEquals(
+                200,
+                call(
+                                "POST",
+                                "/" + p.id() + "/open",
+                                json.writeValueAsString(Map.of("expectedRevision", revision)),
+                                user())
+                        .status);
+        body.put("maxAttempts", 0);
+        assertEquals(
+                409,
+                call(
+                                "PUT",
+                                "/" + p.id(),
+                                json.writeValueAsString(
+                                        Map.of("expectedRevision", revision + 1, "configuration", body)),
+                                user())
+                        .status);
+        assertEquals(10, store.owned(actor, p.id()).configuration().maxAttempts());
+    }
+
     PublicationConfiguration titled(String title) {
         var c = configuration;
         return new PublicationConfiguration(

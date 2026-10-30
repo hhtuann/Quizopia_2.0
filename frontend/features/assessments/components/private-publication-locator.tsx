@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useI18n } from "../../../lib/i18n/provider";
 
 /**
@@ -16,6 +16,7 @@ export function PrivatePublicationLocator({
   readonly locator: string;
 }) {
   const { t } = useI18n();
+  const id = useId();
   const [revealed, setRevealed] = useState(false);
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   async function copy() {
@@ -27,29 +28,35 @@ export function PrivatePublicationLocator({
     }
   }
   const iconButton =
-    "flex size-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-foreground-secondary transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none";
+    "flex size-11 shrink-0 items-center justify-center rounded-lg text-foreground-secondary transition-colors hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none";
   return (
     <div className="min-w-0">
-      <p className="text-sm font-semibold text-foreground-secondary">
+      <p
+        className="text-sm font-semibold text-foreground-secondary"
+        id={`${id}-label`}
+      >
         {t("Private locator")}
       </p>
-      <div className="mt-1.5 flex items-center gap-2">
+      <div className="mt-1.5 flex min-w-0 items-center rounded-xl border border-border bg-surface-muted p-1">
         <output
+          aria-labelledby={`${id}-label`}
           aria-live="polite"
-          className="min-h-11 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-surface-muted px-3 py-3 font-mono text-sm text-foreground"
+          className="relative min-w-0 flex-1 truncate px-2 font-mono text-sm text-foreground"
+          id={`${id}-value`}
         >
           {revealed ? (
-            <span className="break-all select-all">{locator}</span>
+            <span className="select-all">{locator}</span>
           ) : (
             <span aria-hidden="true">{"•".repeat(12)}</span>
           )}
-          <span className="sr-only">
+          <span className="sr-only left-0 top-0">
             {revealed
               ? t("Private locator revealed")
               : t("Private locator hidden")}
           </span>
         </output>
         <button
+          aria-controls={`${id}-value`}
           aria-label={revealed ? t("Hide locator") : t("Show locator")}
           aria-pressed={revealed}
           className={iconButton}

@@ -6,7 +6,6 @@ import { Alert } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { TextField } from "../../../components/ui/text-field";
-import { formatNumber } from "../../../lib/i18n/core";
 import { useI18n } from "../../../lib/i18n/provider";
 import { useUnsavedNavigationGuard } from "../../attempts/hooks/use-unsaved-navigation-guard";
 import type { Configuration } from "../api/publication-contract.generated";
@@ -40,7 +39,7 @@ export function PublicationConfigurationForm({
    */
   readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const { t, localize, locale } = useI18n();
+  const { t, localize } = useI18n();
   const id = useId();
   // Datetime fields store full UTC instants (e.g. "2026-10-16T01:30:00.000Z");
   // DateTimeField converts to/from the user's local timezone for display.
@@ -53,6 +52,7 @@ export function PublicationConfigurationForm({
     startAt: initial.startAt,
     endAt: initial.endAt,
     durationMinutes: String(initial.durationMinutes),
+    maxAttempts: String(initial.maxAttempts ?? 1),
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [review, setReview] = useState<Configuration | null>(null);
@@ -77,6 +77,7 @@ export function PublicationConfigurationForm({
       startAt: initial.startAt,
       endAt: initial.endAt,
       durationMinutes: String(initial.durationMinutes),
+      maxAttempts: String(initial.maxAttempts ?? 1),
     }),
     [initial],
   );
@@ -116,7 +117,7 @@ export function PublicationConfigurationForm({
       durationMinutes:
         fields.durationMinutes === "" ? -1 : Number(fields.durationMinutes),
       monitoringChoice: fields.monitoringChoice,
-      maxAttempts: initial.maxAttempts ?? 1,
+      maxAttempts: fields.maxAttempts === "" ? -1 : Number(fields.maxAttempts),
     };
     const parsed = configurationSchema.safeParse(next);
     const nextErrors: Record<string, string> = {};
@@ -339,7 +340,7 @@ export function PublicationConfigurationForm({
               {initial.durationMinutes === 0 ? (
                 <Alert title={t("Existing unlimited duration")}>
                   {t(
-                    "This assessment has unlimited attempts, which stays unchanged; monitoring cannot be enabled.",
+                    "This assessment has unlimited duration, which stays unchanged; monitoring cannot be enabled.",
                   )}
                 </Alert>
               ) : (
@@ -365,14 +366,24 @@ export function PublicationConfigurationForm({
                 />
               )}
             </div>
-            <p className="mt-3 text-sm text-foreground-muted">
-              {t("Maximum Attempts: {attempts}. This setting stays fixed.", {
-                attempts:
-                  initial.maxAttempts === 0
-                    ? t("unlimited")
-                    : formatNumber(locale, initial.maxAttempts ?? 1),
-              })}
-            </p>
+            <div className="mt-4">
+              <TextField
+                error={
+                  errors.maxAttempts ? localize(errors.maxAttempts) : undefined
+                }
+                helperText={t(
+                  "Use 0 for unlimited attempts, or 1 to 10. This cannot change after opening.",
+                )}
+                label={t("Maximum Attempts")}
+                max={10}
+                min={0}
+                onChange={(event) => set("maxAttempts", event.target.value)}
+                required
+                step={1}
+                type="number"
+                value={fields.maxAttempts}
+              />
+            </div>
           </Surface>
           {Object.keys(errors).length > 0 ? (
             <Alert title={t("Check the highlighted fields")} variant="danger">

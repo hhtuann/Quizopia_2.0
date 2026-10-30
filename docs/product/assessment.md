@@ -5,6 +5,20 @@ Status: **W3-A/B/C backend and integrated acceptance/hardening merged through PR
 The separate [production release overlay](../development/w3-production-release-acceptance.md)
 tracks the 11 inherited open gates; merge does not establish production acceptance.
 
+## W4 final-completion PO decisions — 2026-10-30
+
+Final product acceptance is reopened under [#133](https://github.com/hhtuann/Quizopia_2.0/issues/133).
+PO intent allows the current Publication-owning Teacher to view correct answers
+while OPEN **only through a separately security-reviewed Teacher endpoint**.
+The Student ASSESS-04 CLOSED gate stays intact, including dual-role/BR-01 own
+attempts. Minimal answer-interaction audit categories are approved as intent;
+retention TTL/holds and final privacy notice/lawful basis/minors/legal approval
+remain pending. Collection is default OFF; no real-learner activation is authorized.
+The [T1 freeze candidate and approval matrix](../specifications/w4f-assessment-completion-contract.md)
+defines proposed statistics, Teacher Review and audit contracts without implementing
+them. Tasks execute T1 → independent review/merge → explicit T2 authorization →
+T3 → T4; no production approval follows.
+
 Current merged-baseline acceptance and remaining gates are recorded in the
 [W3-FINAL evidence](../architecture/w3-final-assessment-acceptance.md). Historical increment runtime, exact routes, verification and rollout gates are recorded in the
 [W3-B3 implementation evidence](../architecture/w3b3-closure-notification-implementation.md). Historical baseline inspection and

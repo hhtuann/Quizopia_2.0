@@ -1,5 +1,12 @@
 # Wave 4 — Engineering Closure & Final Integration Evidence (2026-10-30)
 
+> **Subsequent PO reopening (2026-10-30):** this historical engineering closure
+> does not close final product acceptance. [W4F-T1 #133](https://github.com/hhtuann/Quizopia_2.0/issues/133)
+> starts a four-task sequential completion program. Only T1 is authorized; see
+> [contract/approval matrix](../specifications/w4f-assessment-completion-contract.md)
+> and [T1 delivery record](w4f-t1-delivery.md). Privacy/retention/security approvals
+> and production NO-GO remain independent gates.
+
 > **Disposition:** **WAVE 4 ENGINEERING CLOSED** (implementation, required PR integration, local/disposable acceptance evidence); **PRODUCTION NO-GO** (external release acceptance is separate). The final post-merge develop CI verdict is recorded below and must be checked before treating the merged checkpoint as an accepted CI release candidate.
 >
 > **Verified code baseline:** `develop` `cac7002e597643fd62239f5504df43a49570db54` (merge PR #125).

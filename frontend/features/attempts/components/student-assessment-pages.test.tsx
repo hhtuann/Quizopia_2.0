@@ -185,6 +185,83 @@ beforeEach(() => {
 });
 
 describe("Student assessment entry and result boundaries", () => {
+  it("disables retake only after confirmed exhaustion and keeps the submitted result accessible", async () => {
+    const api = client();
+    vi.mocked(api.retake).mockResolvedValue({
+      ok: false,
+      error: { kind: "api", status: 409, code: "ATTEMPTS_EXHAUSTED" },
+    });
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={{ ...attempt, state: "SUBMITTED" }}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start explicit retake" }),
+    );
+    expect(
+      await screen.findAllByText(
+        "No more attempts are available for this assessment.",
+      ),
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Start explicit retake" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("link", { name: "View result" })).toHaveAttribute(
+      "href",
+      `/app/attempts/${attemptId}/result`,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start explicit retake" }),
+    );
+    expect(api.retake).toHaveBeenCalledTimes(1);
+    expect(api.start).not.toHaveBeenCalled();
+  });
+
+  it("retains an uncertain RETAKE key, blocks a new intent, and retries only the original operation", async () => {
+    const api = client();
+    vi.mocked(api.retake)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { kind: "unavailable", reason: "timeout" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { ...attempt, attemptId: publicationId, ordinal: "2" },
+      });
+    render(
+      withAuth(
+        <AttemptScreen
+          attempt={{ ...attempt, state: "ABANDONED" }}
+          client={api}
+          monitoring={NO_ATTEMPT_MONITORING}
+        />,
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start explicit retake" }),
+    );
+    const retry = await screen.findByRole("button", {
+      name: "Retry exact operation",
+    });
+    expect(
+      screen.getByRole("button", { name: "Start explicit retake" }),
+    ).toBeDisabled();
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith(
+        `/app/attempts/${publicationId}`,
+      ),
+    );
+    expect(vi.mocked(api.retake).mock.calls[1]).toEqual(
+      vi.mocked(api.retake).mock.calls[0],
+    );
+    expect(api.start).not.toHaveBeenCalled();
+  });
   it("manually enters a confidential PUBLIC locator and remembers it only after authorized start", async () => {
     const api = client();
     vi.mocked(api.enterPublic).mockResolvedValue({ ok: true, value: preview });

@@ -114,6 +114,13 @@ control and automatic facial identification remain excluded.
 
 ## Accepted Publication and visibility policy
 
+W4 final-completion update (2026-10-30): PO intent W4F-DEC-01 permits a **separate
+owner-scoped Teacher Review** to disclose keys during OPEN after independent
+security contract approval. That approval is PENDING and T1 implements no endpoint.
+The [contract candidate](w4f-assessment-completion-contract.md) defines the proposed
+boundary; ASSESS-04 below continues to apply unchanged to every Student endpoint,
+including dual-role Teacher+Student owners.
+
 | Decision  | Accepted MVP behavior                                                                                                                                                                                                                                                  |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ASSESS-01 | Assessment-owned Publication references one immutable published QuizVersion. Lifecycle is `DRAFT → OPEN → CLOSED`.                                                                                                                                                     |
