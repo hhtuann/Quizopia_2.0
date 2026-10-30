@@ -15,13 +15,20 @@ DEC-02 MINIMAL audit intent and DEC-04 required notice. These are **not** indepe
 security/privacy/activation approvals. Student ASSESS-04 stays CLOSED-only.
 
 - **W4F-SEC-01 PENDING:** independent Leader/security approval of owner/resource-
-  scoped Teacher Review, endpoint separation and dual-role negative tests.
+  scoped graded SUBMITTED-only Teacher Review, protected audit reads, endpoint
+  separation, fail-closed access receipts and dual-role negative tests. The
+  [H1/M1/M2 correction directive](https://github.com/hhtuann/Quizopia_2.0/pull/137#issuecomment-6518714960)
+  does not approve ACTIVE/ABANDONED answer disclosure or live answer-progress
+  viewing; any such extension needs a separate explicit PO/security/privacy decision.
 - **W4F-PRIV-01 PENDING (DEC-03):** evidence/access-audit TTL, expiry anchor,
   hold authority/expiry, cleanup, backups/providers and verified erasure policy.
 - **W4F-PRIV-02 PENDING (DEC-04):** final notice wording, viewers, lawful basis,
   minors/accommodations, qualified privacy/legal sign-off.
 - **W4F-ENG-01 PENDING:** independent review of candidate summary/bin/pagination/
-  audit DTOs and category reconciliation before dependent T2 work.
+  audit DTOs and category reconciliation before dependent T2 work. Corrected
+  candidate uses upper-inclusive bins and strictly bounded, encrypted,
+  snapshot-bound pre-SAVE choice transitions; unsupported matrix/numeric detail
+  and partial/expired history are explicit. These designs do not approve collection.
 - **W4F-EXEC:** only T1 is authorized. T2–T4 require sequential review/merge and
   explicit Leader handoff. Collection remains OFF, production NO-GO; do not use
   local fixtures, PO intent or a merged UI PR as activation permission.

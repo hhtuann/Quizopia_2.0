@@ -10,6 +10,11 @@ tracks the 11 inherited open gates; merge does not establish production acceptan
 Final product acceptance is reopened under [#133](https://github.com/hhtuann/Quizopia_2.0/issues/133).
 PO intent allows the current Publication-owning Teacher to view correct answers
 while OPEN **only through a separately security-reviewed Teacher endpoint**.
+The [Leader's H1/M1/M2 correction directive](https://github.com/hhtuann/Quizopia_2.0/pull/137#issuecomment-6518714960)
+constrains that answer-level review to **graded SUBMITTED Attempts**; it does not
+approve live ACTIVE or retained ABANDONED answer disclosure. The design candidate
+also specifies protected pre-SAVE choice transitions (including A→C), truthful
+unsupported/partial history, and the PO's upper-inclusive twenty score bins.
 The Student ASSESS-04 CLOSED gate stays intact, including dual-role/BR-01 own
 attempts. Minimal answer-interaction audit categories are approved as intent;
 retention TTL/holds and final privacy notice/lawful basis/minors/legal approval

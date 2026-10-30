@@ -5,10 +5,13 @@ Baseline fetched 2026-10-30: `origin/develop`
 `bdf5d116bb7258ced8471a3e4c24b1a3de21f4a2`.
 Branch: `feat/w4f-t1-assessment-foundation`; target: `develop`.
 
-Status: **READY FOR LEADER REVIEW** — implementation, local verification and
-read-only engineering peer review complete; independent Leader/security decisions
-remain pending. Exact final HEAD, PR and CI receipts will be
-posted on the issue/PR after commit; no self-referential commit SHA is invented here.
+Status: **READY FOR INDEPENDENT LEADER RE-REVIEW** — H1/M1/M2 documentation
+corrections and focused checks complete after the Leader's CHANGES REQUESTED
+verdict at `62f446cd009974b8199e58756862d3ff842496ca`.
+[PR #137](https://github.com/hhtuann/Quizopia_2.0/pull/137) stays open and unmerged.
+Independent Leader/security decisions remain pending. Correction HEAD and CI
+receipts will be posted on the issue/PR after commit; no self-referential commit
+SHA is invented here.
 
 ## Delivered scope
 
@@ -35,7 +38,10 @@ posted on the issue/PR after commit; no self-referential commit SHA is invented 
   and preserves the original request/key for exact retry. No guessed entitlement
   or new Student DTO is introduced.
 
-## Executed verification receipts
+## Initial implementation verification receipts — reviewed HEAD `62f446c`
+
+The following runs belong to the original implementation, not a fresh execution
+on the documentation-correction HEAD. New correction evidence is recorded below.
 
 | Executed command | Actual result |
 | --- | --- |
@@ -60,10 +66,13 @@ the two Python validators were rerun using a disposable external venv at
 `%TEMP%/opencode/w4f-t1-validation` with PyYAML6.0.3, without repository dependency
 changes. No production/release gate was closed by structural checks.
 
-Read-only engineering peer review reported **no actionable defects** after full
+The initial read-only engineering peer review reported **no actionable defects** after full
 diff/source/contract inspection. It performed no source edits or Git mutations.
 Primary self-review checked source changes, tests, intended files, pending approval
 language and scope exclusions. This is not independent Leader or privacy approval.
+The later independent Leader review identified H1/M1/M2 contract defects despite
+that earlier peer verdict and passing implementation tests; those findings control
+the corrections below.
 
 The initial new browser matrix detected revealed-locator overflow: an absolutely
 positioned screen-reader status could escape the clipped output. Anchoring it to
@@ -74,6 +83,64 @@ overflow, masked copy/full clipboard value, reveal/hide, keyboard activation,
 Screenshots are generated at `frontend/test-results/w4f-t1-{en,vi}-{width}.png`;
 synthetic fixtures only. Desktop1920/en and mobile375/vi were visually inspected.
 Existing schedule input geometry checks also pass at the inherited viewports.
+
+## H1/M1/M2 contract corrections — 2026-10-30
+
+Authority: [full Leader review](https://github.com/hhtuann/Quizopia_2.0/pull/137#issuecomment-6518714960)
+of exact HEAD `62f446cd009974b8199e58756862d3ff842496ca`.
+This correction changes only this record, the contract candidate,
+`docs/product/assessment.md` and `docs/open-questions.md`.
+
+- **H1:** replaced the blanket ban on selection detail with a strictly allowlisted
+  `transition:{fromOptionLabels,toOptionLabels}` for SINGLE_CHOICE/MULTIPLE_CHOICE,
+  pinned to the Attempt's immutable snapshot. It preserves reported []→A→C even
+  without SAVE, under CLIENT_OBSERVATION provenance. Cardinality/category/label
+  checks, encrypted storage/replay input, authenticated context, no raw numeric
+  values/keystrokes, no keys/logging, Teacher authorization/receipt/state gates,
+  TTL/holds/FB-015/backup/key custody and partial/unavailable history are specified.
+  Detailed matrix/numeric history is explicitly unsupported; no fabrication from
+  present SAVE rows. This is a proposed new Assessment schema, not an expansion
+  of existing metadata-only Proctoring events. Collection remains OFF.
+- **M1:** corrected twenty bins to `[0,0.5]`, `(0.5,1]`, …, `(9.5,10]`.
+  Exact formula is `max(0,ceil(20*earned/possible)-1)` after weight validation;
+  v1 integer-quarter equivalent and boundary/rounding examples are explicit.
+  The score8 retake example now maps to bin15. T2 boundary/aggregation tests are
+  specified; no histogram endpoint is implemented.
+- **M2:** full Teacher Review and the new audit/transition read are restricted
+  to OPEN/CLOSED **graded SUBMITTED** targets. Explicit matrix denies ACTIVE,
+  ABANDONED, DRAFT and incomplete results, including dual-role own Attempts;
+  earlier submitted work grants no ACTIVE sibling access. Review uses immutable
+  submitted answers. Current owner/CLASS/LD-05/fence checks and committed
+  sensitive-access receipts apply to every page/dereference; failures disclose
+  no sensitive body. Student ASSESS-04 stays CLOSED-only. Live answer disclosure
+  requires a separate explicit PO/security/privacy decision.
+
+All new protected-detail, read-receipt and retention/privacy/security controls
+remain proposed and approval-gated. No runtime code, UI, tests, OpenAPI, migration,
+flag or dependency changes are part of this correction. Historical test evidence
+above must not be represented as new correction-head execution.
+
+### Correction verification actually executed
+
+| Check | Actual result / boundary |
+| --- | --- |
+| `python "%TEMP%\opencode\w4f_t1_boundary_review.py"` | PASS, 5 synthetic arithmetic tests: normative examples; all21 half-point edges; both sides of all19 interior edges; 4,120 quarter-unit ratios checked against independent interval membership and ceiling formula; invalid weights and >64-bit integer exactness. Temporary verification script only, outside the repository; no histogram runtime/API or data I/O |
+| Isolated validation Python → `services/assessment-service/contracts/validate-w3-production-release.py` | PASS; production NO-GO and 6 BLOCKED / 5 NOT VERIFIED external gates preserved |
+| Isolated validation Python → `services/assessment-service/contracts/test-w3-production-release.py` | PASS, 60 governance regression tests |
+| `docker compose config --quiet` | PASS |
+| `git diff --check` | PASS |
+| `git diff --exit-code 62f446cd009974b8199e58756862d3ff842496ca -- frontend gateway services shared infrastructure scripts AGENTS.md DESIGN.md` | PASS, no tracked runtime/test/contract/config/design changes since reviewed HEAD |
+
+Primary self-review checked all three findings against the complete revised
+candidate, API/caller/state tables, examples, threat tests, product summary and
+open approval register. A read-only engineering peer review of all four changed
+documents found no additional actionable defects and confirmed the per-finding
+resolution; it performed no source edits and grants no independent approval.
+H1/M2 encryption/authorization/receipt scenarios are
+**future T2 test requirements**, not executed tests of nonexistent runtime code.
+Frontend, Maven and browser suites were not rerun locally for this docs-only
+correction; their original receipts remain explicitly historical. Exact new
+GitHub HEAD/check statuses are reported separately on #133 and PR #137.
 
 ## Impact and limitations
 
@@ -97,4 +164,4 @@ Use the checklist in the [freeze candidate](../specifications/w4f-assessment-com
 Inspect exact PR HEAD/CI and full diff, decide the proposed security contract
 independently, retain pending policy gates, and merge only after review. Task2
 requires explicit Leader authorization after T1 review/merge. Final PO acceptance
-remains separate. Stop at **READY FOR LEADER REVIEW**.
+remains separate. Correction handoff stops at **READY FOR INDEPENDENT LEADER RE-REVIEW**.
