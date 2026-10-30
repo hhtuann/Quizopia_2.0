@@ -89,10 +89,12 @@ class ProctoringTopologyTest {
     static final PostgreSQLContainer<?> CLASSROOM = new PostgreSQLContainer<>("postgres:17-alpine");
 
     @Container
-    static final PostgreSQLContainer<?> ASSESSMENT = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> ASSESSMENT =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     @Container
-    static final PostgreSQLContainer<?> PROCTORING = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> PROCTORING =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     @Container
     static final GenericContainer<?> CACHE = new GenericContainer<>("redis:8.2-alpine").withExposedPorts(6379);
@@ -391,7 +393,10 @@ class ProctoringTopologyTest {
                 "--spring.profiles.active=local",
                 "--spring.datasource.url=" + db.getJdbcUrl(),
                 "--spring.datasource.username=" + db.getUsername(),
-                "--spring.datasource.password=" + db.getPassword()));
+                "--spring.datasource.password=" + db.getPassword(),
+                // Migrate the disposable fixture with its own credentials, not deployment defaults.
+                "--spring.flyway.user=" + db.getUsername(),
+                "--spring.flyway.password=" + db.getPassword()));
         if (!name.equals("identity")) {
             args.addAll(admission(name + "-service"));
             args.add("--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + ORIGINS.get("identity"));
@@ -704,6 +709,31 @@ class ProctoringTopologyTest {
                 session);
     }
 
+    /** Inspect the owning fixture independently of the HTTP authority response. */
+    static UUID owningQuizId(UUID attempt) throws Exception {
+        return UUID.fromString(scalar(
+                ASSESSMENT,
+                "SELECT p.quiz_id::text FROM attempts a JOIN publications p ON p.id=a.publication_id WHERE a.id=?",
+                attempt));
+    }
+
+    /** FB-015 adds quizId; retain an exact allowlist so no unrelated authority data can leak. */
+    static void assertAuthorityShape(JsonNode view) {
+        assertEquals(11, view.size());
+        for (String field : List.of(
+                "actorId",
+                "viewerRole",
+                "purpose",
+                "attemptId",
+                "publicationId",
+                "classroomId",
+                "studentId",
+                "active",
+                "deadlineAt",
+                "checkedAt",
+                "quizId")) assertTrue(view.has(field), "Missing authority field: " + field);
+    }
+
     static JsonNode privateAuthority(UUID attempt, UUID actor, String purpose) throws Exception {
         return expect(
                 200,
@@ -737,11 +767,12 @@ class ProctoringTopologyTest {
     void teacherLiveMediaRequiresCurrentTargetMembershipWhileHistoricalEvidenceRemainsVisible() throws Exception {
         UUID attempt = attempt(monitoredPublication()), session = session(attempt);
         var live = privateAuthority(attempt, TEACHER, "LIVE_MEDIA");
-        assertEquals(10, live.size());
+        assertAuthorityShape(live);
         assertEquals(TEACHER.toString(), live.path("actorId").asString());
         assertEquals(STUDENT.toString(), live.path("studentId").asString());
         assertEquals("LIVE_MEDIA", live.path("purpose").asString());
         assertTrue(live.path("active").asBoolean());
+        assertEquals(owningQuizId(attempt), UUID.fromString(live.path("quizId").asString()));
         UUID grant = expectGrant(
                 request("POST", edge, sessionPath(session) + "/media-grants", TEACHER, null, false), "TEACHER");
         assertEquals(
@@ -956,9 +987,10 @@ class ProctoringTopologyTest {
                         service,
                         body,
                         Map.of("X-Quizopia-User-Evidence", TOKENS.get(STUDENT))));
-        assertEquals(10, view.size());
+        assertAuthorityShape(view);
         assertEquals("HISTORY", view.path("purpose").asString());
         assertEquals(STUDENT.toString(), view.path("actorId").asString());
+        assertEquals(owningQuizId(attempt), UUID.fromString(view.path("quizId").asString()));
         for (String invalidPurpose :
                 List.of("{\"viewerRole\":\"STUDENT\"}", "{\"viewerRole\":\"STUDENT\",\"purpose\":\"UNKNOWN\"}"))
             expect(

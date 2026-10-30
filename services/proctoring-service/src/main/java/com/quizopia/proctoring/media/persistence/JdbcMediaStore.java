@@ -19,11 +19,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class JdbcMediaStore implements MediaStore {
     private final JdbcTemplate db;
     private final TransactionTemplate tx;
+    // FB-015 fence gate: media grants are denied for revoked quizzes, server-side.
+    private final com.quizopia.proctoring.application.QuizRevocationGate fence;
     private static final String SELECT =
             "SELECT g.*,r.room_name FROM monitoring_media_grants g JOIN monitoring_media_rooms r ON r.session_id=g.session_id ";
 
     public JdbcMediaStore(JdbcTemplate db, PlatformTransactionManager manager) {
         this.db = db;
+        this.fence = new com.quizopia.proctoring.application.QuizRevocationGate(db);
         tx = new TransactionTemplate(manager);
         tx.setTimeout(10);
     }
@@ -32,6 +35,8 @@ public class JdbcMediaStore implements MediaStore {
         try {
             return tx.execute(s -> {
                 db.execute("SET LOCAL lock_timeout='1000ms'");
+                db.execute(
+                        "SELECT pg_advisory_xact_lock(18015) WHERE to_regclass('public.purge_inventory') IS NOT NULL");
                 db.execute("SET LOCAL statement_timeout='2000ms'");
                 return work.get();
             });
@@ -76,6 +81,8 @@ public class JdbcMediaStore implements MediaStore {
                                 : r.getTimestamp("ended_at").toInstant()),
                 id);
         if (rows.isEmpty()) throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
+        // FB-015: no media work on a revoked quiz, rechecked under the session row lock.
+        fence.requireSessionOpen(id);
         return rows.getFirst();
     }
 

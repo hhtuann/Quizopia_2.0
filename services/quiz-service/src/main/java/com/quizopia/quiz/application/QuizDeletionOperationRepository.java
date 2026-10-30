@@ -3,6 +3,7 @@ package com.quizopia.quiz.application;
 import com.quizopia.quiz.domain.QuizDeletionOperation;
 import com.quizopia.quiz.domain.QuizDeletionState;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,4 +23,17 @@ public interface QuizDeletionOperationRepository {
     Optional<QuizDeletionOperation> findLatestByQuizId(UUID quizId);
 
     Map<UUID, QuizDeletionState> findLatestStatusesByQuizIdIn(Collection<UUID> quizIds);
+
+    /** Nonterminal operations the saga still owes work for, oldest first. */
+    List<QuizDeletionOperation> findSagaCandidates(int limit);
+
+    /** Nonterminal operations grouped by current status; feeds the per-status gauge each round. */
+    Map<QuizDeletionState, Long> countNonterminalByStatus();
+
+    /**
+     * H4 scrub: nulls confirmed_title and reduces version_inventory to
+     * {"versionCount":n}. Called in the same transaction as the irreversible
+     * PRIMARY_PURGED advance; idempotent.
+     */
+    void scrubLedgerContent(UUID operationId);
 }

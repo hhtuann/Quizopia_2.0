@@ -15,7 +15,8 @@ import org.testcontainers.junit.jupiter.*;
 @Testcontainers
 class SnapshotAssociationIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     String schema;
 
@@ -384,7 +385,7 @@ class SnapshotAssociationIntegrationTest {
             c.commit();
             checksum = checksum(c);
         }
-        assertEquals(9, flyway(null).migrate().migrationsExecuted);
+        assertEquals(11, flyway(null).migrate().migrationsExecuted);
         try (var c = connection()) {
             assertEquals(checksum, checksum(c));
             assertEquals(1, count(c, "publication_snapshots", id));

@@ -24,7 +24,8 @@ import org.testcontainers.junit.jupiter.*;
 @Testcontainers
 class JdbcMediaStoreIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DATABASE =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     static DriverManagerDataSource source;
     static JdbcTemplate db;
@@ -95,7 +96,7 @@ class JdbcMediaStoreIntegrationTest {
     @Test
     void freshFlywayAppliesAdditiveV2AndStoresNoUserBearerColumns() {
         assertEquals(
-                List.of("1", "2", "3"),
+                List.of("1", "2", "3", "4", "5"),
                 db.queryForList(
                         "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                         String.class));

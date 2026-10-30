@@ -22,7 +22,8 @@ public class SecurityConfiguration {
             com.quizopia.proctoring.security.admission.IdentityAdmissionClient admission,
             com.quizopia.proctoring.security.admission.AdmissionProperties bounds,
             MonitoringProperties monitoring,
-            com.quizopia.proctoring.media.MediaProperties media)
+            com.quizopia.proctoring.media.MediaProperties media,
+            ProctoringDeletionProperties deletion)
             throws Exception {
 
         return http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -39,6 +40,14 @@ public class SecurityConfiguration {
                         .permitAll()
                         .anyRequest()
                         .access((authentication, context) -> {
+                            String scope =
+                                    com.quizopia.proctoring.security.deletion.SecurityDeletionRoutes.requiredScope(
+                                            context.getRequest().getMethod(),
+                                            context.getRequest().getRequestURI());
+                            if (scope != null)
+                                return new org.springframework.security.authorization.AuthorizationDecision(
+                                        com.quizopia.proctoring.security.deletion.SecurityDeletionRoutes.permitted(
+                                                authentication.get(), deletion, scope));
                             String role = com.quizopia.proctoring.security.admission.ProctoringRoutes.role(
                                     context.getRequest().getMethod(),
                                     context.getRequest().getRequestURI());

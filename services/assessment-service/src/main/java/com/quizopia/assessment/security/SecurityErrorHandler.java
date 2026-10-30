@@ -28,6 +28,8 @@ public final class SecurityErrorHandler implements AuthenticationEntryPoint, Acc
     private static boolean internalServiceRoute(HttpServletRequest request) {
         return com.quizopia.assessment.security.deletion.SecurityRevocationRoutes.matches(
                         request.getMethod(), request.getRequestURI())
+                || com.quizopia.assessment.security.deletion.SecurityPurgeRoutes.matches(
+                        request.getMethod(), request.getRequestURI())
                 || RealtimeAuthorityRoutes.matches(request.getMethod(), request.getRequestURI());
     }
 

@@ -530,14 +530,16 @@ class QuizRevocationFenceIntegrationTest {
         // A mutation timestamp after revoked_at keeps the fence unacknowledged.
         var late = openPublication(violated, Audience.PUBLIC, 30);
         UUID lateAttempt = activeAttempt(late.id(), 30, student);
-        f.db.update(
-                "INSERT INTO quiz_revocation_fences(quiz_id,revoked_at,operation_id,source,ack_at) VALUES(?,clock_timestamp()-interval '60 seconds',?,'RECONCILE',NULL)",
-                violated,
-                UUID.randomUUID());
+        // Reconciliation discovers an already committed mutation newer than its
+        // backdated fence. New writes after installing the fence are DB-denied.
         new org.springframework.transaction.support.TransactionTemplate(f.manager).execute(ignored -> {
             f.saved(lateAttempt, 1, "{\"type\":\"SINGLE_CHOICE\",\"optionLabel\":\"A\"}", 1);
             return null;
         });
+        f.db.update(
+                "INSERT INTO quiz_revocation_fences(quiz_id,revoked_at,operation_id,source,ack_at) VALUES(?,clock_timestamp()-interval '60 seconds',?,'RECONCILE',NULL)",
+                violated,
+                UUID.randomUUID());
         revocations.acknowledgeDue(10);
         assertNull(revocations.status(violated).orElseThrow().acknowledgedAt());
     }

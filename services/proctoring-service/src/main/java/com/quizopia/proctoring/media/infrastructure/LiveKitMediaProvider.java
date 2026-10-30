@@ -49,6 +49,11 @@ public final class LiveKitMediaProvider implements MediaProvider, AutoCloseable 
         return properties.qualified();
     }
 
+    @Override
+    public String providerName() {
+        return "livekit";
+    }
+
     private RoomServiceClient administrativeClient(Map<String, Object> grants) {
         var issued = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         // The pinned SDK's public explicit-token constructor avoids its six-hour AccessToken default.

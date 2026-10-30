@@ -67,7 +67,8 @@ class W4RealtimeAcceptanceTopologyTest {
     static final PostgreSQLContainer<?> CLASSROOM_DB = new PostgreSQLContainer<>("postgres:17-alpine");
 
     @Container
-    static final PostgreSQLContainer<?> ASSESSMENT_DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> ASSESSMENT_DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8.2-alpine").withExposedPorts(6379);
@@ -654,6 +655,9 @@ class W4RealtimeAcceptanceTopologyTest {
     @Test
     @Order(12)
     void e3_journey12_brokerOutageAndRecovery() throws Exception {
+        var consumer =
+                edgeContext.getBean(com.quizopia.gateway.realtime.invalidation.RealtimeInvalidationConsumer.class);
+        awaitTrue(consumer::isConnected, "Gateway consumer connected before the outage");
         publication = seedOpenClassPublication();
         UUID attempt = startAttempt(STUDENT);
         awaitTrue(
@@ -667,7 +671,8 @@ class W4RealtimeAcceptanceTopologyTest {
             socket.send(subscribeFrame("ATTEMPT_OWNER", attempt));
             assertTrue(socket.next(Duration.ofSeconds(10)).contains("\"type\":\"SUBSCRIBED\""));
 
-            BROKER.execInContainer("rabbitmqctl", "stop_app");
+            assertEquals(0, BROKER.execInContainer("rabbitmqctl", "stop_app").getExitCode());
+            awaitTrue(() -> !consumer.isConnected(), "Gateway consumer observes the broker outage");
             // Business REST must survive the broker outage, and a real committed transition
             // (teacher schedule extension) must be retained durably by the outbox.
             var extension = edgeRequest(
@@ -684,12 +689,31 @@ class W4RealtimeAcceptanceTopologyTest {
             awaitTrue(() -> outboxCount("PENDING") >= 1, "outbox retains work during outage");
             assertNull(socket.quiet(Duration.ofSeconds(3)), "No hint may arrive while the broker is down");
 
-            BROKER.execInContainer("rabbitmqctl", "start_app");
-            // After recovery the retained event drains, and the reconnected consumer can
-            // deliver a fresh hint for the still-eligible subscription.
+            assertEquals(0, BROKER.execInContainer("rabbitmqctl", "start_app").getExitCode());
+            // Publisher recovery and consumer recovery are independent. An empty outbox
+            // does not prove this Gateway has recreated its exclusive transient queue.
+            // Hints published before that queue exists may legitimately be lost (ADR-016).
             awaitTrue(() -> outboxCount("PENDING") == 0, "outbox drains after broker recovery");
+            Files.writeString(
+                    evidence.resolve("broker-recovery.txt"),
+                    "Gateway consumer connected when Assessment outbox drained: " + consumer.isConnected() + "\n");
+            // isConnected becomes true only after queue declaration, both bindings and
+            // basicConsume complete. Do not restart the consumer or bypass its real retry.
+            awaitTrue(consumer::isConnected, "Gateway consumer recreates its queue after broker recovery");
+            Files.writeString(
+                    evidence.resolve("broker-recovery.txt"),
+                    "Gateway consumer connected before fresh probe: " + consumer.isConnected() + "\n",
+                    java.nio.file.StandardOpenOption.APPEND);
             publishInvalidation(UUID.randomUUID(), "ATTEMPT_INVALIDATED", "ATTEMPT", attempt);
-            String invalidated = socket.next(Duration.ofSeconds(60));
+            String invalidated;
+            try {
+                invalidated = socket.next(Duration.ofSeconds(60));
+            } finally {
+                Files.writeString(
+                        evidence.resolve("broker-recovery.txt"),
+                        "Gateway consumer connected after frame wait: " + consumer.isConnected() + "\n",
+                        java.nio.file.StandardOpenOption.APPEND);
+            }
             assertTrue(invalidated.contains("\"type\":\"RESOURCE_INVALIDATED\""), invalidated);
             assertTrue(invalidated.contains("\"id\":\"" + attempt + "\""), invalidated);
         }
@@ -1205,7 +1229,10 @@ class W4RealtimeAcceptanceTopologyTest {
                 "--spring.profiles.active=local",
                 "--spring.datasource.url=" + database.getJdbcUrl(),
                 "--spring.datasource.username=" + database.getUsername(),
-                "--spring.datasource.password=" + database.getPassword()));
+                "--spring.datasource.password=" + database.getPassword(),
+                // Migrate the disposable fixture with its own credentials, not deployment defaults.
+                "--spring.flyway.user=" + database.getUsername(),
+                "--spring.flyway.password=" + database.getPassword()));
         if (!name.equals("identity")) {
             args.add("--quizopia.admission.enabled=true");
             args.add("--quizopia.admission.allow-insecure-loopback=true");

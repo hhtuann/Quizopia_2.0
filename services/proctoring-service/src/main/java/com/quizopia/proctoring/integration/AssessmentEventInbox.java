@@ -32,6 +32,11 @@ public final class AssessmentEventInbox {
             return tx.execute(status -> {
                 db.execute("SET LOCAL lock_timeout='1000ms'");
                 db.execute("SET LOCAL statement_timeout='2000ms'");
+                // Same durable serialization boundary as purge; no stale delivery/drain
+                // can race the immutable attribution snapshot or refill a drained step.
+                if (Boolean.TRUE.equals(
+                        db.queryForObject("SELECT to_regclass('purge_inventory') IS NOT NULL", Boolean.class)))
+                    db.execute("SELECT pg_advisory_xact_lock(18015)");
                 return work.get();
             });
         } catch (RuntimeException failure) {
@@ -72,11 +77,12 @@ public final class AssessmentEventInbox {
                     event.attemptId(),
                     new String(payload, StandardCharsets.UTF_8),
                     hash);
-            String existing = db.queryForObject(
+            var existing = db.query(
                     "SELECT payload_sha256 FROM assessment_monitoring_inbox WHERE event_id=?",
-                    String.class,
+                    (r, n) -> r.getString(1),
                     event.eventId());
-            if (!hash.equals(existing)) reject(hash, "EVENT_CONFLICT");
+            // A deletion tombstone deliberately discards stale payloads before INSERT.
+            if (!existing.isEmpty() && !hash.equals(existing.getFirst())) reject(hash, "EVENT_CONFLICT");
             return null;
         });
     }
@@ -109,6 +115,11 @@ public final class AssessmentEventInbox {
                 event.attemptId());
         if (sessions.isEmpty()) return false;
         var session = sessions.getFirst();
+        if (Boolean.TRUE.equals(db.queryForObject(
+                        "SELECT to_regprocedure('proctoring_attempt_fenced(uuid)') IS NOT NULL", Boolean.class))
+                && Boolean.TRUE.equals(
+                        db.queryForObject("SELECT proctoring_attempt_fenced(?)", Boolean.class, event.attemptId())))
+            return false;
         if (!session.publication().equals(event.publicationId())
                 || !session.classroom().equals(event.classroomId())
                 || !session.student().equals(event.studentId())

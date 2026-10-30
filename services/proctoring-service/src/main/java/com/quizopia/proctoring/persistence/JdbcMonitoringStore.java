@@ -22,10 +22,13 @@ public class JdbcMonitoringStore implements MonitoringStore {
     private final JdbcTemplate db;
     private final TransactionTemplate tx;
     private final MonitoringProperties properties;
+    // FB-015 fence gate: server-side, always on; an empty fence table is a no-op.
+    private final QuizRevocationGate fence;
 
     public JdbcMonitoringStore(JdbcTemplate db, PlatformTransactionManager manager, MonitoringProperties properties) {
         this.db = db;
         this.properties = properties;
+        this.fence = new QuizRevocationGate(db);
         tx = new TransactionTemplate(manager);
         tx.setTimeout(10);
     }
@@ -35,6 +38,8 @@ public class JdbcMonitoringStore implements MonitoringStore {
             return tx.execute(status -> {
                 db.execute("SET LOCAL lock_timeout='1000ms'");
                 db.execute("SET LOCAL statement_timeout='2000ms'");
+                db.execute(
+                        "SELECT pg_advisory_xact_lock(18015) WHERE to_regclass('public.purge_inventory') IS NOT NULL");
                 return work.get();
             });
         } catch (MonitoringFailure f) {
@@ -70,6 +75,7 @@ public class JdbcMonitoringStore implements MonitoringStore {
         try {
             var rows = db.query("SELECT * FROM monitoring_sessions WHERE id=?", this::session, id);
             if (rows.isEmpty()) throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
+            fence.requireSessionOpen(id);
             return rows.getFirst();
         } catch (org.springframework.dao.DataAccessException unavailable) {
             throw new MonitoringFailure(503, "PERSISTENCE_UNAVAILABLE");
@@ -79,6 +85,7 @@ public class JdbcMonitoringStore implements MonitoringStore {
     private Session lock(UUID id) {
         var rows = db.query("SELECT * FROM monitoring_sessions WHERE id=? FOR UPDATE", this::session, id);
         if (rows.isEmpty()) throw new MonitoringFailure(404, "PROCTORING_NOT_ACCESSIBLE");
+        fence.requireSessionOpen(id);
         return rows.getFirst();
     }
 
@@ -103,6 +110,8 @@ public class JdbcMonitoringStore implements MonitoringStore {
     @Override
     public Session create(MonitoringAuthority.Actor actor, MonitoringAuthority.Snapshot a) {
         return transaction(() -> {
+            // FB-015: deny new monitoring sessions for a revoked quiz before any write.
+            fence.requireQuizOpen(a.quizId());
             Instant time = now();
             UUID id = UUID.randomUUID();
             var proposed = new Session(
@@ -119,15 +128,28 @@ public class JdbcMonitoringStore implements MonitoringStore {
             if (!a.viewerRole().equals("STUDENT")
                     || !a.active()
                     || !a.deadlineAt().isAfter(time)) throw new MonitoringFailure(409, "SESSION_ENDED");
-            int inserted = db.update(
-                    "INSERT INTO monitoring_sessions(id,attempt_id,publication_id,classroom_id,student_id,deadline_at,status,created_at) VALUES (?,?,?,?,?,?,'ACTIVE',?) ON CONFLICT(attempt_id) DO NOTHING",
-                    id,
-                    a.attemptId(),
-                    a.publicationId(),
-                    a.classroomId(),
-                    a.studentId(),
-                    Timestamp.from(a.deadlineAt()),
-                    Timestamp.from(time));
+            // A null quiz means a pre-FB015 authority snapshot (or a pre-V4 schema); the
+            // legacy INSERT keeps rolling upgrades byte-identical with no quiz binding.
+            int inserted = a.quizId() == null
+                    ? db.update(
+                            "INSERT INTO monitoring_sessions(id,attempt_id,publication_id,classroom_id,student_id,deadline_at,status,created_at) VALUES (?,?,?,?,?,?,'ACTIVE',?) ON CONFLICT(attempt_id) DO NOTHING",
+                            id,
+                            a.attemptId(),
+                            a.publicationId(),
+                            a.classroomId(),
+                            a.studentId(),
+                            Timestamp.from(a.deadlineAt()),
+                            Timestamp.from(time))
+                    : db.update(
+                            "INSERT INTO monitoring_sessions(id,attempt_id,publication_id,classroom_id,student_id,deadline_at,status,created_at,quiz_id) VALUES (?,?,?,?,?,?,'ACTIVE',?,?) ON CONFLICT(attempt_id) DO NOTHING",
+                            id,
+                            a.attemptId(),
+                            a.publicationId(),
+                            a.classroomId(),
+                            a.studentId(),
+                            Timestamp.from(a.deadlineAt()),
+                            Timestamp.from(time),
+                            a.quizId());
             var session = db.query(
                             "SELECT * FROM monitoring_sessions WHERE attempt_id=? FOR UPDATE",
                             this::session,
@@ -135,6 +157,8 @@ public class JdbcMonitoringStore implements MonitoringStore {
                     .getFirst();
             Instant lockedAt = now();
             authority(actor, a, session, lockedAt);
+            // Recheck inside the row-locked transaction, exactly like every other writer.
+            fence.requireSessionOpen(session.id());
             if (!a.active() || !session.deadlineAt().isAfter(lockedAt))
                 throw new MonitoringFailure(409, "SESSION_ENDED");
             if (inserted == 1) serverEvent(session, EventType.SESSION_STARTED, time, actor.id());

@@ -22,6 +22,7 @@ public class DeletionOperationService {
     private final QuizVersionRepository quizVersionRepository;
     private final QuizDeletionOperationRepository deletionOperationRepository;
     private final QuizDeletionOutboxRepository deletionOutboxRepository;
+    private final DeletionSagaObserver observer;
     private final Clock clock;
 
     public DeletionOperationService(
@@ -30,6 +31,7 @@ public class DeletionOperationService {
             QuizVersionRepository quizVersionRepository,
             QuizDeletionOperationRepository deletionOperationRepository,
             QuizDeletionOutboxRepository deletionOutboxRepository,
+            DeletionSagaObserver observer,
             Clock clock) {
         this.quizRepository = Objects.requireNonNull(quizRepository, "quizRepository");
         this.quizDraftRepository = Objects.requireNonNull(quizDraftRepository, "quizDraftRepository");
@@ -37,6 +39,7 @@ public class DeletionOperationService {
         this.deletionOperationRepository =
                 Objects.requireNonNull(deletionOperationRepository, "deletionOperationRepository");
         this.deletionOutboxRepository = Objects.requireNonNull(deletionOutboxRepository, "deletionOutboxRepository");
+        this.observer = Objects.requireNonNull(observer, "observer");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -48,16 +51,29 @@ public class DeletionOperationService {
         Objects.requireNonNull(idempotencyKey, "idempotencyKey");
         Objects.requireNonNull(confirmTitle, "confirmTitle");
 
-        Quiz quiz = requireOwnedQuizForUpdate(callerUserId, quizId);
         String canonicalTitle = confirmTitle.trim();
         Optional<QuizDeletionOperation> replay =
                 deletionOperationRepository.findByQuizIdAndIdempotencyKey(quizId, idempotencyKey);
         if (replay.isPresent()) {
             QuizDeletionOperation operation = replay.get();
-            if (operation.confirmedTitle().equals(canonicalTitle)) {
+            if (!operation.ownerUserId().equals(callerUserId)) {
+                throw new QuizDeletionNotFoundException(operation.id());
+            }
+            if (requestDigest(canonicalTitle).equals(operation.requestDigest())) {
                 return new DeletionRequestResult(operation.id(), operation.status(), false);
             }
             throw new DeletionConflictException(quizId);
+        }
+        Quiz quiz = requireOwnedQuizForUpdate(callerUserId, quizId);
+        // A concurrent request may have committed while this request waited on
+        // the Quiz lock. Reconcile its ledger before treating the fence as conflict.
+        replay = deletionOperationRepository.findByQuizIdAndIdempotencyKey(quizId, idempotencyKey);
+        if (replay.isPresent()) {
+            QuizDeletionOperation operation = replay.get();
+            if (!operation.ownerUserId().equals(callerUserId)) throw new QuizDeletionNotFoundException(operation.id());
+            if (!requestDigest(canonicalTitle).equals(operation.requestDigest()))
+                throw new DeletionConflictException(quizId);
+            return new DeletionRequestResult(operation.id(), operation.status(), false);
         }
         if (quiz.isDeletionFenced()) {
             throw new DeletionConflictException(quizId);
@@ -76,7 +92,8 @@ public class DeletionOperationService {
                 now,
                 canonicalTitle,
                 frozenVersionInventory(quizId),
-                null);
+                null,
+                requestDigest(canonicalTitle));
         deletionOperationRepository.insert(requested);
         QuizDeletionOperation fenced = advanceState(requested.id(), QuizDeletionState.QUIZ_FENCED, null);
         quizRepository.markDeletionFenced(quizId, now);
@@ -112,7 +129,31 @@ public class DeletionOperationService {
         }
         QuizDeletionOperation updated = operation.withState(newState, reason, clock.instant());
         deletionOperationRepository.update(updated);
+        observer.onTransition(newState, reason);
         return updated;
+    }
+
+    /**
+     * FB-015 H4: the irreversible primary purge boundary - quiz-owned row deletion, ledger
+     * content scrub and the PRIMARY_PURGED advance - MUST share one transaction, so the
+     * title/inventory scrub can never survive separately from the deleted quiz rows.
+     */
+    @Transactional
+    public void completePrimaryPurge(UUID operationId, UUID quizId) {
+        Objects.requireNonNull(operationId, "operationId");
+        Objects.requireNonNull(quizId, "quizId");
+        QuizDeletionOperation operation = deletionOperationRepository
+                .findByIdForUpdate(operationId)
+                .orElseThrow(() -> new QuizDeletionNotFoundException(operationId));
+        if (!operation.quizId().equals(quizId)) throw new QuizDeletionNotFoundException(operationId);
+        if (operation.mainProgress() >= QuizDeletionState.PRIMARY_PURGED.mainOrder()) return;
+        if (operation.mainProgress() != QuizDeletionState.PURGING.mainOrder()
+                || operation.status() != QuizDeletionState.PURGING) {
+            throw new IllegalDeletionTransitionException(operation.status(), QuizDeletionState.PRIMARY_PURGED);
+        }
+        quizRepository.purgeQuizContent(quizId);
+        deletionOperationRepository.scrubLedgerContent(operationId);
+        advanceState(operationId, QuizDeletionState.PRIMARY_PURGED, null);
     }
 
     private Quiz requireOwnedQuizForUpdate(UUID callerUserId, UUID quizId) {
@@ -123,14 +164,33 @@ public class DeletionOperationService {
         return quiz;
     }
 
+    private static String requestDigest(String canonicalTitle) {
+        try {
+            return java.util.HexFormat.of()
+                    .formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                            .digest(canonicalTitle.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     private void requireExactTitleConfirmation(UUID quizId, String canonicalTitle) {
         QuizDraft draft = quizDraftRepository
                 .findByQuizId(quizId)
                 .orElseThrow(() -> new DeletionTitleConfirmationRequiredException(quizId));
         String currentTitle = draft.title();
-        if (currentTitle == null || !canonicalTitle.equals(currentTitle.trim())) {
+        if (!canonicalTitle.equals(currentTitle == null ? "" : currentTitle.trim())) {
             throw new DeletionTitleConfirmationRequiredException(quizId);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public QuizDeletionOperation getLatestOperation(UUID callerUserId, UUID quizId) {
+        QuizDeletionOperation operation = deletionOperationRepository
+                .findLatestByQuizId(quizId)
+                .orElseThrow(() -> new QuizDeletionNotFoundException(quizId));
+        if (!operation.ownerUserId().equals(callerUserId)) throw new QuizDeletionNotFoundException(quizId);
+        return operation;
     }
 
     private List<QuizDeletionOperation.VersionRef> frozenVersionInventory(UUID quizId) {

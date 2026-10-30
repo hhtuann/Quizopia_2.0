@@ -159,7 +159,8 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
                 "studentId",
                 "active",
                 "deadlineAt",
-                "checkedAt");
+                "checkedAt",
+                "quizId");
         if (n == null || !n.isObject() || !new HashSet<>(n.propertyNames()).equals(keys))
             throw MonitoringFailure.unavailable();
         for (String key : keys)
@@ -175,7 +176,8 @@ public final class AssessmentMonitoringClient implements MonitoringAuthority, Au
                 uuid(n.path("studentId").asString()),
                 n.path("active").asBoolean(),
                 Instant.parse(n.path("deadlineAt").asString()),
-                Instant.parse(n.path("checkedAt").asString()));
+                Instant.parse(n.path("checkedAt").asString()),
+                uuid(n.path("quizId").asString()));
         var now = Instant.now();
         if (!snapshot.actorId().equals(actor.id())
                 || !snapshot.viewerRole().equals(role)

@@ -111,4 +111,50 @@ public class JpaQuizDeletionOperationRepository implements QuizDeletionOperation
         latest.forEach((quizId, operation) -> statuses.put(quizId, operation.status()));
         return statuses;
     }
+
+    @Override
+    public List<QuizDeletionOperation> findSagaCandidates(int limit) {
+        return entityManager
+                .createQuery(
+                        "select o from QuizDeletionOperationEntity o"
+                                + " where o.mainProgress < :terminalProgress order by o.updatedAt asc",
+                        QuizDeletionOperationEntity.class)
+                .setParameter("terminalProgress", QuizDeletionState.PRIMARY_PURGED.mainOrder())
+                .setMaxResults(limit)
+                .getResultStream()
+                .map(entity -> entity.toDomain(deletionJson))
+                .filter(operation -> !operation.status().equals(QuizDeletionState.PENDING_POLICY)
+                        && !operation.status().equals(QuizDeletionState.RETRYABLE_FAILURE))
+                .toList();
+    }
+
+    @Override
+    public Map<QuizDeletionState, Long> countNonterminalByStatus() {
+        Map<QuizDeletionState, Long> counts = new LinkedHashMap<>();
+        for (Object[] row : entityManager
+                .createQuery(
+                        "select o.status, count(o) from QuizDeletionOperationEntity o"
+                                + " where o.mainProgress < :terminalProgress group by o.status",
+                        Object[].class)
+                .setParameter("terminalProgress", QuizDeletionState.PRIMARY_PURGED.mainOrder())
+                .getResultList()) {
+            counts.put((QuizDeletionState) row[0], (Long) row[1]);
+        }
+        return counts;
+    }
+
+    @Override
+    @Transactional
+    public void scrubLedgerContent(UUID operationId) {
+        entityManager
+                .createNativeQuery("update quiz_deletion_operations"
+                        + " set confirmed_title = null,"
+                        + " version_inventory = case when jsonb_typeof(version_inventory) = 'array'"
+                        + " then jsonb_build_object('versionCount', jsonb_array_length(version_inventory))"
+                        + " else version_inventory end"
+                        + " where id = :operationId")
+                .setParameter("operationId", operationId)
+                .executeUpdate();
+        entityManager.clear();
+    }
 }

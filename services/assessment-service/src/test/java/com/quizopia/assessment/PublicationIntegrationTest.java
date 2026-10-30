@@ -34,13 +34,16 @@ import tools.jackson.databind.ObjectMapper;
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class PublicationIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry p) {
         p.add("spring.datasource.url", DB::getJdbcUrl);
         p.add("spring.datasource.username", DB::getUsername);
         p.add("spring.datasource.password", DB::getPassword);
+        p.add("spring.flyway.user", DB::getUsername);
+        p.add("spring.flyway.password", DB::getPassword);
     }
 
     @Autowired

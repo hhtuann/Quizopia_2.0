@@ -401,11 +401,21 @@ class QuizApplicationServiceTest {
                 values.put(quizId, new Quiz(quiz.id(), quiz.ownerUserId(), quiz.createdAt(), fencedAt));
             }
         }
+
+        @Override
+        public void purgeQuizContent(UUID quizId) {
+            values.remove(quizId);
+        }
     }
 
     private static final class RecordingDeletionRepository implements QuizDeletionOperationRepository {
         @Override
         public void insert(QuizDeletionOperation operation) {}
+
+        @Override
+        public java.util.Map<QuizDeletionState, Long> countNonterminalByStatus() {
+            return java.util.Map.of();
+        }
 
         @Override
         public void update(QuizDeletionOperation operation) {}
@@ -434,6 +444,14 @@ class QuizApplicationServiceTest {
         public java.util.Map<UUID, QuizDeletionState> findLatestStatusesByQuizIdIn(java.util.Collection<UUID> quizIds) {
             return java.util.Map.of();
         }
+
+        @Override
+        public java.util.List<QuizDeletionOperation> findSagaCandidates(int limit) {
+            return java.util.List.of();
+        }
+
+        @Override
+        public void scrubLedgerContent(java.util.UUID operationId) {}
     }
 
     private static final class RecordingQuizDraftRepository implements QuizDraftRepository {

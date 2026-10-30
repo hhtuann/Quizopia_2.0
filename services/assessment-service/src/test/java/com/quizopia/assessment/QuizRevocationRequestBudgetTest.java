@@ -12,7 +12,7 @@ import org.junit.jupiter.api.*;
 class QuizRevocationRequestBudgetTest {
     AtomicLong nanos = new AtomicLong();
     QuizRevocationRequestBudget budget = new QuizRevocationRequestBudget(
-            new AssessmentDeletionProperties(true, "quiz-service", false, 8, 2, 10, 20), nanos::get);
+            new AssessmentDeletionProperties(true, "quiz-service", false, 8, 2, 10, 20, 500), nanos::get);
 
     @Test
     void admitsWithinWindowAndBoundsBurstsAfterwards() {

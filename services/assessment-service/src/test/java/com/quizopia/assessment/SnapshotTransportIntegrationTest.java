@@ -33,7 +33,8 @@ class SnapshotTransportIntegrationTest {
     static final int LIMIT = 2097152;
 
     @Container
-    static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     final AtomicReference<byte[]> body = new AtomicReference<>();
     final AtomicBoolean chunked = new AtomicBoolean();

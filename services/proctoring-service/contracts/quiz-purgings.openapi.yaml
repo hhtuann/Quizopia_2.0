@@ -1,0 +1,258 @@
+openapi: 3.1.0
+info:
+  title: Proctoring private quiz purge
+  version: 2.0.0
+  description: >-
+    FB-015 PR C + Leader corrections (ADR-018 Phase A step 4 + Phase B step 7) narrow
+    private capability, default disabled via quizopia.deletion.enabled. Never routed
+    through the Gateway. Independent RS256 SERVICE authentication requires the exact
+    configured Quiz deletion client identity and the dedicated quiz.deletion.purge scope;
+    transport hardening mirrors the revocation surface. The privileged
+    monitoring_purge_quiz procedure is the only path allowed to delete monitoring history:
+    the runtime DB role holds no DELETE or TRUNCATE anywhere, and every child DELETE is
+    bound to the captured session scope. Each invocation is one transaction with a hard
+    total deleted-row budget (quizopia.deletion.purge-budget, default 5000, bounded
+    100..50000): an exhausted budget durably persists progress and answers IN_PROGRESS.
+    Legacy (pre-V4, quiz_id NULL) sessions are resolved ONLY through the optional
+    Assessment-owned dependents inventory carried in the request body; when that mapping
+    is unavailable and legacy rows exist the answer is RECONCILIATION_BLOCKED - never a
+    false PURGED. The canonical operation inventory is persisted; any changed replay,
+    including shrinking or omitted arrays, returns INVENTORY_MISMATCH. Resolved session,
+    attempt and publication tombstones survive local deletion. Inbox payload copies are
+    included in the budget and zero check; stale deliveries cannot resurrect them.
+    Media bindings remain durable until independent custodian acknowledgment; absent
+    acknowledgment returns PENDING_PROVIDER before any content deletion. Active local
+    custodian holds return BLOCKED_BY_RETENTION. READ COMMITTED is enforced by the
+    database functions and triggers; old-snapshot transactions are rejected, not
+    refreshed by advisory locking. Receipt replay rechecks current inventory absence.
+paths:
+  /internal/security/quiz-purgings/batch:
+    post:
+      operationId: purgeMonitoringForQuizzes
+      x-required-service-scope: quiz.deletion.purge
+      x-required-service-client: exact configured Quiz deletion client identity
+      description: >-
+        Runs one bounded purge round per requested operation. Requires an acknowledged
+        revocation fence for exactly the (quizId, operationId) pair. publicationIds and
+        attemptIds are the Assessment dependents inventory (see the Assessment
+        quiz-revocations dependents contract): legacy quiz_id-NULL sessions whose ids are
+        covered are purged in the same privileged path; omitted arrays mean the mapping
+        is unavailable. Persist and replay the original arrays on every retry, even after
+        Assessment deletes its rows. A changed inventory is never accepted as an empty purge.
+      security:
+        - serviceBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operations]
+              properties:
+                operations:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [operationId, quizId]
+                    properties:
+                      operationId:
+                        type: string
+                        format: uuid
+                        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      quizId:
+                        type: string
+                        format: uuid
+                        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      publicationIds:
+                        type: array
+                        maxItems: 2000
+                        items:
+                          type: string
+                          format: uuid
+                          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      attemptIds:
+                        type: array
+                        maxItems: 2000
+                        items:
+                          type: string
+                          format: uuid
+                          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Sanitized per-operation purge state; never content or PII.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PurgeResult"
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: DELETION_RATE_LIMITED }
+        "503":
+          description: Capability disabled or persistence unavailable; never a success claim.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: AUTHORITY_UNAVAILABLE }
+  /internal/security/quiz-purgings/{quizId}/status:
+    get:
+      operationId: readMonitoringPurgeStatus
+      x-required-service-scope: quiz.deletion.purge
+      x-required-service-client: exact configured Quiz deletion client identity
+      description: >-
+        Truthful per-quiz purge state. purged is true only when the verified_zero receipt
+        exists and current absence is verified; retentionHoldActive is an explicit
+        local boolean required by the coordinator before any purge. Missing/unknown
+        must fail closed. providerErasure is PENDING_PROVIDER, ACKNOWLEDGED (independent custodian
+        receipt), or NOT_CONFIGURED (no tracked artifacts). Counts only. ACKNOWLEDGED
+        does not attest backup/replica/all-copy erasure.
+      security:
+        - serviceBearer: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Aggregate purge state.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurgeStatus"
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: DELETION_RATE_LIMITED }
+        "404":
+          description: No fence/purge state exists for this quiz.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: PURGE_NOT_FOUND }
+        "503":
+          description: Capability disabled or persistence unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: AUTHORITY_UNAVAILABLE }
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+    PurgeResult:
+      type: object
+      additionalProperties: false
+      required: [operationId, quizId, status, steps]
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        quizId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PURGED, IN_PROGRESS, RECONCILIATION_BLOCKED, INVENTORY_MISMATCH, BLOCKED_BY_RETENTION, PENDING_PROVIDER, WAITING_REVOCATION_ACK]
+        steps:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+            minimum: 0
+          description: Cumulative rows-removed counts per step; counts only.
+    PurgeStatus:
+      type: object
+      additionalProperties: false
+      required: [quizId, revokedAt, purged, retentionHoldActive, steps, providerErasure]
+      properties:
+        quizId:
+          type: string
+          format: uuid
+        revokedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type:
+            - "null"
+            - string
+          format: date-time
+        purged:
+          type: boolean
+        retentionHoldActive:
+          type: boolean
+          description: >-
+            Explicit current local custodian hold state, including session-scoped holds.
+            The coordinator must require false before any purge; missing/unknown is not false.
+        steps:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+            minimum: 0
+        providerErasure:
+          type: string
+          enum: [PENDING_PROVIDER, ACKNOWLEDGED, NOT_CONFIGURED]
+  responses:
+    Invalid:
+      description: Malformed transport or body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example: { code: INVALID_INTERNAL_REQUEST }
+    Unauthenticated:
+      description: SERVICE credential missing, invalid or expired.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example: { code: SERVICE_AUTHENTICATION_INVALID }
+    Forbidden:
+      description: Authenticated caller is not the exact configured Quiz deletion client.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example: { code: SERVICE_CALLER_FORBIDDEN }
+  securitySchemes:
+    serviceBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

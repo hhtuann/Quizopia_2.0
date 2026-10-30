@@ -33,7 +33,8 @@ class AssessmentEventConsumerIntegrationTest {
     static final String PASSWORD = UUID.randomUUID().toString(), VHOST = "fixture-monitoring";
 
     @Container
-    static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DATABASE =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     @Container
     static final GenericContainer<?> BROKER = new GenericContainer<>("rabbitmq:4.1-management")
@@ -463,14 +464,18 @@ class AssessmentEventConsumerIntegrationTest {
                     .dataSource(upgradeSource)
                     .schemas(schema)
                     .defaultSchema(schema)
+                    .target("3")
                     .load();
+            // This historical checksum test is specifically V2 -> V3. FB-015 V4 -> V5
+            // is tested against its real public-schema role boundary in QuizPurgeLegacyDependentsIntegrationTest.
             assertEquals(1, upgrade.migrate().migrationsExecuted);
             upgrade.validate();
             assertEquals(
                     checksums,
                     upgradeDb.queryForList(
                             "SELECT version,checksum FROM flyway_schema_history WHERE version IN ('1','2') ORDER BY installed_rank"));
-            assertEquals(sessions, upgradeDb.queryForList("SELECT * FROM monitoring_sessions"));
+            var afterSessions = upgradeDb.queryForList("SELECT * FROM monitoring_sessions");
+            assertEquals(sessions, afterSessions);
             var after = upgradeDb.queryForList("SELECT * FROM monitoring_evidence ORDER BY ordinal");
             assertEquals(evidence.size(), after.size());
             for (int i = 0; i < after.size(); i++) {

@@ -140,6 +140,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               example: { code: REVOCATION_NOT_FOUND }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_RATE_LIMITED }
+        "503":
+          description: Capability disabled or persistence unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: AUTHORITY_UNAVAILABLE }
+  /internal/security/quiz-revocations/{quizId}/dependents:
+    get:
+      operationId: readQuizRevocationDependents
+      x-required-service-scope: quiz.deletion.purge
+      x-required-service-client: exact configured Quiz deletion client identity
+      description: >-
+        FB-015 correction H5: complete dependent publication/attempt id inventory for one
+        quiz from Assessment-owned tables (every publication state including drafts and
+        private-locator rows, plus every attempt). Purge-support read consumed by the Quiz
+        deletion coordinator so Proctoring can resolve legacy pre-V4 sessions whose quiz_id
+        is NULL without any cross-service database join - therefore the dedicated
+        quiz.deletion.purge scope (never the plain revocation scope) is required. Ids only:
+        never titles, content, locators or PII. Read-only; never finalizes work.
+      security:
+        - serviceBearer: []
+      parameters:
+        - in: path
+          name: quizId
+          required: true
+          schema:
+            type: string
+            format: uuid
+            pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      responses:
+        "200":
+          description: Dependent id inventory; counts only, no content or PII.
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dependents"
+        "400": { $ref: "#/components/responses/Invalid" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: No revocation fence exists for this quiz.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_NOT_FOUND }
+        "429":
+          description: Rolling per-minute caller budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example: { code: REVOCATION_RATE_LIMITED }
         "503":
           description: Capability disabled or persistence unavailable.
           content:
@@ -193,6 +258,24 @@ components:
           type: integer
           format: int64
           minimum: 0
+    Dependents:
+      type: object
+      additionalProperties: false
+      required: [quizId, publicationIds, attemptIds]
+      properties:
+        quizId:
+          type: string
+          format: uuid
+        publicationIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        attemptIds:
+          type: array
+          items:
+            type: string
+            format: uuid
   responses:
     Invalid:
       description: Malformed transport or body.

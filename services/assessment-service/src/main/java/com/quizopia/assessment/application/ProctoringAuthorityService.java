@@ -60,7 +60,9 @@ public class ProctoringAuthorityService {
                 current.studentId(),
                 current.active(),
                 current.deadlineAt(),
-                current.checkedAt());
+                current.checkedAt(),
+                // FB-015 PR C: lets Proctoring scope its own revocation fence and purge.
+                current.quizId());
     }
 
     private void authorize(ProctoringAuthorityStore.Projection value, UUID actor, String role) {
@@ -83,7 +85,34 @@ public class ProctoringAuthorityService {
             UUID studentId,
             boolean active,
             Instant deadlineAt,
-            Instant checkedAt) {
+            Instant checkedAt,
+            UUID quizId) {
+        /** Pre-FB015 spelling; a null quiz is still accepted by older callers. */
+        public View(
+                UUID actorId,
+                String viewerRole,
+                Purpose purpose,
+                UUID attemptId,
+                UUID publicationId,
+                UUID classroomId,
+                UUID studentId,
+                boolean active,
+                Instant deadlineAt,
+                Instant checkedAt) {
+            this(
+                    actorId,
+                    viewerRole,
+                    purpose,
+                    attemptId,
+                    publicationId,
+                    classroomId,
+                    studentId,
+                    active,
+                    deadlineAt,
+                    checkedAt,
+                    null);
+        }
+
         @Override
         public String toString() {
             return "ProctoringAuthorityView[redacted]";

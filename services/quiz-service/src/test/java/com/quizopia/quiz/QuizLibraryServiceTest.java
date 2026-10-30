@@ -177,5 +177,18 @@ class QuizLibraryServiceTest {
             requestedQuizIds.addAll(quizIds);
             return statuses;
         }
+
+        @Override
+        public List<QuizDeletionOperation> findSagaCandidates(int limit) {
+            return List.of();
+        }
+
+        @Override
+        public Map<QuizDeletionState, Long> countNonterminalByStatus() {
+            return Map.of();
+        }
+
+        @Override
+        public void scrubLedgerContent(UUID operationId) {}
     }
 }

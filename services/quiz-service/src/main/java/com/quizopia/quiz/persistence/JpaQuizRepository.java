@@ -47,4 +47,23 @@ public class JpaQuizRepository implements QuizRepository {
             entityManager.flush();
         }
     }
+
+    @Override
+    @Transactional
+    public void purgeQuizContent(UUID quizId) {
+        // Dependency-safe order inside one transaction; the operation ledger survives (V5).
+        entityManager
+                .createQuery("delete from QuizVersionEntity v where v.quizId = :quizId")
+                .setParameter("quizId", quizId)
+                .executeUpdate();
+        entityManager
+                .createQuery("delete from QuizDraftEntity d where d.quizId = :quizId")
+                .setParameter("quizId", quizId)
+                .executeUpdate();
+        QuizEntity quiz = entityManager.find(QuizEntity.class, quizId, LockModeType.PESSIMISTIC_WRITE);
+        if (quiz != null) {
+            entityManager.remove(quiz);
+        }
+        entityManager.flush();
+    }
 }

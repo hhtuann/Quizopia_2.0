@@ -14,4 +14,10 @@ public interface QuizRepository {
     Optional<Quiz> findByIdForUpdate(UUID id);
 
     void markDeletionFenced(UUID quizId, Instant fencedAt);
+
+    /**
+     * FB-015 hard purge of quiz-owned content in dependency-safe order (versions, drafts,
+     * quiz row). The deletion-operation ledger is NOT content and survives as the tombstone.
+     */
+    void purgeQuizContent(UUID quizId);
 }

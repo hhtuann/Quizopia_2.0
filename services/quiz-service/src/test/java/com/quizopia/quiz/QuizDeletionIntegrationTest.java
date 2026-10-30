@@ -213,6 +213,51 @@ class QuizDeletionIntegrationTest {
     }
 
     @Test
+    void latestDiscoveryAndDigestReplayRemainOwnerOnlyAfterPurge() throws Exception {
+        UUID owner = UUID.randomUUID();
+        UUID quiz = quizApplicationService
+                .create(owner, new QuizDraftInput("Historical", null, SOURCE))
+                .quiz()
+                .id();
+        jdbc.update("update quiz_drafts set title=null where quiz_id=?", quiz);
+        when(jwtDecoder.decode("latest-owner")).thenReturn(jwt(owner, List.of("TEACHER")));
+        when(jwtDecoder.decode("latest-other")).thenReturn(jwt(UUID.randomUUID(), List.of("TEACHER")));
+        mvc.perform(post("/api/quizzes/{quizId}/deletion-requests", quiz)
+                        .header("Authorization", "Bearer latest-owner")
+                        .header("Idempotency-Key", "empty-confirmation-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmTitle\":\"\"}"))
+                .andExpect(status().isAccepted());
+        UUID operation =
+                deletionOperationService.getLatestOperation(owner, quiz).id();
+        new com.quizopia.quiz.application.DeletionOperationServiceAccess(deletionOperationService)
+                .advanceState(operation, QuizDeletionState.PURGING, null);
+        deletionOperationService.completePrimaryPurge(operation, quiz);
+        mvc.perform(get("/api/quizzes/{quizId}/deletion-requests/latest", quiz)
+                        .header("Authorization", "Bearer latest-owner"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.operationId").value(operation.toString()))
+                .andExpect(jsonPath("$.status").value("PRIMARY_PURGED"));
+        mvc.perform(get("/api/quizzes/{quizId}/deletion-requests/latest", quiz)
+                        .header("Authorization", "Bearer latest-other"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/quizzes/{quizId}/deletion-requests", quiz)
+                        .header("Authorization", "Bearer latest-owner")
+                        .header("Idempotency-Key", "empty-confirmation-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmTitle\":\"\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.operationId").value(operation.toString()));
+        mvc.perform(post("/api/quizzes/{quizId}/deletion-requests", quiz)
+                        .header("Authorization", "Bearer latest-owner")
+                        .header("Idempotency-Key", "empty-confirmation-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(confirmTitle("Untitled")))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void sameKeyDifferentTitleConflictsAndDifferentKeyAgainstFencedQuizConflicts() throws Exception {
         UUID ownerUserId = UUID.randomUUID();
         UUID quizId = quizApplicationService
@@ -555,6 +600,7 @@ class QuizDeletionIntegrationTest {
                 quizVersionRepository,
                 deletionOperationRepository,
                 deletionOutboxRepository,
+                com.quizopia.quiz.application.DeletionSagaObserver.NOOP,
                 clock);
         QuizDeletionOperation durableOperation =
                 restartedService.getOperation(ownerUserId, quizId, accepted.operationId());

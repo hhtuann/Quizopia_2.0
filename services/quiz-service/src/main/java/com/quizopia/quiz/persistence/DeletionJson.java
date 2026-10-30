@@ -24,6 +24,11 @@ final class DeletionJson {
 
     List<QuizDeletionOperation.VersionRef> readInventory(String json) {
         try {
+            if (json != null && json.trim().startsWith("{")) {
+                // H4 scrubbed ledger state: the inventory was replaced by the bare
+                // count {"versionCount":n}; the per-version refs are intentionally gone.
+                return List.of();
+            }
             return List.of(objectMapper.readValue(json, QuizDeletionOperation.VersionRef[].class));
         } catch (JacksonException exception) {
             throw new IllegalStateException("Could not deserialize deletion version inventory", exception);

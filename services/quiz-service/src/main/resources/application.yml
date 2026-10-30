@@ -56,6 +56,18 @@ springdoc:
 quizopia:
   deletion:
     enabled: ${QUIZ_DELETION_ENABLED:false}
+    saga-batch-size: ${QUIZ_DELETION_SAGA_BATCH_SIZE:10}
+  # FB-015 PR C outbound coordinator transport to Assessment and Proctoring. Client-credentials
+  # SERVICE JWTs with exactly the quiz.deletion.revoke/quiz.deletion.purge scopes; default OFF
+  # with no local destinations so nothing is called by accident.
+  deletion.dependencies:
+    enabled: ${QUIZ_DELETION_DEPENDENCIES_ENABLED:false}
+    identity-base-url: ${QUIZ_DELETION_IDENTITY_BASE_URL:}
+    assessment-base-url: ${QUIZ_DELETION_ASSESSMENT_BASE_URL:}
+    proctoring-base-url: ${QUIZ_DELETION_PROCTORING_BASE_URL:}
+    client-id: ${QUIZ_DELETION_CLIENT_ID:quiz-service}
+    client-secret: ${QUIZ_DELETION_CLIENT_SECRET:}
+    allow-insecure-loopback: ${QUIZ_DELETION_DEPENDENCIES_ALLOW_INSECURE_LOOPBACK:false}
   internal-authority:
     enabled: ${INTERNAL_AUTHORITY_ENABLED:false}
     require-tls: ${INTERNAL_AUTHORITY_REQUIRE_TLS:true}

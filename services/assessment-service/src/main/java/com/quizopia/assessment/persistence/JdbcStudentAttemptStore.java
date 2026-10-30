@@ -118,11 +118,22 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                         r.getInt("max_attempts"),
                         r.getObject("quiz_id", UUID.class)),
                 id);
-        if (rows.isEmpty()) throw error(404, "PUBLICATION_NOT_FOUND");
+        if (rows.isEmpty()) {
+            // FB-015: a purged publication answers with the same non-disclosing
+            // removal error as the fence; stale replay never resurrects content.
+            if (purged(id, "purged_publication_markers", "publication_id"))
+                throw error(404, QuizRevocationGate.REMOVED);
+            throw error(404, "PUBLICATION_NOT_FOUND");
+        }
         // Revocation fence: within mutations this probe runs after the row lock above, and
         // therefore linearizes with the fence installer's publication-row locking (ADR-018).
         revocations.requireQuizOpen(rows.getFirst().quiz());
         return rows.getFirst();
+    }
+
+    private boolean purged(UUID id, String table, String column) {
+        return Boolean.TRUE.equals(db.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM " + table + " WHERE " + column + "=?)", Boolean.class, id));
     }
 
     @Override
@@ -166,7 +177,12 @@ public class JdbcStudentAttemptStore implements StudentAttemptStore {
                 this::row,
                 id,
                 actor.id());
-        if (found.isEmpty()) throw error(404, "ATTEMPT_NOT_FOUND");
+        if (found.isEmpty()) {
+            // FB-015: a purged attempt answers with the same non-disclosing removal
+            // error as the fence; stale replay never resurrects content.
+            if (purged(id, "purged_attempt_markers", "attempt_id")) throw error(404, QuizRevocationGate.REMOVED);
+            throw error(404, "ATTEMPT_NOT_FOUND");
+        }
         return found.getFirst();
     }
 

@@ -40,13 +40,16 @@ import reactor.core.publisher.Mono;
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class QuizRevocationDisabledIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry values) {
         values.add("spring.datasource.url", DB::getJdbcUrl);
         values.add("spring.datasource.username", DB::getUsername);
         values.add("spring.datasource.password", DB::getPassword);
+        values.add("spring.flyway.user", DB::getUsername);
+        values.add("spring.flyway.password", DB::getPassword);
     }
 
     @Value("${local.server.port}")
