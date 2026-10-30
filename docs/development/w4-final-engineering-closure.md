@@ -30,7 +30,7 @@ See [W4 Realtime Acceptance Evidence](w4-acceptance-evidence.md). Its 14 protoco
 | BR-01 product resolution | [#127](https://github.com/hhtuann/Quizopia_2.0/pull/127), [#128](https://github.com/hhtuann/Quizopia_2.0/pull/128) | Any current STUDENT may attempt eligible PUBLIC, including their own; CLASS requires actual Student roster membership; no owner exclusion or mandatory Teacher Preview |
 | FB-015 contract and foundation | [#121](https://github.com/hhtuann/Quizopia_2.0/pull/121), [#122](https://github.com/hhtuann/Quizopia_2.0/pull/122), [#123](https://github.com/hhtuann/Quizopia_2.0/pull/123) | ADR-018 permanent erasure, durable deletion request/idempotency, Quiz authoring fence, Assessment authoritative revocation |
 | FB-015 purge and frontend | [#124](https://github.com/hhtuann/Quizopia_2.0/pull/124), [#125](https://github.com/hhtuann/Quizopia_2.0/pull/125) | Least-privilege, bounded restart-safe dependent purge; migration fail-closed role provisioning; legacy Proctoring dependents; user confirmation and status recovery |
- 
+
 Final FB-015 merges: #124 `bd7c5b8a308d8e4b7fef6c9f57c48da6a106ecee`; #125 `cac7002e597643fd62239f5504df43a49570db54`. Neither PR was auto-merged. Both were inspected independently for H1–H5 plus the later migration-credential blocker before merge.
 
 ## 2. Acceptance and evidence classification
