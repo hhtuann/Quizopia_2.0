@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# LOCAL DEVELOPMENT INFRASTRUCTURE ONLY - never a deployment artifact. This script
+# runs once inside the disposable local docker-compose PostgreSQL container. The
+# Flyway service migrations NEVER create or password roles (they fail closed when
+# these roles are absent). Any real environment must provision the same role
+# separation through its own secret-managed process.
+#
+# Credentials: each password defaults to a public, disposable, local-only value so
+# the documented local workflow works out of the box. Override per service through
+# <SERVICE>_DB_PASSWORD / <SERVICE>_FLYWAY_DB_PASSWORD environment variables (the
+# compose file can pass them through); never commit real secrets.
+#
 # FB-015 H1 least-privilege provisioning for the two purge services ONLY
 # (assessment, proctoring). Identity/Quiz/Classroom/Community/AI keep the legacy
 # single-role provisioning: their databases remain owned by the service runtime
@@ -11,6 +22,9 @@ set -euo pipefail
 #   * quizopia_<service>_flyway - LOGIN migration role, member of the owner role,
 #     used ONLY to run Flyway (spring.flyway.user). Its membership lets migrations
 #     transfer object ownership to the owner role; it is never the runtime role.
+#   * quizopia_<service>_custodian - NOLOGIN custodian of retention holds and
+#     provider-erasure acknowledgments. Membership is granted only through
+#     separately approved operator provisioning, never here.
 #   * <service>                 - LOGIN application runtime role (DB_USERNAME the
 #     service authenticates with). The FB-015 migrations revoke DELETE/TRUNCATE on
 #     protected history from it and grant EXECUTE only on the bounded purge
@@ -19,7 +33,10 @@ create_service_database() {
   local service="$1"
   local separated="$2"
   local database="${service}_db"
-  local password="${service}_local_only"
+  local service_env="$(echo "$service" | tr '[:lower:]' '[:upper:]')"
+  local password_var="${service_env}_DB_PASSWORD"
+  local flyway_password_var="${service_env}_FLYWAY_DB_PASSWORD"
+  local password="${!password_var:-${service}_local_only}"
   local owner="quizopia_${service}_owner"
   local flyway="quizopia_${service}_flyway"
   local custodian="quizopia_${service}_custodian"
@@ -28,7 +45,7 @@ create_service_database() {
     --set=service_user="$service" --set=service_database="$database" \
     --set=service_password="$password" --set=owner_role="$owner" \
     --set=flyway_role="$flyway" --set=custodian_role="$custodian" --set=separated="$separated" \
-    --set=flyway_password="${service}_flyway_local_only" <<'SQL'
+    --set=flyway_password="${!flyway_password_var:-${service}_flyway_local_only}" <<'SQL'
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'service_user', :'service_password')
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'service_user')\gexec
 

@@ -35,7 +35,8 @@ import org.testcontainers.junit.jupiter.*;
 @Testcontainers
 class QuizPurgeLegacyDependentsIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DATABASE =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
 
     static final String APP_ROLE = "proctoring";
     static final String APP_PASSWORD = "proctoring_local_only";

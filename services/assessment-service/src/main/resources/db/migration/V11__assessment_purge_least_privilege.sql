@@ -1,20 +1,19 @@
 -- ADR-018 guarded implementation; flags remain OFF. Run with writers drained and a
 -- separate migration principal, member of quizopia_assessment_owner. Runtime must
--- be assessment, never the migrator/owner. Missing roles fail closed outside tests.
+-- be assessment, never the migrator/owner.
+--
+-- PROVISIONING CONTRACT (security-critical): deployments MUST pre-provision
+-- quizopia_assessment_owner and quizopia_assessment_custodian (NOLOGIN group
+-- roles) and the runtime LOGIN role 'assessment' with a deployment-managed secret
+-- (see the service README and infrastructure/postgres/01-init-databases.sh). This
+-- migration NEVER creates, alters or passwords any role - not even under a
+-- superuser Flyway connection. Missing roles, or roles with unsafe attributes or
+-- memberships, fail the migration closed. Only disposable tests provision these
+-- roles, through test-only container init scripts that deployment paths cannot
+-- reach (src/test/resources/fb015_assessment_roles.sql).
 DO $$ BEGIN
-  IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AND
-    (SELECT count(*) FROM pg_roles WHERE rolname IN ('quizopia_assessment_owner','quizopia_assessment_custodian','assessment'))<>3 THEN
-    RAISE EXCEPTION 'provision owner, runtime and approved custodian roles before migration';
-  END IF;
-  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='quizopia_assessment_owner') THEN
-    CREATE ROLE quizopia_assessment_owner NOLOGIN NOINHERIT;
-  END IF;
-  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='quizopia_assessment_custodian') THEN
-    CREATE ROLE quizopia_assessment_custodian NOLOGIN NOINHERIT;
-  END IF;
-  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='assessment') THEN
-    -- Disposable superuser fixtures only; deployments provision their own secret.
-    CREATE ROLE assessment LOGIN PASSWORD 'assessment_local_only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+  IF (SELECT count(*) FROM pg_roles WHERE rolname IN ('quizopia_assessment_owner','quizopia_assessment_custodian','assessment'))<>3 THEN
+    RAISE EXCEPTION 'provision owner, runtime and approved custodian roles before migration: this migration never creates credentials';
   END IF;
   IF EXISTS(SELECT FROM pg_roles WHERE rolname IN ('quizopia_assessment_owner','quizopia_assessment_custodian')
     AND (rolcanlogin OR rolsuper OR rolcreaterole OR rolcreatedb OR rolbypassrls)) THEN

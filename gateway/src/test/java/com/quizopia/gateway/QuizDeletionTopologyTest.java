@@ -23,7 +23,8 @@ import tools.jackson.databind.JsonNode;
         matches = "true",
         disabledReason = "Opt in with -Dfb015.browser=true after installing Node/Playwright Chromium")
 class QuizDeletionTopologyTest {
-    static final PostgreSQLContainer<?> PROCTORING_DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> PROCTORING_DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_proctoring_roles.sql");
     static final List<org.testcontainers.containers.GenericContainer<?>> OWNED =
             List.of(IDENTITY_DB, CLASSROOM_DB, QUIZ_DB, ASSESSMENT_DB, REDIS, PROCTORING_DB);
     static Process browser;

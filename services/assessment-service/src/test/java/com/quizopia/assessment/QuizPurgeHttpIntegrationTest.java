@@ -37,7 +37,8 @@ import org.testcontainers.junit.jupiter.*;
 @Import(ClosedBusinessBoundaryTest.Keys.class)
 class QuizPurgeHttpIntegrationTest {
     @Container
-    static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    static final PostgreSQLContainer<?> DB =
+            new PostgreSQLContainer<>("postgres:17-alpine").withInitScript("fb015_assessment_roles.sql");
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry values) {
