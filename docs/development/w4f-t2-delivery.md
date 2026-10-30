@@ -47,7 +47,7 @@ Existing Publication/Student OpenAPI and generated clients are unchanged. New
 TypeScript client types derive from this artifact using
 `scripts/local/generate-teacher-assessment-types.py`, reusing existing derived
 Result/QuestionReview types. Generator `--check`, exact response-record property
-tests and path-inventory tests guard drift. No Dashboard/collector/browser UI exists.
+tests and path-inventory tests guard drift. No Task3 Dashboard/collector/browser UI is added.
 
 ## 3. Exact aggregation and page semantics
 
@@ -188,7 +188,7 @@ Leader/security/privacy approval.
 | Assessment `.\mvnw.cmd -B spotless:apply verify` | BUILD SUCCESS, **543 tests**, 0 failures/errors/skips, 7m46; includes22 audit unit tests (six fresh JVM probes),8 audit PostgreSQL tests,10 Teacher query tests,4 signed-HTTP tests,2 contract parity tests,17 monitoring-outbox tests including five disclosure repetitions, and4 ArchUnit rules |
 | Gateway `.\mvnw.cmd -B spotless:apply verify` | BUILD SUCCESS, **184 reported / 182 executed successfully**, 0 failures/errors,2 opt-in browser skips,14m40 |
 | Gateway actual W4 topology `e2_journey7_attemptLifecyclePropagation` | PASS: real Identity/Classroom/Assessment processes, PostgreSQL/Redis/RabbitMQ and Gateway; new ACTIVE→SUBMITTED totals, exact bins, directory/history, Student-role denial, policy-gated Teacher Review503 and unchanged Student OPEN review409, alongside real submit/WS propagation |
-| `pnpm typecheck`, `pnpm lint`, `pnpm format:check` | PASS; only new generated client types changed in frontend |
+| `pnpm typecheck`, `pnpm lint`, `pnpm format:check` | PASS; frontend changes are derived types and the focused test-fixture synchronization below, not application UI |
 | Isolated validation Python → `scripts/local/generate-teacher-assessment-types.py --check` | PASS, derived client types match implemented artifact |
 | Release-register validator and `test-w3-production-release.py` | PASS; **60** governance tests; inherited6 BLOCKED /5 NOT VERIFIED release gates preserved |
 | `docker compose config --quiet`, `git diff --check` | PASS |
@@ -199,6 +199,27 @@ opt-in. No new real-browser/full-product/T4 acceptance, production transport,
 provider or backup qualification is claimed. New signed-HTTP positive sensitive
 tests use an explicit synthetic policy override; the real multi-service topology
 proves that the application's actual pending policy fails closed.
+
+### PR CI follow-up — deterministic deletion-progress fixture
+
+The first PR-head Frontend CI at `dc256d6e273861faf8da326830b1dd9d762c9de7`
+passed lint/format/typecheck/unit/build but failed one of168 intercepted E2E cases:
+`quiz-deletion.spec.ts` expected the transient `Revoking access` state after the
+mock had already permitted the component's immediate poll to return ACCESS_REVOKED.
+The other167 cases passed; the same head's eight backend matrix jobs passed.
+
+The narrowly scoped test-only correction holds that first mocked status response
+until the 202 revoking state has been asserted, then releases it in `finally`.
+All revoking/deleting/terminal and no-false-erasure assertions remain. No sleeps,
+skips, retries-until-green, product UI edits, polling-interval changes or Task3/4
+implementation. Exactly one existing fixture changed in
+`frontend/tests/e2e/quiz-deletion.spec.ts`.
+
+Fresh local evidence after this correction: the targeted deletion case passed
+five repetitions; full `pnpm test:e2e --workers=2` passed **168/168**, and TypeScript,
+ESLint and Prettier checks passed. Backend/Gateway/generator source is byte-identical
+to the locally verified feature commit, so their suites were not redundantly rerun
+locally for this test/docs-only follow-up. Exact final-head CI is recorded on #134.
 
 Final exact commit/PR HEAD and GitHub CI receipts are posted on Issue #134 and the
 PR after commit; this file does not invent a self-referential commit SHA or claim
