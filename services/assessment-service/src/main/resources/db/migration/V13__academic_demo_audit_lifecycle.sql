@@ -199,8 +199,8 @@ DECLARE p record; n integer; used integer:=0; BEGIN
     -- Creating-or-sharing the admission row also fences concurrent hold INSERTs
     -- (they take this row FOR UPDATE), so the recheck below cannot miss one.
     BEGIN
-      INSERT INTO purge_admission(quiz_id) VALUES(p.id) ON CONFLICT DO NOTHING;
-      PERFORM 1 FROM purge_admission WHERE quiz_id=p.id FOR SHARE NOWAIT;
+      INSERT INTO purge_admission(quiz_id) VALUES(p.quiz_id) ON CONFLICT DO NOTHING;
+      PERFORM 1 FROM purge_admission WHERE quiz_id=p.quiz_id FOR SHARE NOWAIT;
     EXCEPTION WHEN lock_not_available THEN CONTINUE;
     END;
    IF EXISTS(SELECT FROM retention_holds WHERE quiz_id=p.quiz_id AND (expires_at IS NULL OR expires_at>assessment_time())) THEN CONTINUE; END IF;

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.quizopia.assessment.application.*;
 import com.quizopia.assessment.audit.*;
 import com.quizopia.assessment.configuration.*;
+import com.quizopia.assessment.domain.PublicationConfiguration;
 import com.quizopia.assessment.persistence.*;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
@@ -502,5 +503,198 @@ class AcademicDemoAuditIntegrationTest {
         assertEquals("0", f.scalar("SELECT count(*) FROM assessment_answer_audit"));
         var destroyed = timeline();
         assertTrue(destroyed.items().isEmpty());
+    }
+
+    // ------------------------------------------------------------------
+    // H1 regressions: audit expiry must share the V11 quiz-keyed purge
+    // admission boundary with genuinely overlapping transactions on
+    // independent connections. Synchronization is deterministic (row locks
+    // held across open transactions); every wait is bounded by an explicit
+    // lock/statement timeout so a deadlock fails loudly instead of hanging.
+    // ------------------------------------------------------------------
+
+    /** Second Publication on the SAME Quiz, owned by the same seeded demo Teacher. */
+    AtomicFinalizationIntegrationTest.Seed secondPublicationOnSameQuiz() {
+        Instant time = f.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        var cfg = new PublicationConfiguration(
+                "Second same-quiz publication",
+                null,
+                p.configuration().quizId(),
+                p.configuration().quizVersionId(),
+                p.configuration().versionNumber(),
+                PublicationConfiguration.Audience.PUBLIC,
+                null,
+                time.minusSeconds(86400),
+                time.plusSeconds(86400),
+                0,
+                PublicationConfiguration.MonitoringChoice.DISABLED,
+                0);
+        var store = new JdbcPublicationStore(f.db, f.manager, Clock.systemUTC());
+        UUID owner = UUID.fromString(f.scalar("SELECT owner_id FROM publications WHERE id=?", p.publication()));
+        var created = store.create(owner, UUID.randomUUID().toString(), cfg);
+        store.open(
+                owner,
+                created.id(),
+                0,
+                new String(SnapshotFixtures.snapshot(cfg, "second private source marker"), StandardCharsets.UTF_8));
+        return new AtomicFinalizationIntegrationTest.Seed(created.id(), cfg);
+    }
+
+    /** Independent READ COMMITTED session with hard bounds so contention fails fast. */
+    Connection openSession() throws SQLException {
+        var connection = f.source.getConnection();
+        connection.setAutoCommit(false);
+        try (var statement = connection.createStatement()) {
+            statement.execute("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED");
+            statement.execute("SET SESSION lock_timeout='5000ms'");
+            statement.execute("SET SESSION statement_timeout='10000ms'");
+        }
+        return connection;
+    }
+
+    private static final String PHANTOM_ADMISSION =
+            "SELECT count(*) FROM purge_admission pa JOIN publications x ON pa.quiz_id=x.id";
+
+    @Test
+    void expirySharesQuizAdmissionWithInFlightRetentionHoldAcrossSameQuizPublications() throws Exception {
+        var second = secondPublicationOnSameQuiz();
+        f.active(second, 0);
+        UUID quiz = p.configuration().quizId();
+        assertEquals("2", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+        day(91);
+        // Commit the real admission row first so the overlapping holder acquires a
+        // committed tuple; this mirrors an in-flight quiz hold transaction exactly
+        // where the V11 hold trigger leaves it (admission FOR UPDATE, hold uncommitted).
+        f.db.update("INSERT INTO purge_admission(quiz_id) VALUES(?) ON CONFLICT DO NOTHING", quiz);
+        try (var holder = openSession()) {
+            try (var statement = holder.createStatement()) {
+                try (var locked = statement.executeQuery(
+                        "SELECT begun FROM purge_admission WHERE quiz_id='" + quiz + "' FOR UPDATE")) {
+                    assertTrue(locked.next());
+                    assertFalse(locked.getBoolean(1));
+                }
+                statement.executeUpdate(
+                        "INSERT INTO retention_holds(id,quiz_id,authority,reason,reviewer,review_at) VALUES('"
+                                + UUID.randomUUID()
+                                + "','"
+                                + quiz
+                                + "','fixture custodian','in-flight overlap','separate fixture reviewer',assessment_time()+interval '1 day')");
+            }
+            // Overlapping expiry on an independent custodian connection: the quiz-keyed
+            // admission FOR SHARE NOWAIT cannot be acquired -> both same-quiz
+            // publications are skipped, nothing eligible is destroyed.
+            assertEquals(
+                    0,
+                    custodian()
+                            .queryForObject("SELECT assessment_expire_audit(5000)", Integer.class)
+                            .intValue());
+            assertEquals("2", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+            holder.commit();
+        }
+        // Committed hold still wins after the overlap resolves.
+        assertEquals(
+                0,
+                custodian()
+                        .queryForObject("SELECT assessment_expire_audit(5000)", Integer.class)
+                        .intValue());
+        assertEquals("2", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+        // Correct keying: expiry never creates Publication-UUID admission rows.
+        assertEquals("0", f.scalar(PHANTOM_ADMISSION));
+        f.db.update("DELETE FROM retention_holds WHERE quiz_id=?", quiz);
+        assertEquals(
+                2,
+                custodian()
+                        .queryForObject("SELECT assessment_expire_audit(5000)", Integer.class)
+                        .intValue());
+        assertEquals("0", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+        assertEquals("0", f.scalar(PHANTOM_ADMISSION));
+    }
+
+    @Test
+    void expiryYieldsToInFlightPurgeLockFootprintAndFenceBlocksResurrection() throws Exception {
+        UUID quiz = p.configuration().quizId(), operation = UUID.randomUUID();
+        f.db.update(
+                "INSERT INTO quiz_revocation_fences(quiz_id,operation_id,revoked_at,source,ack_at) VALUES(?,?,assessment_time(),'COMMAND',assessment_time())",
+                quiz,
+                operation);
+        day(91);
+        f.db.execute("CREATE TABLE stale_pending AS SELECT * FROM assessment_audit_pending");
+        f.db.update("INSERT INTO purge_admission(quiz_id) VALUES(?) ON CONFLICT DO NOTHING", quiz);
+        try (var purger = openSession()) {
+            try (var statement = purger.createStatement()) {
+                try (var locked = statement.executeQuery(
+                        "SELECT begun FROM purge_admission WHERE quiz_id='" + quiz + "' FOR UPDATE")) {
+                    assertTrue(locked.next());
+                    assertFalse(locked.getBoolean(1));
+                }
+                // Purge's post-admission publication lock footprint (V11 order).
+                try (var locked = statement.executeQuery(
+                        "SELECT id FROM publications WHERE id='" + p.publication() + "' ORDER BY id FOR UPDATE")) {
+                    assertTrue(locked.next());
+                }
+            }
+            // Overlapping expiry: SKIP LOCKED yields the publication and the quiz-keyed
+            // admission NOWAIT yields the quiz; bounded, no deadlock, no deletion.
+            assertEquals(
+                    0,
+                    custodian()
+                            .queryForObject("SELECT assessment_expire_audit(5000)", Integer.class)
+                            .intValue());
+            assertEquals("1", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+            purger.rollback();
+        }
+        assertEquals(
+                1,
+                custodian()
+                        .queryForObject("SELECT assessment_expire_audit(5000)", Integer.class)
+                        .intValue());
+        assertEquals("0", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+        assertEquals("0", f.scalar(PHANTOM_ADMISSION));
+        String stage = "IN_PROGRESS";
+        int rounds = 0;
+        while (stage.equals("IN_PROGRESS") && rounds++ < 100)
+            stage = f.db.queryForObject("SELECT assessment_purge_quiz(?,?,1)", String.class, quiz, operation);
+        assertEquals("PURGED", stage);
+        assertThrows(
+                RuntimeException.class,
+                () -> f.db.update("INSERT INTO assessment_audit_pending SELECT * FROM stale_pending"));
+    }
+
+    @Test
+    void auditHoldAdmissionFailsFastAgainstExpiryAdmissionShareWithoutDeadlock() throws Exception {
+        UUID quiz = p.configuration().quizId();
+        day(89);
+        f.db.update("INSERT INTO purge_admission(quiz_id) VALUES(?) ON CONFLICT DO NOTHING", quiz);
+        try (var expiryFootprint = openSession()) {
+            try (var statement = expiryFootprint.createStatement()) {
+                // An in-flight expiry holds the quiz admission FOR SHARE.
+                try (var shared = statement.executeQuery(
+                        "SELECT 1 FROM purge_admission WHERE quiz_id='" + quiz + "' FOR SHARE")) {
+                    assertTrue(shared.next());
+                }
+            }
+            // Demo hold admission takes the same row FOR UPDATE NOWAIT: it must fail
+            // fast (retryable) rather than block behind the expiry footprint.
+            assertThrows(RuntimeException.class, () -> custodian()
+                    .queryForObject(
+                            "SELECT assessment_request_audit_hold(?,'INCIDENT_REVIEW',assessment_time()+interval '720 hours')",
+                            UUID.class,
+                            attempt));
+            expiryFootprint.rollback();
+        }
+        UUID hold = custodian()
+                .queryForObject(
+                        "SELECT assessment_request_audit_hold(?,'INCIDENT_REVIEW',assessment_time()+interval '720 hours')",
+                        UUID.class,
+                        attempt);
+        f.db.queryForList("SELECT assessment_review_audit_hold(?)", hold);
+        day(91);
+        assertEquals(
+                0,
+                custodian()
+                        .queryForObject("SELECT assessment_expire_audit(5000)", Integer.class)
+                        .intValue());
+        assertEquals("1", f.scalar("SELECT count(*) FROM assessment_audit_pending"));
+        assertEquals("0", f.scalar(PHANTOM_ADMISSION));
     }
 }

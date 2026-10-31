@@ -336,6 +336,60 @@ Remaining outside this increment: real-learner collection, production key
 custody/TLS/APM/backup/provider evidence, Task 3/4. #134 stays OPEN at 16/23
 until the Leader independently verifies the evidence; no self-merge.
 
+### H1 correction — quiz-keyed expiry admission (Leader review 6541717711)
+
+The Independent Leader review of `d07ba1f5` found that
+`assessment_expire_audit` created and locked `purge_admission(quiz_id)` using
+`p.id` (Publication UUID) instead of `p.quiz_id` (Quiz UUID), so audit expiry
+did not actually share the V11 admission boundary with quiz-scoped retention
+holds or FB-015 purge. The fix keys both statements by `p.quiz_id`; the full
+V13 identity scan found no other mismatch (the purge wrapper and hold-admission
+trigger were already quiz-keyed; Publication `p.id` remains only in
+publication-scoped row filters, which is correct).
+
+Three deterministic two-connection overlap regressions were added to
+`AcademicDemoAuditIntegrationTest` using independent READ COMMITTED sessions
+with explicit `lock_timeout`/`statement_timeout` bounds (no sleeps, no
+unconditional retries):
+
+- `expirySharesQuizAdmissionWithInFlightRetentionHoldAcrossSameQuizPublications`
+  — a second Publication on the same Quiz, an open holder transaction holding
+  the quiz admission row `FOR UPDATE` with an uncommitted `retention_holds`
+  insert (exactly the V11 hold-trigger footprint), overlapping custodian expiry
+  returns 0 and destroys nothing, the committed hold still wins afterwards,
+  dropping it lets expiry clean exactly the two facts, and no
+  Publication-UUID-keyed `purge_admission` rows are ever created.
+- `expiryYieldsToInFlightPurgeLockFootprintAndFenceBlocksResurrection` — an open
+  purger transaction holding admission `FOR UPDATE` plus the publication row
+  lock (V11 purge order); overlapping expiry is bounded, yields and deletes
+  nothing; after release expiry cleans, real purge reaches `PURGED`, and stale
+  pending facts cannot be re-inserted behind the fence.
+- `auditHoldAdmissionFailsFastAgainstExpiryAdmissionShareWithoutDeadlock` —
+  while an in-flight expiry footprint holds the quiz admission `FOR SHARE`, a
+  demo-hold request fails fast (`FOR UPDATE NOWAIT`) instead of deadlocking;
+  after release the hold is requested, separately reviewed and protects the
+  held pending fact from expiry.
+
+Verifying the regressions actually detect H1: with the buggy `p.id` text
+temporarily restored, the first overlap test blocks indefinitely (the positions
+write-fence then inserts the quiz-keyed admission row and waits behind the
+holder's exclusive lock) — in CI this surfaces as a loud job timeout, never a
+silent pass; the phantom-row assertion also fails. The fix was then restored
+and the full matrix re-run.
+
+Final HEAD `d5f9786` verification:
+
+- Assessment `mvnw -B spotless:apply verify`: **566 tests, 0 failures** — the
+  16-test demo class now includes the three overlap regressions; V11→V13
+  upgrade and non-superuser least-privilege paths unchanged and green.
+- Gateway `mvnw -B verify`: **185 tests, 0 failures/errors, 3 explicit opt-in
+  skips**, BUILD SUCCESS (12m14s). One earlier parallel run failed
+  `RealIdentityAdmissionTopologyTest` with a process-not-ready timeout while
+  the Assessment suite was hammering Docker on the same host; the serial rerun
+  is fully green — recorded as environment contention, not waived silently.
+- W4F private synthetic demo `AcademicDemoTopologyTest -Dw4f.demo=true`:
+  PASS end-to-end (2m17s) at the corrected HEAD.
+
 ## 9. Independent Leader checklist
 
 - [ ] Verify exact PR HEAD, complete diff, migration checksums and actual CI results.
