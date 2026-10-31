@@ -42,8 +42,8 @@ import {
 } from "../../realtime/hooks/use-realtime-subscriptions";
 import { RealtimeStatusInline } from "../../realtime/components/realtime-status";
 import type { RealtimeResource } from "../../realtime/model/realtime-frame";
-import { useTeacherResultsClient } from "../../teacher-results/hooks/use-teacher-results-client";
-import { PublicationResultsSection } from "../../teacher-results/components/teacher-results-pages";
+import { useTeacherDashboardClient } from "../../teacher-results/hooks/use-teacher-dashboard-client";
+import { StudentResultsDashboardSection } from "../../teacher-results/components/student-results-dashboard";
 import { PrivatePublicationLocator } from "./private-publication-locator";
 import { PublicationConfigurationForm } from "./publication-configuration-form";
 import { PublicationConfirmation } from "./publication-confirmation";
@@ -165,7 +165,11 @@ export function PublicationDetailScreen({
   readonly publicationId: string;
 }) {
   const { t, localize } = useI18n();
-  const resultsClient = useTeacherResultsClient();
+  const dashboardClient = useTeacherDashboardClient();
+  // The page owns the single realtime subscription for this Publication and
+  // forwards invalidation hints into the student dashboard's debounced REST
+  // refresh; realtime never mutates dashboard state directly.
+  const dashboardInvalidate = useRef<(() => void) | null>(null);
   const lifetime = useRef<AbortController | null>(null);
   const readController = useRef<AbortController | null>(null);
   const readSequence = useRef(0);
@@ -243,7 +247,10 @@ export function PublicationDetailScreen({
   const realtimeStatus = useRealtimeSubscriptions({
     enabled: true,
     resources: realtimeResources,
-    onSignal: realtimeResync.request,
+    onSignal: () => {
+      realtimeResync.request();
+      dashboardInvalidate.current?.();
+    },
   });
 
   async function send(command: Command) {
@@ -723,9 +730,12 @@ export function PublicationDetailScreen({
               />
             </section>
           ) : null}
-          {resultsClient !== null ? (
-            <PublicationResultsSection
-              client={resultsClient}
+          {dashboardClient !== null ? (
+            <StudentResultsDashboardSection
+              client={dashboardClient}
+              onRegisterInvalidate={(invalidate) => {
+                dashboardInvalidate.current = invalidate;
+              }}
               publicationId={publication.publicationId}
             />
           ) : (

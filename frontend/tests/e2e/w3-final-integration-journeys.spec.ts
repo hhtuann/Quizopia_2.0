@@ -438,26 +438,94 @@ test.describe("W3 Final Frontend Integration Journeys", () => {
   }) => {
     await mockAuth(page, ["TEACHER"], teacherId);
 
+    const foreignStudentId = "99999999-9999-4999-8999-999999999999";
+    const attemptRow = (attemptId: string) => ({
+      attemptId,
+      ordinal: "1",
+      state: "ACTIVE" as const,
+      startedAt: "2026-10-26T08:00:00Z",
+      deadlineAt: null,
+      finalizedAt: null,
+      terminalReason: null,
+      result: null,
+      teacherReviewAvailable: false,
+    });
     await page.route(
-      `**/api/assessments/publications/${classPublicationId}/results**`,
+      `**/api/assessments/publications/${classPublicationId}/student-overview`,
       (route) =>
         json(route, {
+          publicationId: classPublicationId,
+          asOf: "2026-10-26T09:30:00Z",
+          activeStudentCount: "2",
+          submittedStudentCount: "0",
+          participatedStudentCount: "2",
+          gradedStudentCount: "0",
+          bestScore: null,
+          averageBestScore: null,
+          scoreBins: Array.from({ length: 20 }, (_, index) => ({
+            index,
+            lowerBound: (index / 2).toString(),
+            upperBound: ((index + 1) / 2).toString(),
+            lowerInclusive: index === 0,
+            upperInclusive: true,
+            count: "0",
+          })),
+        }),
+    );
+    await page.route(
+      `**/api/assessments/publications/${classPublicationId}/students**`,
+      (route) =>
+        json(route, {
+          publicationId: classPublicationId,
+          asOf: "2026-10-26T09:30:00Z",
           items: [
             {
-              attemptId: classAttemptId,
               studentId,
-              ordinal: "1",
-              state: "ACTIVE",
-              result: null,
+              studentName: null,
+              attemptCount: "1",
+              gradedAttemptCount: "0",
+              hasActive: true,
+              hasSubmitted: false,
+              latestAttempt: attemptRow(classAttemptId),
+              latestGradedResult: null,
+              bestResult: null,
+              averageResult: null,
             },
             {
-              attemptId: foreignAttemptId,
-              studentId: "99999999-9999-4999-8999-999999999999",
-              ordinal: "2",
-              state: "ACTIVE",
-              result: null,
+              studentId: foreignStudentId,
+              studentName: null,
+              attemptCount: "1",
+              gradedAttemptCount: "0",
+              hasActive: true,
+              hasSubmitted: false,
+              latestAttempt: attemptRow(foreignAttemptId),
+              latestGradedResult: null,
+              bestResult: null,
+              averageResult: null,
             },
           ],
+          nextCursor: null,
+        }),
+    );
+    await page.route(
+      `**/api/assessments/publications/${classPublicationId}/students/${studentId}/attempts**`,
+      (route) =>
+        json(route, {
+          publicationId: classPublicationId,
+          studentId,
+          asOf: "2026-10-26T09:31:00Z",
+          items: [attemptRow(classAttemptId)],
+          nextCursor: null,
+        }),
+    );
+    await page.route(
+      `**/api/assessments/publications/${classPublicationId}/students/${foreignStudentId}/attempts**`,
+      (route) =>
+        json(route, {
+          publicationId: classPublicationId,
+          studentId: foreignStudentId,
+          asOf: "2026-10-26T09:31:00Z",
+          items: [attemptRow(foreignAttemptId)],
           nextCursor: null,
         }),
     );
@@ -483,23 +551,18 @@ test.describe("W3 Final Frontend Integration Journeys", () => {
 
     await page.goto(`/app/assessments/${classPublicationId}/results`);
 
-    // Verify monitoring link exists for both attempts
+    // Verify the Activity Evidence link exists for both students' attempts
+    // through their server-paginated histories; the authorized one is opened
+    // from its link, the foreign one by direct URL afterwards.
+    const rows = page.getByRole("button", { name: "View attempts" });
+    await rows.first().click();
     const classAttemptLink = page.getByRole("link", {
-      name: `Open monitoring for Attempt ${classAttemptId}`,
-    });
-    const foreignAttemptLink = page.getByRole("link", {
-      name: `Open monitoring for Attempt ${foreignAttemptId}`,
+      name: `Open activity evidence for Attempt 1`,
     });
     await expect(classAttemptLink).toHaveAttribute(
       "href",
       `/app/monitoring/teacher/attempts/${classAttemptId}`,
     );
-    await expect(foreignAttemptLink).toHaveAttribute(
-      "href",
-      `/app/monitoring/teacher/attempts/${foreignAttemptId}`,
-    );
-
-    // Click authorized attempt monitoring link
     await classAttemptLink.click();
     await expect(page).toHaveURL(
       `/app/monitoring/teacher/attempts/${classAttemptId}`,
@@ -510,6 +573,17 @@ test.describe("W3 Final Frontend Integration Journeys", () => {
     await expect(
       page.getByRole("heading", { name: "Activity timeline" }),
     ).toBeVisible();
+
+    await page.goto(`/app/assessments/${classPublicationId}/results`);
+    await rows.nth(1).click();
+    await expect(
+      page.getByRole("link", {
+        name: `Open activity evidence for Attempt 1`,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/app/monitoring/teacher/attempts/${foreignAttemptId}`,
+    );
 
     // Visit foreign attempt monitoring directly
     await page.goto(`/app/monitoring/teacher/attempts/${foreignAttemptId}`);

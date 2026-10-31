@@ -16,6 +16,19 @@
 
 ## Current verified project checkpoint — 2026-10-30
 
+**W4F-T3 unified dashboard increment (2026-10-31):** with Task 2 merged at
+`03fc954` (post-merge CI incl. repository full-validation green), Task 3
+replaced the attempt-row results experience with ONE student-centric dashboard
+consuming the T2 aggregate endpoints (distinct KPIs with overlap note, exact
+20-bin histogram + accessible table, sortable/filterable/exact-ID-searchable
+directory with server cursor pages, per-student history with best/latest
+badges and gated review/evidence links, realtime invalidation through the
+single page subscription). Old `/results` attempt-row UI/client removed.
+Verification: 1007/1007 Vitest, 174/174 Playwright, lint/format/typecheck/
+build clean, byte-identical contract regeneration, and the extended
+private synthetic demo journey PASS. Record:
+[w4f-t3 delivery](w4f-t3-delivery.md). PR pending review; production NO-GO.
+
 **Task2 completion increment (2026-10-31):** the PO's academic-demo acceptance
 ([6539532464](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6539532464))
 authorized closing B1/B2/B4/C1–C4 within an isolated loopback synthetic tier.

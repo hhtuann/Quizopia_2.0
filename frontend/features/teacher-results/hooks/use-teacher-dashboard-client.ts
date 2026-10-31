@@ -2,16 +2,16 @@
 
 import { useMemo } from "react";
 import { useAuth } from "../../auth/auth-provider";
-import { createTeacherResultsApiClient } from "../api/teacher-results-api-client";
+import { createTeacherDashboardApiClient } from "../api/teacher-dashboard-api-client";
 
-export function useTeacherResultsClient() {
+export function useTeacherDashboardClient() {
   const { authenticatedRequests, getSessionGeneration } = useAuth();
   const generation = getSessionGeneration();
   return useMemo(
     () =>
       authenticatedRequests === null || generation === null
         ? null
-        : createTeacherResultsApiClient({
+        : createTeacherDashboardApiClient({
             authenticatedRequests,
             getSessionGeneration,
           }),

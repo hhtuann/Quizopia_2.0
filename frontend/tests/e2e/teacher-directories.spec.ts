@@ -346,28 +346,84 @@ test("OPEN detail embeds the Results section and toggles the configuration summa
     (route) => route.fulfill({ json: openView }),
   );
   await page.route(
-    `**/api/assessments/publications/${publicationId}/results**`,
+    `**/api/assessments/publications/${publicationId}/student-overview`,
     (route) =>
       route.fulfill({
         json: {
+          publicationId,
+          asOf: "2026-10-26T09:30:00Z",
+          activeStudentCount: "0",
+          submittedStudentCount: "1",
+          participatedStudentCount: "1",
+          gradedStudentCount: "1",
+          bestScore: {
+            earnedWeight: "8.5",
+            possibleWeight: "10",
+            scoreDisplay: "8.50",
+          },
+          averageBestScore: {
+            sumEarnedWeight: "8.5",
+            sumPossibleWeight: "10",
+            gradedAttemptCount: "1",
+            scoreDisplay: "8.50",
+          },
+          scoreBins: Array.from({ length: 20 }, (_, index) => ({
+            index,
+            lowerBound: (index / 2).toString(),
+            upperBound: ((index + 1) / 2).toString(),
+            lowerInclusive: index === 0,
+            upperInclusive: true,
+            count: index === 16 ? "1" : "0",
+          })),
+        },
+      }),
+  );
+  const graded = {
+    resultId: "b7b14962-3a2e-4d2d-926a-3b36ea90c1b8",
+    attemptId,
+    publicationId,
+    ordinal: "1",
+    earnedWeight: "8.5",
+    possibleWeight: "10",
+    percentageDisplay: "85.00",
+    gradingPolicyVersion: 1,
+    gradingPolicyId: "QUIZOPIA_GRADING_V1",
+    terminalReason: "MANUAL_SUBMIT",
+    finalizedAt: "2026-10-26T09:00:00Z",
+  };
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/students**`,
+    (route) =>
+      route.fulfill({
+        json: {
+          publicationId,
+          asOf: "2026-10-26T09:30:00Z",
           items: [
             {
-              attemptId,
               studentId: teacherId,
-              ordinal: "1",
-              state: "SUBMITTED",
-              result: {
-                resultId: "b7b14962-3a2e-4d2d-926a-3b36ea90c1b8",
+              studentName: null,
+              attemptCount: "1",
+              gradedAttemptCount: "1",
+              hasActive: false,
+              hasSubmitted: true,
+              latestAttempt: {
                 attemptId,
-                publicationId,
                 ordinal: "1",
-                earnedWeight: "8.5",
-                possibleWeight: "10",
-                percentageDisplay: "85.00",
-                gradingPolicyVersion: 1,
-                gradingPolicyId: "QUIZOPIA_GRADING_V1",
-                terminalReason: "MANUAL_SUBMIT",
+                state: "SUBMITTED",
+                startedAt: "2026-10-26T08:00:00Z",
+                deadlineAt: null,
                 finalizedAt: "2026-10-26T09:00:00Z",
+                terminalReason: "MANUAL_SUBMIT",
+                result: graded,
+                teacherReviewAvailable: true,
+              },
+              latestGradedResult: graded,
+              bestResult: graded,
+              averageResult: {
+                sumEarnedWeight: "8.5",
+                sumPossibleWeight: "10",
+                gradedAttemptCount: "1",
+                scoreDisplay: "8.50",
               },
             },
           ],
@@ -376,12 +432,14 @@ test("OPEN detail embeds the Results section and toggles the configuration summa
       }),
   );
   await page.goto(`/app/assessments/${publicationId}`);
-  // The embedded Results section renders fetched owner-authorized rows.
+  // The embedded unified dashboard renders fetched owner-authorized rows.
   await expect(
-    page.getByRole("heading", { name: "Results", exact: true }),
+    page.getByRole("heading", { name: "Student results", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(attemptId, { exact: true })).toBeVisible();
-  await expect(page.getByText("85.00%")).toBeVisible();
+  await expect(
+    page.getByText(teacherId, { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("85.00%").first()).toBeVisible();
   // Lifecycle controls remain available on the unified detail page.
   await expect(
     page.getByRole("button", { name: "Review and CLOSE" }),
@@ -418,17 +476,49 @@ test("mobile detail keeps the configuration summary collapsed by default without
     (route) => route.fulfill({ json: openView }),
   );
   await page.route(
-    `**/api/assessments/publications/${publicationId}/results**`,
-    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+    `**/api/assessments/publications/${publicationId}/student-overview`,
+    (route) =>
+      route.fulfill({
+        json: {
+          publicationId,
+          asOf: "2026-10-26T09:30:00Z",
+          activeStudentCount: "0",
+          submittedStudentCount: "0",
+          participatedStudentCount: "0",
+          gradedStudentCount: "0",
+          bestScore: null,
+          averageBestScore: null,
+          scoreBins: Array.from({ length: 20 }, (_, index) => ({
+            index,
+            lowerBound: (index / 2).toString(),
+            upperBound: ((index + 1) / 2).toString(),
+            lowerInclusive: index === 0,
+            upperInclusive: true,
+            count: "0",
+          })),
+        },
+      }),
+  );
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/students**`,
+    (route) =>
+      route.fulfill({
+        json: {
+          publicationId,
+          asOf: "2026-10-26T09:30:00Z",
+          items: [],
+          nextCursor: null,
+        },
+      }),
   );
   await page.goto(`/app/assessments/${publicationId}`);
   // Compact chips are visible while the full summary starts collapsed.
   await expect(page.getByText("Configuration summary")).toBeVisible();
   await expect(page.getByText("Source version")).toBeHidden();
   await expect(
-    page.getByRole("heading", { name: "Results", exact: true }),
+    page.getByRole("heading", { name: "Student results", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("No results yet")).toBeVisible();
+  await expect(page.getByText("No students yet")).toBeVisible();
   const toggle = page.getByText("Configuration summary");
   await toggle.focus();
   await page.keyboard.press("Enter");

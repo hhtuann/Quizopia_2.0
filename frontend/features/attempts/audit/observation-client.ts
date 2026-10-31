@@ -112,6 +112,16 @@ const timelineSchema: z.ZodType<AuditTimeline> = z
   })
   .strict();
 
+export type SensitiveReadResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | {
+      readonly ok: false;
+      readonly status: number;
+      readonly code: string | null;
+    };
+
+const failureEnvelope = z.object({ code: z.string().optional() }).loose();
+
 const choiceSchema: z.ZodType<ObservationChoice> = z
   .object({
     available: z.boolean(),
@@ -195,8 +205,24 @@ export function observationClient(
       signal.removeEventListener("abort", cancel);
     }
   }
+  function denied(response: {
+    readonly status: number;
+    readonly body: unknown;
+  }): SensitiveReadResult<never> {
+    const envelope = failureEnvelope.safeParse(response.body);
+    return {
+      ok: false,
+      status: response.status,
+      code:
+        envelope.success && envelope.data.code !== undefined
+          ? envelope.data.code
+          : null,
+    };
+  }
   return {
-    async review(signal: AbortSignal): Promise<TeacherAttemptReview | null> {
+    async review(
+      signal: AbortSignal,
+    ): Promise<SensitiveReadResult<TeacherAttemptReview>> {
       const response = await request(
         "GET",
         "teacher-review",
@@ -209,14 +235,15 @@ export function observationClient(
         parsed.data.publicationId === publication &&
         parsed.data.attemptId === attempt &&
         parsed.data.result.attemptId === attempt
-        ? parsed.data
-        : null;
+        ? { ok: true, value: parsed.data }
+        : denied(response);
     },
     async timeline(
       after: string,
       signal: AbortSignal,
-    ): Promise<AuditTimeline | null> {
-      if (!/^(0|[1-9][0-9]*)$/.test(after)) return null;
+    ): Promise<SensitiveReadResult<AuditTimeline>> {
+      if (!/^(0|[1-9][0-9]*)$/.test(after))
+        return { ok: false, status: 400, code: "INVALID_REQUEST" };
       const response = await request(
         "GET",
         `answer-audit?after=${after}&limit=50`,
@@ -224,7 +251,9 @@ export function observationClient(
         signal,
       );
       const parsed = timelineSchema.safeParse(response.body);
-      return response.status === 200 && parsed.success ? parsed.data : null;
+      return response.status === 200 && parsed.success
+        ? { ok: true, value: parsed.data }
+        : denied(response);
     },
     async choice(
       enabled: boolean | undefined,

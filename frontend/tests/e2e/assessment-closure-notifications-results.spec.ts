@@ -3,7 +3,6 @@ import type {
   ClosureView,
   Notification,
   OwnerView,
-  TeacherResultRow,
 } from "../../features/assessments/api/publication-contract.generated";
 
 // Browser contract tests: production UI/executor, intercepted Gateway responses.
@@ -20,7 +19,6 @@ const publicationId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const closureRequestId = "17b14962-3a2e-4d2d-926a-3b36ea90c198";
 const notificationId = "27b14962-3a2e-4d2d-926a-3b36ea90c197";
 const attemptId = "37b14962-3a2e-4d2d-926a-3b36ea90c196";
-const secondAttemptId = "47b14962-3a2e-4d2d-926a-3b36ea90c195";
 const studentId = "57b14962-3a2e-4d2d-926a-3b36ea90c194";
 const teacherId = "67b14962-3a2e-4d2d-926a-3b36ea90c193";
 const resultId = "77b14962-3a2e-4d2d-926a-3b36ea90c192";
@@ -204,40 +202,101 @@ test("Teacher requests delayed closure and sees bounded completion without a fal
   expect(commands[0]?.key).not.toBe(commands[1]?.key);
 });
 
-test("Teacher results preserve exact totals, real Attempt IDs and an opaque cursor", async ({
+test("Teacher results dashboard preserves exact totals, real IDs and an opaque cursor", async ({
   page,
 }) => {
   await mockAuth(page, ["TEACHER"]);
-  const cursor = "opaque:+/= cursor value";
+  const cursor = "cGFnZTI.c2ln";
   const queries: Array<{ raw: string; cursor: string | null }> = [];
-  const submitted: TeacherResultRow = {
-    attemptId,
-    studentId,
+  const studentId = "57b14962-3a2e-4d2d-926a-3b36ea90c194";
+  const submittedAttemptId = "37b14962-3a2e-4d2d-926a-3b36ea90c196";
+  const abandonedAttemptId = "47b14962-3a2e-4d2d-926a-3b36ea90c195";
+  const result = {
+    resultId,
+    attemptId: submittedAttemptId,
+    publicationId,
     ordinal: "9007199254740993",
-    state: "SUBMITTED",
-    result: {
-      resultId,
-      attemptId,
-      publicationId,
-      ordinal: "9007199254740993",
-      earnedWeight: "12345678901234567890.125",
-      possibleWeight: "12345678901234567891",
-      percentageDisplay: "100.00",
-      gradingPolicyVersion: 1,
-      gradingPolicyId: "QUIZOPIA_GRADING_V1",
-      terminalReason: "TEACHER_NOTICE_CUTOFF",
-      finalizedAt: "2026-10-16T09:00:00.000000Z",
+    earnedWeight: "12345678901234567890.125",
+    possibleWeight: "12345678901234567891",
+    percentageDisplay: "100.00",
+    gradingPolicyVersion: 1,
+    gradingPolicyId: "QUIZOPIA_GRADING_V1",
+    terminalReason: "TEACHER_NOTICE_CUTOFF",
+    finalizedAt: "2026-10-16T09:00:00.000000Z",
+  };
+  const studentRow = {
+    studentId,
+    studentName: null,
+    attemptCount: "2",
+    gradedAttemptCount: "1",
+    hasActive: false,
+    hasSubmitted: true,
+    latestAttempt: {
+      attemptId: abandonedAttemptId,
+      ordinal: "2",
+      state: "ABANDONED",
+      startedAt: "2026-10-16T10:00:00.000000Z",
+      deadlineAt: null,
+      finalizedAt: "2026-10-16T10:05:00.000000Z",
+      terminalReason: "STUDENT_ABANDON",
+      result: null,
+      teacherReviewAvailable: false,
+    },
+    latestGradedResult: result,
+    bestResult: result,
+    averageResult: {
+      sumEarnedWeight: "12345678901234567890.125",
+      sumPossibleWeight: "12345678901234567891",
+      gradedAttemptCount: "1",
+      scoreDisplay: "10.00",
     },
   };
-  const abandoned: TeacherResultRow = {
-    attemptId: secondAttemptId,
-    studentId,
-    ordinal: "2",
-    state: "ABANDONED",
-    result: null,
-  };
   await page.route(
-    `**/api/assessments/publications/${publicationId}/results**`,
+    `**/api/assessments/publications/${publicationId}`,
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify(ownerView),
+      }),
+  );
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/student-overview`,
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          publicationId,
+          asOf: "2026-10-16T11:00:00.000000Z",
+          activeStudentCount: "0",
+          submittedStudentCount: "1",
+          participatedStudentCount: "1",
+          gradedStudentCount: "1",
+          bestScore: {
+            earnedWeight: "12345678901234567890.125",
+            possibleWeight: "12345678901234567891",
+            scoreDisplay: "10.00",
+          },
+          averageBestScore: {
+            sumEarnedWeight: "12345678901234567890.125",
+            sumPossibleWeight: "12345678901234567891",
+            gradedAttemptCount: "1",
+            scoreDisplay: "10.00",
+          },
+          scoreBins: Array.from({ length: 20 }, (_, index) => ({
+            index,
+            lowerBound: (index / 2).toString(),
+            upperBound: ((index + 1) / 2).toString(),
+            lowerInclusive: index === 0,
+            upperInclusive: true,
+            count: index === 19 ? "1" : "0",
+          })),
+        }),
+      }),
+  );
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/students**`,
     async (route) => {
       const url = new URL(route.request().url());
       queries.push({
@@ -245,8 +304,15 @@ test("Teacher results preserve exact totals, real Attempt IDs and an opaque curs
         cursor: url.searchParams.get("cursor"),
       });
       expect(
-        [...url.searchParams.keys()].every(
-          (key) => key === "cursor" || key === "limit",
+        [...url.searchParams.keys()].every((key) =>
+          [
+            "cursor",
+            "limit",
+            "status",
+            "sort",
+            "direction",
+            "studentId",
+          ].includes(key),
         ),
       ).toBe(true);
       const next = url.searchParams.get("cursor");
@@ -255,35 +321,72 @@ test("Teacher results preserve exact totals, real Attempt IDs and an opaque curs
         status: 200,
         body: JSON.stringify(
           next === null
-            ? { items: [submitted], nextCursor: cursor }
-            : { items: [abandoned], nextCursor: null },
+            ? {
+                publicationId,
+                asOf: "2026-10-16T11:00:00.000000Z",
+                items: [studentRow],
+                nextCursor: cursor,
+              }
+            : {
+                publicationId,
+                asOf: "2026-10-16T11:00:01.000000Z",
+                items: [],
+                nextCursor: null,
+              },
         ),
       });
     },
   );
 
   await page.goto(`/app/assessments/${publicationId}/results`);
+  // Distinct counters render verbatim with the overlap explanation.
+  await expect(page.getByText("Total participants")).toBeVisible();
   await expect(
-    page.getByText("12345678901234567890.125 / 12345678901234567891"),
+    page.getByText(/Groups are never added together/i),
   ).toBeVisible();
-  await expect(page.getByText(attemptId, { exact: true })).toBeVisible();
-  await expect(page.getByText(/correct answer/i)).toHaveCount(0);
+  // Exact best score out of ten and the populated 20th bin.
+  await expect(page.getByText("10.00 / 10").first()).toBeVisible();
   const tableRegion = page.getByRole("region", {
-    name: "Scrollable Publication attempt results",
+    name: "Score distribution table",
   });
-  await tableRegion.focus();
-  await expect(tableRegion).toBeFocused();
-  await page.getByRole("button", { name: "Load more rows" }).click();
-  await expect(page.getByText(secondAttemptId, { exact: true })).toBeVisible();
-  const initialQueries = queries.filter((query) => query.cursor === null);
-  const pageQueries = queries.filter((query) => query.cursor !== null);
-  expect(initialQueries.length).toBeGreaterThanOrEqual(1);
-  expect(initialQueries.every((query) => query.raw === "")).toBe(true);
-  expect(pageQueries).toHaveLength(1);
-  expect(pageQueries[0]?.cursor).toBe(cursor);
-  expect(pageQueries[0]?.raw).toBe(
-    `?cursor=${encodeURIComponent(cursor).replace(/%20/g, "+")}`,
+  await expect(tableRegion).toBeVisible();
+  await expect(
+    tableRegion.getByRole("row", { name: /9\.5 – 10\s*1/ }),
+  ).toBeVisible();
+  // The student directory row keeps the real ID; no answers or keys appear.
+  await expect(
+    page.getByText(studentId, { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText(/correct answer/i)).toHaveCount(0);
+  const directoryRegion = page.getByRole("region", {
+    name: "Student directory",
+  });
+  await directoryRegion.focus();
+  await expect(directoryRegion).toBeFocused();
+  // Attempt history uses its own server pagination; review stays gated to
+  // graded SUBMITTED attempts, so the abandoned latest row offers no link.
+  await page.route(
+    `**/api/assessments/publications/${publicationId}/students/${studentId}/attempts**`,
+    (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          publicationId,
+          studentId,
+          asOf: "2026-10-16T11:02:00.000000Z",
+          items: [studentRow.latestAttempt],
+          nextCursor: null,
+        }),
+      }),
   );
+  await page.getByRole("button", { name: "View attempts" }).click();
+  await expect(page.getByText("No result (ungraded)").first()).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Review submitted work" }),
+  ).toHaveCount(0);
+  const initialQueries = queries.filter((query) => query.cursor === null);
+  expect(initialQueries.length).toBeGreaterThanOrEqual(1);
 });
 
 test("Student inbox distinguishes preparation from a confirmed recipient cutoff at mobile width", async ({
