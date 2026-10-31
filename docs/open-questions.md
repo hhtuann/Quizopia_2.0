@@ -8,6 +8,18 @@ Agents MUST NOT silently resolve these items.
 
 ## W4 final completion — active approval gates (2026-10-30)
 
+**Task2 completion (2026-10-31, academic-demo tier):** PO acceptance amendment
+[6539532464](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6539532464)
+authorized implementing B1/B2/B4/C1–C4 for a private loopback synthetic
+demonstration only. Q2 committed server facts, Q3 default-OFF explicit browser
+opt-in, Q12 baseline security and the PO-selected 30/90/180-day retention values
+are now implemented and tested on `feat/w4f-t2-completion` (see
+[w4f-t2 delivery §8](development/w4f-t2-delivery.md)). This is NOT W4F-SEC-01,
+PRIV-01/02 sign-off or production activation: real-learner collection, managed
+KMS/TLS/APM/backup evidence and the release gates below remain PENDING and
+unimplemented by design. T3 stays HARD-BLOCKED until independent Leader
+acceptance of 23/23.
+
 **Task2 checkpoint:** [Leader authorization](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6519641252)
 accepts the corrected T1 implementation design after PR #137 merge. The historical
 design-review PENDING entries below now refer to **Task2 implementation/security

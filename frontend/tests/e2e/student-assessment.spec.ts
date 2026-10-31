@@ -167,6 +167,20 @@ async function mockAssessment(page: Page) {
       "Bearer student-browser-access",
     );
     expect(request.url()).not.toContain(locator);
+    if (
+      path ===
+      `/api/assessments/publications/${publicationId}/attempts/${attemptId}/answer-observation-choice`
+    ) {
+      expect(request.method()).toBe("GET");
+      await fulfill(route, 200, {
+        available: false,
+        enabled: false,
+        noticeVersion: "ACADEMIC_DEMO_V1",
+        decidedAt: null,
+        streamId: null,
+      });
+      return;
+    }
     if (path === "/api/assessments/publications/entry") {
       expect(request.postDataJSON()).toEqual({ locator });
       await fulfill(route, 200, preview);

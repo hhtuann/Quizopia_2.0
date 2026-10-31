@@ -1273,6 +1273,7 @@ class W4RealtimeAcceptanceTopologyTest {
                         .resolve("services/" + name + "-service/target/w4-acceptance-build/quizopia-" + name
                                 + "-0.1.0-SNAPSHOT.jar")
                         .toString(),
+                "--server.address=127.0.0.1",
                 "--server.port=" + URI.create(origin).getPort(),
                 "--spring.profiles.active=local",
                 "--spring.datasource.url=" + database.getJdbcUrl(),
@@ -1366,6 +1367,7 @@ class W4RealtimeAcceptanceTopologyTest {
                 repository
                         .resolve("gateway/target/w4-acceptance-build/quizopia-gateway-0.1.0-SNAPSHOT.jar")
                         .toString()));
+        args.add("--server.address=127.0.0.1");
         args.addAll(realtimeEdgeArgs(edgeBPort));
         launch("gateway-b", args);
         edgeB = "http://127.0.0.1:" + edgeBPort;
@@ -1419,14 +1421,19 @@ class W4RealtimeAcceptanceTopologyTest {
     }
 
     static ConfigurableApplicationContext gatewayContext(int serverPort, boolean realtime) {
+        return gatewayContext(serverPort, realtime, "http://127.0.0.1:1");
+    }
+
+    static ConfigurableApplicationContext gatewayContext(int serverPort, boolean realtime, String quizOrigin) {
         var args = new ArrayList<String>(List.of(
+                "--server.address=127.0.0.1",
                 "--server.port=" + serverPort,
                 "--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + identity,
                 "--spring.security.oauth2.resourceserver.jwt.jwk-set-uri=" + identity + "/oauth2/jwks",
                 "--IDENTITY_SERVICE_URL=" + identity,
                 "--CLASSROOM_SERVICE_URL=" + classroom,
                 "--ASSESSMENT_SERVICE_URL=" + assessment,
-                "--QUIZ_SERVICE_URL=http://127.0.0.1:1",
+                "--QUIZ_SERVICE_URL=" + quizOrigin,
                 "--quizopia.publication.enabled=true",
                 "--quizopia.assessment.features.attempts-enabled=true",
                 "--quizopia.assessment.features.results-enabled=true",

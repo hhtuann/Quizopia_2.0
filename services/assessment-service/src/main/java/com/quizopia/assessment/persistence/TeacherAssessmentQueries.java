@@ -453,10 +453,17 @@ public class TeacherAssessmentQueries implements TeacherAssessmentStore {
 
     public Review review(ClosureStore.Teacher actor, UUID publication, UUID attemptId) {
         return transaction(() -> {
+            sensitive.requireActor(actor.id());
             var resource = owned(actor, publication);
             var rows = db.query(
                     JOINS + " WHERE a.publication_id=? AND a.id=?", (r, n) -> attempt(r), publication, attemptId);
             if (rows.size() != 1) throw new PublicationFailure(404, "ATTEMPT_NOT_FOUND");
+            if (sensitive.demo())
+                sensitive.requireActor(db.queryForObject(
+                        "SELECT student_id FROM attempts WHERE id=? AND publication_id=?",
+                        UUID.class,
+                        attemptId,
+                        publication));
             var attempt = rows.getFirst();
             if (resource.state().equals("DRAFT") || !attempt.state().equals("SUBMITTED") || attempt.result() == null)
                 throw new PublicationFailure(409, "REVIEW_NOT_AVAILABLE");

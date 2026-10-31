@@ -1,16 +1,15 @@
 openapi: 3.1.0
 info:
   title: Quizopia Assessment Teacher Results and Gated Audit
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Implemented W4F-T2 adapters. Statistics/history require current USER+TEACHER,
     persisted Publication ownership, current CLASS Teacher authority and LD-05 at
     Gateway and Assessment. Student ASSESS-04 is unchanged. Sensitive Teacher Review
-    and audit are compiled fail-closed with SENSITIVE_POLICY_PENDING while receipt
-    retention/privacy/key-custody approvals are missing; there is no learner-enable
-    flag. Synthetic permits/keys exist in disposable test fixtures only. No new
-    automatic server-fact capture, browser collector, real-learner activation or
-    production release is claimed. REST is authoritative; WS remains invalidation.
+    and audit fail closed outside the explicitly isolated academic-demo profile and
+    fictional-account registry. Private synthetic demo supports committed server facts,
+    separately opted-in browser observations and protected reads. No real-learner or
+    production activation is authorized. REST is authoritative; WS remains invalidation.
 security:
   - bearerAuth: []
 paths:
@@ -115,8 +114,8 @@ paths:
       operationId: appendAnswerObservation
       description: >-
         Current USER+STUDENT owns ACTIVE Attempt, current CLASS membership if applicable.
-        Always SENSITIVE_POLICY_PENDING in the application before parsing any observation
-        body while approvals are pending; no environment/profile flag can enable capture.
+        SENSITIVE_POLICY_PENDING outside isolated academic-demo. Demo requires a current
+        explicit affirmative observation choice for this fictional Attempt, default OFF.
         Synthetic implementation: one strict <=4096-byte envelope, duplicate/unknown JSON
         fields rejected. Identity/snapshot/provenance/receipt time derived server-side.
         Client time/sequence are claims, never deadline authority or proof of a save.
@@ -150,9 +149,9 @@ paths:
         (nullable stream/sequence/questionNumber/observedAt, producer occurredAt) and
         CLIENT_OBSERVATION browser claims are typed separately; server facts are never
         misclassified as client observations or given transition detail. Browser history
-        is always partial/untrusted; pre-feature data is not reconstructed. No automatic
-        server-fact producer is wired while collection approvals are pending. Currently
-        policy-gated. Expired observations are omitted, never resurrected or decrypted;
+        is always partial/untrusted; pre-feature data is not reconstructed. Demo-only
+        server producers use a local recoverable transactional metadata outbox.
+        Expired observations are omitted, never resurrected or decrypted;
         an unavailable key/receipt fails the request closed.
       parameters:
         - name: after
@@ -168,6 +167,35 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AuditTimeline'}
+        default: {$ref: '#/components/responses/Failure'}
+  /api/assessments/publications/{publicationId}/attempts/{attemptId}/answer-observation-choice:
+    parameters: *attemptParameters
+    get:
+      operationId: readObservationChoice
+      description: Own Attempt only, current STUDENT/CLASS authority. Default unavailable outside fictional demo; no inferred consent.
+      responses:
+        '200':
+          description: Current optional choice and version; no answer content
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ObservationChoice'}
+        default: {$ref: '#/components/responses/Failure'}
+    put:
+      operationId: changeObservationChoice
+      description: Explicit affirmative enable or withdrawal for own ACTIVE fictional Attempt; withdrawal serializes with append. Does not affect SAVE or SUBMIT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ObservationChoiceRequest'}
+      responses:
+        '200':
+          description: Committed choice
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ObservationChoice'}
         default: {$ref: '#/components/responses/Failure'}
 components:
   securitySchemes:
@@ -357,7 +385,7 @@ components:
     AuditItem:
       type: object
       additionalProperties: false
-      required: [eventId, ordinal, type, source, questionNumber, observedAt, occurredAt, assessmentRevision, receivedAt, transitionDetailStatus, transition]
+      required: [eventId, ordinal, type, source, questionNumber, observedAt, occurredAt, assessmentRevision, operationKind, terminalReason, resultId, noticeId, receivedAt, transitionDetailStatus, transition]
       properties:
         eventId: {$ref: '#/components/schemas/Uuid'}
         ordinal: {$ref: '#/components/schemas/Count'}
@@ -369,6 +397,10 @@ components:
         observedAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
         occurredAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
         assessmentRevision: {anyOf: [{$ref: '#/components/schemas/Count'}, {type: 'null'}]}
+        operationKind: {type: [string, 'null'], enum: [START, SAVE, FINALIZATION, ABANDON, NOTICE_CONFIRMATION, null]}
+        terminalReason: {type: [string, 'null'], enum: [MANUAL_SUBMIT, BOUNDED_TIMEOUT, TEACHER_NOTICE_CUTOFF, STUDENT_ABANDON, null]}
+        resultId: {anyOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
+        noticeId: {anyOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}]}
         receivedAt: {$ref: '#/components/schemas/Instant'}
         transitionDetailStatus: {type: string, enum: [AVAILABLE, UNSUPPORTED_TYPE, MISSING, EXPIRED, NOT_APPLICABLE]}
         transition: {anyOf: [{$ref: '#/components/schemas/AuditTransition'}, {type: 'null'}]}
@@ -380,6 +412,23 @@ components:
         items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AuditItem'}}
         nextAfter: {type: [string, 'null']}
         coverage: {$ref: '#/components/schemas/AuditCoverage'}
+    ObservationChoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, noticeVersion]
+      properties:
+        enabled: {type: boolean}
+        noticeVersion: {type: string, const: ACADEMIC_DEMO_V1}
+    ObservationChoice:
+      type: object
+      additionalProperties: false
+      required: [available, enabled, noticeVersion, decidedAt, streamId]
+      properties:
+        available: {type: boolean}
+        enabled: {type: boolean}
+        noticeVersion: {type: string, const: ACADEMIC_DEMO_V1}
+        decidedAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        streamId: {anyOf: [{$ref: '#/components/schemas/Uuid'}, {type: 'null'}], description: 'Server-issued current opt-in stream; replaced after withdrawal/expiry. Never persist offline.'}
     TeacherAssessmentError:
       type: object
       additionalProperties: false
@@ -387,4 +436,4 @@ components:
       properties:
         code:
           type: string
-          enum: [INVALID_REQUEST, UNAUTHENTICATED, ACCESS_DENIED, PUBLICATION_NOT_FOUND, ATTEMPT_NOT_FOUND, CLASSROOM_NOT_ACCESSIBLE, ASSESSMENT_REMOVED, PUBLICATION_CONFLICT, REVIEW_NOT_AVAILABLE, EVENT_CONFLICT, ATTEMPT_TERMINAL, ATTEMPT_DEADLINE_REACHED, AUTHORITY_UNAVAILABLE, DEPENDENCY_UNAVAILABLE, PERSISTENCE_UNAVAILABLE, GRADING_UNAVAILABLE, SENSITIVE_POLICY_PENDING, AUDIT_UNAVAILABLE, AUDIT_RATE_LIMITED]
+          enum: [INVALID_REQUEST, UNAUTHENTICATED, ACCESS_DENIED, PUBLICATION_NOT_FOUND, ATTEMPT_NOT_FOUND, CLASSROOM_NOT_ACCESSIBLE, ASSESSMENT_REMOVED, PUBLICATION_CONFLICT, REVIEW_NOT_AVAILABLE, EVENT_CONFLICT, ATTEMPT_TERMINAL, ATTEMPT_DEADLINE_REACHED, AUTHORITY_UNAVAILABLE, DEPENDENCY_UNAVAILABLE, PERSISTENCE_UNAVAILABLE, GRADING_UNAVAILABLE, SENSITIVE_POLICY_PENDING, AUDIT_UNAVAILABLE, AUDIT_RATE_LIMITED, DEMO_ACCOUNT_REQUIRED, OBSERVATION_NOT_ENABLED]

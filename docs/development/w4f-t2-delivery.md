@@ -258,7 +258,85 @@ foreign-context tamper with zero receipts. No automatic real-learner
 SERVER_AUTHORITY capture, retention cleanup, production key binding, Task 3 or
 Task 4 is implemented or activated.
 
-## 8. Independent Leader checklist
+## 8. Task 2 completion increment — academic demo (#134)
+
+Authority: [PO academic-demo acceptance 6539532464](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6539532464),
+[Q1–Q4/Q12/Q13/Q14 approvals](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6539427662) and
+[Q2/Q3 confirmation](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6539492449). Real-learner production remains NO-GO.
+
+### Isolated academic-demo tier
+
+`academic-demo` Spring profile replaces the unconditional `Pending` beans with
+loopback-validated providers. Startup refuses unless `server.address` is loopback,
+the datasource URL is local, `prod/production` is inactive, `synthetic-only` is
+acknowledged, a disposable keyring (max 4 keys, current named) and a separate
+`quizopia_demo_custodian` credential are configured. Sensitive reads additionally
+require both attempt student and publication owner to be privilegedly seeded in
+`assessment_demo_subjects` (`FICTIONAL_ACADEMIC_DEMO_V1`); runtime cannot INSERT
+into that registry or DELETE any audit table. Outside the profile nothing changes.
+
+### Committed server facts (Q2)
+
+V13 trigger-coupled capture queues START/persisted-SAVE/SUBMIT+RESULT
+(or ABANDON/timeout/notice-confirmed) facts into `assessment_audit_pending` inside
+the authoritative transaction; rollback produces no fact. A bounded worker and the
+Teacher timeline path project pending rows into the encrypted V12 stream, verify
+the stored canonical after insertion, and only then acknowledge. Metadata only —
+no answer content or keys in facts. No legacy backfill; W3 monitoring outboxes stay
+separate.
+
+### Optional browser observations (Q3)
+
+`GET/PUT .../answer-observation-choice` records an explicit affirmative
+`ACADEMIC_DEMO_V1` choice (default OFF) with a server-issued `streamId` bound to a
+30-day window; withdrawal rotates the stream and serializes with append. The
+workspace consent card (notice text, enable/continue/stop, 44px targets) drives a
+memory-only queue: ≤100 events, 4 KiB canonical envelopes, random safe-integer
+sequence start, bounded exponential backoff (3 retries), stop on 4xx denial,
+suspend (not withdraw) during authority reconciliation with same-stream
+revalidation on resume, and truthful gap/partial status. Numeric/matrix values are
+never captured; refusal never blocks answering or submission.
+
+### Retention (PO-selected values)
+
+Client 30d / server 90d / receipts 180d, event-anchored UTC expiry (checks use
+elapsed hours so DST cannot shift them), immediate read exclusion, hourly bounded
+custodian cleanup with 24h goal, expired-history coverage flagging, and bounded
+reviewed holds (30d max, separate requester/reviewer, immutable after approval).
+Cleanup shares the V11 purge-admission boundary with lock-order discipline
+(publication-first + admission FOR SHARE NOWAIT; holds admission-locked) so
+generic and audit holds cannot be surprised by concurrent deletes, purge keeps
+custody semantics, and FB-015 fences still deny everything. Academic grading
+records are untouched by audit expiry.
+
+### Verification snapshot (this branch)
+
+- Assessment `verify`: **563 tests, 0 failures** (incl. 13 AcademicDemoAudit, 4
+  AcademicDemoHttp, migration upgrade V11→V13 and non-superuser least-privilege).
+- Gateway `verify`: 185 tests; 1 environment error (Windows ephemeral-port
+  exhaustion immediately after the 158s real-topology test in the same JVM);
+  isolated rerun of the affected class **7/7 PASS** — recorded, not dismissed.
+- Private synthetic demo `AcademicDemoTopologyTest` (`-Dw4f.demo=true`, real
+  Identity/Quiz/Classroom/Assessment/Gateway + PostgreSQL/Redis/RabbitMQ +
+  Chromium): real Teacher authors/publishes PUBLIC+CLASS fictional quizzes,
+  Student opts in or declines, A→C before submit, grading, OPEN Teacher
+  review + timeline + receipts, Student 409-while-OPEN then 200-after-CLOSE,
+  retake/abandon, cross-publication 404, fenced reads 404, responsive sweep,
+  and no secrets/JWTs/protected payloads in any service log. CI workflow
+  `w4f-demo.yml` runs this on PRs touching the demo surface.
+- Frontend: **994/994 Vitest**, lint/typecheck/build/format PASS, **168/168
+  Playwright**.
+- Scoped read-only reviews (frontend + backend) produced findings — authority
+  pause permanently disabling collection, undecodable denial status, missing
+  timeline question labels, hold-vs-expiry lock ordering, fence-vs-hold
+  admission, expired-held backlog starvation — all corrected with regressions
+  (13 backend demo tests now cover them).
+
+Remaining outside this increment: real-learner collection, production key
+custody/TLS/APM/backup/provider evidence, Task 3/4. #134 stays OPEN at 16/23
+until the Leader independently verifies the evidence; no self-merge.
+
+## 9. Independent Leader checklist
 
 - [ ] Verify exact PR HEAD, complete diff, migration checksums and actual CI results.
 - [ ] Inspect SQL aggregates/pages/bins across all records and bounded profile calls.

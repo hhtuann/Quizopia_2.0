@@ -7,6 +7,8 @@ public final class TeacherAssessmentRoutes {
     public static String role(String method, String path) {
         String id = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
         String p = "/api/assessments/publications/" + id;
+        if ((method.equals("GET") || method.equals("PUT"))
+                && path.matches(p + "/attempts/" + id + "/answer-observation-choice")) return "STUDENT";
         if (method.equals("GET")
                 && (path.matches(p + "/(student-overview|students)")
                         || path.matches(p + "/students/" + id + "/attempts")

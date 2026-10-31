@@ -153,6 +153,7 @@ public class TeacherAssessmentController {
         response.setHeader("Cache-Control", "no-store");
         // Cannot be enabled by environment/profile/attestation: policy is pending in the compiled application.
         audit.requireCollection();
+        jsonTransport(request, 4096);
         var types = Collections.list(request.getHeaders("Content-Type"));
         if (request.getQueryString() != null
                 || request.getContentLengthLong() > 4096
@@ -173,5 +174,76 @@ public class TeacherAssessmentController {
                 id(publicationId),
                 id(attemptId),
                 bytes);
+    }
+
+    private void jsonTransport(HttpServletRequest request, int maximum) {
+        var types = Collections.list(request.getHeaders("Content-Type"));
+        var encodings = Collections.list(request.getHeaders("Content-Encoding"));
+        if (request.getQueryString() != null
+                || request.getContentLengthLong() > maximum
+                || types.size() != 1
+                || !types.getFirst().matches("(?i)application/json(?:\\s*;\\s*charset=(?:UTF-8|\"UTF-8\"))?")
+                || (!encodings.isEmpty()
+                        && (encodings.size() != 1 || !encodings.getFirst().equalsIgnoreCase("identity"))))
+            throw invalid();
+    }
+
+    @GetMapping("/attempts/{attemptId}/answer-observation-choice")
+    public AnswerAuditStore.ObservationChoice choice(
+            @AuthenticationPrincipal Jwt actor,
+            @PathVariable("publicationId") String publicationId,
+            @PathVariable("attemptId") String attemptId,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        query(request, response, Set.of());
+        return audit.choice(
+                id(actor.getSubject()),
+                actor.getExpiresAt(),
+                actor.getTokenValue(),
+                id(publicationId),
+                id(attemptId),
+                null);
+    }
+
+    @PutMapping("/attempts/{attemptId}/answer-observation-choice")
+    public AnswerAuditStore.ObservationChoice choose(
+            @AuthenticationPrincipal Jwt actor,
+            @PathVariable("publicationId") String publicationId,
+            @PathVariable("attemptId") String attemptId,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        audit.requireCollection();
+        jsonTransport(request, 256);
+        if (request.getQueryString() != null
+                || request.getContentLengthLong() > 256
+                || request.getContentType() == null
+                || !request.getContentType().matches("(?i)application/json(?:\\s*;\\s*charset=(?:UTF-8|\"UTF-8\"))?"))
+            throw invalid();
+        boolean enabled;
+        try {
+            byte[] bytes = request.getInputStream().readNBytes(257);
+            if (bytes.length == 0 || bytes.length > 256) throw invalid();
+            var json = tools.jackson.databind.json.JsonMapper.builder()
+                    .enable(tools.jackson.core.StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+                    .enable(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .build();
+            var n = json.readTree(bytes);
+            if (!n.isObject()
+                    || !n.propertyNames().equals(Set.of("enabled", "noticeVersion"))
+                    || !n.path("enabled").isBoolean()
+                    || !n.path("noticeVersion").isString()
+                    || !n.path("noticeVersion").asString().equals("ACADEMIC_DEMO_V1")) throw invalid();
+            enabled = n.path("enabled").asBoolean();
+        } catch (IOException | RuntimeException e) {
+            throw invalid();
+        }
+        return audit.choice(
+                id(actor.getSubject()),
+                actor.getExpiresAt(),
+                actor.getTokenValue(),
+                id(publicationId),
+                id(attemptId),
+                enabled);
     }
 }

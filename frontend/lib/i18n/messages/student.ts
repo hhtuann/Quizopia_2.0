@@ -4,6 +4,36 @@
 // canonical enum tokens (ACTIVE/SUBMITTED/ABANDONED, window states, question
 // types) and API identifiers never pass through this lookup.
 export const studentMessages = {
+  "Question {number}": "Câu {number}",
+  "Submitted Attempt review": "Xem lại bài đã nộp",
+  "Submitted answer": "Đáp án đã nộp",
+  "Read submitted work": "Xem bài đã nộp",
+  "Review submitted attempt": "Xem lại bài đã nộp",
+  "Read interaction timeline": "Xem lịch sử tương tác",
+  "Interaction timeline": "Lịch sử tương tác",
+  "Next timeline page": "Trang lịch sử tiếp theo",
+  Received: "Tiếp nhận",
+  Occurred: "Xảy ra",
+  "Browser reported": "Trình duyệt báo cáo",
+  "Fictional private demo. Each sensitive read is recorded. Only submitted and graded work is available here; Student review still waits for closure.":
+    "Bản thử nghiệm giả lập riêng tư. Mỗi lượt xem thông tin nhạy cảm được ghi nhận. Chỉ xem được bài đã nộp và chấm; học sinh vẫn phải chờ chốt bài.",
+  "No protected content is available. Check your current access or try again.":
+    "Không thể xem nội dung được bảo vệ. Hãy kiểm tra quyền truy cập hiện tại hoặc thử lại.",
+  "History may be incomplete. Missing observations do not prove that an action did not happen.":
+    "Lịch sử có thể thiếu. Việc thiếu ghi nhận không chứng minh rằng một thao tác chưa xảy ra.",
+  "Optional interaction history": "Lịch sử tương tác tùy chọn",
+  "Enable optional history": "Đồng ý ghi lịch sử tùy chọn",
+  "Continue without history": "Tiếp tục không ghi lịch sử",
+  "Stop optional history": "Dừng ghi lịch sử tùy chọn",
+  "Optional history is off.": "Lịch sử tùy chọn đang tắt.",
+  "Optional history is on for this session.":
+    "Đang ghi lịch sử tùy chọn trong phiên này.",
+  "History is incomplete or unavailable. You can keep answering and submitting.":
+    "Lịch sử có thể thiếu hoặc không khả dụng. Bạn vẫn có thể làm và nộp bài.",
+  "Fictional demo accounts only. With your permission, record question navigation and A–D choice changes, including unsaved changes. No numeric input, keystrokes, camera or screen content. History may be incomplete and is never proof of misconduct.":
+    "Chỉ dành cho tài khoản thử nghiệm giả lập. Nếu bạn đồng ý, ứng dụng ghi nhận việc xem, chuyển câu và thay đổi lựa chọn A–D, kể cả trước khi lưu. Không ghi đáp án số, phím bấm, camera hay màn hình. Lịch sử có thể thiếu và không phải bằng chứng kết luận gian lận.",
+  "Only the owning Teacher can read submitted, graded work. Optional events expire after 30 days, system audit after 90 days and Teacher access receipts after 180 days; reviewed holds may delay deletion. Academic grades follow their separate policy. Contact the development team for this fictional demo. You can decline or stop without affecting your assessment.":
+    "Chỉ giáo viên phụ trách được xem bài đã nộp và chấm. Lịch sử tùy chọn hết hạn sau 30 ngày, sự kiện hệ thống sau 90 ngày, nhật ký truy cập của giáo viên sau 180 ngày; việc lưu giữ đã được duyệt có thể hoãn xóa. Điểm học tập theo chính sách riêng. Liên hệ nhóm phát triển về bản thử nghiệm giả lập này. Bạn có thể từ chối hoặc dừng mà không ảnh hưởng bài làm.",
   // Workspace gate and request service availability
   // ("Student access required" lives in the assessment catalog.)
   "Please sign in with a Student account to continue.":

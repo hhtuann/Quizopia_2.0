@@ -1,0 +1,19 @@
+# Explicit synthetic/private tier, never selected by default. Startup validation
+# additionally requires a loopback PostgreSQL URL, synthetic-only acknowledgement,
+# disposable keyring and separate custodian credentials. No embedded secrets.
+server:
+  address: 127.0.0.1
+spring:
+  datasource:
+    hikari:
+      connection-init-sql: SET quizopia.academic_demo='true'
+  mvc:
+    log-request-details: false
+management:
+  tracing:
+    sampling:
+      probability: 0
+quizopia:
+  assessment:
+    demo:
+      synthetic-only: false

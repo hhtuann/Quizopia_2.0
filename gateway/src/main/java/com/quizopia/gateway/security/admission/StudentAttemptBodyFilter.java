@@ -80,7 +80,7 @@ final class StudentAttemptBodyFilter {
         var encodings = request.getHeaders().get("Content-Encoding");
         if (encodings != null && (encodings.size() != 1 || !encodings.getFirst().equalsIgnoreCase("identity")))
             return invalid(exchange);
-        if (request.getMethod() == HttpMethod.POST) {
+        if (request.getMethod() == HttpMethod.POST || request.getMethod() == HttpMethod.PUT) {
             var types = request.getHeaders().get("Content-Type");
             if (types == null
                     || types.size() != 1
@@ -100,7 +100,8 @@ final class StudentAttemptBodyFilter {
                 .defaultIfEmpty(new byte[0])
                 .flatMap(bytes -> {
                     if (request.getMethod() == HttpMethod.GET && bytes.length != 0
-                            || request.getMethod() == HttpMethod.POST && bytes.length == 0) return invalid(exchange);
+                            || (request.getMethod() == HttpMethod.POST || request.getMethod() == HttpMethod.PUT)
+                                    && bytes.length == 0) return invalid(exchange);
                     return chain.filter(exchange.mutate()
                             .request(new ServerHttpRequestDecorator(request) {
                                 public Flux<DataBuffer> getBody() {
