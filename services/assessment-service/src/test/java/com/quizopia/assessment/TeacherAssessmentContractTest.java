@@ -34,6 +34,7 @@ class TeacherAssessmentContractTest {
                 Map.entry("TeacherStudentHistory", TeacherAssessmentViews.History.class),
                 Map.entry("TeacherAttemptReview", TeacherAssessmentViews.Review.class),
                 Map.entry("AuditAck", AnswerAuditStore.Ack.class),
+                Map.entry("ObservationChoice", AnswerAuditStore.ObservationChoice.class),
                 Map.entry("AuditCoverage", AnswerAuditStore.Coverage.class),
                 Map.entry("AuditItem", AnswerAuditStore.Item.class),
                 Map.entry("AuditTimeline", AnswerAuditStore.Timeline.class));
@@ -53,16 +54,18 @@ class TeacherAssessmentContractTest {
     @SuppressWarnings("unchecked")
     void contractPathsMatchExactIndependentServiceRouteInventory() throws Exception {
         var paths = (Map<String, Map<String, Object>>) contract().get("paths");
-        assertEquals(6, paths.size());
+        assertEquals(7, paths.size());
         for (var entry : paths.entrySet()) {
             String actual = entry.getKey()
                     .replace("{publicationId}", AdmissionTestTokens.ACTOR)
                     .replace("{studentId}", AdmissionTestTokens.ACTOR)
                     .replace("{attemptId}", AdmissionTestTokens.ACTOR);
-            for (String method : List.of("get", "post"))
+            for (String method : List.of("get", "post", "put"))
                 if (entry.getValue().containsKey(method)) {
                     assertEquals(
-                            method.equals("post") ? "STUDENT" : "TEACHER",
+                            method.equals("post") || actual.endsWith("/answer-observation-choice")
+                                    ? "STUDENT"
+                                    : "TEACHER",
                             TeacherAssessmentRoutes.role(method.toUpperCase(Locale.ROOT), actual));
                     assertNull(TeacherAssessmentRoutes.role("DELETE", actual));
                     assertNull(TeacherAssessmentRoutes.role(method.toUpperCase(Locale.ROOT), actual + "/extra"));

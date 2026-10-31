@@ -50,4 +50,14 @@ public class AnswerAuditService {
             return store.timeline(actor, publication, attempt, b, until, after, limit);
         });
     }
+
+    public AnswerAuditStore.ObservationChoice choice(
+            UUID actor, Instant expiry, String evidence, UUID publication, UUID attempt, Boolean enabled) {
+        return bounded(() -> {
+            var b = store.resource(actor, expiry, publication, attempt, false);
+            long until = System.nanoTime() + 5_000_000_000L;
+            if (b.classroomId() != null) sources.member(b.classroomId(), actor, evidence);
+            return store.choice(actor, expiry, publication, attempt, b, until, enabled);
+        });
+    }
 }

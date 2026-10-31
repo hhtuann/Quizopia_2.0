@@ -16,6 +16,22 @@
 
 ## Current verified project checkpoint — 2026-10-30
 
+**Task2 completion increment (2026-10-31):** the PO's academic-demo acceptance
+([6539532464](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6539532464))
+authorized closing B1/B2/B4/C1–C4 within an isolated loopback synthetic tier.
+Branch `feat/w4f-t2-completion` (stacked on CI-fix PR #142) adds the
+`academic-demo` profile (fictional-account registry, disposable keyring,
+separate custodian), trigger-coupled server audit facts with recoverable
+projection, default-OFF explicit student observation opt-in with a memory-only
+bounded queue, PO-selected 30/90/180-day retention with reviewed holds and
+admission-ordered cleanup, the Teacher submitted-review screen, and a real
+multi-service Chromium demo harness (`AcademicDemoTopologyTest` + `w4f-demo.yml`).
+Verification: Assessment 563/0, Gateway 185 (1 environment port-exhaustion error,
+isolated rerun 7/7), frontend 994/994 + 168/168 Playwright, real synthetic demo
+journey PASS. Real-learner production remains NO-GO; #134 stays OPEN at 16/23
+pending independent Leader verification; T3 remains blocked. Evidence:
+[w4f-t2 delivery record](w4f-t2-delivery.md) §8.
+
 **W4F-T2 authorization:** T1 PR #137 is merged at
 `4c7803733eee53997c7c0cbce99af1136c86014a`; all three post-merge workflows,
 including actual repository full-validation, passed. [Leader authorization](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6519641252)

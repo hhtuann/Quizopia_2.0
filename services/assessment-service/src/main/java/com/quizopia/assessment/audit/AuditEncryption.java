@@ -7,6 +7,7 @@ import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /** No deployment key/activation binding while custody/privacy approvals are pending. */
@@ -30,6 +31,7 @@ public interface AuditEncryption {
     byte[] decrypt(String keyId, String context, byte[] encrypted);
 
     @Component
+    @Profile("!academic-demo")
     final class Pending implements AuditEncryption {
         public Protected encrypt(String context, byte[] plaintext) {
             throw unavailable();

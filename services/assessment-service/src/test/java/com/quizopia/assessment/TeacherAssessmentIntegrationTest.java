@@ -364,12 +364,12 @@ class TeacherAssessmentIntegrationTest {
                 .schemas(schema)
                 .defaultSchema(schema)
                 .load();
-        assertEquals(1, current.migrate().migrationsExecuted);
+        assertEquals(2, current.migrate().migrationsExecuted);
         assertEquals(
                 before,
                 f.db.queryForList(
                         "SELECT version,checksum FROM " + schema
-                                + ".flyway_schema_history WHERE version IS NOT NULL AND version<>'12' ORDER BY installed_rank"));
+                                + ".flyway_schema_history WHERE version IS NOT NULL AND version NOT IN ('12','13') ORDER BY installed_rank"));
         assertEquals(0, current.migrate().migrationsExecuted);
         current.validate();
     }

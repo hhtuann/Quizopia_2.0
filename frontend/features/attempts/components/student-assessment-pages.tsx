@@ -82,6 +82,7 @@ import {
   scrollQuestionIntoView,
 } from "./attempt-question-navigator";
 import { AttemptQuestionList } from "./attempt-question-list";
+import { useOptionalObservations } from "../audit/use-optional-observations";
 
 type EntryMode = "PUBLIC" | "CLASS";
 
@@ -1092,6 +1093,16 @@ export function AttemptScreen({
     attempt,
     coordinator.refresh,
   );
+  const optionalHistory = useOptionalObservations(
+    attempt.publicationId,
+    attempt.attemptId,
+    attempt.state === "ACTIVE" &&
+      !expired &&
+      !authorityPaused &&
+      !terminalBusy &&
+      uncertain === null,
+    currentQuestion,
+  );
   const answered = Object.values(coordinator.answers).filter(
     (answer) => !isUnanswered(answer),
   ).length;
@@ -1225,6 +1236,7 @@ export function AttemptScreen({
     const previous = coordinator.answers[questionNumber];
     if (previous === undefined) return;
     coordinator.changeAnswer(questionNumber, answer);
+    optionalHistory.queue.answer(questionNumber, previous, answer);
     if (!monitoring.enabled) return;
     monitoring.onAnswerInteraction?.({
       attemptId: attempt.attemptId,
@@ -1499,6 +1511,7 @@ export function AttemptScreen({
           </Alert>
         ) : null}
         {monitoringContent}
+        {optionalHistory.content}
         {expired && attempt.state === "ACTIVE" ? (
           <Alert title={t("Checking status")} variant="warning">
             {t(

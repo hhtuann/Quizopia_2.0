@@ -57,6 +57,10 @@ public class AnswerAuditStore {
             Instant observedAt,
             Instant occurredAt,
             String assessmentRevision,
+            String operationKind,
+            String terminalReason,
+            UUID resultId,
+            UUID noticeId,
             Instant receivedAt,
             String transitionDetailStatus,
             Object transition) {
@@ -140,7 +144,19 @@ public class AnswerAuditStore {
     }
 
     public Binding resource(UUID actor, Instant expires, UUID publication, UUID attempt, boolean teacher) {
-        return transaction(() -> binding(actor, expires, publication, attempt, teacher, false));
+        return transaction(() -> {
+            policy.requireActor(actor);
+            var resource = binding(actor, expires, publication, attempt, teacher, false);
+            requireDemoBinding(resource);
+            return resource;
+        });
+    }
+
+    private void requireDemoBinding(Binding binding) {
+        if (policy.demo()) {
+            policy.requireActor(binding.studentId());
+            policy.requireActor(binding.ownerId());
+        }
     }
 
     public void requirePolicy() {
@@ -153,6 +169,53 @@ public class AnswerAuditStore {
         return expiry;
     }
 
+    public record ObservationChoice(
+            boolean available, boolean enabled, String noticeVersion, Instant decidedAt, UUID streamId) {}
+
+    public ObservationChoice choice(
+            UUID actor,
+            Instant expires,
+            UUID publication,
+            UUID attempt,
+            Binding authorized,
+            long until,
+            Boolean enabled) {
+        return transaction(() -> {
+            var b = binding(actor, expires, publication, attempt, false, true);
+            requireDemoBinding(b);
+            fresh(b, authorized, until);
+            if (!policy.demo()) return new ObservationChoice(false, false, "ACADEMIC_DEMO_V1", null, null);
+            policy.requireActor(actor);
+            if (enabled != null) {
+                if (!b.state().equals("ACTIVE")) throw new PublicationFailure(409, "ATTEMPT_TERMINAL");
+                Instant decided = now();
+                db.update(
+                        "INSERT INTO assessment_observation_choices(attempt_id,actor_id,enabled,notice_version,decided_at,expires_at,stream_id) VALUES(?,?,?,'ACADEMIC_DEMO_V1',?,?,?) ON CONFLICT(attempt_id) DO UPDATE SET enabled=excluded.enabled,stream_id=CASE WHEN assessment_observation_choices.enabled=excluded.enabled AND assessment_observation_choices.expires_at>assessment_time() THEN assessment_observation_choices.stream_id ELSE excluded.stream_id END,decided_at=CASE WHEN assessment_observation_choices.enabled=excluded.enabled AND assessment_observation_choices.expires_at>assessment_time() THEN assessment_observation_choices.decided_at ELSE excluded.decided_at END,expires_at=CASE WHEN assessment_observation_choices.enabled=excluded.enabled AND assessment_observation_choices.expires_at>assessment_time() THEN assessment_observation_choices.expires_at ELSE excluded.expires_at END",
+                        attempt,
+                        actor,
+                        enabled,
+                        Timestamp.from(decided),
+                        Timestamp.from(decided.plusSeconds(30 * 86400L)),
+                        enabled ? UUID.randomUUID() : null);
+            }
+            var rows = db.query(
+                    "SELECT enabled,decided_at,stream_id FROM assessment_observation_choices WHERE attempt_id=? AND actor_id=? AND expires_at>assessment_time()",
+                    (r, n) -> new ObservationChoice(
+                            true,
+                            r.getBoolean(1),
+                            "ACADEMIC_DEMO_V1",
+                            r.getTimestamp(2).toInstant(),
+                            r.getObject(3, UUID.class)),
+                    attempt,
+                    actor);
+            fresh(b, authorized, until);
+            currentActor(expires);
+            return rows.isEmpty()
+                    ? new ObservationChoice(true, false, "ACADEMIC_DEMO_V1", null, null)
+                    : rows.getFirst();
+        });
+    }
+
     public Ack append(
             UUID actor,
             Instant expires,
@@ -163,9 +226,19 @@ public class AnswerAuditStore {
             AnswerObservation observation) {
         return transaction(() -> {
             var b = binding(actor, expires, publication, attempt, false, true);
+            policy.requireActor(actor);
+            requireDemoBinding(b);
             fresh(b, authorized, authorityUntil);
             Instant time = now();
-            Instant expiry = expiry(time);
+            expiry(time);
+            if (policy.demo()
+                    && !Boolean.TRUE.equals(db.queryForObject(
+                            "SELECT EXISTS(SELECT FROM assessment_observation_choices WHERE attempt_id=? AND actor_id=? AND enabled AND stream_id=? AND expires_at>assessment_time())",
+                            Boolean.class,
+                            attempt,
+                            actor,
+                            observation.streamId()))) throw new PublicationFailure(409, "OBSERVATION_NOT_ENABLED");
+            Instant expiry = policy.observationExpiry(time);
             var payload = db.queryForObject(
                     "SELECT payload::text FROM publication_snapshots WHERE publication_id=?",
                     String.class,
@@ -209,25 +282,22 @@ public class AnswerAuditStore {
                     "SELECT pg_advisory_xact_lock(?)",
                     actor.getMostSignificantBits() ^ actor.getLeastSignificantBits());
             long actorCount = db.queryForObject(
-                    "SELECT count(*) FROM assessment_answer_audit WHERE actor_id=? AND received_at>assessment_time()-interval '1 minute'",
+                    "SELECT count(*) FROM assessment_answer_audit WHERE actor_id=? AND source='CLIENT_OBSERVATION' AND received_at>assessment_time()-interval '1 minute'",
                     Long.class,
                     actor);
             long attemptCount = db.queryForObject(
-                    "SELECT count(*) FROM assessment_answer_audit WHERE attempt_id=? AND received_at>assessment_time()-interval '1 minute'",
+                    "SELECT count(*) FROM assessment_answer_audit WHERE attempt_id=? AND source='CLIENT_OBSERVATION' AND received_at>assessment_time()-interval '1 minute'",
                     Long.class,
                     attempt);
             if (actorCount >= 120 || attemptCount >= 60) throw new PublicationFailure(429, "AUDIT_RATE_LIMITED");
             time = now();
-            expiry = expiry(time);
+            expiry = policy.observationExpiry(time);
             var eligible = db.queryForObject(
                     "SELECT (a.deadline_at IS NULL OR a.deadline_at>assessment_time()) AND NOT EXISTS(SELECT FROM closure_request_members m JOIN closure_requests c ON c.id=m.closure_request_id WHERE m.attempt_id=a.id AND c.state IN ('PENDING','FINALIZING') AND m.closure_cutoff_at<=assessment_time()) FROM attempts a WHERE a.id=?",
                     Boolean.class,
                     attempt);
             if (!Boolean.TRUE.equals(eligible)) throw new PublicationFailure(409, "ATTEMPT_DEADLINE_REACHED");
-            long ordinal = db.queryForObject(
-                    "SELECT coalesce(max(ordinal),0)+1 FROM assessment_answer_audit WHERE attempt_id=?",
-                    Long.class,
-                    attempt);
+            long ordinal = db.queryForObject("SELECT assessment_next_audit_ordinal(?)", Long.class, attempt);
             var protectedInput =
                     encryption.encrypt(observation.context(publication, attempt, actor), observation.canonical());
             db.update(
@@ -273,7 +343,15 @@ public class AnswerAuditStore {
         Object transition = null;
         String status;
         if (source.equals("CLIENT_OBSERVATION")) {
-            if (row.get("stream_id") == null || row.get("sequence") == null || number == null) throw unavailable();
+            if (row.get("operation_kind") != null
+                    || row.get("terminal_reason") != null
+                    || row.get("result_id") != null
+                    || row.get("notice_id") != null) throw unavailable();
+            if (row.get("stream_id") == null
+                    || row.get("sequence") == null
+                    || number == null
+                    || occurred != null
+                    || revision != null) throw unavailable();
             var o = new AnswerObservation(
                     event,
                     (UUID) row.get("stream_id"),
@@ -283,8 +361,22 @@ public class AnswerAuditStore {
                     observed,
                     null,
                     null);
-            var canonical =
-                    json.readTree(encryption.decrypt(keyId, o.context(publication, attempt, actor), protectedInput));
+            byte[] bytes = encryption.decrypt(keyId, o.context(publication, attempt, actor), protectedInput);
+            var checked = AnswerObservation.parseCanonical(bytes);
+            if (!checked.eventId().equals(event)
+                    || !checked.streamId().equals(o.streamId())
+                    || checked.sequence() != o.sequence()
+                    || !checked.type().equals(type)
+                    || checked.questionNumber() != number
+                    || !Objects.equals(checked.observedAt(), observed)) throw unavailable();
+            var questions = json.readTree(db.queryForObject(
+                            "SELECT payload::text FROM publication_snapshots WHERE publication_id=?",
+                            String.class,
+                            publication))
+                    .path("structuredContent")
+                    .path("questions");
+            checked.validate(questions.get(number - 1));
+            var canonical = json.readTree(bytes);
             transition = canonical.has("transition") ? canonical.path("transition") : null;
             status = transition != null
                     ? "AVAILABLE"
@@ -305,6 +397,10 @@ public class AnswerAuditStore {
                     || !fact.type().equals(type)
                     || !Objects.equals(fact.questionNumber(), number)
                     || !Objects.equals(fact.assessmentRevision(), revision)
+                    || !Objects.equals(fact.operationKind(), row.get("operation_kind"))
+                    || !Objects.equals(fact.terminalReason(), row.get("terminal_reason"))
+                    || !Objects.equals(fact.resultId(), row.get("result_id"))
+                    || !Objects.equals(fact.noticeId(), row.get("notice_id"))
                     || !fact.occurredAt().equals(occurred)) throw unavailable();
             status = "NOT_APPLICABLE";
         } else {
@@ -319,6 +415,10 @@ public class AnswerAuditStore {
                 observed,
                 occurred,
                 revision,
+                (String) row.get("operation_kind"),
+                (String) row.get("terminal_reason"),
+                (UUID) row.get("result_id"),
+                (UUID) row.get("notice_id"),
                 ((Timestamp) row.get("received_at")).toInstant(),
                 status,
                 transition);
@@ -335,6 +435,8 @@ public class AnswerAuditStore {
         if (after < 0 || limit < 1 || limit > 100) throw AnswerObservation.invalid();
         return transaction(() -> {
             var b = binding(actor.id(), actor.expiresAt(), publication, attempt, true, false);
+            requireDemoBinding(b);
+            policy.requireActor(actor.id());
             fresh(b, authorized, until);
             boolean complete = Boolean.TRUE.equals(db.queryForObject(
                     "SELECT EXISTS(SELECT FROM attempts a JOIN grading_results r ON r.id=a.result_id AND r.attempt_id=a.id WHERE a.id=? AND a.state='SUBMITTED')",
@@ -344,6 +446,7 @@ public class AnswerAuditStore {
                 throw new PublicationFailure(409, "REVIEW_NOT_AVAILABLE");
             var time = now();
             var expires = expiry(time);
+            if (policy.demo()) new ServerAuditPublisher(db, encryption).publish(attempt);
             var rows = db.queryForList(
                     "SELECT * FROM assessment_answer_audit WHERE attempt_id=? AND ordinal>? AND expires_at>? ORDER BY ordinal LIMIT ?",
                     attempt,
@@ -354,13 +457,24 @@ public class AnswerAuditStore {
             var items = new ArrayList<Item>();
             for (var row : rows.subList(0, Math.min(limit, rows.size()))) items.add(item(row, publication, attempt));
             boolean any = Boolean.TRUE.equals(db.queryForObject(
-                    "SELECT EXISTS(SELECT FROM assessment_answer_audit WHERE attempt_id=?)", Boolean.class, attempt));
+                    "SELECT EXISTS(SELECT FROM assessment_answer_audit WHERE attempt_id=?) OR EXISTS(SELECT FROM assessment_audit_positions WHERE attempt_id=?)",
+                    Boolean.class,
+                    attempt,
+                    attempt));
             var reasons = new ArrayList<String>();
             reasons.add("CLIENT_GAP");
+            if (policy.demo()
+                    && !Boolean.TRUE.equals(db.queryForObject(
+                            "SELECT EXISTS(SELECT FROM assessment_observation_choices WHERE attempt_id=? AND enabled AND expires_at>assessment_time())",
+                            Boolean.class,
+                            attempt))) reasons.add("COLLECTION_OFF");
             if (!any) reasons.add("LEGACY");
             if (Boolean.TRUE.equals(db.queryForObject(
-                    "SELECT EXISTS(SELECT FROM assessment_answer_audit WHERE attempt_id=? AND expires_at<=?)",
+                    "SELECT EXISTS(SELECT FROM assessment_answer_audit WHERE attempt_id=? AND expires_at<=?) OR EXISTS(SELECT FROM assessment_audit_positions WHERE attempt_id=? AND expired_history) OR EXISTS(SELECT FROM assessment_audit_pending WHERE attempt_id=? AND expires_at<=?)",
                     Boolean.class,
+                    attempt,
+                    Timestamp.from(time),
+                    attempt,
                     attempt,
                     Timestamp.from(time)))) reasons.add("EXPIRED");
             db.update(

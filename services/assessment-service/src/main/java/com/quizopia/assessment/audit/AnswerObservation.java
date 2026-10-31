@@ -109,6 +109,22 @@ public record AnswerObservation(
         }
     }
 
+    public static AnswerObservation parseCanonical(byte[] bytes) {
+        try {
+            if (bytes.length == 0 || bytes.length > 4096) throw invalid();
+            var tree = JSON.readTree(bytes);
+            var sequence = tree.path("sequence");
+            if (!tree.isObject() || !sequence.isString() || !sequence.asString().matches("0|[1-9][0-9]{0,18}"))
+                throw invalid();
+            ((tools.jackson.databind.node.ObjectNode) tree).put("sequence", Long.parseLong(sequence.asString()));
+            var result = parse(JSON.writeValueAsBytes(tree));
+            if (!java.security.MessageDigest.isEqual(bytes, result.canonical())) throw invalid();
+            return result;
+        } catch (RuntimeException invalid) {
+            throw invalid();
+        }
+    }
+
     public void validate(JsonNode question) {
         boolean answer = type.startsWith("ANSWER_");
         String kind = question.path("type").asString();

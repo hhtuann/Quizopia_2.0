@@ -13,11 +13,23 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Read-side canonical contract for synthetic SERVER_AUTHORITY facts. No automatic producer,
- * capture hook or runtime activation is implemented here.
+ * Strict canonical contract for committed server facts; never includes academic answer values.
  */
 public record ServerAuditFact(
-        UUID eventId, String type, Instant occurredAt, Integer questionNumber, String assessmentRevision) {
+        UUID eventId,
+        String type,
+        Instant occurredAt,
+        Integer questionNumber,
+        String assessmentRevision,
+        String operationKind,
+        String terminalReason,
+        UUID resultId,
+        UUID noticeId) {
+    public ServerAuditFact(
+            UUID eventId, String type, Instant occurredAt, Integer questionNumber, String assessmentRevision) {
+        this(eventId, type, occurredAt, questionNumber, assessmentRevision, null, null, null, null);
+    }
+
     private static final JsonMapper JSON = JsonMapper.builder()
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
@@ -46,7 +58,13 @@ public record ServerAuditFact(
                 || !TYPES.contains(type)
                 || occurredAt == null
                 || (questionNumber != null && questionNumber < 1)
-                || (assessmentRevision != null && !positive(assessmentRevision))) throw invalid();
+                || (assessmentRevision != null && !positive(assessmentRevision))
+                || (operationKind != null
+                        && !Set.of("START", "SAVE", "FINALIZATION", "ABANDON", "NOTICE_CONFIRMATION")
+                                .contains(operationKind))
+                || (terminalReason != null
+                        && !Set.of("MANUAL_SUBMIT", "BOUNDED_TIMEOUT", "TEACHER_NOTICE_CUTOFF", "STUDENT_ABANDON")
+                                .contains(terminalReason))) throw invalid();
         occurredAt = occurredAt.truncatedTo(ChronoUnit.MICROS);
     }
 
@@ -67,8 +85,10 @@ public record ServerAuditFact(
             var n = JSON.readTree(bytes);
             var required = Set.of(
                     "schemaVersion", "eventId", "source", "type", "occurredAt", "questionNumber", "assessmentRevision");
+            var extended = new java.util.HashSet<>(required);
+            extended.addAll(Set.of("operationKind", "terminalReason", "resultId", "noticeId"));
             if (!n.isObject()
-                    || !n.propertyNames().equals(required)
+                    || !(n.propertyNames().equals(required) || n.propertyNames().equals(extended))
                     || !n.path("schemaVersion").isIntegralNumber()
                     || !n.path("schemaVersion").canConvertToInt()
                     || n.path("schemaVersion").asInt() != 1
@@ -94,10 +114,21 @@ public record ServerAuditFact(
                     n.path("type").asString(),
                     Instant.parse(n.path("occurredAt").asString()),
                     question,
-                    revision);
+                    revision,
+                    optional(n, "operationKind"),
+                    optional(n, "terminalReason"),
+                    optional(n, "resultId") == null ? null : uuid(n.path("resultId")),
+                    optional(n, "noticeId") == null ? null : uuid(n.path("noticeId")));
         } catch (RuntimeException e) {
             throw invalid();
         }
+    }
+
+    private static String optional(JsonNode n, String field) {
+        var v = n.path(field);
+        if (v.isMissingNode() || v.isNull()) return null;
+        if (!v.isString()) throw invalid();
+        return v.asString();
     }
 
     public byte[] canonical() {
@@ -109,6 +140,10 @@ public record ServerAuditFact(
         value.put("occurredAt", occurredAt.toString());
         value.put("questionNumber", questionNumber);
         value.put("assessmentRevision", assessmentRevision);
+        value.put("operationKind", operationKind);
+        value.put("terminalReason", terminalReason);
+        value.put("resultId", resultId == null ? null : resultId.toString());
+        value.put("noticeId", noticeId == null ? null : noticeId.toString());
         return JSON.writeValueAsBytes(value);
     }
 

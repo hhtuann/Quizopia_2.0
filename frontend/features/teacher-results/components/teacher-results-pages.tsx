@@ -329,6 +329,14 @@ export function PublicationResultsSection({
                     {row.ordinal}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
+                    {row.state === "SUBMITTED" && row.result !== null ? (
+                      <Link
+                        className="mb-2 block font-sans font-semibold text-primary underline"
+                        href={`/app/assessments/${publicationId}/attempts/${row.attemptId}/review`}
+                      >
+                        {t("Review submitted attempt")}
+                      </Link>
+                    ) : null}
                     <Link
                       aria-label={t("Open monitoring for Attempt {attemptId}", {
                         attemptId: row.attemptId,
