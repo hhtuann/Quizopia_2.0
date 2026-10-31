@@ -1283,64 +1283,84 @@ describe("Authoritative Publication lifecycle", () => {
 });
 
 describe("Publication detail results-first layout (UX-04)", () => {
-  it("keeps details behind the configuration summary, removes redundant chips/global refresh and retains Results refresh for OPEN", async () => {
-    const api = client();
-    api.get.mockResolvedValue({ ok: true, value: opened });
-    renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
-    // Lifecycle controls remain present with identical labels.
-    expect(
-      await screen.findByRole("button", { name: "Review and CLOSE" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Attempt duration:")).not.toBeInTheDocument();
-    expect(screen.queryByText("Maximum Attempts:")).not.toBeInTheDocument();
-    expect(screen.queryByText("Audience:")).not.toBeInTheDocument();
-    expect(screen.queryByText("Monitoring:")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Refresh" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Maximum Attempts")).not.toBeInTheDocument();
-    // Collapsed by default (jsdom exposes no matchMedia): the disclosure
-    // keeps the full authoritative summary closed until it is toggled.
-    const disclosure = screen
-      .getByText("Configuration summary")
-      .closest("details");
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByText("Configuration summary"));
-    expect(disclosure).toHaveAttribute("open");
-    expect(
-      within(disclosure!).getByText("Maximum Attempts").parentElement,
-    ).toHaveTextContent("2");
-    fireEvent.click(screen.getByText("Configuration summary"));
-    expect(disclosure).not.toHaveAttribute("open");
-    // Results section is embedded and fetches its own rows.
-    expect(
-      screen.getByRole("heading", { name: "Results" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("No results yet")).toBeInTheDocument();
-    expect(resultsClient.results).toHaveBeenCalledWith(
-      id,
-      undefined,
-      expect.any(AbortSignal),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Refresh results" }));
-    await waitFor(() => expect(resultsClient.results).toHaveBeenCalledTimes(2));
-    // Results-first ordering: the embedded Results section (main column)
-    // precedes the sidebar configuration summary and lifecycle actions.
-    const summaryToggle = screen.getByText("Configuration summary");
-    const closeControl = screen.getByRole("button", {
-      name: "Review and CLOSE",
-    });
-    const resultsHeading = screen.getByRole("heading", { name: "Results" });
-    expect(
-      resultsHeading.compareDocumentPosition(summaryToggle) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      summaryToggle.compareDocumentPosition(closeControl) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
+  it.each(["immediate", "deferred"])(
+    "keeps details behind the configuration summary, removes redundant chips/global refresh and retains Results refresh for OPEN (%s Results)",
+    async (timing) => {
+      const api = client();
+      api.get.mockResolvedValue({ ok: true, value: opened });
+      const resultsRead = deferred<unknown>();
+      if (timing === "deferred")
+        resultsClient.results.mockReturnValueOnce(resultsRead.promise);
+      renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
+      // Lifecycle controls remain present with identical labels.
+      expect(
+        await screen.findByRole("button", { name: "Review and CLOSE" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Attempt duration:")).not.toBeInTheDocument();
+      expect(screen.queryByText("Maximum Attempts:")).not.toBeInTheDocument();
+      expect(screen.queryByText("Audience:")).not.toBeInTheDocument();
+      expect(screen.queryByText("Monitoring:")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Refresh" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Maximum Attempts"),
+      ).not.toBeInTheDocument();
+      // Collapsed by default (jsdom exposes no matchMedia): the disclosure
+      // keeps the full authoritative summary closed until it is toggled.
+      const disclosure = screen
+        .getByText("Configuration summary")
+        .closest("details");
+      expect(disclosure).not.toBeNull();
+      expect(disclosure).not.toHaveAttribute("open");
+      fireEvent.click(screen.getByText("Configuration summary"));
+      expect(disclosure).toHaveAttribute("open");
+      expect(
+        within(disclosure!).getByText("Maximum Attempts").parentElement,
+      ).toHaveTextContent("2");
+      fireEvent.click(screen.getByText("Configuration summary"));
+      expect(disclosure).not.toHaveAttribute("open");
+      // Results section is embedded and fetches its own rows.
+      expect(
+        screen.getByRole("heading", { name: "Results" }),
+      ).toBeInTheDocument();
+      if (timing === "deferred") {
+        expect(screen.getByText("Loading attempts…")).toBeInTheDocument();
+        expect(screen.queryByText("No results yet")).not.toBeInTheDocument();
+        resultsRead.resolve({
+          ok: true,
+          status: 200,
+          value: { items: [], nextCursor: null },
+        });
+      }
+      // Lifecycle controls do not signal completion of the independent Results read.
+      expect(await screen.findByText("No results yet")).toBeInTheDocument();
+      expect(resultsClient.results).toHaveBeenCalledWith(
+        id,
+        undefined,
+        expect.any(AbortSignal),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Refresh results" }));
+      await waitFor(() =>
+        expect(resultsClient.results).toHaveBeenCalledTimes(2),
+      );
+      // Results-first ordering: the embedded Results section (main column)
+      // precedes the sidebar configuration summary and lifecycle actions.
+      const summaryToggle = screen.getByText("Configuration summary");
+      const closeControl = screen.getByRole("button", {
+        name: "Review and CLOSE",
+      });
+      const resultsHeading = screen.getByRole("heading", { name: "Results" });
+      expect(
+        resultsHeading.compareDocumentPosition(summaryToggle) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        summaryToggle.compareDocumentPosition(closeControl) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
 
   it("keeps the DRAFT detail management-first with the full configuration and no embedded results", async () => {
     const api = client();
