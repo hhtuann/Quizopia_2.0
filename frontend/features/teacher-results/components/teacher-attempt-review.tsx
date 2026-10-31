@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../auth/auth-provider";
@@ -7,16 +8,78 @@ import { ApplicationShell } from "../../../components/shell/application-shell";
 import { Button } from "../../../components/ui/button";
 import { Surface } from "../../../components/ui/surface";
 import { Alert } from "../../../components/ui/alert";
+import { StateBadge } from "../../../components/ui/state-badge";
 import { useI18n } from "../../../lib/i18n/provider";
 import { formatInstant, formatDecimal } from "../../../lib/i18n/core";
 import { AnswerSummary } from "../../attempts/components/answer-fields";
 import { observationClient } from "../../attempts/audit/observation-client";
 import type {
+  AuditItem,
   AuditTimeline,
   TeacherAttemptReview,
 } from "../api/teacher-assessment-contract.generated";
 
-/** Narrow submitted-review surface for T2; no Unified Dashboard or live-answer viewer. */
+const auditSourceLabels: Record<AuditItem["source"], string> = {
+  SERVER_AUTHORITY: "Server record",
+  CLIENT_OBSERVATION: "Browser report",
+};
+
+const auditSourceVariants: Record<AuditItem["source"], "info" | "neutral"> = {
+  SERVER_AUTHORITY: "info",
+  CLIENT_OBSERVATION: "neutral",
+};
+
+const auditTypeLabels: Record<AuditItem["type"], string> = {
+  ATTEMPT_STARTED: "Attempt started",
+  ANSWER_PERSISTED: "Answer saved",
+  ATTEMPT_SUBMITTED: "Attempt submitted",
+  ATTEMPT_ABANDONED: "Attempt abandoned",
+  CLOSURE_NOTICE_CONFIRMED: "Closure notice confirmed",
+  RESULT_GRADED: "Result graded",
+  QUESTION_VIEWED: "Question opened",
+  QUESTION_LEFT: "Question left",
+  ANSWER_SELECTED: "Answer selected",
+  ANSWER_CHANGED: "Answer changed",
+  ANSWER_CLEARED: "Answer cleared",
+};
+
+const coverageReasonLabels: Record<
+  AuditTimeline["coverage"]["reasons"][number],
+  string
+> = {
+  COLLECTION_OFF: "Optional collection is off",
+  LEGACY: "Earlier attempts have no history",
+  UNSUPPORTED_TYPE: "Some question types have no detail",
+  CLIENT_GAP: "Some browser reports are missing",
+  EXPIRED: "Some history has expired",
+};
+
+const transitionStatusLabels: Record<
+  AuditItem["transitionDetailStatus"],
+  string
+> = {
+  AVAILABLE: "Detail available",
+  UNSUPPORTED_TYPE: "No detail for this question type",
+  MISSING: "Detail missing",
+  EXPIRED: "Detail expired",
+  NOT_APPLICABLE: "No answer detail applies",
+};
+
+type ReviewFailure =
+  | { readonly kind: "policy" }
+  | { readonly kind: "denied" }
+  | { readonly kind: "state" }
+  | { readonly kind: "unavailable" };
+
+function classifyFailure(status: number, code: string | null): ReviewFailure {
+  if (status === 503 && code === "SENSITIVE_POLICY_PENDING")
+    return { kind: "policy" };
+  if (status === 403 || status === 401) return { kind: "denied" };
+  if (status === 409 || status === 404) return { kind: "state" };
+  return { kind: "unavailable" };
+}
+
+/** Narrow submitted-review surface; no live-answer viewer and no camera embedding. */
 export function TeacherAttemptReviewPage({
   publicationId,
   attemptId,
@@ -63,6 +126,7 @@ export function TeacherAttemptReviewPage({
     </AuthenticatedBoundary>
   );
 }
+
 export function ReviewContent({
   client,
   publicationId,
@@ -70,10 +134,11 @@ export function ReviewContent({
   readonly client: ReturnType<typeof observationClient>;
   readonly publicationId: string;
 }) {
-  const { t, locale } = useI18n();
+  const { t, localize, locale } = useI18n();
   const [view, setView] = useState<TeacherAttemptReview | null>(null),
     [timeline, setTimeline] = useState<AuditTimeline | null>(null),
-    [failed, setFailed] = useState(false),
+    [failed, setFailed] = useState<ReviewFailure | null>(null),
+    [timelineFailed, setTimelineFailed] = useState<ReviewFailure | null>(null),
     [busy, setBusy] = useState(false);
   const lifetime = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -81,15 +146,55 @@ export function ReviewContent({
     lifetime.current = controller;
     return () => controller.abort();
   }, []);
+
+  function failureAlert(kind: ReviewFailure, title: string) {
+    if (kind.kind === "policy")
+      return (
+        <Alert title={title} variant="warning">
+          {t(
+            "Sensitive review is not available in this environment. Nothing is shown.",
+          )}
+        </Alert>
+      );
+    if (kind.kind === "denied")
+      return (
+        <Alert title={title} variant="warning">
+          {t(
+            "This attempt is not available to your account. Check that you still own this assessment.",
+          )}
+        </Alert>
+      );
+    if (kind.kind === "state")
+      return (
+        <Alert title={title} variant="warning">
+          {t(
+            "Only submitted and graded attempts can be reviewed here. Retakes in progress and abandoned attempts stay closed.",
+          )}
+        </Alert>
+      );
+    return (
+      <Alert title={title} variant="warning">
+        {t(
+          "The review could not be read right now. No protected content is shown; try again.",
+        )}
+      </Alert>
+    );
+  }
+
   async function read() {
     const controller = lifetime.current;
     if (controller === null || controller.signal.aborted) return;
     setBusy(true);
     const result = await client.review(controller.signal);
     if (controller.signal.aborted) return;
-    setView(result);
-    setTimeline(null);
-    setFailed(result === null);
+    if (result.ok) {
+      setView(result.value);
+      setFailed(null);
+    } else {
+      setView(null);
+      setTimeline(null);
+      setFailed(classifyFailure(result.status, result.code));
+    }
     setBusy(false);
   }
   async function page(after: string) {
@@ -98,11 +203,13 @@ export function ReviewContent({
     setBusy(true);
     const result = await client.timeline(after, controller.signal);
     if (controller.signal.aborted) return;
-    if (result === null) {
-      setView(null);
+    if (result.ok) {
+      setTimeline(result.value);
+      setTimelineFailed(null);
+    } else {
       setTimeline(null);
-      setFailed(true);
-    } else setTimeline(result);
+      setTimelineFailed(classifyFailure(result.status, result.code));
+    }
     setBusy(false);
   }
   return (
@@ -111,7 +218,7 @@ export function ReviewContent({
         className="text-sm font-semibold text-primary underline"
         href={`/app/assessments/${publicationId}/results`}
       >
-        {t("Back to Publication details")}
+        {t("Back to student results")}
       </Link>
       <h1 className="font-heading text-2xl font-bold">
         {t("Submitted Attempt review")}
@@ -124,13 +231,9 @@ export function ReviewContent({
       <Button disabled={busy} onClick={() => void read()}>
         {t("Read submitted work")}
       </Button>
-      {failed ? (
-        <Alert title={t("Answer review unavailable")} variant="warning">
-          {t(
-            "No protected content is available. Check your current access or try again.",
-          )}
-        </Alert>
-      ) : null}
+      {failed !== null
+        ? failureAlert(failed, t("Answer review unavailable"))
+        : null}
       {view === null ? null : (
         <>
           <p>
@@ -183,6 +286,9 @@ export function ReviewContent({
           </Button>
         </>
       )}
+      {timelineFailed !== null
+        ? failureAlert(timelineFailed, t("Interaction timeline unavailable"))
+        : null}
       {timeline === null ? null : (
         <Surface
           className="space-y-3 p-5"
@@ -193,11 +299,14 @@ export function ReviewContent({
           </h2>
           <p>
             {t(
-              "History may be incomplete. Missing observations do not prove that an action did not happen.",
+              "Server records are trusted facts. Browser reports are optional claims and never proof of misconduct; history may be incomplete.",
             )}
           </p>
           <p className="text-sm">
-            {timeline.coverage.status} · {timeline.coverage.reasons.join(" · ")}
+            {timeline.coverage.status} ·{" "}
+            {timeline.coverage.reasons
+              .map((reason) => localize(coverageReasonLabels[reason]))
+              .join(" · ")}
           </p>
           <ol className="space-y-3">
             {timeline.items.map((item) => (
@@ -207,14 +316,24 @@ export function ReviewContent({
                     {t("Question {number}", { number: item.questionNumber })}
                   </p>
                 )}
-                <p>
-                  {item.source} · {item.type}
-                  {item.terminalReason ? ` · ${item.terminalReason}` : ""}
+                <p className="flex flex-wrap items-center gap-2">
+                  <StateBadge variant={auditSourceVariants[item.source]}>
+                    {localize(auditSourceLabels[item.source])}
+                  </StateBadge>
+                  <span className="font-semibold">
+                    {localize(auditTypeLabels[item.type])}
+                  </span>
+                  {item.terminalReason ? (
+                    <span className="text-sm text-foreground-secondary">
+                      {item.terminalReason}
+                    </span>
+                  ) : null}
                 </p>
                 <p className="text-sm">
-                  {t("Received")}: {formatInstant(locale, item.receivedAt)}
+                  {t("Server received")}:{" "}
+                  {formatInstant(locale, item.receivedAt)}
                   {item.occurredAt
-                    ? ` · ${t("Occurred")}: ${formatInstant(locale, item.occurredAt)}`
+                    ? ` · ${t("Recorded at")}: ${formatInstant(locale, item.occurredAt)}`
                     : ""}
                   {item.observedAt
                     ? ` · ${t("Browser reported")}: ${formatInstant(locale, item.observedAt)}`
@@ -226,7 +345,11 @@ export function ReviewContent({
                     {item.transition.toOptionLabels.join(", ") || "∅"}
                   </p>
                 ) : (
-                  <p className="text-sm">{item.transitionDetailStatus}</p>
+                  <p className="text-sm">
+                    {localize(
+                      transitionStatusLabels[item.transitionDetailStatus],
+                    )}
+                  </p>
                 )}
               </li>
             ))}

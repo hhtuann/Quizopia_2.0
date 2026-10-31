@@ -268,6 +268,52 @@ test("fictional Teacher publishes and reviews OPEN work; opted-in and declined S
       (await student.request(`/api/assessments/attempts/${attempt}/review`))
         .status,
     ).toBe(200);
+
+    // W4F-T3 unified dashboard journey on the real stack: the teacher opens
+    // the student-centric results route and sees server aggregates — distinct
+    // counters, the exact 20-bin histogram with the single 10.00 best score,
+    // one directory row with two attempts (graded submission + abandoned
+    // retake) and gated review/evidence links.
+    await teacherPage.goto(`/app/assessments/${pub}/results`);
+    // The results workspace belongs to Teaching; switch once if this actor
+    // still sits in the default Learning persona, then wait for the dashboard.
+    const switchToTeaching = teacherPage.getByRole("button", {
+      name: "Switch to Teaching workspace",
+    });
+    await switchToTeaching
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .then(() => switchToTeaching.click())
+      .catch(() => {});
+    await expect(
+      teacherPage.getByRole("heading", { name: `Fictional ${audience} demo` }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(teacherPage.getByText("Total participants")).toBeVisible();
+    const scoreTable = teacherPage.getByRole("region", {
+      name: "Score distribution table",
+    });
+    await expect(scoreTable).toBeVisible();
+    await expect(
+      scoreTable.getByRole("row", { name: /9\.5 – 10\s*1/ }),
+    ).toBeVisible();
+    await expect(teacherPage.getByText("100.00%").first()).toBeVisible();
+    await teacherPage.getByRole("button", { name: "View attempts" }).click();
+    const history = teacherPage.getByRole("region", {
+      name: "Attempt history table",
+    });
+    await expect(history).toBeVisible();
+    await expect(history.getByText("Best attempt")).toBeVisible();
+    await expect(
+      history.getByRole("link", { name: "Review submitted work" }),
+    ).toBeVisible();
+    await expect(history.getByText("Student abandoned")).toBeVisible();
+    for (const width of [375, 768, 1280, 1920]) {
+      await teacherPage.setViewportSize({ width, height: 900 });
+      expect(
+        await teacherPage.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
   }
   expect(pubIds.length).toBe(2);
   await teacherPage.close();

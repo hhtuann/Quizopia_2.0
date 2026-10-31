@@ -124,6 +124,12 @@ export interface AssessmentRequestInput<T> {
   readonly body?: unknown;
   readonly key?: string;
   readonly query?: PageQuery;
+  /**
+   * Additional strictly allowlisted GET query parameters beyond paging, for
+   * example the aggregate directory's status/sort/direction filters. Callers
+   * validate values against their own contract schemas before passing them.
+   */
+  readonly search?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
   /** Extra success statuses beyond 200 (for example 201 creation and 202 accepted progress). */
   readonly successStatuses?: readonly number[];
@@ -141,19 +147,27 @@ export function createAssessmentRequester(options: {
 }): AssessmentRequester {
   const boundGeneration = options.getSessionGeneration();
 
-  function buildQuery(query: PageQuery | undefined): string {
-    if (query === undefined) return "";
+  function buildQuery(
+    query: PageQuery | undefined,
+    search?: Readonly<Record<string, string>>,
+  ): string {
     const parameters = new URLSearchParams();
-    if (query.limit !== undefined) {
-      if (!pageLimitSchema.safeParse(query.limit).success)
-        throw new TypeError("Invalid page limit.");
-      parameters.set("limit", String(query.limit));
+    if (query !== undefined) {
+      if (query.limit !== undefined) {
+        if (!pageLimitSchema.safeParse(query.limit).success)
+          throw new TypeError("Invalid page limit.");
+        parameters.set("limit", String(query.limit));
+      }
+      if (query.cursor !== undefined) {
+        if (!opaqueCursorSchema.safeParse(query.cursor).success)
+          throw new TypeError("Invalid opaque cursor.");
+        // The cursor is opaque: pass it through without decoding or alteration.
+        parameters.set("cursor", query.cursor);
+      }
     }
-    if (query.cursor !== undefined) {
-      if (!opaqueCursorSchema.safeParse(query.cursor).success)
-        throw new TypeError("Invalid opaque cursor.");
-      // The cursor is opaque: pass it through without decoding or alteration.
-      parameters.set("cursor", query.cursor);
+    if (search !== undefined) {
+      for (const [key, value] of Object.entries(search))
+        parameters.set(key, value);
     }
     const encoded = parameters.toString();
     return encoded.length === 0 ? "" : `?${encoded}`;
@@ -171,7 +185,7 @@ export function createAssessmentRequester(options: {
 
     let suffix: string;
     try {
-      suffix = `${input.path}${buildQuery(input.query)}`;
+      suffix = `${input.path}${buildQuery(input.query, input.search)}`;
     } catch {
       return failed({ kind: "invalid-input" });
     }

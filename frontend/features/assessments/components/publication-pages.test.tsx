@@ -34,13 +34,15 @@ const authRuntime = createSessionRuntime(createAccessTokenVault());
 vi.mock("../../classrooms/use-classroom-client", () => ({
   useClassroomClient: () => null,
 }));
-// The embedded PublicationResultsSection fetches through this hook; stub it
-// so detail-screen tests control results without a live auth executor.
-const resultsClient = vi.hoisted(() => ({
-  results: vi.fn(),
+// The embedded unified student dashboard fetches through this hook; stub it
+// so detail-screen tests control aggregates without a live auth executor.
+const dashboardClient = vi.hoisted(() => ({
+  studentOverview: vi.fn(),
+  students: vi.fn(),
+  studentHistory: vi.fn(),
 }));
-vi.mock("../../teacher-results/hooks/use-teacher-results-client", () => ({
-  useTeacherResultsClient: () => resultsClient,
+vi.mock("../../teacher-results/hooks/use-teacher-dashboard-client", () => ({
+  useTeacherDashboardClient: () => dashboardClient,
 }));
 const authStub: AuthSessionService = {
   authenticatedRequests: {
@@ -174,11 +176,40 @@ function quizzes(): QuizApiClient {
 
 beforeEach(() => {
   navigation.push.mockClear();
-  resultsClient.results.mockReset();
-  resultsClient.results.mockResolvedValue({
+  dashboardClient.studentOverview.mockReset();
+  dashboardClient.students.mockReset();
+  dashboardClient.studentHistory.mockReset();
+  dashboardClient.studentOverview.mockResolvedValue({
     ok: true,
     status: 200,
-    value: { items: [], nextCursor: null },
+    value: {
+      publicationId: id,
+      asOf: "2026-10-30T11:00:00Z",
+      activeStudentCount: "0",
+      submittedStudentCount: "0",
+      participatedStudentCount: "0",
+      gradedStudentCount: "0",
+      bestScore: null,
+      averageBestScore: null,
+      scoreBins: Array.from({ length: 20 }, (_, index) => ({
+        index,
+        lowerBound: (index / 2).toString(),
+        upperBound: ((index + 1) / 2).toString(),
+        lowerInclusive: index === 0,
+        upperInclusive: true as const,
+        count: "0",
+      })),
+    },
+  });
+  dashboardClient.students.mockResolvedValue({
+    ok: true,
+    status: 200,
+    value: {
+      publicationId: id,
+      asOf: "2026-10-30T11:00:00Z",
+      items: [],
+      nextCursor: null,
+    },
   });
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
@@ -1284,13 +1315,27 @@ describe("Authoritative Publication lifecycle", () => {
 
 describe("Publication detail results-first layout (UX-04)", () => {
   it.each(["immediate", "deferred"])(
-    "keeps details behind the configuration summary, removes redundant chips/global refresh and retains Results refresh for OPEN (%s Results)",
+    "keeps details behind the configuration summary, removes redundant chips/global refresh and retains the unified dashboard refresh for OPEN (%s dashboard)",
     async (timing) => {
       const api = client();
       api.get.mockResolvedValue({ ok: true, value: opened });
-      const resultsRead = deferred<unknown>();
-      if (timing === "deferred")
-        resultsClient.results.mockReturnValueOnce(resultsRead.promise);
+      const studentsRead = deferred<unknown>();
+      if (timing === "deferred") {
+        dashboardClient.students.mockReset();
+        // Keep a base success for later refreshes; the first read stays pending
+        // so the loading state is asserted before it resolves.
+        dashboardClient.students.mockResolvedValue({
+          ok: true,
+          status: 200,
+          value: {
+            publicationId: id,
+            asOf: "2026-10-30T11:01:00Z",
+            items: [],
+            nextCursor: null,
+          },
+        });
+        dashboardClient.students.mockReturnValueOnce(studentsRead.promise);
+      }
       renderDetail(<PublicationDetailScreen client={api} publicationId={id} />);
       // Lifecycle controls remain present with identical labels.
       expect(
@@ -1320,37 +1365,44 @@ describe("Publication detail results-first layout (UX-04)", () => {
       ).toHaveTextContent("2");
       fireEvent.click(screen.getByText("Configuration summary"));
       expect(disclosure).not.toHaveAttribute("open");
-      // Results section is embedded and fetches its own rows.
+      // The unified student dashboard is embedded and fetches its own pages.
       expect(
-        screen.getByRole("heading", { name: "Results" }),
+        screen.getByRole("heading", { name: "Student results" }),
       ).toBeInTheDocument();
       if (timing === "deferred") {
-        expect(screen.getByText("Loading attempts…")).toBeInTheDocument();
-        expect(screen.queryByText("No results yet")).not.toBeInTheDocument();
-        resultsRead.resolve({
+        expect(screen.getByText("Loading students…")).toBeInTheDocument();
+        expect(screen.queryByText("No students yet")).not.toBeInTheDocument();
+        studentsRead.resolve({
           ok: true,
           status: 200,
-          value: { items: [], nextCursor: null },
+          value: {
+            publicationId: id,
+            asOf: "2026-10-30T11:00:00Z",
+            items: [],
+            nextCursor: null,
+          },
         });
       }
-      // Lifecycle controls do not signal completion of the independent Results read.
-      expect(await screen.findByText("No results yet")).toBeInTheDocument();
-      expect(resultsClient.results).toHaveBeenCalledWith(
+      // Lifecycle controls do not signal completion of the independent reads.
+      expect(await screen.findByText("No students yet")).toBeInTheDocument();
+      expect(dashboardClient.students).toHaveBeenCalledWith(
         id,
-        undefined,
+        expect.objectContaining({ limit: 20 }),
         expect.any(AbortSignal),
       );
       fireEvent.click(screen.getByRole("button", { name: "Refresh results" }));
       await waitFor(() =>
-        expect(resultsClient.results).toHaveBeenCalledTimes(2),
+        expect(dashboardClient.students).toHaveBeenCalledTimes(2),
       );
-      // Results-first ordering: the embedded Results section (main column)
-      // precedes the sidebar configuration summary and lifecycle actions.
+      // Results-first ordering: the embedded dashboard (main column) precedes
+      // the sidebar configuration summary and lifecycle actions.
       const summaryToggle = screen.getByText("Configuration summary");
       const closeControl = screen.getByRole("button", {
         name: "Review and CLOSE",
       });
-      const resultsHeading = screen.getByRole("heading", { name: "Results" });
+      const resultsHeading = screen.getByRole("heading", {
+        name: "Student results",
+      });
       expect(
         resultsHeading.compareDocumentPosition(summaryToggle) &
           Node.DOCUMENT_POSITION_FOLLOWING,
@@ -1372,9 +1424,9 @@ describe("Publication detail results-first layout (UX-04)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Source version")).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Results" }),
+      screen.queryByRole("heading", { name: "Student results" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("No results yet")).not.toBeInTheDocument();
-    expect(resultsClient.results).not.toHaveBeenCalled();
+    expect(screen.queryByText("No students yet")).not.toBeInTheDocument();
+    expect(dashboardClient.students).not.toHaveBeenCalled();
   });
 });

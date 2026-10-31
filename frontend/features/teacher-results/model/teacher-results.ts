@@ -1,19 +1,11 @@
 import { z } from "zod";
-import type {
-  Result,
-  TeacherResultRow,
-  TeacherResults as TeacherResultsContract,
-} from "../../assessments/api/publication-contract.generated";
+import type { Result } from "../../assessments/api/publication-contract.generated";
 import {
   canonicalUuid,
   instantSchema,
 } from "../../assessments/model/publication";
 
-export type {
-  Result,
-  TeacherResultRow,
-} from "../../assessments/api/publication-contract.generated";
-export type { TeacherResults } from "../../assessments/api/publication-contract.generated";
+export type { Result } from "../../assessments/api/publication-contract.generated";
 
 /**
  * Exact decimal-string wire forms. Ordinals, earned and possible weights are
@@ -58,67 +50,22 @@ export const resultSchema = z
   })
   .strict() satisfies z.ZodType<Result>;
 
-export const teacherResultRowSchema = z
-  .object({
-    attemptId: canonicalUuid,
-    studentId: canonicalUuid,
-    ordinal: ordinalSchema,
-    state: z.enum(["ACTIVE", "SUBMITTED", "ABANDONED"]),
-    studentName: z.string().min(1).max(255).nullish(),
-    result: resultSchema.nullable(),
-  })
-  .strict()
-  .superRefine((row, context) => {
-    if (
-      row.result !== null &&
-      (row.result.attemptId !== row.attemptId ||
-        row.result.ordinal !== row.ordinal)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["result"],
-        message: "Result identity must match its Attempt row.",
-      });
-    }
-    if (row.state !== "SUBMITTED" && row.result !== null) {
-      context.addIssue({
-        code: "custom",
-        path: ["result"],
-        message: "ACTIVE and ABANDONED Attempt rows cannot contain a Result.",
-      });
-    }
-  }) satisfies z.ZodType<TeacherResultRow>;
+export type AttemptState = "ACTIVE" | "SUBMITTED" | "ABANDONED";
 
-export const teacherResultsSchema = z
-  .object({
-    items: z.array(teacherResultRowSchema).max(100),
-    nextCursor: z.string().min(1).max(1024).nullable(),
-  })
-  .strict() satisfies z.ZodType<TeacherResultsContract>;
-
-export const attemptStateLabels: Record<TeacherResultRow["state"], string> = {
+export const attemptStateLabels: Record<AttemptState, string> = {
   ACTIVE: "Active",
   SUBMITTED: "Submitted",
   ABANDONED: "Abandoned",
 };
 
 export const attemptStateVariants: Record<
-  TeacherResultRow["state"],
+  AttemptState,
   "info" | "success" | "neutral"
 > = {
   ACTIVE: "info",
   SUBMITTED: "success",
   ABANDONED: "neutral",
 };
-
-/**
- * Exact totals: earned/possible are rendered as their original decimal
- * strings, never converted to a floating-point number.
- */
-export function formatWeightTotal(row: TeacherResultRow): string | null {
-  if (row.result === null) return null;
-  return `${row.result.earnedWeight} / ${row.result.possibleWeight}`;
-}
 
 export const terminalReasonLabels: Record<Result["terminalReason"], string> = {
   MANUAL_SUBMIT: "Manual submission",

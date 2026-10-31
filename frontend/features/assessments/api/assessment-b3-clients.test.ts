@@ -16,11 +16,8 @@ import {
   cutoffRemainingGuidance,
   notificationSchema,
 } from "../../notifications/model/notification";
-import { createTeacherResultsApiClient } from "../../teacher-results/api/teacher-results-api-client";
-import {
-  formatWeightTotal,
-  teacherResultRowSchema,
-} from "../../teacher-results/model/teacher-results";
+import { createTeacherDashboardApiClient } from "../../teacher-results/api/teacher-dashboard-api-client";
+import { teacherAttemptSummarySchema } from "../../teacher-results/model/teacher-dashboard";
 
 const publicationId = "e7b14962-3a2e-4d2d-926a-3b36ea90c199";
 const closureRequestId = "f7b14962-3a2e-4d2d-926a-3b36ea90c198";
@@ -113,7 +110,7 @@ function harness(initialGeneration = 1) {
   return {
     closureClient: createClosureApiClient(options),
     notificationClient: createNotificationApiClient(options),
-    resultsClient: createTeacherResultsApiClient(options),
+    dashboardClient: createTeacherDashboardApiClient(options),
     requests,
     replies,
     setGeneration(next: number | null) {
@@ -299,44 +296,71 @@ describe("W3-B3 Assessment clients", () => {
 
   it("preserves exact decimal result strings and rejects answer-key leakage", async () => {
     const test = harness();
+    const studentRow = {
+      studentId,
+      studentName: null,
+      attemptCount: "1",
+      gradedAttemptCount: "1",
+      hasActive: false,
+      hasSubmitted: true,
+      latestAttempt: {
+        attemptId,
+        ordinal: result.ordinal,
+        state: "SUBMITTED",
+        startedAt: "2026-10-16T09:00:00Z",
+        deadlineAt: null,
+        finalizedAt: "2026-10-16T09:20:00Z",
+        terminalReason: "MANUAL_SUBMIT",
+        result,
+        teacherReviewAvailable: true,
+      },
+      latestGradedResult: result,
+      bestResult: result,
+      averageResult: {
+        sumEarnedWeight: "12345678901234567890.125",
+        sumPossibleWeight: "12345678901234567891",
+        gradedAttemptCount: "1",
+        scoreDisplay: "10.00",
+      },
+    };
     test.replies.push(
       response(200, {
-        items: [
-          {
-            attemptId,
-            studentId,
-            ordinal: result.ordinal,
-            state: "SUBMITTED",
-            result,
-          },
-        ],
+        publicationId,
+        asOf: "2026-10-16T09:30:00Z",
+        items: [studentRow],
         nextCursor: "next.cursor",
       }),
       response(200, {
+        publicationId,
+        asOf: "2026-10-16T09:31:00Z",
         items: [
           {
-            attemptId,
-            studentId,
-            ordinal: "1",
-            state: "SUBMITTED",
-            result: { ...result, ordinal: "1", correctAnswer: "forbidden" },
+            ...studentRow,
+            latestAttempt: {
+              ...studentRow.latestAttempt,
+              correctAnswer: "forbidden",
+            },
           },
         ],
         nextCursor: null,
       }),
     );
-    const accepted = await test.resultsClient.results(publicationId);
+    const accepted = await test.dashboardClient.students(publicationId);
     expect(accepted).toMatchObject({ ok: true });
     if (accepted.ok) {
-      expect(accepted.value.items[0]?.ordinal).toBe("9007199254740993");
-      expect(accepted.value.items[0]?.result?.earnedWeight).toBe(
+      expect(accepted.value.items[0]?.latestAttempt.ordinal).toBe(
+        "9007199254740993",
+      );
+      expect(accepted.value.items[0]?.bestResult?.earnedWeight).toBe(
         "12345678901234567890.125",
       );
     }
-    await expect(test.resultsClient.results(publicationId)).resolves.toEqual({
-      ok: false,
-      error: { kind: "invalid-response", status: 200 },
-    });
+    await expect(test.dashboardClient.students(publicationId)).resolves.toEqual(
+      {
+        ok: false,
+        error: { kind: "invalid-response", status: 200 },
+      },
+    );
   });
 });
 
@@ -404,66 +428,62 @@ describe("W3-B3 projection invariants", () => {
   });
 
   it("allows nullable unfinalized results and rejects contradictory ACTIVE scores", () => {
-    const active = teacherResultRowSchema.parse({
+    const activeAttempt = {
       attemptId,
-      studentId,
       ordinal: "1",
       state: "ACTIVE",
+      startedAt: "2026-10-16T09:00:00Z",
+      deadlineAt: "2026-10-16T09:30:00Z",
+      finalizedAt: null,
+      terminalReason: null,
       result: null,
-    });
-    expect(formatWeightTotal(active)).toBeNull();
+      teacherReviewAvailable: false,
+    };
+    const active = teacherAttemptSummarySchema.parse(activeAttempt);
+    expect(active.result).toBeNull();
     expect(
-      teacherResultRowSchema.safeParse({ ...active, result }).success,
+      teacherAttemptSummarySchema.safeParse({
+        ...activeAttempt,
+        result,
+      }).success,
     ).toBe(false);
-    const submitted = teacherResultRowSchema.parse({
+    const submitted = teacherAttemptSummarySchema.parse({
       attemptId,
-      studentId,
       ordinal: result.ordinal,
       state: "SUBMITTED",
+      startedAt: "2026-10-16T09:00:00Z",
+      deadlineAt: null,
+      finalizedAt: "2026-10-16T09:20:00Z",
+      terminalReason: "MANUAL_SUBMIT",
       result,
+      teacherReviewAvailable: true,
     });
-    expect(formatWeightTotal(submitted)).toBe(
-      "12345678901234567890.125 / 12345678901234567891",
-    );
+    expect(submitted.result?.earnedWeight).toBe("12345678901234567890.125");
   });
 
   it("rejects Teacher result ordinals above the signed 64-bit contract bound", () => {
+    const attempt = (ordinal: string) => ({
+      attemptId,
+      ordinal,
+      state: "ACTIVE" as const,
+      startedAt: "2026-10-16T09:00:00Z",
+      deadlineAt: null,
+      finalizedAt: null,
+      terminalReason: null,
+      result: null,
+      teacherReviewAvailable: false,
+    });
     expect(
-      teacherResultRowSchema.safeParse({
-        attemptId,
-        studentId,
-        ordinal: "9223372036854775808",
-        state: "ACTIVE",
-        result: null,
-      }).success,
+      teacherAttemptSummarySchema.safeParse(attempt("9223372036854775808"))
+        .success,
     ).toBe(false);
     expect(
-      teacherResultRowSchema.safeParse({
-        attemptId,
-        studentId,
-        ordinal: "9223372036854775807",
-        state: "ACTIVE",
-        result: null,
-      }).success,
+      teacherAttemptSummarySchema.safeParse(attempt("9223372036854775807"))
+        .success,
     ).toBe(true);
-    for (const malformed of ["abc", "1.2", "1e3", ""]) {
-      expect(() =>
-        teacherResultRowSchema.safeParse({
-          attemptId,
-          studentId,
-          ordinal: malformed,
-          state: "ACTIVE",
-          result: null,
-        }),
-      ).not.toThrow();
+    for (const malformed of ["abc", "1.2", "1e3", "", "0"]) {
       expect(
-        teacherResultRowSchema.safeParse({
-          attemptId,
-          studentId,
-          ordinal: malformed,
-          state: "ACTIVE",
-          result: null,
-        }).success,
+        teacherAttemptSummarySchema.safeParse(attempt(malformed)).success,
       ).toBe(false);
     }
   });
