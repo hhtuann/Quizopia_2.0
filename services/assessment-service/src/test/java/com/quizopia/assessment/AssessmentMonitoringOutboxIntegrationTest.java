@@ -151,8 +151,11 @@ class AssessmentMonitoringOutboxIntegrationTest {
         }
     }
 
-    @Test
+    @RepeatedTest(5)
     void changedAnswersCommitWithMinimalMetadataIdenticalSaveDoesNotCreateAnotherFact() {
+        // Regression: both numeric-answer substrings legitimately occur in metadata.
+        // Non-disclosure is structural/typed, never a search over random UUID digits.
+        f.student = UUID.fromString("00020001-1111-4111-8111-111111111111");
         var p = monitored(5);
         var a = f.active(p, 5);
         save(a, 4, answer("0001"), 1);
@@ -179,6 +182,7 @@ class AssessmentMonitoringOutboxIntegrationTest {
                             "revision"),
                     json.propertyNames());
             assertEquals("ASSESSMENT_ANSWER_PERSISTED", json.path("eventType").asString());
+            assertTrue(json.path("eventVersion").isIntegralNumber());
             assertEquals(1, json.path("eventVersion").asInt());
             assertTrue(json.path("revision").isString());
             assertEquals(a.toString(), json.path("attemptId").asString());
@@ -187,8 +191,22 @@ class AssessmentMonitoringOutboxIntegrationTest {
                     json.path("classroomId").asString());
             assertEquals(f.student.toString(), json.path("studentId").asString());
             assertEquals(row.id().toString(), json.path("eventId").asString());
-            assertFalse(body.contains("0001"));
-            assertFalse(body.contains("0002"));
+            assertTrue(body.contains("0001"));
+            assertTrue(body.contains("0002"));
+            assertEquals(p.publication().toString(), json.path("publicationId").asString());
+            assertTrue(json.path("questionNumber").isIntegralNumber());
+            assertEquals(4, json.path("questionNumber").asInt());
+            assertTrue(Set.of("1", "3").contains(json.path("revision").asString()));
+            for (String field : List.of("eventId", "attemptId", "publicationId", "classroomId", "studentId")) {
+                assertTrue(json.path(field).isString());
+                assertEquals(
+                        UUID.fromString(json.path(field).asString()).toString(),
+                        json.path(field).asString());
+            }
+            for (String field : List.of("occurredAt", "attemptStartedAt", "deadlineAt")) {
+                assertTrue(json.path(field).isString());
+                assertNotNull(Instant.parse(json.path(field).asString()));
+            }
             assertFalse(body.contains("private source marker"));
             assertFalse(body.contains("answerDigest"));
         }
@@ -388,13 +406,13 @@ class AssessmentMonitoringOutboxIntegrationTest {
                 .schemas(schema)
                 .defaultSchema(schema)
                 .load();
-        assertEquals(6, upgraded.migrate().migrationsExecuted);
+        assertEquals(7, upgraded.migrate().migrationsExecuted);
         assertEquals(
                 old,
                 db.queryForList(
                         "SELECT version,checksum FROM " + schema
                                 + ".flyway_schema_history WHERE version IS NOT NULL AND version<>'6' AND version<>'7'"
-                                + " AND version<>'8' AND version<>'9' AND version<>'10' AND version<>'11' ORDER BY installed_rank"));
+                                + " AND version<>'8' AND version<>'9' AND version<>'10' AND version<>'11' AND version<>'12' ORDER BY installed_rank"));
         assertEquals(0, upgraded.migrate().migrationsExecuted);
         upgraded.validate();
     }

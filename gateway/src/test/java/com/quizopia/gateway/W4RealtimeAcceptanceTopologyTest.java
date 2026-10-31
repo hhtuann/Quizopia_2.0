@@ -396,6 +396,22 @@ class W4RealtimeAcceptanceTopologyTest {
         awaitTrue(
                 () -> outboxCountFor(attempt) >= 1 && outboxCount("PENDING") == 0,
                 "creation outbox event dispatched before subscribing");
+        // Task2: actual Gateway -> Assessment -> Classroom/Identity authority, no browser mocks.
+        String teacherBase = "/api/assessments/publications/" + publication;
+        var activeSummary = edgeRequest("GET", teacherBase + "/student-overview", TEACHER, null, false);
+        assertEquals(200, activeSummary.statusCode(), "Teacher aggregate authority failed");
+        assertEquals(
+                "1",
+                JSON.readTree(activeSummary.body()).path("activeStudentCount").asString());
+        assertEquals(
+                "0",
+                JSON.readTree(activeSummary.body())
+                        .path("submittedStudentCount")
+                        .asString());
+        assertEquals(
+                403,
+                edgeRequest("GET", teacherBase + "/student-overview", STUDENT, null, false)
+                        .statusCode());
         String ticket = ticket(STUDENT, ORIGIN);
         try (var socket = new BrowserSocket(edgeA, ORIGIN)) {
             socket.next(Duration.ofSeconds(10));
@@ -444,6 +460,38 @@ class W4RealtimeAcceptanceTopologyTest {
                     "SUBMITTED", JSON.readTree(terminal.body()).path("state").asString());
         }
         awaitTrue(() -> outboxCountFor(attempt) >= 2, "attempt creation+submit outbox rows");
+        var summary = edgeRequest("GET", teacherBase + "/student-overview", TEACHER, null, false);
+        assertEquals(200, summary.statusCode());
+        var totals = JSON.readTree(summary.body());
+        assertEquals("0", totals.path("activeStudentCount").asString());
+        assertEquals("1", totals.path("submittedStudentCount").asString());
+        assertEquals("1", totals.path("gradedStudentCount").asString());
+        assertEquals("10.00", totals.path("bestScore").path("scoreDisplay").asString());
+        assertEquals(20, totals.path("scoreBins").size());
+        assertEquals("1", totals.path("scoreBins").get(19).path("count").asString());
+        var students = edgeRequest("GET", teacherBase + "/students?limit=1", TEACHER, null, false);
+        assertEquals(200, students.statusCode());
+        assertEquals(
+                attempt.toString(),
+                JSON.readTree(students.body())
+                        .path("items")
+                        .get(0)
+                        .path("latestAttempt")
+                        .path("attemptId")
+                        .asString());
+        var history = edgeRequest("GET", teacherBase + "/students/" + STUDENT + "/attempts", TEACHER, null, false);
+        assertEquals(200, history.statusCode());
+        assertEquals(1, JSON.readTree(history.body()).path("items").size());
+        var gated = edgeRequest("GET", teacherBase + "/attempts/" + attempt + "/teacher-review", TEACHER, null, false);
+        assertEquals(503, gated.statusCode());
+        assertEquals(
+                "SENSITIVE_POLICY_PENDING",
+                JSON.readTree(gated.body()).path("code").asString());
+        assertFalse(JSON.readTree(gated.body()).has("questions"));
+        assertEquals(
+                409,
+                edgeRequest("GET", "/api/assessments/attempts/" + attempt + "/review", STUDENT, null, false)
+                        .statusCode());
     }
 
     /** E2: publication extension and close propagate to the authorized TEACHER subscriber. */

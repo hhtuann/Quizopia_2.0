@@ -16,7 +16,16 @@
 
 ## Current verified project checkpoint — 2026-10-30
 
-**Later PO reopening:** Wave 4 final product acceptance is reopened by issues
+**W4F-T2 authorization:** T1 PR #137 is merged at
+`4c7803733eee53997c7c0cbce99af1136c86014a`; all three post-merge workflows,
+including actual repository full-validation, passed. [Leader authorization](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6519641252)
+permits Task2 only on `feat/w4f-t2-assessment-backend`. See the
+[Task2 implementation/evidence and blocked-scope record](w4f-t2-delivery.md).
+T1 is an approved implementation design baseline, not activation approval;
+Task2 PR/security implementation review and all privacy/retention/release gates
+remain pending. T3/T4 are not authorized.
+
+**Historical program opening (superseded by the Task2 checkpoint above):** Wave 4 final product acceptance was reopened by issues
 [#133](https://github.com/hhtuann/Quizopia_2.0/issues/133)–#136. Only T1 foundation/
 configuration and documentation-only contract freeze is authorized, on baseline
 `bdf5d116bb7258ced8471a3e4c24b1a3de21f4a2`. Historical engineering closure below

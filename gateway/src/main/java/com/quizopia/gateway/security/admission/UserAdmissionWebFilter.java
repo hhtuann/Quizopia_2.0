@@ -68,13 +68,15 @@ public final class UserAdmissionWebFilter implements WebFilter {
         if (ProctoringRoutes.role(method, path) != null
                 && (!proctoringEnabled || MediaRoutes.matches(method, path) && !mediaEnabled))
             return error(exchange, AdmissionFailure.unavailable());
-        if (ClosureRoutes.role(method, path) != null
-                ? !ClosureRoutes.enabled(
-                        method, path, features.resultsEnabled(), features.closureEnabled(), inboxEnabled)
-                : student
-                        ? !StudentAttemptRoutes.enabled(
-                                method, path, features.attemptsEnabled(), features.resultsEnabled())
-                        : PublicationRoutes.requiredRole(method, path) != null && !publication.isEnabled())
+        if (TeacherAssessmentRoutes.role(method, path) != null
+                ? !features.resultsEnabled()
+                : ClosureRoutes.role(method, path) != null
+                        ? !ClosureRoutes.enabled(
+                                method, path, features.resultsEnabled(), features.closureEnabled(), inboxEnabled)
+                        : student
+                                ? !StudentAttemptRoutes.enabled(
+                                        method, path, features.attemptsEnabled(), features.resultsEnabled())
+                                : PublicationRoutes.requiredRole(method, path) != null && !publication.isEnabled())
             return error(exchange, AdmissionFailure.unavailable());
         var auth = exchange.getRequest().getHeaders().get("Authorization");
         if (auth == null

@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: Quizopia Assessment Teacher Results and Gated Audit
+  version: 1.0.0
+  description: >-
+    Implemented W4F-T2 adapters. Statistics/history require current USER+TEACHER,
+    persisted Publication ownership, current CLASS Teacher authority and LD-05 at
+    Gateway and Assessment. Student ASSESS-04 is unchanged. Sensitive Teacher Review
+    and audit are compiled fail-closed with SENSITIVE_POLICY_PENDING while receipt
+    retention/privacy/key-custody approvals are missing; there is no learner-enable
+    flag. Synthetic permits/keys exist in disposable test fixtures only. No new
+    automatic server-fact capture, browser collector, real-learner activation or
+    production release is claimed. REST is authoritative; WS remains invalidation.
+security:
+  - bearerAuth: []
+paths:
+  /api/assessments/publications/{publicationId}/student-overview:
+    parameters: &publicationParameters
+      - $ref: '#/components/parameters/PublicationId'
+    get:
+      operationId: teacherStudentOverview
+      description: >-
+        Whole-publication distinct participants, overlapping ACTIVE/SUBMITTED counters
+        and one best graded SUBMITTED result per student. Twenty upper-inclusive
+        bins [0,0.5],(0.5,1]...(9.5,10], exact v1 quarter arithmetic; never a UI page.
+        ScoreDisplay is out of ten, HALF_UP two places for presentation only.
+      responses:
+        '200':
+          description: Authorized whole-publication summary
+          headers: &noStore
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeacherStudentOverview'}
+        default: {$ref: '#/components/responses/Failure'}
+  /api/assessments/publications/{publicationId}/students:
+    parameters: *publicationParameters
+    get:
+      operationId: teacherStudents
+      description: >-
+        Live keyset pages, stable tuple tie-break by student UUID. Cursor authenticates
+        actor/publication/filter/sort/direction; each page reauthorizes. Concurrent
+        commits may move rows across pages; deduplicate by studentId and reset on
+        refresh. A status filter selects students having any matching Attempt; row
+        statistics still use their complete history. Exactly one post-authorized,
+        page-bounded FB-012 lookup; missing/failed profile gives null name, no cache.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: studentId
+          in: query
+          schema: {$ref: '#/components/schemas/Uuid'}
+        - name: status
+          in: query
+          schema: {type: string, enum: [ACTIVE, SUBMITTED, ABANDONED]}
+        - name: sort
+          in: query
+          schema: {type: string, enum: [LATEST, BEST_SCORE], default: LATEST}
+        - name: direction
+          in: query
+          schema: {type: string, enum: [ASC, DESC], default: DESC}
+      responses:
+        '200':
+          description: Bounded distinct-student page; latest, latest-graded, best and mean are separate
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeacherStudents'}
+        default: {$ref: '#/components/responses/Failure'}
+  /api/assessments/publications/{publicationId}/students/{studentId}/attempts:
+    parameters:
+      - $ref: '#/components/parameters/PublicationId'
+      - name: studentId
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/Uuid'}
+    get:
+      operationId: teacherStudentHistory
+      description: Descending ordinal, each Attempt separate. No answers/keys; no finalization on read.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Authorized temporal history page
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeacherStudentHistory'}
+        default: {$ref: '#/components/responses/Failure'}
+  /api/assessments/publications/{publicationId}/attempts/{attemptId}/teacher-review:
+    parameters: &attemptParameters
+      - $ref: '#/components/parameters/PublicationId'
+      - $ref: '#/components/parameters/AttemptId'
+    get:
+      operationId: teacherAttemptReview
+      description: >-
+        Target must belong to route Publication and be graded SUBMITTED with immutable
+        submitted answers/result. OPEN/CLOSED allowed only after required policy and
+        committed sensitive-access receipt; ACTIVE/ABANDONED/DRAFT/incomplete gives409.
+        Runtime pending policy gives503, no sensitive body. A dual-role owner gains no
+        Student OPEN review or ACTIVE sibling access. No sourceSnapshot or live SAVE rows.
+      responses:
+        '200':
+          description: Synthetic-approved submitted-only Teacher Review; currently policy-gated in application
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeacherAttemptReview'}
+        default: {$ref: '#/components/responses/Failure'}
+  /api/assessments/publications/{publicationId}/attempts/{attemptId}/answer-observations:
+    parameters: *attemptParameters
+    post:
+      operationId: appendAnswerObservation
+      description: >-
+        Current USER+STUDENT owns ACTIVE Attempt, current CLASS membership if applicable.
+        Always SENSITIVE_POLICY_PENDING in the application before parsing any observation
+        body while approvals are pending; no environment/profile flag can enable capture.
+        Synthetic implementation: one strict <=4096-byte envelope, duplicate/unknown JSON
+        fields rejected. Identity/snapshot/provenance/receipt time derived server-side.
+        Client time/sequence are claims, never deadline authority or proof of a save.
+        Exact eventId/stream-sequence replay preserves original acknowledgment; changed
+        canonical input409. New terminal writes denied; exact authorized replay may return
+        metadata acknowledgment after terminalization, never bypassing FB-015 fences.
+        One local transaction, server ordinal, protected canonical replay input; AES256-GCM
+        with context binding in synthetic fixtures. Global concurrency8; accepted events
+        <=60/min/Attempt and120/min/actor. No numeric answer events or raw keystrokes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnswerObservation'}
+      responses:
+        '200':
+          description: Durable metadata-only acknowledgment, never echoing protected input
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditAck'}
+        default: {$ref: '#/components/responses/Failure'}
+  /api/assessments/publications/{publicationId}/attempts/{attemptId}/answer-audit:
+    parameters: *attemptParameters
+    get:
+      operationId: teacherAnswerAudit
+      description: >-
+        Same owning-Teacher/current CLASS/graded-SUBMITTED/policy/receipt/fence gates as
+        Teacher Review, including every page/decryption. No ACTIVE/ABANDONED progress
+        fallback. Unified T1 provenance: SERVER_AUTHORITY lifecycle/persistence facts
+        (nullable stream/sequence/questionNumber/observedAt, producer occurredAt) and
+        CLIENT_OBSERVATION browser claims are typed separately; server facts are never
+        misclassified as client observations or given transition detail. Browser history
+        is always partial/untrusted; pre-feature data is not reconstructed. No automatic
+        server-fact producer is wired while collection approvals are pending. Currently
+        policy-gated. Expired observations are omitted, never resurrected or decrypted;
+        an unavailable key/receipt fails the request closed.
+      parameters:
+        - name: after
+          in: query
+          schema: {$ref: '#/components/schemas/Count', default: '0'}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Authorized bounded partial timeline
+          headers: *noStore
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditTimeline'}
+        default: {$ref: '#/components/responses/Failure'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    PublicationId:
+      name: publicationId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Uuid'}
+    AttemptId:
+      name: attemptId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Uuid'}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string, maxLength: 1024, pattern: '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'}
+  responses:
+    Failure:
+      description: >-
+        400 strict shape/query/cursor;401 invalid USER;403 role;404 masked resource/removal;
+        409 state/replay conflict;429 bounded capacity;503 untrustworthy authority,
+        persistence, grading, encryption or pending policy. No upstream bodies/secrets.
+      headers: *noStore
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/TeacherAssessmentError'}
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    Count:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,18})$'
+      description: Canonical nonnegative signed64 decimal string; reject overflow.
+    Instant:
+      type: string
+      format: date-time
+      description: Finite ISO instant, at most microseconds; response UTC Z.
+    TeacherScore:
+      type: object
+      additionalProperties: false
+      required: [earnedWeight, possibleWeight, scoreDisplay]
+      properties:
+        earnedWeight: {type: string}
+        possibleWeight: {type: string}
+        scoreDisplay: {type: string, pattern: '^(?:[0-9]|10)\.[0-9]{2}$'}
+    TeacherMean:
+      type: object
+      additionalProperties: false
+      required: [sumEarnedWeight, sumPossibleWeight, gradedAttemptCount, scoreDisplay]
+      properties:
+        sumEarnedWeight: {type: string}
+        sumPossibleWeight: {type: string}
+        gradedAttemptCount: {$ref: '#/components/schemas/Count'}
+        scoreDisplay: {type: string}
+    TeacherScoreBin:
+      type: object
+      additionalProperties: false
+      required: [index, lowerBound, upperBound, lowerInclusive, upperInclusive, count]
+      properties:
+        index: {type: integer, minimum: 0, maximum: 19}
+        lowerBound: {type: string}
+        upperBound: {type: string}
+        lowerInclusive: {type: boolean}
+        upperInclusive: {type: boolean, const: true}
+        count: {$ref: '#/components/schemas/Count'}
+    TeacherStudentOverview:
+      type: object
+      additionalProperties: false
+      required: [publicationId, asOf, activeStudentCount, submittedStudentCount, participatedStudentCount, gradedStudentCount, bestScore, averageBestScore, scoreBins]
+      properties:
+        publicationId: {$ref: '#/components/schemas/Uuid'}
+        asOf: {$ref: '#/components/schemas/Instant'}
+        activeStudentCount: {$ref: '#/components/schemas/Count'}
+        submittedStudentCount: {$ref: '#/components/schemas/Count'}
+        participatedStudentCount: {$ref: '#/components/schemas/Count'}
+        gradedStudentCount: {$ref: '#/components/schemas/Count'}
+        bestScore: {anyOf: [{$ref: '#/components/schemas/TeacherScore'}, {type: 'null'}]}
+        averageBestScore: {anyOf: [{$ref: '#/components/schemas/TeacherMean'}, {type: 'null'}]}
+        scoreBins: {type: array, minItems: 20, maxItems: 20, items: {$ref: '#/components/schemas/TeacherScoreBin'}}
+    TeacherAttemptSummary:
+      type: object
+      additionalProperties: false
+      required: [attemptId, ordinal, state, startedAt, deadlineAt, finalizedAt, terminalReason, result, teacherReviewAvailable]
+      properties:
+        attemptId: {$ref: '#/components/schemas/Uuid'}
+        ordinal: {$ref: '#/components/schemas/Count'}
+        state: {type: string, enum: [ACTIVE, SUBMITTED, ABANDONED]}
+        startedAt: {$ref: '#/components/schemas/Instant'}
+        deadlineAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        finalizedAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        terminalReason: {type: [string, 'null']}
+        result: {anyOf: [{$ref: './publications.openapi.yaml#/components/schemas/Result'}, {type: 'null'}]}
+        teacherReviewAvailable: {type: boolean, description: 'False while sensitive policy is pending, never just a role hint.'}
+    TeacherStudentSummary:
+      type: object
+      additionalProperties: false
+      required: [studentId, studentName, attemptCount, gradedAttemptCount, hasActive, hasSubmitted, latestAttempt, latestGradedResult, bestResult, averageResult]
+      properties:
+        studentId: {$ref: '#/components/schemas/Uuid'}
+        studentName: {type: [string, 'null']}
+        attemptCount: {$ref: '#/components/schemas/Count'}
+        gradedAttemptCount: {$ref: '#/components/schemas/Count'}
+        hasActive: {type: boolean}
+        hasSubmitted: {type: boolean}
+        latestAttempt: {$ref: '#/components/schemas/TeacherAttemptSummary'}
+        latestGradedResult: {anyOf: [{$ref: './publications.openapi.yaml#/components/schemas/Result'}, {type: 'null'}]}
+        bestResult: {anyOf: [{$ref: './publications.openapi.yaml#/components/schemas/Result'}, {type: 'null'}]}
+        averageResult: {anyOf: [{$ref: '#/components/schemas/TeacherMean'}, {type: 'null'}]}
+    TeacherStudents:
+      type: object
+      additionalProperties: false
+      required: [publicationId, asOf, items, nextCursor]
+      properties:
+        publicationId: {$ref: '#/components/schemas/Uuid'}
+        asOf: {$ref: '#/components/schemas/Instant'}
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/TeacherStudentSummary'}}
+        nextCursor: {type: [string, 'null']}
+    TeacherStudentHistory:
+      type: object
+      additionalProperties: false
+      required: [publicationId, studentId, asOf, items, nextCursor]
+      properties:
+        publicationId: {$ref: '#/components/schemas/Uuid'}
+        studentId: {$ref: '#/components/schemas/Uuid'}
+        asOf: {$ref: '#/components/schemas/Instant'}
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/TeacherAttemptSummary'}}
+        nextCursor: {type: [string, 'null']}
+    TeacherAttemptReview:
+      type: object
+      additionalProperties: false
+      required: [publicationId, attemptId, snapshotId, state, revision, gradingPolicyVersion, startedAt, finalizedAt, result, questions]
+      properties:
+        publicationId: {$ref: '#/components/schemas/Uuid'}
+        attemptId: {$ref: '#/components/schemas/Uuid'}
+        snapshotId: {$ref: '#/components/schemas/Uuid'}
+        state: {type: string, const: SUBMITTED}
+        revision: {$ref: '#/components/schemas/Count'}
+        gradingPolicyVersion: {type: integer, const: 1}
+        startedAt: {$ref: '#/components/schemas/Instant'}
+        finalizedAt: {$ref: '#/components/schemas/Instant'}
+        result: {$ref: './publications.openapi.yaml#/components/schemas/Result'}
+        questions: {type: array, minItems: 1, items: {$ref: './publications.openapi.yaml#/components/schemas/QuestionReview'}}
+    AuditTransition:
+      type: object
+      additionalProperties: false
+      required: [fromOptionLabels, toOptionLabels]
+      properties:
+        fromOptionLabels: {type: array, maxItems: 4, uniqueItems: true, items: {type: string, enum: [A, B, C, D]}}
+        toOptionLabels: {type: array, maxItems: 4, uniqueItems: true, items: {type: string, enum: [A, B, C, D]}}
+    AnswerObservation:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, eventId, streamId, sequence, type, questionNumber]
+      properties:
+        schemaVersion: {type: integer, const: 1}
+        eventId: {$ref: '#/components/schemas/Uuid'}
+        streamId: {$ref: '#/components/schemas/Uuid'}
+        sequence: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807}
+        type: {type: string, enum: [QUESTION_VIEWED, QUESTION_LEFT, ANSWER_SELECTED, ANSWER_CHANGED, ANSWER_CLEARED]}
+        questionNumber: {type: integer, minimum: 1, maximum: 2147483647}
+        observedAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        transition: {$ref: '#/components/schemas/AuditTransition'}
+    AuditAck:
+      type: object
+      additionalProperties: false
+      required: [eventId, ordinal, receivedAt]
+      properties:
+        eventId: {$ref: '#/components/schemas/Uuid'}
+        ordinal: {$ref: '#/components/schemas/Count'}
+        receivedAt: {$ref: '#/components/schemas/Instant'}
+    AuditCoverage:
+      type: object
+      additionalProperties: false
+      required: [status, reasons]
+      properties:
+        status: {type: string, enum: [NOT_COLLECTED, PARTIAL]}
+        reasons: {type: array, maxItems: 5, items: {type: string, enum: [COLLECTION_OFF, LEGACY, UNSUPPORTED_TYPE, CLIENT_GAP, EXPIRED]}}
+    AuditItem:
+      type: object
+      additionalProperties: false
+      required: [eventId, ordinal, type, source, questionNumber, observedAt, occurredAt, assessmentRevision, receivedAt, transitionDetailStatus, transition]
+      properties:
+        eventId: {$ref: '#/components/schemas/Uuid'}
+        ordinal: {$ref: '#/components/schemas/Count'}
+        type:
+          type: string
+          enum: [QUESTION_VIEWED, QUESTION_LEFT, ANSWER_SELECTED, ANSWER_CHANGED, ANSWER_CLEARED, ATTEMPT_STARTED, ANSWER_PERSISTED, ATTEMPT_SUBMITTED, ATTEMPT_ABANDONED, CLOSURE_NOTICE_CONFIRMED, RESULT_GRADED]
+        source: {type: string, enum: [CLIENT_OBSERVATION, SERVER_AUTHORITY]}
+        questionNumber: {anyOf: [{type: integer, minimum: 1}, {type: 'null'}]}
+        observedAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        occurredAt: {anyOf: [{$ref: '#/components/schemas/Instant'}, {type: 'null'}]}
+        assessmentRevision: {anyOf: [{$ref: '#/components/schemas/Count'}, {type: 'null'}]}
+        receivedAt: {$ref: '#/components/schemas/Instant'}
+        transitionDetailStatus: {type: string, enum: [AVAILABLE, UNSUPPORTED_TYPE, MISSING, EXPIRED, NOT_APPLICABLE]}
+        transition: {anyOf: [{$ref: '#/components/schemas/AuditTransition'}, {type: 'null'}]}
+    AuditTimeline:
+      type: object
+      additionalProperties: false
+      required: [items, nextAfter, coverage]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AuditItem'}}
+        nextAfter: {type: [string, 'null']}
+        coverage: {$ref: '#/components/schemas/AuditCoverage'}
+    TeacherAssessmentError:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          enum: [INVALID_REQUEST, UNAUTHENTICATED, ACCESS_DENIED, PUBLICATION_NOT_FOUND, ATTEMPT_NOT_FOUND, CLASSROOM_NOT_ACCESSIBLE, ASSESSMENT_REMOVED, PUBLICATION_CONFLICT, REVIEW_NOT_AVAILABLE, EVENT_CONFLICT, ATTEMPT_TERMINAL, ATTEMPT_DEADLINE_REACHED, AUTHORITY_UNAVAILABLE, DEPENDENCY_UNAVAILABLE, PERSISTENCE_UNAVAILABLE, GRADING_UNAVAILABLE, SENSITIVE_POLICY_PENDING, AUDIT_UNAVAILABLE, AUDIT_RATE_LIMITED]

@@ -57,20 +57,22 @@ public final class UserAdmissionFilter extends OncePerRequestFilter {
             return;
         }
         response.setHeader("Cache-Control", "no-store");
-        if (ClosureRoutes.role(request.getMethod(), request.getRequestURI()) != null
-                ? !ClosureRoutes.enabled(
-                        request.getMethod(),
-                        request.getRequestURI(),
-                        features.resultsEnabled(),
-                        features.closureEnabled(),
-                        inboxEnabled)
-                : StudentAttemptRoutes.matches(request.getMethod(), request.getRequestURI())
-                        ? !StudentAttemptRoutes.enabled(
+        if (TeacherAssessmentRoutes.role(request.getMethod(), request.getRequestURI()) != null
+                ? !features.resultsEnabled()
+                : ClosureRoutes.role(request.getMethod(), request.getRequestURI()) != null
+                        ? !ClosureRoutes.enabled(
                                 request.getMethod(),
                                 request.getRequestURI(),
-                                features.attemptsEnabled(),
-                                features.resultsEnabled())
-                        : !publication.isEnabled()) {
+                                features.resultsEnabled(),
+                                features.closureEnabled(),
+                                inboxEnabled)
+                        : StudentAttemptRoutes.matches(request.getMethod(), request.getRequestURI())
+                                ? !StudentAttemptRoutes.enabled(
+                                        request.getMethod(),
+                                        request.getRequestURI(),
+                                        features.attemptsEnabled(),
+                                        features.resultsEnabled())
+                                : !publication.isEnabled()) {
             write(response, AdmissionFailure.unavailable());
             return;
         }

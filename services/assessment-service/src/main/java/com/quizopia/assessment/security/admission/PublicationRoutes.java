@@ -12,6 +12,7 @@ public final class PublicationRoutes {
         if (method.equals("GET") && path.equals(base)) return "TEACHER";
         if ((method.equals("GET") || method.equals("PUT")) && path.matches(base + "/" + id)) return "TEACHER";
         if (method.equals("PATCH") && path.matches(base + "/" + id + "/schedule")) return "TEACHER";
+        if (TeacherAssessmentRoutes.role(method, path) != null) return TeacherAssessmentRoutes.role(method, path);
         if (ClosureRoutes.role(method, path) != null) return ClosureRoutes.role(method, path);
         return StudentAttemptRoutes.matches(method, path) ? "STUDENT" : null;
     }

@@ -3,6 +3,15 @@
 Recorded: 2026-10-30. Authority: [Issue #133 and PO execution index](https://github.com/hhtuann/Quizopia_2.0/issues/133).
 Inspected baseline: `origin/develop` `bdf5d116bb7258ced8471a3e4c24b1a3de21f4a2`.
 
+> **Later acceptance (2026-10-30):** [Leader authorization for #134](https://github.com/hhtuann/Quizopia_2.0/issues/134#issuecomment-6519641252)
+> accepts the corrected T1 design baseline after PR #137 merged at
+> `4c7803733eee53997c7c0cbce99af1136c86014a`. Earlier independent-design-review
+> PENDING labels below are historical review checkpoints, superseded for that
+> design approval only. Privacy, retention, key custody, implementation security
+> review and activation gates remain PENDING. Actual Task2 artifacts/limits are in
+> [the implementation record](../development/w4f-t2-delivery.md); no real collection
+> or release approval follows.
+
 **Disposition: proposed engineering contracts frozen for independent Leader/security
 review. Documentation/design only for sections 3–7; no new API, ingestion, audit
 collection, analytics or Teacher Review implementation is delivered by T1.**

@@ -94,6 +94,12 @@ test("teacher deletes a quiz through exact-title confirmation and follows honest
 
   let deletionStatus = "ACCESS_REVOKED";
   let purged = false;
+  // Keep the immediate first poll from replacing the 202 state before it can
+  // be asserted. The fixture, not application timing, controls each transition.
+  let releaseStatusRead!: () => void;
+  const statusReadAllowed = new Promise<void>((resolve) => {
+    releaseStatusRead = resolve;
+  });
   await page.route("**/api/quizzes", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -137,6 +143,7 @@ test("teacher deletes a quiz through exact-title confirmation and follows honest
   await page.route(
     `**/api/quizzes/${quizId}/deletion-requests/${operationId}`,
     async (route) => {
+      await statusReadAllowed;
       await route.fulfill({
         contentType: "application/json",
         status: 200,
@@ -193,7 +200,11 @@ test("teacher deletes a quiz through exact-title confirmation and follows honest
   // Honest progress: revoking, then deleting data. At the terminal state the
   // card panel is atomically replaced by the success notice — the notice
   // never claims full erasure because ALL_COPIES_ERASED never appears.
-  await expect(page.getByText("Revoking access")).toBeVisible();
+  try {
+    await expect(page.getByText("Revoking access")).toBeVisible();
+  } finally {
+    releaseStatusRead();
+  }
   await expect(page.getByText("Access blocked · Deleting data")).toBeVisible({
     timeout: 6_000,
   });
